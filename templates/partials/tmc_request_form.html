@@ -1,0 +1,49 @@
+<form method="post" hx-post="{{ request.path }}" hx-target="#table-area" data-tmc-request-form>
+  <div class="modal-header">
+    <h5 class="modal-title">{% if instance %}Редактирование{% else %}Новая запись{% endif %}: {{ table.title }}</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+  </div>
+  <div class="modal-body">
+    {% csrf_token %}
+    <div class="form-grid">
+      {% for field in form %}
+        <div class="form-field {% if field.name == 'comment' %}wide{% endif %}">
+          <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+          {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+          {% for error in field.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+        </div>
+      {% endfor %}
+    </div>
+
+    <div class="tmc-items-head">
+      <div class="form-label mb-0">Позиции заявки</div>
+      <button class="btn btn-sm btn-outline-primary" type="button" data-add-tmc-item><i class="bi bi-plus-lg"></i> Позиция</button>
+    </div>
+    <div class="tmc-items" data-tmc-items>
+      {% for item in item_rows %}
+      <div class="tmc-item-row" data-tmc-item-row>
+        <div>
+          <label class="form-label">Наименование</label>
+          <input class="form-control" name="item_name" value="{{ item.name }}" placeholder="Стол компьютерный">
+        </div>
+        <div>
+          <label class="form-label">Количество</label>
+          <input class="form-control" name="item_quantity" type="number" min="1" value="{{ item.quantity }}" placeholder="5">
+        </div>
+        <div>
+          <label class="form-label">Ед. изм.</label>
+          <input class="form-control" name="item_unit" value="{{ item.unit|default:'шт.' }}" placeholder="шт.">
+        </div>
+        <button class="btn btn-icon danger tmc-item-remove" type="button" data-remove-tmc-item aria-label="Удалить позицию"><i class="bi bi-trash"></i></button>
+      </div>
+      {% endfor %}
+    </div>
+    {% if item_errors %}<div class="alert alert-danger mt-3">{{ item_errors|join:" " }}</div>{% endif %}
+    {% if form.non_field_errors %}<div class="alert alert-danger mt-3">{{ form.non_field_errors }}</div>{% endif %}
+  </div>
+  <div class="modal-footer">
+    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+    <button class="btn btn-primary">Сохранить</button>
+  </div>
+</form>

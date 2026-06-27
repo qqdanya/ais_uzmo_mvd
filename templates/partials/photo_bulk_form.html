@@ -1,0 +1,26 @@
+<form method="post" enctype="multipart/form-data" hx-encoding="multipart/form-data" hx-post="{{ request.path }}" hx-target="#workspace" data-bulk-photo-form>
+  <div class="modal-header">
+    <h5 class="modal-title">Загрузка фотографий</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+  </div>
+  <div class="modal-body">
+    {% csrf_token %}
+    {% if current_folder %}<input type="hidden" name="folder" value="{{ current_folder.pk }}">{% endif %}
+    <input type="file" name="images" accept="image/*" multiple hidden data-bulk-photo-input>
+    <div class="form-grid one-col">
+      <div class="upload-meta"><i class="bi bi-folder2-open"></i> {% if current_folder %}Загрузка в папку «{{ current_folder.name }}»{% else %}Загрузка без папки{% endif %}</div>
+      {% if not current_folder %}
+      <div class="form-field wide">
+        <label class="form-label" for="bulk-new-folder">Новая папка</label>
+        <input class="form-control" id="bulk-new-folder" name="new_folder" placeholder="Заполните, если нужно создать новую папку">
+      </div>
+      {% endif %}
+    </div>
+    <button class="btn btn-outline-primary mt-3" type="button" data-bulk-photo-picker><i class="bi bi-images"></i> Выбрать изображения</button>
+    <div class="bulk-photo-list mt-3" data-bulk-photo-list></div>
+  </div>
+  <div class="modal-footer">
+    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+    <button class="btn btn-primary">Загрузить</button>
+  </div>
+</form>

@@ -1,0 +1,20 @@
+<form method="post" hx-post="{{ request.path }}" hx-target="#workspace">
+  <div class="modal-header">
+    <h5 class="modal-title">Новая папка фотографий</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+  </div>
+  <div class="modal-body">
+    {% csrf_token %}
+    {% for field in form %}
+      <div class="form-field wide">
+        <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+        {% for error in field.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+      </div>
+    {% endfor %}
+  </div>
+  <div class="modal-footer">
+    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+    <button class="btn btn-primary">Создать</button>
+  </div>
+</form>

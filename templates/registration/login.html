@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="auth-wrap">
+  <div class="auth-shell">
+    <div class="auth-system-title">
+      <div class="auth-system-mark"><i class="bi bi-shield-check"></i></div>
+      <div>
+        <div class="auth-system-name">АИС УЗМО</div>
+        <div class="auth-system-subtitle">Автоматизированная информационная система учета заявок на материальное обеспечение</div>
+      </div>
+    </div>
+  <form method="post" class="auth-card">
+    {% csrf_token %}
+    <h1>Вход в систему</h1>
+    {% if form.errors %}<div class="alert alert-danger">Неверный логин или пароль.</div>{% endif %}
+    <label class="form-label">Логин</label>
+    <input class="form-control auth-ascii-input" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" autofocus required>
+    <label class="form-label mt-3">Пароль</label>
+    <div class="password-field">
+      <input class="form-control auth-ascii-input" id="auth-password" name="password" type="password" autocomplete="current-password" autocapitalize="none" spellcheck="false" required>
+      <button class="password-toggle" type="button" aria-label="Показать пароль" aria-controls="auth-password" data-password-toggle>
+        <i class="bi bi-eye"></i>
+      </button>
+    </div>
+    <button class="btn btn-primary w-100 mt-4">Войти</button>
+  </form>
+  </div>
+</div>
+{% endblock %}

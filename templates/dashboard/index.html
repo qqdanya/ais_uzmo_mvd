@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="dashboard-grid" id="dashboard-grid">
+  <aside class="panel organ-panel">
+    <div class="panel-title">
+      <span><i class="bi bi-building"></i> Территориальные органы</span>
+      <button class="btn btn-icon" type="button" data-panel-toggle="organs" data-bs-toggle="tooltip" data-bs-title="Свернуть органы" aria-label="Свернуть территориальные органы"><i class="bi bi-layout-sidebar-inset"></i></button>
+    </div>
+    <div class="search-box mb-3">
+      <i class="bi bi-search"></i>
+      <input class="form-control form-control-sm" id="organ-search" placeholder="Поиск по органам и подчиненным отделам">
+    </div>
+    <div class="organ-list" id="organ-list">
+      {% for organ in organs %}
+        <button class="organ-item" data-organ-id="{{ organ.pk }}" data-search="{{ organ.name|lower }} {% for child in organ.children.all %}{{ child.name|lower }} {% endfor %}" hx-get="{% url 'organ_info' organ.pk %}" hx-target="#organ-info" hx-swap="innerHTML">
+          <span>{{ organ.order_number|floatformat:"-2" }}. {{ organ.name }}</span>
+        </button>
+      {% empty %}
+        <div class="empty-state">Территориальные органы пока не загружены</div>
+      {% endfor %}
+    </div>
+  </aside>
+
+  <section class="panel department-panel">
+    <div class="panel-title">
+      <span><i class="bi bi-diagram-3"></i> Отделы</span>
+      <button class="btn btn-icon" type="button" data-panel-toggle="departments" data-bs-toggle="tooltip" data-bs-title="Свернуть отделы" aria-label="Свернуть отделы"><i class="bi bi-layout-sidebar-inset-reverse"></i></button>
+    </div>
+    <div id="organ-info">
+      {% if selected_organ %}{% include "partials/organ_info.html" with organ=selected_organ %}{% else %}<div class="empty-state">Выберите территориальный орган</div>{% endif %}
+    </div>
+    <div class="department-list">
+      {% for department in departments %}
+        {% if selected_organ %}
+        <button class="department-item" data-department-slug="{{ department.slug }}" type="button">
+          <i class="bi bi-folder2-open"></i>
+          <span>{{ department.name }}</span>
+        </button>
+        {% else %}
+        <button class="department-item" disabled><i class="bi bi-folder2-open"></i><span>{{ department.name }}</span></button>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="panel workspace-panel" id="workspace">
+    {% if selected_organ and selected_department %}
+      {% include "partials/tables_panel.html" with organ=selected_organ department=selected_department tables=tables.tmc active_table=tables.tmc.0 %}
+    {% else %}
+      <div class="empty-state">Выберите орган и отдел</div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

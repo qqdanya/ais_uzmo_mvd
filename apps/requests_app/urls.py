@@ -1,0 +1,29 @@
+from django.urls import path
+
+from . import views
+
+urlpatterns = [
+    path("", views.dashboard, name="dashboard"),
+    path("organs/<int:pk>/info/", views.organ_info, name="organ_info"),
+    path("organs/<int:organ_id>/departments/<slug:department_slug>/", views.department_tables, name="department_tables"),
+    path("organs/<int:organ_id>/tables/<slug:table_key>/", views.table_data, name="table_data"),
+    path("organs/<int:organ_id>/tables/<slug:table_key>/new/", views.record_form, name="record_create"),
+    path("organs/<int:organ_id>/tables/<slug:table_key>/<int:pk>/edit/", views.record_form, name="record_update"),
+    path("organs/<int:organ_id>/tables/<slug:table_key>/<int:pk>/history/", views.status_history, name="status_history"),
+    path("organs/<int:organ_id>/tables/tmc-requests/<int:pk>/history/", views.status_history, {"table_key": "tmc-requests"}, name="tmc_status_history"),
+    path("organs/<int:organ_id>/tables/anti-terror/<int:pk>/history/", views.status_history, {"table_key": "anti-terror"}, name="anti_terror_status_history"),
+    path("organs/<int:organ_id>/tables/building-repair/<int:pk>/history/", views.status_history, {"table_key": "building-repair"}, name="building_repair_status_history"),
+    path("organs/<int:organ_id>/tables/citsizi-equipment/<int:pk>/history/", views.status_history, {"table_key": "citsizi-equipment"}, name="citsizi_status_history"),
+    path("organs/<int:organ_id>/tables/vehicle-repair/<int:pk>/history/", views.status_history, {"table_key": "vehicle-repair"}, name="vehicle_repair_status_history"),
+    path("organs/<int:organ_id>/tables/fire-requests/<int:pk>/history/", views.status_history, {"table_key": "fire-requests"}, name="fire_request_status_history"),
+    path("organs/<int:organ_id>/tables/<slug:table_key>/<int:pk>/delete/", views.record_delete, name="record_delete"),
+    path("organs/<int:organ_id>/tables/<slug:table_key>/export/<slug:fmt>/", views.export_table, name="export_table"),
+    path("organs/<int:organ_id>/photos/", views.photos, name="photos"),
+    path("organs/<int:organ_id>/photos/download/", views.photos_download_all, name="photos_download_all"),
+    path("organs/<int:organ_id>/photos/bulk/", views.photo_bulk_upload, name="photo_bulk_upload"),
+    path("organs/<int:organ_id>/photos/folders/new/", views.photo_folder_form, name="photo_folder_create"),
+    path("organs/<int:organ_id>/photos/new/", views.photo_form, name="photo_create"),
+    path("organs/<int:organ_id>/photos/<int:pk>/download/", views.photo_download, name="photo_download"),
+    path("organs/<int:organ_id>/photos/<int:pk>/edit/", views.photo_form, name="photo_update"),
+    path("organs/<int:organ_id>/photos/<int:pk>/delete/", views.photo_delete, name="photo_delete"),
+]

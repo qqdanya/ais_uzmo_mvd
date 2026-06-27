@@ -1,0 +1,45 @@
+<div class="modal-header">
+  <h2 class="modal-title">История заявки {{ object.request_number }}</h2>
+  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+</div>
+<div class="modal-body">
+  <div class="history-summary">
+    <div>
+      <span class="text-secondary small">Территориальный орган</span>
+      <strong>{{ organ.name }}</strong>
+    </div>
+    <div>
+      <span class="text-secondary small">Текущий статус</span>
+      <strong>{{ object.get_status_display }}</strong>
+    </div>
+  </div>
+  <div class="status-history-list">
+    {% for entry in history %}
+      <div class="status-history-item">
+        <div class="status-history-time">{{ entry.changed_at|date:"d.m.Y H:i" }}</div>
+        <div class="status-history-body">
+          <div class="status-history-change">
+            {% if entry.old_status %}
+              <span>{{ entry.get_old_status_display }}</span>
+              <i class="bi bi-arrow-right"></i>
+            {% else %}
+              <span>Создана</span>
+              <i class="bi bi-arrow-right"></i>
+            {% endif %}
+            <strong>{{ entry.get_new_status_display }}</strong>
+          </div>
+          <div class="status-history-meta">
+            {{ entry.changed_by|default:"Пользователь не указан" }}
+            {% if entry.completed_at %}<span>{{ completed_label }}: {{ entry.completed_at|date:"d.m.Y" }}</span>{% endif %}
+            {% if entry.note %}<span>{{ entry.note }}</span>{% endif %}
+          </div>
+        </div>
+      </div>
+    {% empty %}
+      <div class="empty-state">История статуса пока не сформирована</div>
+    {% endfor %}
+  </div>
+</div>
+<div class="modal-footer">
+  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+</div>

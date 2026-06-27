@@ -1,0 +1,25 @@
+<form method="post" enctype="multipart/form-data" hx-encoding="multipart/form-data" hx-post="{{ request.path }}" hx-target="#workspace">
+  <div class="modal-header">
+    <h5 class="modal-title">{% if photo %}Редактирование фотографии{% else %}Добавление фотографии{% endif %}</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+  </div>
+  <div class="modal-body">
+    {% csrf_token %}
+    {% if photo %}
+      <div class="upload-meta mb-3"><i class="bi bi-clock-history"></i> Загружено {{ photo.created_at|date:"d.m.Y H:i" }}</div>
+    {% endif %}
+    <div class="form-grid one-col">
+      {% for field in form %}
+        <div class="form-field wide">
+          <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+          {% for error in field.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="modal-footer">
+    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+    <button class="btn btn-primary">Сохранить</button>
+  </div>
+</form>

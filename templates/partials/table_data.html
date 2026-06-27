@@ -1,0 +1,189 @@
+{% load request_tags %}
+{% if table.parent_title %}
+<ul class="nav nav-tabs nested-table-tabs mb-2">
+  <li class="nav-item">
+    <button class="nav-link active" type="button">{{ table.title }}</button>
+  </li>
+</ul>
+{% endif %}
+<div class="table-toolbar">
+  <div>
+    <strong>{{ table.title }}</strong>
+    <div class="table-stats">
+      <span>Записей найдено: {{ page.paginator.count }}</span>
+      {% if is_request_table %}
+        <span class="status-summary">
+          В работе: <strong>{{ table_stats.in_work_count }}</strong>
+          <span>|</span>
+          Новых: <strong>{{ table_stats.new_count }}</strong>
+          <span>|</span>
+          Исполнено: <strong>{{ table_stats.done_count }}</strong>
+          <span>|</span>
+          Отклонено: <strong>{{ table_stats.rejected_count }}</strong>
+        </span>
+      {% endif %}
+    </div>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    {% if is_request_table %}
+    <form class="tmc-filter-form" hx-get="{% url 'table_data' organ.pk table.key %}" hx-target="#table-area" hx-trigger="input changed delay:500ms, change" hx-swap="innerHTML">
+      <div class="search-box table-search-box">
+        <i class="bi bi-search"></i>
+        <input class="form-control form-control-sm" name="q" value="{{ request.GET.q }}" placeholder="{{ search_placeholder }}">
+      </div>
+      <select class="form-select form-select-sm" name="status" aria-label="Исполнение заявки">
+        <option value="">Все статусы</option>
+        {% for value, label in status_choices %}
+          <option value="{{ value }}" {% if request.GET.status == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      {% if table.key == "citsizi-equipment" %}
+      <select class="form-select form-select-sm" name="equipment_type" aria-label="Тип техники">
+        <option value="">Все типы техники</option>
+        {% for value, label in equipment_type_choices %}
+          <option value="{{ value }}" {% if request.GET.equipment_type == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      {% endif %}
+      <div class="tmc-date-range">
+        <input class="form-control form-control-sm" type="date" name="date_from" value="{{ table_filters.date_from }}" aria-label="Дата с">
+        <span class="tmc-date-separator">-</span>
+        <input class="form-control form-control-sm" type="date" name="date_to" value="{{ table_filters.date_to }}" aria-label="Дата по">
+      </div>
+      {% if table_querystring %}
+        <a class="btn btn-sm btn-outline-secondary" hx-get="{% url 'table_data' organ.pk table.key %}" hx-target="#table-area" hx-swap="innerHTML" href="{% url 'table_data' organ.pk table.key %}" aria-label="Сбросить фильтры"><i class="bi bi-x-lg"></i></a>
+      {% endif %}
+    </form>
+    {% else %}
+    <div class="search-box table-search-box">
+      <i class="bi bi-search"></i>
+      <input class="form-control form-control-sm" data-table-search placeholder="Поиск в таблице">
+    </div>
+    {% endif %}
+    <div class="table-actions">
+      <div class="dropdown">
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+          <i class="bi bi-download"></i> Экспорт
+        </button>
+        <div class="dropdown-menu dropdown-menu-end">
+          <a class="dropdown-item" href="{% url 'export_table' organ.pk table.key 'csv' %}{% if table_querystring %}?{{ table_querystring }}{% endif %}"><i class="bi bi-filetype-csv"></i> CSV</a>
+          <a class="dropdown-item" href="{% url 'export_table' organ.pk table.key 'xlsx' %}{% if table_querystring %}?{{ table_querystring }}{% endif %}"><i class="bi bi-file-earmark-spreadsheet"></i> XLSX</a>
+        </div>
+      </div>
+      {% if can_write %}
+        <button class="btn btn-sm btn-primary" hx-get="{% url 'record_create' organ.pk table.key %}" hx-target="#modal-content" data-open-modal="true"><i class="bi bi-plus-lg"></i> Добавить</button>
+      {% endif %}
+    </div>
+  </div>
+</div>
+<div class="table-wrap">
+  <table class="table table-sm align-middle data-table table-{{ table.key }}">
+    {% if table.key == "tmc-requests" %}
+    <thead class="tmc-grouped-head">
+      <tr>
+        <th colspan="2" class="tmc-boundary-right">Сведения о потребности ТМЦ</th>
+        <th colspan="3" class="tmc-boundary-right">Заявка</th>
+        <th rowspan="2" class="tmc-boundary-right">Комментарий</th>
+        <th rowspan="2"></th>
+      </tr>
+      <tr>
+        <th>Наименование</th>
+        <th class="tmc-boundary-right">Количество</th>
+        <th>Номер</th>
+        <th>Дата</th>
+        <th class="tmc-boundary-right">Исполнение заявки</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for obj in page.object_list %}
+        {% with item_count=obj.items.all|length %}
+          {% for item in obj.items.all %}
+          <tr class="data-row {% if forloop.last and not forloop.parentloop.last %}tmc-group-last{% endif %} {% if obj.is_deleted %}table-warning{% endif %}" data-row-group="tmc-{{ obj.pk }}">
+            <td>{{ item.name }}</td>
+            <td class="tmc-boundary-right">{{ item.quantity }} {{ item.unit }}</td>
+            {% if forloop.first %}
+              <td rowspan="{{ item_count }}" class="tmc-request-cell {% if forloop.parentloop.last %}tmc-bottom-span{% else %}tmc-group-span{% endif %}">{{ obj.request_number }}</td>
+              <td rowspan="{{ item_count }}" class="tmc-request-cell {% if forloop.parentloop.last %}tmc-bottom-span{% else %}tmc-group-span{% endif %}">{{ obj.request_date|date:"d.m.Y" }}</td>
+              <td rowspan="{{ item_count }}" class="status-cell tmc-request-cell tmc-boundary-right {% if forloop.parentloop.last %}tmc-bottom-span{% else %}tmc-group-span{% endif %}">{% status_badge obj %}</td>
+              <td rowspan="{{ item_count }}" class="tmc-boundary-right {% if forloop.parentloop.last %}tmc-bottom-span{% else %}tmc-group-span{% endif %}">{{ obj.comment }}</td>
+              <td rowspan="{{ item_count }}" class="text-nowrap tmc-actions-cell {% if forloop.parentloop.last %}tmc-bottom-span{% else %}tmc-group-span{% endif %}">
+                <button class="btn btn-icon" data-bs-toggle="tooltip" data-bs-title="История" hx-get="{% url 'status_history' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="История"><i class="bi bi-clock-history"></i></button>
+                {% if can_write %}
+                  <button class="btn btn-icon" data-bs-toggle="tooltip" data-bs-title="Редактировать" hx-get="{% url 'record_update' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Редактировать"><i class="bi bi-pencil"></i></button>
+                  <button class="btn btn-icon danger" data-bs-toggle="tooltip" data-bs-title="Удалить" hx-get="{% url 'record_delete' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Удалить"><i class="bi bi-trash"></i></button>
+                {% endif %}
+              </td>
+            {% endif %}
+          </tr>
+          {% empty %}
+          <tr class="data-row {% if not forloop.last %}tmc-group-last{% endif %} {% if obj.is_deleted %}table-warning{% endif %}" data-row-group="tmc-{{ obj.pk }}">
+            <td>-</td>
+            <td class="tmc-boundary-right">-</td>
+            <td class="tmc-request-cell">{{ obj.request_number }}</td>
+            <td class="tmc-request-cell">{{ obj.request_date|date:"d.m.Y" }}</td>
+            <td class="status-cell tmc-request-cell tmc-boundary-right">{% status_badge obj %}</td>
+            <td class="tmc-boundary-right">{{ obj.comment }}</td>
+            <td class="text-nowrap tmc-actions-cell">
+              <button class="btn btn-icon" data-bs-toggle="tooltip" data-bs-title="История" hx-get="{% url 'status_history' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="История"><i class="bi bi-clock-history"></i></button>
+              {% if can_write %}
+                <button class="btn btn-icon" data-bs-toggle="tooltip" data-bs-title="Редактировать" hx-get="{% url 'record_update' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Редактировать"><i class="bi bi-pencil"></i></button>
+                <button class="btn btn-icon danger" data-bs-toggle="tooltip" data-bs-title="Удалить" hx-get="{% url 'record_delete' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Удалить"><i class="bi bi-trash"></i></button>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        {% endwith %}
+      {% empty %}
+      <tr><td colspan="7">
+        <div class="empty-state">
+          <div>Записей пока нет</div>
+          {% if can_write %}
+            <button class="btn btn-sm btn-primary mt-2" hx-get="{% url 'record_create' organ.pk table.key %}" hx-target="#modal-content" data-open-modal="true"><i class="bi bi-plus-lg"></i> Добавить запись</button>
+          {% endif %}
+        </div>
+      </td></tr>
+      {% endfor %}
+    </tbody>
+    {% else %}
+    <thead><tr>
+      {% for field in fields %}<th>{{ field.verbose_name|capfirst }}</th>{% endfor %}
+      <th class="table-actions-head"></th>
+    </tr></thead>
+    <tbody>
+      {% for obj in page.object_list %}
+      <tr class="data-row {% row_class table.key obj %} {% if obj.is_deleted %}table-warning{% endif %}">
+        {% for field in fields %}<td{% if field.name == "status" %} class="status-cell"{% endif %}>{% if field.name == "status" %}{% status_badge obj %}{% else %}{{ obj|get_attr:field.name }}{% endif %}</td>{% endfor %}
+        <td class="text-center text-nowrap table-row-actions">
+          {% if has_status_history %}
+            <button class="btn btn-icon" data-bs-toggle="tooltip" data-bs-title="История" hx-get="{% url 'status_history' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="История"><i class="bi bi-clock-history"></i></button>
+          {% endif %}
+          {% if can_write %}
+            <button class="btn btn-icon" data-bs-toggle="tooltip" data-bs-title="Редактировать" hx-get="{% url 'record_update' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Редактировать"><i class="bi bi-pencil"></i></button>
+            <button class="btn btn-icon danger" data-bs-toggle="tooltip" data-bs-title="Удалить" hx-get="{% url 'record_delete' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Удалить"><i class="bi bi-trash"></i></button>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="20">
+        <div class="empty-state">
+          <div>Записей пока нет</div>
+          {% if can_write %}
+            <button class="btn btn-sm btn-primary mt-2" hx-get="{% url 'record_create' organ.pk table.key %}" hx-target="#modal-content" data-open-modal="true"><i class="bi bi-plus-lg"></i> Добавить запись</button>
+          {% endif %}
+        </div>
+      </td></tr>
+      {% endfor %}
+    </tbody>
+    {% endif %}
+  </table>
+  <div class="empty-state table-empty-filter" hidden>По этому поиску ничего не найдено</div>
+</div>
+{% if page.has_other_pages %}
+<nav class="mt-2">
+  <div class="btn-group btn-group-sm">
+    {% if page.has_previous %}<button class="btn btn-outline-primary" hx-get="{% url 'table_data' organ.pk table.key %}?{% if table_querystring %}{{ table_querystring }}&{% endif %}page={{ page.previous_page_number }}" hx-target="#table-area">Назад</button>{% endif %}
+    <span class="btn btn-outline-secondary disabled">{{ page.number }} / {{ page.paginator.num_pages }}</span>
+    {% if page.has_next %}<button class="btn btn-outline-primary" hx-get="{% url 'table_data' organ.pk table.key %}?{% if table_querystring %}{{ table_querystring }}&{% endif %}page={{ page.next_page_number }}" hx-target="#table-area">Вперед</button>{% endif %}
+  </div>
+</nav>
+{% endif %}
