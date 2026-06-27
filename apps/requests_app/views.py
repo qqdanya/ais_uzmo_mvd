@@ -289,6 +289,7 @@ XLSX_EXPORT_CONFIG = {
             "request_number": 18,
             "request_date": 14,
             "status": 22,
+            "comment": 38,
         },
         "center_columns": {"request_number", "request_date", "status"},
     },

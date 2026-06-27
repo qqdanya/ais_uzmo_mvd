@@ -66,8 +66,8 @@
           <i class="bi bi-download"></i> Экспорт
         </button>
         <div class="dropdown-menu dropdown-menu-end">
-          <a class="dropdown-item" href="{% url 'export_table' organ.pk table.key 'csv' %}{% if table_querystring %}?{{ table_querystring }}{% endif %}"><i class="bi bi-filetype-csv"></i> CSV</a>
-          <a class="dropdown-item" href="{% url 'export_table' organ.pk table.key 'xlsx' %}{% if table_querystring %}?{{ table_querystring }}{% endif %}"><i class="bi bi-file-earmark-spreadsheet"></i> XLSX</a>
+          <a class="dropdown-item" href="{% url 'export_table' organ.pk table.key 'csv' %}{% if table_querystring %}?{{ table_querystring }}{% endif %}"><i class="bi bi-filetype-csv"></i> Экспорт в CSV</a>
+          <a class="dropdown-item" href="{% url 'export_table' organ.pk table.key 'xlsx' %}{% if table_querystring %}?{{ table_querystring }}{% endif %}"><i class="bi bi-file-earmark-spreadsheet"></i> Экспорт в Excel</a>
         </div>
       </div>
       {% if can_write %}
@@ -107,9 +107,9 @@
               <td rowspan="{{ item_count }}" class="status-cell tmc-request-cell tmc-boundary-right {% if forloop.parentloop.last %}tmc-bottom-span{% else %}tmc-group-span{% endif %}">{% status_badge obj %}</td>
               <td rowspan="{{ item_count }}" class="tmc-boundary-right {% if forloop.parentloop.last %}tmc-bottom-span{% else %}tmc-group-span{% endif %}">{{ obj.comment }}</td>
               <td rowspan="{{ item_count }}" class="text-nowrap tmc-actions-cell {% if forloop.parentloop.last %}tmc-bottom-span{% else %}tmc-group-span{% endif %}">
-                <button class="btn btn-icon" data-bs-toggle="tooltip" data-bs-title="История" hx-get="{% url 'status_history' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="История"><i class="bi bi-clock-history"></i></button>
+                <button class="btn btn-icon" data-bs-toggle="tooltip" data-bs-title="История изменений" hx-get="{% url 'status_history' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="История изменений"><i class="bi bi-clock-history"></i></button>
                 {% if can_write %}
-                  <button class="btn btn-icon" data-bs-toggle="tooltip" data-bs-title="Редактировать" hx-get="{% url 'record_update' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Редактировать"><i class="bi bi-pencil"></i></button>
+                  <button class="btn btn-icon edit" data-bs-toggle="tooltip" data-bs-title="Редактировать" hx-get="{% url 'record_update' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Редактировать"><i class="bi bi-pencil"></i></button>
                   <button class="btn btn-icon danger" data-bs-toggle="tooltip" data-bs-title="Удалить" hx-get="{% url 'record_delete' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Удалить"><i class="bi bi-trash"></i></button>
                 {% endif %}
               </td>
@@ -124,9 +124,9 @@
             <td class="status-cell tmc-request-cell tmc-boundary-right">{% status_badge obj %}</td>
             <td class="tmc-boundary-right">{{ obj.comment }}</td>
             <td class="text-nowrap tmc-actions-cell">
-              <button class="btn btn-icon" data-bs-toggle="tooltip" data-bs-title="История" hx-get="{% url 'status_history' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="История"><i class="bi bi-clock-history"></i></button>
+              <button class="btn btn-icon" data-bs-toggle="tooltip" data-bs-title="История изменений" hx-get="{% url 'status_history' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="История изменений"><i class="bi bi-clock-history"></i></button>
               {% if can_write %}
-                <button class="btn btn-icon" data-bs-toggle="tooltip" data-bs-title="Редактировать" hx-get="{% url 'record_update' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Редактировать"><i class="bi bi-pencil"></i></button>
+                <button class="btn btn-icon edit" data-bs-toggle="tooltip" data-bs-title="Редактировать" hx-get="{% url 'record_update' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Редактировать"><i class="bi bi-pencil"></i></button>
                 <button class="btn btn-icon danger" data-bs-toggle="tooltip" data-bs-title="Удалить" hx-get="{% url 'record_delete' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Удалить"><i class="bi bi-trash"></i></button>
               {% endif %}
             </td>
@@ -152,13 +152,13 @@
     <tbody>
       {% for obj in page.object_list %}
       <tr class="data-row {% row_class table.key obj %} {% if obj.is_deleted %}table-warning{% endif %}">
-        {% for field in fields %}<td{% if field.name == "status" %} class="status-cell"{% endif %}>{% if field.name == "status" %}{% status_badge obj %}{% else %}{{ obj|get_attr:field.name }}{% endif %}</td>{% endfor %}
+        {% for field in fields %}<td{% if field.name == "status" %} class="status-cell"{% endif %}>{% if field.name == "status" %}{% status_badge obj %}{% elif table.key == "fire-extinguishers" and field.name == "expiry_date" %}{% expiry_date_cell obj %}{% else %}{{ obj|get_attr:field.name }}{% endif %}</td>{% endfor %}
         <td class="text-center text-nowrap table-row-actions">
           {% if has_status_history %}
-            <button class="btn btn-icon" data-bs-toggle="tooltip" data-bs-title="История" hx-get="{% url 'status_history' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="История"><i class="bi bi-clock-history"></i></button>
+            <button class="btn btn-icon" data-bs-toggle="tooltip" data-bs-title="История изменений" hx-get="{% url 'status_history' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="История изменений"><i class="bi bi-clock-history"></i></button>
           {% endif %}
           {% if can_write %}
-            <button class="btn btn-icon" data-bs-toggle="tooltip" data-bs-title="Редактировать" hx-get="{% url 'record_update' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Редактировать"><i class="bi bi-pencil"></i></button>
+            <button class="btn btn-icon edit" data-bs-toggle="tooltip" data-bs-title="Редактировать" hx-get="{% url 'record_update' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Редактировать"><i class="bi bi-pencil"></i></button>
             <button class="btn btn-icon danger" data-bs-toggle="tooltip" data-bs-title="Удалить" hx-get="{% url 'record_delete' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Удалить"><i class="bi bi-trash"></i></button>
           {% endif %}
         </td>
@@ -181,9 +181,9 @@
 {% if page.has_other_pages %}
 <nav class="mt-2">
   <div class="btn-group btn-group-sm">
-    {% if page.has_previous %}<button class="btn btn-outline-primary" hx-get="{% url 'table_data' organ.pk table.key %}?{% if table_querystring %}{{ table_querystring }}&{% endif %}page={{ page.previous_page_number }}" hx-target="#table-area">Назад</button>{% endif %}
+    {% if page.has_previous %}<button class="btn btn-outline-primary" hx-get="{% url 'table_data' organ.pk table.key %}?{% if table_querystring %}{{ table_querystring }}&{% endif %}page={{ page.previous_page_number }}" hx-target="#table-area" aria-label="Предыдущая страница"><i class="bi bi-chevron-left"></i> Назад</button>{% endif %}
     <span class="btn btn-outline-secondary disabled">{{ page.number }} / {{ page.paginator.num_pages }}</span>
-    {% if page.has_next %}<button class="btn btn-outline-primary" hx-get="{% url 'table_data' organ.pk table.key %}?{% if table_querystring %}{{ table_querystring }}&{% endif %}page={{ page.next_page_number }}" hx-target="#table-area">Вперед</button>{% endif %}
+    {% if page.has_next %}<button class="btn btn-outline-primary" hx-get="{% url 'table_data' organ.pk table.key %}?{% if table_querystring %}{{ table_querystring }}&{% endif %}page={{ page.next_page_number }}" hx-target="#table-area" aria-label="Следующая страница">Вперед <i class="bi bi-chevron-right"></i></button>{% endif %}
   </div>
 </nav>
 {% endif %}

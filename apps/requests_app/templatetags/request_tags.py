@@ -21,6 +21,27 @@ def status_badge(obj):
     return format_html('<span class="status-badge status-{}">{}</span>', status, label)
 
 
+@register.simple_tag
+def expiry_date_cell(obj):
+    expiry_date = getattr(obj, "expiry_date", None)
+    if not expiry_date:
+        return "-"
+    date_text = expiry_date.strftime("%d.%m.%Y")
+    days_left = (expiry_date - timezone.localdate()).days
+    if days_left < 0:
+        return format_html(
+            '<span class="expiry-cell"><span>{}</span><span class="status-badge status-rejected" data-bs-toggle="tooltip" data-bs-title="Срок эксплуатации истек"><i class="bi bi-exclamation-triangle"></i> Истек</span></span>',
+            date_text,
+        )
+    if days_left <= 30:
+        return format_html(
+            '<span class="expiry-cell"><span>{}</span><span class="status-badge status-in_work" data-bs-toggle="tooltip" data-bs-title="Срок эксплуатации истекает через {} дн."><i class="bi bi-exclamation-triangle"></i> Скоро истекает</span></span>',
+            date_text,
+            days_left,
+        )
+    return date_text
+
+
 @register.filter
 def model_fields(model):
     return [field for field in model._meta.fields if field.name not in {"id", "is_deleted"}]
@@ -28,15 +49,4 @@ def model_fields(model):
 
 @register.simple_tag
 def row_class(table_key, obj):
-    if table_key != "fire-extinguishers":
-        return ""
-    expiry_date = getattr(obj, "expiry_date", None)
-    if not expiry_date:
-        return ""
-    today = timezone.localdate()
-    days_left = (expiry_date - today).days
-    if days_left < 0:
-        return "row-expired"
-    if days_left <= 30:
-        return "row-expiring"
     return ""

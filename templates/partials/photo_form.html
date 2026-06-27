@@ -1,4 +1,4 @@
-<form method="post" enctype="multipart/form-data" hx-encoding="multipart/form-data" hx-post="{{ request.path }}" hx-target="#workspace">
+<form method="post" enctype="multipart/form-data" hx-encoding="multipart/form-data" hx-post="{{ request.path }}" hx-target="#workspace" novalidate>
   <div class="modal-header">
     <h5 class="modal-title">{% if photo %}Редактирование фотографии{% else %}Добавление фотографии{% endif %}</h5>
     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -12,7 +12,21 @@
       {% for field in form %}
         <div class="form-field wide">
           <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-          {{ field }}
+          {% if field.name == "image" %}
+            <div class="single-file-picker" data-single-file-picker>
+              <div class="single-file-control">
+                <div class="single-file-icon"><i class="bi bi-file-image"></i></div>
+                <div class="single-file-body">
+                  <strong data-single-file-name>{% if photo and photo.original_filename %}{{ photo.original_filename }}{% else %}Изображение не выбрано{% endif %}</strong>
+                  <span>JPG, PNG или WEBP</span>
+                </div>
+                <button class="btn btn-outline-primary" type="button" data-single-file-button>Выбрать изображение</button>
+              </div>
+              <div class="visually-hidden">{{ field }}</div>
+            </div>
+          {% else %}
+            {{ field }}
+          {% endif %}
           {% for error in field.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
         </div>
       {% endfor %}

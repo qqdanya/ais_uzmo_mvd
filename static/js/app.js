@@ -253,10 +253,11 @@ function updatePhotoDescriptions() {
   });
 }
 
-function renderBulkPhotoFiles(form, files) {
+function renderBulkPhotoFiles(form, files, descriptions = null) {
   const input = form.querySelector("[data-bulk-photo-input]");
   const list = form.querySelector("[data-bulk-photo-list]");
   if (!input || !list) return;
+  const previousDescriptions = descriptions || Array.from(list.querySelectorAll("[data-bulk-description]")).map((textarea) => textarea.value);
   const images = Array.from(files).filter((file) => file.type.startsWith("image/"));
   const transfer = new DataTransfer();
   images.forEach((file) => transfer.items.add(file));
@@ -272,13 +273,23 @@ function renderBulkPhotoFiles(form, files) {
   images.forEach((file, index) => {
     const item = document.createElement("div");
     item.className = "bulk-photo-item";
+    item.dataset.bulkPhotoIndex = String(index);
     const meta = document.createElement("div");
     meta.className = "bulk-photo-meta";
+    const metaInfo = document.createElement("div");
+    metaInfo.className = "bulk-photo-meta-info";
     const icon = document.createElement("i");
     icon.className = "bi bi-file-image";
     const filename = document.createElement("span");
     filename.textContent = file.name;
-    meta.append(icon, filename);
+    metaInfo.append(icon, filename);
+    const remove = document.createElement("button");
+    remove.className = "btn btn-icon danger bulk-photo-remove";
+    remove.type = "button";
+    remove.dataset.removeBulkPhoto = String(index);
+    remove.setAttribute("aria-label", "Убрать изображение из загрузки");
+    remove.innerHTML = '<i class="bi bi-x-lg"></i>';
+    meta.append(metaInfo, remove);
     const label = document.createElement("label");
     label.className = "form-label";
     label.setAttribute("for", `bulk-description-${index}`);
@@ -287,11 +298,24 @@ function renderBulkPhotoFiles(form, files) {
     textarea.className = "form-control";
     textarea.id = `bulk-description-${index}`;
     textarea.name = "descriptions";
+    textarea.dataset.bulkDescription = String(index);
     textarea.rows = 2;
     textarea.placeholder = "Описание фотографии";
+    textarea.value = previousDescriptions[index] || "";
     item.append(meta, label, textarea);
     list.append(item);
   });
+}
+
+function removeBulkPhotoFile(form, index) {
+  const input = form.querySelector("[data-bulk-photo-input]");
+  const list = form.querySelector("[data-bulk-photo-list]");
+  if (!input) return;
+  const files = Array.from(input.files).filter((_, fileIndex) => fileIndex !== index);
+  const descriptions = Array.from(list?.querySelectorAll("[data-bulk-description]") || [])
+    .filter((_, descriptionIndex) => descriptionIndex !== index)
+    .map((textarea) => textarea.value);
+  renderBulkPhotoFiles(form, files, descriptions);
 }
 
 function openBulkPhotoModal(dropzone, files) {
@@ -440,6 +464,12 @@ document.addEventListener("change", (event) => {
     fillCompletedDate(status.closest("[data-tmc-request-form], [data-status-form]"));
     return;
   }
+  if (event.target.matches("[data-single-file-picker] input[type='file']")) {
+    const picker = event.target.closest("[data-single-file-picker]");
+    const name = picker?.querySelector("[data-single-file-name]");
+    if (name) name.textContent = event.target.files?.[0]?.name || "Изображение не выбрано";
+    return;
+  }
   if (!event.target.matches("[data-bulk-photo-input]")) return;
   const form = event.target.closest("[data-bulk-photo-form]");
   if (form) renderBulkPhotoFiles(form, event.target.files);
@@ -487,6 +517,19 @@ document.addEventListener("click", (event) => {
   const bulkPicker = event.target.closest("[data-bulk-photo-picker]");
   if (bulkPicker) {
     bulkPicker.closest("[data-bulk-photo-form]")?.querySelector("[data-bulk-photo-input]")?.click();
+    return;
+  }
+
+  const bulkRemove = event.target.closest("[data-remove-bulk-photo]");
+  if (bulkRemove) {
+    const form = bulkRemove.closest("[data-bulk-photo-form]");
+    if (form) removeBulkPhotoFile(form, Number(bulkRemove.dataset.removeBulkPhoto));
+    return;
+  }
+
+  const singleFileButton = event.target.closest("[data-single-file-button]");
+  if (singleFileButton) {
+    singleFileButton.closest("[data-single-file-picker]")?.querySelector("input[type='file']")?.click();
     return;
   }
 

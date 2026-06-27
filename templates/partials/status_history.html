@@ -1,5 +1,5 @@
 <div class="modal-header">
-  <h2 class="modal-title">История заявки {{ object.request_number }}</h2>
+  <h2 class="modal-title">История изменений заявки {{ object.request_number }}</h2>
   <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
 </div>
 <div class="modal-body">
@@ -36,7 +36,7 @@
         </div>
       </div>
     {% empty %}
-      <div class="empty-state">История статуса пока не сформирована</div>
+      <div class="empty-state">История изменений пока не сформирована</div>
     {% endfor %}
   </div>
 </div>

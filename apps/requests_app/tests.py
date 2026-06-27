@@ -186,7 +186,7 @@ class AppFlowTests(TestCase):
         self.assertContains(table_response, "bi-clock-history")
 
         response = self.client.get(reverse("tmc_status_history", args=[self.organ.pk, request_obj.pk]), HTTP_HX_REQUEST="true")
-        self.assertContains(response, "История заявки 19/TMC")
+        self.assertContains(response, "История изменений заявки 19/TMC")
         self.assertContains(response, request_obj.get_status_display())
         self.assertContains(response, "Finished")
 
@@ -347,7 +347,7 @@ class AppFlowTests(TestCase):
         self.assertEqual(history.completed_at.isoformat(), "2026-06-29")
 
         modal = self.client.get(reverse("citsizi_status_history", args=[self.organ.pk, included.pk]), HTTP_HX_REQUEST="true")
-        self.assertContains(modal, "История заявки C-10")
+        self.assertContains(modal, "История изменений заявки C-10")
 
         export_response = self.client.get(reverse("export_table", args=[self.organ.pk, "citsizi-equipment", "xlsx"]), {"status": "done", "equipment_type": "communication"})
         workbook = load_workbook(BytesIO(export_response.content))
@@ -468,7 +468,7 @@ class AppFlowTests(TestCase):
         self.assertEqual(history.completed_at.isoformat(), "2026-06-29")
 
         modal = self.client.get(reverse("vehicle_repair_status_history", args=[self.organ.pk, request_obj.pk]), HTTP_HX_REQUEST="true")
-        self.assertContains(modal, "История заявки R-2")
+        self.assertContains(modal, "История изменений заявки R-2")
         self.assertContains(modal, "Дата исполнения заявки")
         self.assertContains(modal, "29.06.2026")
 
@@ -537,6 +537,21 @@ class AppFlowTests(TestCase):
         self.assertEqual(sheet["A1"].fill.fgColor.rgb, "00D6EAF7")
         self.assertEqual(sheet["D2"].border.right.style, "medium")
 
+    def test_fire_extinguisher_expiry_warning_is_cell_badge_only(self):
+        today = timezone.localdate()
+        FireExtinguisher.objects.create(territorial_organ=self.organ, state_date=today, required_count=10, available_count=8, expiry_date=today - timedelta(days=1), writeoff_count=1)
+        FireExtinguisher.objects.create(territorial_organ=self.organ, state_date=today, required_count=10, available_count=8, expiry_date=today + timedelta(days=10), writeoff_count=1)
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("table_data", args=[self.organ.pk, "fire-extinguishers"]))
+
+        self.assertContains(response, "Истек")
+        self.assertContains(response, "Скоро истекает")
+        self.assertContains(response, "status-rejected")
+        self.assertContains(response, "status-in_work")
+        self.assertNotContains(response, "row-expired")
+        self.assertNotContains(response, "row-expiring")
+
     def test_fire_request_has_comment_history_filters_and_styled_export(self):
         included = FireDepartmentRequest.objects.create(territorial_organ=self.organ, request_number="F-1", request_date="2026-06-20", status="in_work", comment="Recharge")
         excluded = FireDepartmentRequest.objects.create(territorial_organ=self.organ, request_number="F-2", request_date="2026-06-20", status="done", comment="Recharge")
@@ -569,7 +584,7 @@ class AppFlowTests(TestCase):
         self.assertEqual(history.completed_at.isoformat(), "2026-06-29")
 
         modal = self.client.get(reverse("fire_request_status_history", args=[self.organ.pk, included.pk]), HTTP_HX_REQUEST="true")
-        self.assertContains(modal, "История заявки F-1")
+        self.assertContains(modal, "История изменений заявки F-1")
         self.assertContains(modal, "Дата исполнения заявки")
 
         export_response = self.client.get(reverse("export_table", args=[self.organ.pk, "fire-requests", "xlsx"]), {"status": "done", "q": "Completed"})
@@ -614,7 +629,7 @@ class AppFlowTests(TestCase):
         self.assertEqual(history.completed_at.isoformat(), "2026-06-29")
 
         modal = self.client.get(reverse("anti_terror_status_history", args=[self.organ.pk, included.pk]), HTTP_HX_REQUEST="true")
-        self.assertContains(modal, "История заявки A-1")
+        self.assertContains(modal, "История изменений заявки A-1")
 
         export_response = self.client.get(reverse("export_table", args=[self.organ.pk, "anti-terror", "xlsx"]), {"status": "done", "q": "Completed"})
         workbook = load_workbook(BytesIO(export_response.content))
@@ -705,6 +720,7 @@ class AppFlowTests(TestCase):
         self.assertContains(response, "<th>Дата</th>", html=True)
         self.assertContains(response, "<th>Исполнение заявки</th>", html=True)
         self.assertContains(response, included.request_number)
+        self.assertContains(response, included.comment)
         self.assertNotContains(response, excluded.request_number)
         self.assertContains(response, "bi-clock-history")
 
@@ -715,6 +731,7 @@ class AppFlowTests(TestCase):
                 "request_date": "2026-06-20",
                 "status": "done",
                 "completed_at": "2026-06-29",
+                "comment": "Roof",
             },
             HTTP_HX_REQUEST="true",
         )
@@ -723,13 +740,15 @@ class AppFlowTests(TestCase):
         self.assertEqual(history.completed_at.isoformat(), "2026-06-29")
 
         modal = self.client.get(reverse("building_repair_status_history", args=[self.organ.pk, included.pk]), HTTP_HX_REQUEST="true")
-        self.assertContains(modal, "История заявки B-1")
+        self.assertContains(modal, "История изменений заявки B-1")
 
         export_response = self.client.get(reverse("export_table", args=[self.organ.pk, "building-repair", "xlsx"]), {"status": "done", "q": "B-1"})
         workbook = load_workbook(BytesIO(export_response.content))
         sheet = workbook.active
         self.assertEqual(sheet["A1"].value, "Номер")
         self.assertEqual(sheet["C1"].value, "Исполнение заявки")
+        self.assertEqual(sheet["D1"].value, "Комментарий")
+        self.assertEqual(sheet["D2"].value, "Roof")
         self.assertEqual(sheet.freeze_panes, "A2")
 
     def test_table_shows_only_business_fields_and_status(self):
@@ -795,6 +814,15 @@ class AppFlowTests(TestCase):
         photo.refresh_from_db()
         self.assertTrue(photo.is_deleted)
         self.assertTrue(AuditLog.objects.filter(action=AuditLog.Action.DELETE, model_name="TerritorialOrganPhoto").exists())
+
+    def test_photo_form_uses_custom_single_file_picker(self):
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("photo_create", args=[self.organ.pk]), HTTP_HX_REQUEST="true")
+
+        self.assertContains(response, "data-single-file-picker")
+        self.assertContains(response, "Выбрать изображение")
+        self.assertContains(response, 'type="file"')
 
     def create_photo(self, filename="photo.png"):
         buffer = BytesIO()
