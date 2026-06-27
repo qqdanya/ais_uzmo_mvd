@@ -24,8 +24,20 @@ class TerritorialOrganPhotoForm(forms.ModelForm):
 
 class TerritorialOrganPhotoFolderForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
+        self.organ = kwargs.pop("organ", None)
+        self.parent = kwargs.pop("parent", None)
         super().__init__(*args, **kwargs)
         self.fields["name"].widget.attrs.setdefault("class", "form-control")
+
+    def clean_name(self):
+        name = self.cleaned_data["name"].strip()
+        if self.organ:
+            duplicate = TerritorialOrganPhotoFolder.objects.filter(territorial_organ=self.organ, parent=self.parent, name__iexact=name)
+            if self.instance.pk:
+                duplicate = duplicate.exclude(pk=self.instance.pk)
+            if duplicate.exists():
+                raise forms.ValidationError("Папка с таким наименованием уже есть на этом уровне.")
+        return name
 
     class Meta:
         model = TerritorialOrganPhotoFolder

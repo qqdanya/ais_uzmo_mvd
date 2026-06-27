@@ -244,15 +244,6 @@ function fillCompletedDate(form) {
   }
 }
 
-function updatePhotoDescriptions() {
-  document.querySelectorAll(".photo-description").forEach((item) => {
-    item.classList.remove("is-clamped");
-    if (item.scrollHeight > item.clientHeight + 1) {
-      item.classList.add("is-clamped");
-    }
-  });
-}
-
 function renderBulkPhotoFiles(form, files, descriptions = null) {
   const input = form.querySelector("[data-bulk-photo-input]");
   const list = form.querySelector("[data-bulk-photo-list]");
@@ -390,7 +381,6 @@ document.body.addEventListener("htmx:afterSwap", (event) => {
   initTooltips();
   autoDismissAlerts();
   applyCollapsedPanels();
-  updatePhotoDescriptions();
 });
 
 document.body.addEventListener("htmx:beforeRequest", startHtmxRequest);
@@ -627,7 +617,6 @@ document.addEventListener("DOMContentLoaded", () => {
       loadDepartment(department);
     }
   }
-  updatePhotoDescriptions();
 });
 
 document.addEventListener("mouseover", (event) => {
@@ -645,6 +634,5 @@ document.addEventListener("focusout", hideTooltip);
 document.addEventListener("scroll", () => positionTooltip(), true);
 window.addEventListener("resize", () => {
   syncHeaderHeight();
-  updatePhotoDescriptions();
   positionTooltip();
 });

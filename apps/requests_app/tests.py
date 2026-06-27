@@ -906,6 +906,67 @@ class AppFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(TerritorialOrganPhoto.objects.filter(folder=folder, description="In current folder").exists())
 
+    def test_photo_folder_can_be_created_inside_folder(self):
+        parent = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Parent")
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.post(
+            reverse("photo_folder_create", args=[self.organ.pk]),
+            {"name": "Nested", "parent": parent.pk},
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        nested = TerritorialOrganPhotoFolder.objects.get(name="Nested")
+        self.assertEqual(nested.parent, parent)
+        self.assertContains(response, "Nested")
+        self.assertEqual(response.context["selected_folder"], parent)
+
+    def test_photos_show_nested_folders_in_current_folder(self):
+        parent = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Parent")
+        child = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, parent=parent, name="Child")
+        sibling = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Sibling")
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("photos", args=[self.organ.pk]), {"folder": parent.pk})
+
+        self.assertContains(response, child.name)
+        self.assertNotContains(response, sibling.name)
+        self.assertEqual(list(response.context["folder_path"]), [parent])
+
+    def test_photo_bulk_upload_can_target_nested_folder(self):
+        parent = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Parent")
+        child = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, parent=parent, name="Child")
+        self.client.login(username="operator", password="pass12345")
+        buffer = BytesIO()
+        Image.new("RGB", (2, 2), "white").save(buffer, format="PNG")
+        image = SimpleUploadedFile("nested-folder.png", buffer.getvalue(), content_type="image/png")
+
+        response = self.client.post(
+            reverse("photo_bulk_upload", args=[self.organ.pk]),
+            {"images": [image], "descriptions": ["In nested folder"], "folder": child.pk},
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(TerritorialOrganPhoto.objects.filter(folder=child, description="In nested folder").exists())
+
+    def test_photo_card_shows_clickable_full_folder_path(self):
+        parent = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Parent")
+        child = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, parent=parent, name="Child")
+        photo = self.create_photo("nested-path.png")
+        photo.folder = child
+        photo.description = "Nested path photo"
+        photo.save(update_fields=["folder", "description"])
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("photos", args=[self.organ.pk]))
+
+        self.assertContains(response, "Parent")
+        self.assertContains(response, "Child")
+        self.assertContains(response, f"?folder={child.pk}")
+        self.assertContains(response, "Nested path photo")
+
     def test_photos_filter_by_folder(self):
         folder = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Facades")
         first = self.create_photo("facade.png")

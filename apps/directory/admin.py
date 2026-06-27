@@ -37,6 +37,6 @@ class TerritorialOrganPhotoAdmin(admin.ModelAdmin):
 
 @admin.register(TerritorialOrganPhotoFolder)
 class TerritorialOrganPhotoFolderAdmin(admin.ModelAdmin):
-    list_display = ("name", "territorial_organ", "created_at")
-    list_filter = ("territorial_organ",)
-    search_fields = ("name", "territorial_organ__name")
+    list_display = ("name", "parent", "territorial_organ", "created_at")
+    list_filter = ("territorial_organ", "parent")
+    search_fields = ("name", "parent__name", "territorial_organ__name")

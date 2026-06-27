@@ -1090,9 +1090,17 @@ textarea {
   box-shadow: inset 0 0 0 2px rgba(23, 105, 170, .24), 0 10px 22px rgba(23, 105, 170, .18);
 }
 .folder-card-icon {
-  color: #d29b19;
-  font-size: 2.1rem;
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  background: #eef7ff;
+  color: var(--blue);
+  font-size: 1.5rem;
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
 }
 .folder-card-body {
   min-width: 0;
@@ -1110,6 +1118,7 @@ textarea {
 .photo-folder {
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: .35rem;
   max-width: 100%;
   margin-top: .25rem;
@@ -1119,6 +1128,25 @@ textarea {
   color: var(--navy);
   font-size: .76rem;
   font-weight: 700;
+}
+.photo-folder button {
+  border: 0;
+  background: transparent;
+  color: var(--navy);
+  font: inherit;
+  padding: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+.photo-folder button:hover,
+.photo-folder button:focus-visible {
+  color: var(--blue);
+  text-decoration: underline;
+}
+.photo-folder-separator {
+  color: var(--muted);
+  font-weight: 600;
 }
 .photo-card {
   background: white;
@@ -1150,22 +1178,12 @@ textarea {
 }
 .photo-description {
   margin: .45rem 0 .7rem;
-  position: relative;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
   line-height: 1.25;
-  max-height: 2.5em;
-  white-space: normal;
   overflow: hidden;
   overflow-wrap: anywhere;
-  padding-right: 1.1rem;
-}
-.photo-description.is-clamped::after {
-  content: "...";
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  padding-left: .35rem;
-  background: linear-gradient(90deg, rgba(255,255,255,0), #fff 35%);
-  color: var(--ink);
 }
 .photo-actions {
   display: grid;

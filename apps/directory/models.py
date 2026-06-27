@@ -4,6 +4,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import FileExtensionValidator
 from django.db import models
+from django.db.models import Q
 
 
 def validate_photo_size(image):
@@ -47,6 +48,7 @@ class Department(models.Model):
 
 class TerritorialOrganPhotoFolder(models.Model):
     territorial_organ = models.ForeignKey(TerritorialOrgan, verbose_name="территориальный орган", on_delete=models.CASCADE, related_name="photo_folders")
+    parent = models.ForeignKey("self", verbose_name="родительская папка", null=True, blank=True, on_delete=models.CASCADE, related_name="children")
     name = models.CharField("наименование", max_length=120)
     created_at = models.DateTimeField("создано", auto_now_add=True)
 
@@ -54,10 +56,28 @@ class TerritorialOrganPhotoFolder(models.Model):
         verbose_name = "папка фотографий"
         verbose_name_plural = "папки фотографий"
         ordering = ("name",)
-        constraints = [models.UniqueConstraint(fields=["territorial_organ", "name"], name="unique_photo_folder_per_organ")]
+        constraints = [
+            models.UniqueConstraint(fields=["territorial_organ", "name"], condition=Q(parent__isnull=True), name="unique_root_photo_folder_per_organ"),
+            models.UniqueConstraint(fields=["territorial_organ", "parent", "name"], condition=Q(parent__isnull=False), name="unique_child_photo_folder_per_parent"),
+        ]
+        indexes = [models.Index(fields=["territorial_organ", "parent", "name"])]
 
     def __str__(self):
         return self.name
+
+    def clean(self):
+        super().clean()
+        if not self.parent_id:
+            return
+        if self.parent_id == self.pk:
+            raise ValidationError({"parent": "Папка не может быть родительской для самой себя."})
+        if self.parent.territorial_organ_id != self.territorial_organ_id:
+            raise ValidationError({"parent": "Родительская папка должна относиться к этому же территориальному органу."})
+        ancestor = self.parent
+        while ancestor:
+            if ancestor.pk == self.pk:
+                raise ValidationError({"parent": "Папку нельзя поместить в ее вложенную папку."})
+            ancestor = ancestor.parent
 
 
 class TerritorialOrganPhoto(models.Model):

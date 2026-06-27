@@ -733,14 +733,37 @@ def photos(request, organ_id):
     organ = get_object_or_404(TerritorialOrgan, pk=organ_id, is_active=True)
     if not can_view(request.user, organ):
         raise Http404
+    return render_photos(request, organ)
+
+
+def folder_path(folder):
+    path = []
+    while folder:
+        path.append(folder)
+        folder = folder.parent
+    return list(reversed(path))
+
+
+def folder_path_from_map(folder, folders_by_id):
+    path = []
+    while folder:
+        path.append(folder)
+        folder = folders_by_id.get(folder.parent_id)
+    return list(reversed(path))
+
+
+def render_photos(request, organ, folder_id_override=None):
     query = request.GET.get("q", "").strip()
     sort = request.GET.get("sort", "newest")
-    folder_id = request.GET.get("folder", "").strip()
+    folder_id = str(folder_id_override) if folder_id_override is not None else request.GET.get("folder", "").strip()
     selected_folder = None
     if folder_id:
         selected_folder = get_object_or_404(TerritorialOrganPhotoFolder, pk=folder_id, territorial_organ=organ)
-    folders = organ.photo_folders.annotate(photo_count=Count("photos", filter=Q(photos__is_deleted=False)))
-    if query and not folder_id:
+    folders = organ.photo_folders.filter(parent=selected_folder).annotate(
+        photo_count=Count("photos", filter=Q(photos__is_deleted=False)),
+        child_count=Count("children", distinct=True),
+    )
+    if query:
         query_normalized = query.casefold()
         folders = [folder for folder in folders if query_normalized in folder.name.casefold()]
     qs = organ.photos.select_related("created_by", "folder").filter(is_deleted=False)
@@ -753,6 +776,9 @@ def photos(request, organ_id):
         qs = qs.order_by("created_at", "pk") if sort == "oldest" else qs.order_by("-created_at", "-pk")
     paginator = Paginator(qs, 24)
     page = paginator.get_page(request.GET.get("page"))
+    folders_by_id = {folder.pk: folder for folder in organ.photo_folders.all()}
+    for photo in page.object_list:
+        photo.folder_path = folder_path_from_map(photo.folder, folders_by_id) if photo.folder else []
     querystring = request.GET.copy()
     querystring.pop("page", None)
     return render(
@@ -765,6 +791,7 @@ def photos(request, organ_id):
             "photo_querystring": querystring.urlencode(),
             "folders": folders,
             "selected_folder": selected_folder,
+            "folder_path": folder_path(selected_folder),
             "photo_folder": folder_id,
             "can_write": can_write(request.user, organ),
             "photo_query": query,
@@ -843,7 +870,7 @@ def photo_form(request, organ_id, pk=None):
         obj.updated_by = request.user
         obj.save()
         write_audit(AuditLog.Action.UPDATE if photo else AuditLog.Action.CREATE, obj, old_values=old_values, new_values=serialize_instance(obj), request=request)
-        response = photos(request, organ.pk)
+        response = render_photos(request, organ, obj.folder_id or "")
         response["HX-Trigger"] = htmx_triggers("Фотография сохранена.")
         return response
     return render(request, "partials/photo_form.html", {"form": form, "organ": organ, "photo": photo})
@@ -855,15 +882,20 @@ def photo_folder_form(request, organ_id):
     organ = get_object_or_404(TerritorialOrgan, pk=organ_id, is_active=True)
     if not can_write(request.user, organ):
         raise Http404
-    form = TerritorialOrganPhotoFolderForm(request.POST or None)
+    parent_id = request.POST.get("parent") if request.method == "POST" else request.GET.get("folder")
+    current_folder = None
+    if parent_id:
+        current_folder = get_object_or_404(TerritorialOrganPhotoFolder, pk=parent_id, territorial_organ=organ)
+    form = TerritorialOrganPhotoFolderForm(request.POST or None, organ=organ, parent=current_folder)
     if request.method == "POST" and form.is_valid():
         folder = form.save(commit=False)
         folder.territorial_organ = organ
+        folder.parent = current_folder
         folder.save()
-        response = photos(request, organ.pk)
+        response = render_photos(request, organ, current_folder.pk if current_folder else "")
         response["HX-Trigger"] = htmx_triggers("Папка создана.")
         return response
-    return render(request, "partials/photo_folder_form.html", {"form": form, "organ": organ})
+    return render(request, "partials/photo_folder_form.html", {"form": form, "organ": organ, "current_folder": current_folder})
 
 
 @login_required
@@ -880,11 +912,13 @@ def photo_bulk_upload(request, organ_id):
         descriptions = request.POST.getlist("descriptions")
         folder = None
         folder_id = request.POST.get("folder")
+        if folder_id and current_folder is None:
+            current_folder = get_object_or_404(TerritorialOrganPhotoFolder, pk=folder_id, territorial_organ=organ)
         new_folder_name = request.POST.get("new_folder", "").strip()
         if new_folder_name:
-            folder, _ = TerritorialOrganPhotoFolder.objects.get_or_create(territorial_organ=organ, name=new_folder_name)
+            folder, _ = TerritorialOrganPhotoFolder.objects.get_or_create(territorial_organ=organ, parent=current_folder, name=new_folder_name)
         elif folder_id:
-            folder = get_object_or_404(TerritorialOrganPhotoFolder, pk=folder_id, territorial_organ=organ)
+            folder = current_folder
         errors = []
         created = 0
         for index, image in enumerate(files):
@@ -902,7 +936,7 @@ def photo_bulk_upload(request, organ_id):
                 created += 1
             else:
                 errors.append(f"{image.name}: {form.errors.as_text()}")
-        response = photos(request, organ.pk)
+        response = render_photos(request, organ, folder.pk if folder else "")
         if errors:
             response["HX-Trigger"] = htmx_triggers(f"Загружено: {created}. Не загружено: {len(errors)}.", "warning")
         else:
@@ -924,7 +958,7 @@ def photo_delete(request, organ_id, pk):
         photo.updated_by = request.user
         photo.save(update_fields=["is_deleted", "updated_by", "updated_at"])
         write_audit(AuditLog.Action.DELETE, photo, old_values=old_values, new_values=serialize_instance(photo), request=request)
-        response = photos(request, organ.pk)
+        response = render_photos(request, organ, photo.folder_id or "")
         response["HX-Trigger"] = htmx_triggers("Фотография удалена.")
         return response
     return render(request, "partials/confirm_delete.html", {"object": photo, "organ": organ, "photo_delete": True})

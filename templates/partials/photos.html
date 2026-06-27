@@ -8,7 +8,7 @@
       {% if photo_page.paginator.count %}
         <a class="btn btn-outline-primary" href="{% url 'photos_download_all' organ.pk %}"><i class="bi bi-file-earmark-zip"></i> Скачать все</a>
       {% endif %}
-      {% if can_write %}<button class="btn btn-outline-primary" hx-get="{% url 'photo_folder_create' organ.pk %}" hx-target="#modal-content" data-open-modal="true"><i class="bi bi-folder-plus"></i> Папка</button>{% endif %}
+      {% if can_write %}<button class="btn btn-outline-primary" hx-get="{% url 'photo_folder_create' organ.pk %}{% if photo_folder %}?folder={{ photo_folder }}{% endif %}" hx-target="#modal-content" data-open-modal="true"><i class="bi bi-folder-plus"></i> Папка</button>{% endif %}
       {% if can_write %}<button class="btn btn-primary" hx-get="{% url 'photo_bulk_upload' organ.pk %}{% if photo_folder %}?folder={{ photo_folder }}{% endif %}" hx-target="#modal-content" data-open-modal="true"><i class="bi bi-cloud-arrow-up"></i> Загрузить</button>{% endif %}
     </div>
   </div>
@@ -32,19 +32,23 @@
   <button class="btn btn-sm {% if not photo_folder %}btn-primary{% else %}btn-outline-primary{% endif %}" hx-get="{% url 'photos' organ.pk %}{% if photo_query or photo_sort == 'oldest' %}?{% if photo_query %}q={{ photo_query|urlencode }}{% endif %}{% if photo_query and photo_sort == 'oldest' %}&{% endif %}{% if photo_sort == 'oldest' %}sort=oldest{% endif %}{% endif %}" hx-target="#workspace" hx-swap="innerHTML">
     <i class="bi bi-images"></i> Все фотографии
   </button>
-  {% if selected_folder %}
+  {% for folder in folder_path %}
     <span class="photo-breadcrumb-separator">/</span>
-    <span class="photo-breadcrumb-current"><i class="bi bi-folder2-open"></i> {{ selected_folder.name }}</span>
-  {% endif %}
+    {% if forloop.last %}
+      <span class="photo-breadcrumb-current"><i class="bi bi-folder2-open"></i> {{ folder.name }}</span>
+    {% else %}
+      <button class="btn btn-sm btn-outline-primary" hx-get="{% url 'photos' organ.pk %}?folder={{ folder.pk }}{% if photo_query %}&q={{ photo_query|urlencode }}{% endif %}{% if photo_sort == 'oldest' %}&sort=oldest{% endif %}" hx-target="#workspace" hx-swap="innerHTML">{{ folder.name }}</button>
+    {% endif %}
+  {% endfor %}
 </div>
-{% if not photo_folder and folders %}
+{% if folders %}
 <div class="photo-grid folder-grid">
   {% for folder in folders %}
     <button class="folder-card" type="button" hx-get="{% url 'photos' organ.pk %}?folder={{ folder.pk }}{% if photo_query %}&q={{ photo_query|urlencode }}{% endif %}{% if photo_sort == 'oldest' %}&sort=oldest{% endif %}" hx-target="#workspace" hx-swap="innerHTML" {% if can_write %}data-photo-upload-url="{% url 'photo_bulk_upload' organ.pk %}?folder={{ folder.pk }}"{% endif %}>
-      <div class="folder-card-icon"><i class="bi bi-folder-fill"></i></div>
+      <div class="folder-card-icon"><i class="bi bi-folder2-open"></i></div>
       <div class="folder-card-body">
         <strong>{{ folder.name }}</strong>
-        <span>{{ folder.photo_count }} фото</span>
+        <span>{{ folder.photo_count }} фото{% if folder.child_count %} · {{ folder.child_count }} папок{% endif %}</span>
       </div>
     </button>
   {% endfor %}
@@ -69,7 +73,15 @@
     <button class="photo-image" data-bs-toggle="modal" data-bs-target="#image-{{ photo.pk }}"><img src="{{ photo.image.url }}" alt="{{ photo.description }}"></button>
     <div class="photo-body">
       <div class="small text-secondary">{{ photo.created_at|date:"d.m.Y H:i" }} · {{ photo.created_by|default:"-" }}</div>
-      {% if photo.folder %}<div class="photo-folder"><i class="bi bi-folder"></i> {{ photo.folder.name }}</div>{% endif %}
+      {% if photo.folder_path %}
+        <nav class="photo-folder" aria-label="Путь к папке фотографии">
+          <i class="bi bi-folder"></i>
+          {% for folder in photo.folder_path %}
+            {% if not forloop.first %}<span class="photo-folder-separator">/</span>{% endif %}
+            <button type="button" hx-get="{% url 'photos' organ.pk %}?folder={{ folder.pk }}{% if photo_sort == 'oldest' %}&sort=oldest{% endif %}" hx-target="#workspace" hx-swap="innerHTML">{{ folder.name }}</button>
+          {% endfor %}
+        </nav>
+      {% endif %}
       <p class="photo-description" title="{{ photo.description|default:'Описание не добавлено' }}">{{ photo.description|default:"Описание не добавлено" }}</p>
       <div class="photo-actions">
         <a class="btn btn-sm btn-outline-secondary" href="{% url 'photo_download' organ.pk photo.pk %}" data-bs-toggle="tooltip" data-bs-title="Скачать" aria-label="Скачать фотографию"><i class="bi bi-download"></i></a>
