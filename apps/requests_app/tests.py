@@ -4,6 +4,7 @@ import zipfile
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
@@ -641,6 +642,49 @@ class AppFlowTests(TestCase):
         self.assertEqual(sheet["D1"].value, "Готово к заселению")
         self.assertEqual(sheet.freeze_panes, "A2")
 
+    def test_business_count_validation_rejects_illogical_values(self):
+        invalid_vehicle = VehicleInventory(
+            territorial_organ=self.organ,
+            state_date="2026-06-27",
+            required_count=5,
+            available_count=8,
+            broken_count=1,
+            writeoff_count=0,
+        )
+        with self.assertRaises(ValidationError):
+            invalid_vehicle.full_clean()
+
+        invalid_housing = ServiceHousing(
+            territorial_organ=self.organ,
+            state_date="2026-06-27",
+            total_count=10,
+            used_by_staff=8,
+            ready_to_move=4,
+        )
+        with self.assertRaises(ValidationError):
+            invalid_housing.full_clean()
+
+        invalid_alarm = FireAlarm(
+            territorial_organ=self.organ,
+            state_date="2026-06-27",
+            required_objects=4,
+            equipped_objects=5,
+            broken_objects=0,
+        )
+        with self.assertRaises(ValidationError):
+            invalid_alarm.full_clean()
+
+    def test_citsizi_quantity_must_be_positive(self):
+        request_obj = CitsiziEquipment(
+            territorial_organ=self.organ,
+            request_number="C-0",
+            request_date="2026-06-27",
+            equipment_type="communication",
+            quantity=0,
+        )
+        with self.assertRaises(ValidationError):
+            request_obj.full_clean()
+
     def test_uoto_building_repair_nested_request_history_filters_and_export(self):
         included = BuildingRepairRequest.objects.create(territorial_organ=self.organ, request_number="B-1", request_date="2026-06-20", status="in_work", comment="Roof")
         excluded = BuildingRepairRequest.objects.create(territorial_organ=self.organ, request_number="B-2", request_date="2026-06-20", status="done", comment="Roof")
@@ -863,6 +907,19 @@ class AppFlowTests(TestCase):
         self.assertContains(response, "Assembly hall")
         self.assertNotContains(response, "Garage")
         self.assertNotContains(response, "Room photo")
+
+    def test_photos_search_is_case_insensitive_for_cyrillic(self):
+        folder = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Фасад")
+        photo = self.create_photo("facade-demo.png")
+        photo.folder = folder
+        photo.description = "Фасад административного здания"
+        photo.save(update_fields=["folder", "description"])
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("photos", args=[self.organ.pk]), {"q": "фасад"})
+
+        self.assertContains(response, "Фасад")
+        self.assertContains(response, "Фасад административного здания")
 
 
 class SeedCommandTests(TestCase):

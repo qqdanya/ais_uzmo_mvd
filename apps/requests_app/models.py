@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils import timezone
@@ -24,6 +25,11 @@ class NeedStatus(models.TextChoices):
     IN_WORK = "in_work", "В работе"
     DONE = "done", "Исполнена"
     REJECTED = "rejected", "Отклонена"
+
+
+def validate_lte(errors, field, value, limit, message):
+    if value is not None and limit is not None and value > limit:
+        errors[field] = message
 
 
 class TmcRequest(TrackableRequest):
@@ -98,6 +104,14 @@ class VehicleInventory(TrackableRequest):
     def __str__(self):
         return f"Автотранспорт: {self.available_count}/{self.required_count}"
 
+    def clean(self):
+        errors = {}
+        validate_lte(errors, "available_count", self.available_count, self.required_count, "Наличие не может быть больше значения «положено».")
+        validate_lte(errors, "broken_count", self.broken_count, self.available_count, "Неисправных единиц не может быть больше наличия.")
+        validate_lte(errors, "writeoff_count", self.writeoff_count, self.required_count, "К списанию не может быть больше значения «положено».")
+        if errors:
+            raise ValidationError(errors)
+
 
 class VehicleRepairRequest(TrackableRequest):
     request_number = models.CharField("номер", max_length=80)
@@ -129,6 +143,13 @@ class FireExtinguisher(TrackableRequest):
     def __str__(self):
         return f"Огнетушители: {self.available_count}/{self.required_count}"
 
+    def clean(self):
+        errors = {}
+        validate_lte(errors, "available_count", self.available_count, self.required_count, "Наличие не может быть больше значения «положено».")
+        validate_lte(errors, "writeoff_count", self.writeoff_count, self.required_count, "К списанию не может быть больше значения «положено».")
+        if errors:
+            raise ValidationError(errors)
+
 
 class FireAlarm(TrackableRequest):
     state_date = models.DateField("дата", default=timezone.localdate, db_index=True)
@@ -144,6 +165,13 @@ class FireAlarm(TrackableRequest):
     def __str__(self):
         return f"Пожарная сигнализация: {self.equipped_objects}/{self.required_objects}"
 
+    def clean(self):
+        errors = {}
+        validate_lte(errors, "equipped_objects", self.equipped_objects, self.required_objects, "Оборудованных объектов не может быть больше объектов, подлежащих оборудованию.")
+        validate_lte(errors, "broken_objects", self.broken_objects, self.equipped_objects, "Неисправных объектов не может быть больше оборудованных объектов.")
+        if errors:
+            raise ValidationError(errors)
+
 
 class SecurityAlarm(TrackableRequest):
     state_date = models.DateField("дата", default=timezone.localdate, db_index=True)
@@ -158,6 +186,13 @@ class SecurityAlarm(TrackableRequest):
 
     def __str__(self):
         return f"Охранная сигнализация: {self.equipped_objects}/{self.required_objects}"
+
+    def clean(self):
+        errors = {}
+        validate_lte(errors, "equipped_objects", self.equipped_objects, self.required_objects, "Оборудованных объектов не может быть больше объектов, подлежащих оборудованию.")
+        validate_lte(errors, "broken_objects", self.broken_objects, self.equipped_objects, "Неисправных объектов не может быть больше оборудованных объектов.")
+        if errors:
+            raise ValidationError(errors)
 
 
 class FireDepartmentRequest(TrackableRequest):
@@ -176,7 +211,7 @@ class FireDepartmentRequest(TrackableRequest):
 
 
 class AntiTerrorMeasure(TrackableRequest):
-    request_number = models.CharField("номер", max_length=80, blank=True, default="")
+    request_number = models.CharField("номер", max_length=80)
     request_date = models.DateField("дата", default=timezone.localdate, db_index=True)
     status = models.CharField("исполнение", max_length=20, choices=NeedStatus.choices, default=NeedStatus.NEW, db_index=True)
     completed_at = models.DateField("дата исполнения заявки", null=True, blank=True)
@@ -199,10 +234,10 @@ class EquipmentType(models.TextChoices):
 
 
 class CitsiziEquipment(TrackableRequest):
-    request_number = models.CharField("номер", max_length=80, blank=True, default="")
+    request_number = models.CharField("номер", max_length=80)
     request_date = models.DateField("дата", default=timezone.localdate, db_index=True)
     equipment_type = models.CharField("тип техники", max_length=30, choices=EquipmentType.choices, db_index=True)
-    quantity = models.PositiveIntegerField("количество", validators=[MinValueValidator(0)])
+    quantity = models.PositiveIntegerField("количество", validators=[MinValueValidator(1)])
     status = models.CharField("исполнение", max_length=20, choices=NeedStatus.choices, default=NeedStatus.NEW, db_index=True)
     due_date = models.DateField("дата исполнения заявки", null=True, blank=True)
 
@@ -229,6 +264,15 @@ class ServiceHousing(TrackableRequest):
 
     def __str__(self):
         return f"Жилье: {self.total_count}"
+
+    def clean(self):
+        errors = {}
+        validate_lte(errors, "used_by_staff", self.used_by_staff, self.total_count, "Используемого жилья не может быть больше общего количества.")
+        validate_lte(errors, "ready_to_move", self.ready_to_move, self.total_count, "Готового к заселению жилья не может быть больше общего количества.")
+        if self.used_by_staff is not None and self.ready_to_move is not None and self.total_count is not None and self.used_by_staff + self.ready_to_move > self.total_count:
+            errors["ready_to_move"] = "Сумма используемого и готового к заселению жилья не может быть больше общего количества."
+        if errors:
+            raise ValidationError(errors)
 
 
 class BuildingRepairRequest(TrackableRequest):

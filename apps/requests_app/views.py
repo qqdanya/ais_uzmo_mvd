@@ -48,6 +48,11 @@ def active_organs():
     return TerritorialOrgan.objects.filter(is_active=True, parent__isnull=True).prefetch_related("children")
 
 
+def photo_matches_query(photo, query):
+    query_normalized = query.casefold()
+    return query_normalized in photo.description.casefold() or query_normalized in photo.original_filename.casefold()
+
+
 @login_required
 def dashboard(request):
     organs = active_organs()
@@ -735,13 +740,16 @@ def photos(request, organ_id):
         selected_folder = get_object_or_404(TerritorialOrganPhotoFolder, pk=folder_id, territorial_organ=organ)
     folders = organ.photo_folders.annotate(photo_count=Count("photos", filter=Q(photos__is_deleted=False)))
     if query and not folder_id:
-        folders = folders.filter(name__icontains=query)
+        query_normalized = query.casefold()
+        folders = [folder for folder in folders if query_normalized in folder.name.casefold()]
     qs = organ.photos.select_related("created_by", "folder").filter(is_deleted=False)
     if folder_id:
         qs = qs.filter(folder_id=folder_id)
     if query:
-        qs = qs.filter(Q(description__icontains=query) | Q(original_filename__icontains=query))
-    qs = qs.order_by("created_at", "pk") if sort == "oldest" else qs.order_by("-created_at", "-pk")
+        qs = [photo for photo in qs if photo_matches_query(photo, query)]
+        qs = sorted(qs, key=lambda photo: (photo.created_at, photo.pk), reverse=sort != "oldest")
+    else:
+        qs = qs.order_by("created_at", "pk") if sort == "oldest" else qs.order_by("-created_at", "-pk")
     paginator = Paginator(qs, 24)
     page = paginator.get_page(request.GET.get("page"))
     querystring = request.GET.copy()
