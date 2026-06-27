@@ -155,7 +155,14 @@ function resetHtmxLoading() {
 
 function readCollapsedPanels() {
   try {
-    return JSON.parse(localStorage.getItem(COLLAPSED_PANELS_KEY)) || {};
+    const state = JSON.parse(localStorage.getItem(COLLAPSED_PANELS_KEY)) || {};
+    if (state.navigation !== undefined) {
+      state.organs = Boolean(state.navigation);
+      if (state.navigation) state.departments = true;
+      delete state.navigation;
+      writeCollapsedPanels(state);
+    }
+    return state;
   } catch {
     return {};
   }
@@ -169,15 +176,31 @@ function applyCollapsedPanels() {
   const grid = document.getElementById("dashboard-grid");
   if (!grid) return;
   const state = readCollapsedPanels();
-  grid.classList.toggle("is-organs-collapsed", Boolean(state.organs));
-  grid.classList.toggle("is-departments-collapsed", Boolean(state.departments));
+  const organsCollapsed = Boolean(state.organs);
+  const departmentsCollapsed = Boolean(state.departments);
+  grid.classList.toggle("is-organs-collapsed", organsCollapsed);
+  grid.classList.toggle("is-departments-collapsed", departmentsCollapsed);
   document.querySelectorAll("[data-panel-toggle]").forEach((button) => {
     const panel = button.dataset.panelToggle;
-    const collapsed = Boolean(state[panel]);
+    if (!["organs", "departments"].includes(panel)) return;
+    const collapsed = panel === "organs" ? organsCollapsed : departmentsCollapsed;
     button.classList.toggle("active", collapsed);
     button.setAttribute("aria-pressed", String(collapsed));
-    const title = collapsed ? "Развернуть" : "Свернуть";
-    button.setAttribute("data-bs-title", `${title} ${panel === "organs" ? "органы" : "отделы"}`);
+    const isFloatingToggle = button.classList.contains("navigation-float-toggle");
+    let title;
+    if (isFloatingToggle) {
+      title = "Показать территориальные органы";
+    } else if (panel === "organs") {
+      title = organsCollapsed ? "Показать территориальные органы" : "Свернуть территориальные органы";
+    } else {
+      title = departmentsCollapsed ? "Показать отделы" : "Свернуть отделы";
+    }
+    button.setAttribute("data-bs-title", title);
+    button.setAttribute("aria-label", title);
+    const icon = button.querySelector("i");
+    if (icon) {
+      icon.className = `bi ${collapsed ? "bi-chevron-right" : "bi-chevron-left"}`;
+    }
   });
   initTooltips();
 }
