@@ -1,0 +1,14 @@
+:root {
+  --admin-line: #d7e4ef;
+  --admin-bg-soft: #eef5fb;
+  --admin-radius-sm: 6px;
+}
+
+.admin-preview-image {
+  height: 48px;
+  width: auto;
+  border: 1px solid var(--admin-line);
+  border-radius: var(--admin-radius-sm);
+  background: var(--admin-bg-soft);
+  object-fit: cover;
+}

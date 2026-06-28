@@ -27,10 +27,13 @@ class TerritorialOrganPhotoAdmin(admin.ModelAdmin):
     search_fields = ("description", "original_filename", "territorial_organ__name", "folder__name")
     readonly_fields = ("preview", "created_at", "updated_at")
 
+    class Media:
+        css = {"all": ("css/admin.css",)}
+
     def preview(self, obj):
         if not obj.image:
             return "-"
-        return format_html('<img src="{}" style="height:48px;border-radius:6px">', obj.image.url)
+        return format_html('<img src="{}" class="admin-preview-image">', obj.image.url)
 
     preview.short_description = "preview"
 
