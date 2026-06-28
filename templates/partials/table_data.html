@@ -8,9 +8,11 @@
 {% endif %}
 <div class="table-toolbar">
   <div>
-    <strong>{{ table.title }}</strong>
     <div class="table-stats">
-      <span class="records-found">Записей найдено: <strong>{{ page.paginator.count }}</strong></span>
+      <span class="records-found" aria-label="Записей найдено: {{ page.paginator.count }}">
+        <strong>{{ page.paginator.count }}</strong>
+        <span>записей</span>
+      </span>
       {% if is_request_table %}
         <span class="status-summary">
           <span class="summary-pill summary-pill-in-work"><span>В работе</span><strong>{{ table_stats.in_work_count }}</strong></span>

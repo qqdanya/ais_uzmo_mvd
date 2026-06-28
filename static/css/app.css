@@ -620,7 +620,8 @@ textarea {
 }
 .table-stats {
   display: grid;
-  gap: 6px;
+  justify-items: start;
+  gap: 7px;
   margin-top: 4px;
   color: var(--muted);
   font-size: .78rem;
@@ -631,11 +632,33 @@ textarea {
 }
 .records-found {
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
-  gap: .25rem;
+  justify-content: center;
+  min-width: 58px;
+  min-height: 48px;
+  padding: .35rem .6rem;
+  border: 1px solid #c9e2f4;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #f8fbff 0%, #eef7ff 100%);
+  color: var(--muted);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.82), 0 1px 0 rgba(11, 47, 91, .03);
+  text-align: center;
+}
+.records-found strong {
+  color: var(--navy);
+  font-size: 1.12rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.records-found span {
+  margin-top: .16rem;
+  font-size: .7rem;
+  line-height: 1;
 }
 .status-summary {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
   gap: 6px;
 }
