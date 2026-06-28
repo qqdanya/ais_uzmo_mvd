@@ -10,16 +10,13 @@
   <div>
     <strong>{{ table.title }}</strong>
     <div class="table-stats">
-      <span>Записей найдено: {{ page.paginator.count }}</span>
+      <span class="records-found">Записей найдено: <strong>{{ page.paginator.count }}</strong></span>
       {% if is_request_table %}
         <span class="status-summary">
-          В работе: <strong>{{ table_stats.in_work_count }}</strong>
-          <span>|</span>
-          Новых: <strong>{{ table_stats.new_count }}</strong>
-          <span>|</span>
-          Исполнено: <strong>{{ table_stats.done_count }}</strong>
-          <span>|</span>
-          Отклонено: <strong>{{ table_stats.rejected_count }}</strong>
+          <span class="summary-pill summary-pill-in-work"><span>В работе</span><strong>{{ table_stats.in_work_count }}</strong></span>
+          <span class="summary-pill summary-pill-new"><span>Новых</span><strong>{{ table_stats.new_count }}</strong></span>
+          <span class="summary-pill summary-pill-done"><span>Исполнено</span><strong>{{ table_stats.done_count }}</strong></span>
+          <span class="summary-pill summary-pill-rejected {% if not table_stats.rejected_count %}is-zero{% endif %}"><span>Отклонено</span><strong>{{ table_stats.rejected_count }}</strong></span>
         </span>
       {% endif %}
     </div>
@@ -84,7 +81,7 @@
         <th colspan="2" class="tmc-boundary-right">Сведения о потребности ТМЦ</th>
         <th colspan="3" class="tmc-boundary-right">Заявка</th>
         <th rowspan="2" class="tmc-boundary-right">Комментарий</th>
-        <th rowspan="2"></th>
+        <th rowspan="2" class="table-actions-head" data-bs-toggle="tooltip" data-bs-title="Действия" aria-label="Действия"><i class="bi bi-gear"></i><span class="visually-hidden">Действия</span></th>
       </tr>
       <tr>
         <th>Наименование</th>
@@ -147,7 +144,7 @@
     {% else %}
     <thead><tr>
       {% for field in fields %}<th>{{ field.verbose_name|capfirst }}</th>{% endfor %}
-      <th class="table-actions-head"></th>
+      <th class="table-actions-head" data-bs-toggle="tooltip" data-bs-title="Действия" aria-label="Действия"><i class="bi bi-gear"></i><span class="visually-hidden">Действия</span></th>
     </tr></thead>
     <tbody>
       {% for obj in page.object_list %}
