@@ -318,6 +318,8 @@ textarea {
   transform: translateX(-22px);
   visibility: hidden;
   pointer-events: none;
+  max-height: 0;
+  overflow: hidden;
   padding-left: 0;
   padding-right: 0;
   border-width: 0;
@@ -327,6 +329,8 @@ textarea {
   transform: translateX(-22px);
   visibility: hidden;
   pointer-events: none;
+  max-height: 0;
+  overflow: hidden;
   padding-left: 0;
   padding-right: 0;
   border-width: 0;
@@ -391,10 +395,10 @@ textarea {
 }
 .organ-panel, .department-panel, .workspace-panel { overflow: visible; }
 .organ-panel {
-  transition: opacity .28s var(--motion-smooth), transform .36s var(--motion-smooth), visibility .28s var(--motion-smooth), padding .36s var(--motion-smooth), border-width .36s var(--motion-smooth);
+  transition: opacity .28s var(--motion-smooth), transform .36s var(--motion-smooth), visibility .28s var(--motion-smooth), max-height .36s var(--motion-smooth), padding .36s var(--motion-smooth), border-width .36s var(--motion-smooth);
 }
 .department-panel {
-  transition: opacity .28s var(--motion-smooth), transform .36s var(--motion-smooth), visibility .28s var(--motion-smooth), padding .36s var(--motion-smooth), border-width .36s var(--motion-smooth);
+  transition: opacity .28s var(--motion-smooth), transform .36s var(--motion-smooth), visibility .28s var(--motion-smooth), max-height .36s var(--motion-smooth), padding .36s var(--motion-smooth), border-width .36s var(--motion-smooth);
 }
 .panel-title, .workspace-head, .table-toolbar, .organ-info {
   display: flex;
