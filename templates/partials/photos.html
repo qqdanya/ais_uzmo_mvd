@@ -18,7 +18,7 @@
       <span>фотографий</span>
     </span>
     <span class="metric-card metric-card-horizontal photo-summary-card">
-      <strong>{{ folders|length }}</strong>
+      <strong>{{ photo_folder_count }}</strong>
       <span>папок</span>
     </span>
   </div>
@@ -40,7 +40,7 @@
 <div id="photo-results" class="photo-browser" {% if can_write %}data-photo-dropzone data-photo-upload-url="{% url 'photo_bulk_upload' organ.pk %}{% if photo_folder %}?folder={{ photo_folder }}{% endif %}"{% endif %}>
 <div class="photo-breadcrumb">
   <button class="btn btn-sm {% if not photo_folder %}btn-primary{% else %}btn-outline-primary{% endif %}" hx-get="{% url 'photos' organ.pk %}{% if photo_query or photo_sort == 'oldest' %}?{% if photo_query %}q={{ photo_query|urlencode }}{% endif %}{% if photo_query and photo_sort == 'oldest' %}&{% endif %}{% if photo_sort == 'oldest' %}sort=oldest{% endif %}{% endif %}" hx-target="#workspace" hx-swap="innerHTML">
-    <i class="bi bi-images"></i> Все фотографии
+    <i class="bi bi-house"></i> Корень
   </button>
   {% for folder in folder_path %}
     <span class="photo-breadcrumb-separator">/</span>
@@ -80,7 +80,7 @@
 <div class="photo-grid">
   {% for photo in photos %}
   <article class="photo-card">
-    <button class="photo-image" data-bs-toggle="modal" data-bs-target="#image-{{ photo.pk }}"><img src="{{ photo.image.url }}" alt="{{ photo.description }}"></button>
+    <button class="photo-image" type="button" data-lightbox-photo data-src="{{ photo.image.url }}" data-download-url="{% url 'photo_download' organ.pk photo.pk %}" data-description="{{ photo.description|default:'Описание не добавлено' }}" data-meta="{{ photo.created_at|date:'d.m.Y H:i' }} · {{ photo.created_by|default:'-' }}"><img src="{{ photo.image.url }}" alt="{{ photo.description }}"></button>
     <div class="photo-body">
       <div class="small text-secondary">{{ photo.created_at|date:"d.m.Y H:i" }} · {{ photo.created_by|default:"-" }}</div>
       {% if photo.folder_path %}
@@ -102,7 +102,6 @@
       </div>
     </div>
   </article>
-  <div class="modal fade" id="image-{{ photo.pk }}" tabindex="-1"><div class="modal-dialog modal-xl modal-dialog-centered"><div class="modal-content"><img src="{{ photo.image.url }}" class="img-fluid rounded" alt="{{ photo.description }}"></div></div></div>
   {% empty %}
   <div class="empty-state wide">
     <div>{% if photo_query %}По заданному поиску фотографии не найдены{% else %}Фотографии пока не добавлены{% endif %}</div>

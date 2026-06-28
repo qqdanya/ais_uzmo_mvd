@@ -9,7 +9,7 @@
       <input type="hidden" name="parent" value="{{ current_folder.pk }}">
       <div class="upload-meta mb-3"><i class="bi bi-folder2-open"></i> Новая папка внутри «{{ current_folder.name }}»</div>
     {% else %}
-      <div class="upload-meta mb-3"><i class="bi bi-folder2-open"></i> Новая папка в разделе «Все фотографии»</div>
+      <div class="upload-meta mb-3"><i class="bi bi-folder2-open"></i> Новая папка в корне</div>
     {% endif %}
     {% for field in form %}
       <div class="form-field wide">

@@ -790,6 +790,7 @@ def render_photos(request, organ, folder_id_override=None):
             "photo_page": page,
             "photo_querystring": querystring.urlencode(),
             "folders": folders,
+            "photo_folder_count": len(folders),
             "selected_folder": selected_folder,
             "folder_path": folder_path(selected_folder),
             "photo_folder": folder_id,
