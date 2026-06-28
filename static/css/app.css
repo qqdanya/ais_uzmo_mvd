@@ -561,6 +561,13 @@ textarea {
   justify-content: flex-end;
   align-items: flex-end;
 }
+.table-toolbar-main {
+  display: flex;
+  flex: 1 1 720px;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
 .nav-tabs {
   flex-wrap: nowrap;
   overflow-x: auto;
@@ -620,16 +627,34 @@ textarea {
   align-items: center;
   gap: 8px;
   flex: 0 0 auto;
+  margin-left: auto;
   white-space: nowrap;
 }
+.table-actions-row {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+  margin: 6px 0 8px;
+}
 .table-stats {
-  display: grid;
-  justify-items: start;
-  gap: 7px;
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-top: 4px;
   color: var(--muted);
   font-size: .78rem;
   line-height: 1.2;
+}
+.table-filter-slot {
+  display: flex;
+  flex: 1 1 520px;
+  min-width: min(100%, 260px);
+}
+.table-filter-slot > .search-box {
+  width: 100%;
 }
 .table-stats strong {
   color: var(--navy);
@@ -2002,8 +2027,26 @@ textarea.form-control {
   .dashboard-grid.is-organs-collapsed.is-departments-collapsed .navigation-shell {
     max-height: 0;
   }
-  .organ-panel, .department-panel, .workspace-panel { max-height: none; }
-  .table-wrap { max-height: 70vh; }
+  .organ-panel, .department-panel, .workspace-panel {
+    max-height: none;
+    overflow: visible;
+  }
+  .table-wrap {
+    max-height: none;
+  }
+}
+@media (min-width: 1401px) {
+  .navigation-shell {
+    align-items: stretch;
+    min-height: 0;
+  }
+  .organ-panel,
+  .department-panel,
+  .workspace-panel {
+    max-height: calc(100vh - var(--app-header-height) - var(--app-footer-height) - 20px);
+    max-height: calc(100dvh - var(--app-header-height) - var(--app-footer-height) - 20px);
+    overflow: auto;
+  }
 }
 @media (min-width: 1401px) and (min-height: 720px) {
   .app-main {
@@ -2054,8 +2097,13 @@ textarea.form-control {
     max-height: 0;
     transform: translateY(-10px);
   }
-  .organ-panel, .department-panel, .workspace-panel { max-height: none; }
-  .table-wrap { max-height: 70vh; }
+  .organ-panel, .department-panel, .workspace-panel {
+    max-height: none;
+    overflow: visible;
+  }
+  .table-wrap {
+    max-height: none;
+  }
   .form-grid { grid-template-columns: 1fr; }
   .brand { font-size: .82rem; }
   .brand-mark { width: 30px; height: 30px; }
@@ -2070,10 +2118,21 @@ textarea.form-control {
     flex-basis: 100%;
     justify-content: flex-start;
   }
+  .table-toolbar-main,
+  .table-filter-slot {
+    flex-basis: 100%;
+  }
+  .table-stats {
+    flex-wrap: wrap;
+  }
   .table-toolbar .form-select,
   .table-toolbar .custom-select { max-width: 100%; }
   .table-actions {
     width: 100%;
+    margin-left: 0;
+    justify-content: flex-start;
+  }
+  .table-actions-row {
     justify-content: flex-start;
   }
   .tmc-filter-form .form-select,

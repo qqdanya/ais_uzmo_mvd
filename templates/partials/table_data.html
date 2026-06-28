@@ -7,72 +7,74 @@
 </ul>
 {% endif %}
 <div class="table-toolbar">
-  <div>
+  <div class="table-toolbar-main">
     <div class="table-stats">
       <span class="metric-card metric-card-vertical records-found" aria-label="Записей найдено: {{ page.paginator.count }}">
         <strong>{{ page.paginator.count }}</strong>
         <span>записей</span>
       </span>
-      {% if is_request_table %}
-        <span class="status-summary">
-          <span class="summary-pill summary-pill-in-work"><span>В работе</span><strong>{{ table_stats.in_work_count }}</strong></span>
-          <span class="summary-pill summary-pill-new"><span>Новых</span><strong>{{ table_stats.new_count }}</strong></span>
-          <span class="summary-pill summary-pill-done"><span>Исполнено</span><strong>{{ table_stats.done_count }}</strong></span>
-          <span class="summary-pill summary-pill-rejected {% if not table_stats.rejected_count %}is-zero{% endif %}"><span>Отклонено</span><strong>{{ table_stats.rejected_count }}</strong></span>
-        </span>
-      {% endif %}
+      <div class="table-filter-slot">
+    {% if is_request_table %}
+        <form class="tmc-filter-form" hx-get="{% url 'table_data' organ.pk table.key %}" hx-target="#table-area" hx-trigger="input changed delay:500ms, change" hx-swap="innerHTML">
+          <div class="search-box table-search-box">
+            <i class="bi bi-search"></i>
+            <input class="form-control form-control-sm" name="q" value="{{ request.GET.q }}" placeholder="{{ search_placeholder }}">
+          </div>
+          <select class="form-select form-select-sm" name="status" aria-label="Исполнение заявки">
+            <option value="">Все статусы</option>
+            {% for value, label in status_choices %}
+              <option value="{{ value }}" {% if request.GET.status == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          {% if table.key == "citsizi-equipment" %}
+          <select class="form-select form-select-sm" name="equipment_type" aria-label="Тип техники">
+            <option value="">Все типы техники</option>
+            {% for value, label in equipment_type_choices %}
+              <option value="{{ value }}" {% if request.GET.equipment_type == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          {% endif %}
+          <div class="tmc-date-range">
+            <input class="form-control form-control-sm" type="date" name="date_from" value="{{ table_filters.date_from }}" aria-label="Дата с">
+            <span class="tmc-date-separator">-</span>
+            <input class="form-control form-control-sm" type="date" name="date_to" value="{{ table_filters.date_to }}" aria-label="Дата по">
+          </div>
+          {% if table_querystring %}
+            <a class="btn btn-sm btn-outline-secondary" hx-get="{% url 'table_data' organ.pk table.key %}" hx-target="#table-area" hx-swap="innerHTML" href="{% url 'table_data' organ.pk table.key %}" aria-label="Сбросить фильтры"><i class="bi bi-x-lg"></i></a>
+          {% endif %}
+        </form>
+    {% else %}
+        <div class="search-box table-search-box">
+          <i class="bi bi-search"></i>
+          <input class="form-control form-control-sm" data-table-search placeholder="Поиск в таблице">
+        </div>
+    {% endif %}
+      </div>
     </div>
   </div>
-  <div class="d-flex gap-2 flex-wrap">
-    {% if is_request_table %}
-    <form class="tmc-filter-form" hx-get="{% url 'table_data' organ.pk table.key %}" hx-target="#table-area" hx-trigger="input changed delay:500ms, change" hx-swap="innerHTML">
-      <div class="search-box table-search-box">
-        <i class="bi bi-search"></i>
-        <input class="form-control form-control-sm" name="q" value="{{ request.GET.q }}" placeholder="{{ search_placeholder }}">
+</div>
+<div class="table-actions-row">
+  {% if is_request_table %}
+    <span class="status-summary">
+      <span class="summary-pill summary-pill-in-work"><span>В работе</span><strong>{{ table_stats.in_work_count }}</strong></span>
+      <span class="summary-pill summary-pill-new"><span>Новых</span><strong>{{ table_stats.new_count }}</strong></span>
+      <span class="summary-pill summary-pill-done"><span>Исполнено</span><strong>{{ table_stats.done_count }}</strong></span>
+      <span class="summary-pill summary-pill-rejected {% if not table_stats.rejected_count %}is-zero{% endif %}"><span>Отклонено</span><strong>{{ table_stats.rejected_count }}</strong></span>
+    </span>
+  {% endif %}
+  <div class="table-actions">
+    <div class="dropdown">
+      <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="bi bi-download"></i> Экспорт
+      </button>
+      <div class="dropdown-menu dropdown-menu-end">
+        <a class="dropdown-item" href="{% url 'export_table' organ.pk table.key 'csv' %}{% if table_querystring %}?{{ table_querystring }}{% endif %}"><i class="bi bi-filetype-csv"></i> Экспорт в CSV</a>
+        <a class="dropdown-item" href="{% url 'export_table' organ.pk table.key 'xlsx' %}{% if table_querystring %}?{{ table_querystring }}{% endif %}"><i class="bi bi-file-earmark-spreadsheet"></i> Экспорт в Excel</a>
       </div>
-      <select class="form-select form-select-sm" name="status" aria-label="Исполнение заявки">
-        <option value="">Все статусы</option>
-        {% for value, label in status_choices %}
-          <option value="{{ value }}" {% if request.GET.status == value %}selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-      </select>
-      {% if table.key == "citsizi-equipment" %}
-      <select class="form-select form-select-sm" name="equipment_type" aria-label="Тип техники">
-        <option value="">Все типы техники</option>
-        {% for value, label in equipment_type_choices %}
-          <option value="{{ value }}" {% if request.GET.equipment_type == value %}selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-      </select>
-      {% endif %}
-      <div class="tmc-date-range">
-        <input class="form-control form-control-sm" type="date" name="date_from" value="{{ table_filters.date_from }}" aria-label="Дата с">
-        <span class="tmc-date-separator">-</span>
-        <input class="form-control form-control-sm" type="date" name="date_to" value="{{ table_filters.date_to }}" aria-label="Дата по">
-      </div>
-      {% if table_querystring %}
-        <a class="btn btn-sm btn-outline-secondary" hx-get="{% url 'table_data' organ.pk table.key %}" hx-target="#table-area" hx-swap="innerHTML" href="{% url 'table_data' organ.pk table.key %}" aria-label="Сбросить фильтры"><i class="bi bi-x-lg"></i></a>
-      {% endif %}
-    </form>
-    {% else %}
-    <div class="search-box table-search-box">
-      <i class="bi bi-search"></i>
-      <input class="form-control form-control-sm" data-table-search placeholder="Поиск в таблице">
     </div>
+    {% if can_write %}
+      <button class="btn btn-sm btn-primary" hx-get="{% url 'record_create' organ.pk table.key %}" hx-target="#modal-content" data-open-modal="true"><i class="bi bi-plus-lg"></i> Добавить</button>
     {% endif %}
-    <div class="table-actions">
-      <div class="dropdown">
-        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-          <i class="bi bi-download"></i> Экспорт
-        </button>
-        <div class="dropdown-menu dropdown-menu-end">
-          <a class="dropdown-item" href="{% url 'export_table' organ.pk table.key 'csv' %}{% if table_querystring %}?{{ table_querystring }}{% endif %}"><i class="bi bi-filetype-csv"></i> Экспорт в CSV</a>
-          <a class="dropdown-item" href="{% url 'export_table' organ.pk table.key 'xlsx' %}{% if table_querystring %}?{{ table_querystring }}{% endif %}"><i class="bi bi-file-earmark-spreadsheet"></i> Экспорт в Excel</a>
-        </div>
-      </div>
-      {% if can_write %}
-        <button class="btn btn-sm btn-primary" hx-get="{% url 'record_create' organ.pk table.key %}" hx-target="#modal-content" data-open-modal="true"><i class="bi bi-plus-lg"></i> Добавить</button>
-      {% endif %}
-    </div>
   </div>
 </div>
 <div class="table-wrap">
@@ -83,7 +85,7 @@
         <th colspan="2" class="tmc-boundary-right">Сведения о потребности ТМЦ</th>
         <th colspan="3" class="tmc-boundary-right">Заявка</th>
         <th rowspan="2" class="tmc-boundary-right">Комментарий</th>
-        <th rowspan="2" class="table-actions-head" data-bs-toggle="tooltip" data-bs-title="Действия" aria-label="Действия"><i class="bi bi-gear"></i><span class="visually-hidden">Действия</span></th>
+        <th rowspan="2" class="table-actions-head" aria-label="Действия"><i class="bi bi-gear"></i><span class="visually-hidden">Действия</span></th>
       </tr>
       <tr>
         <th>Наименование</th>
@@ -146,7 +148,7 @@
     {% else %}
     <thead><tr>
       {% for field in fields %}<th>{{ field.verbose_name|capfirst }}</th>{% endfor %}
-      <th class="table-actions-head" data-bs-toggle="tooltip" data-bs-title="Действия" aria-label="Действия"><i class="bi bi-gear"></i><span class="visually-hidden">Действия</span></th>
+      <th class="table-actions-head" aria-label="Действия"><i class="bi bi-gear"></i><span class="visually-hidden">Действия</span></th>
     </tr></thead>
     <tbody>
       {% for obj in page.object_list %}
