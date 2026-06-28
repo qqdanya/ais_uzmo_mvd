@@ -960,12 +960,29 @@ class AppFlowTests(TestCase):
         photo.save(update_fields=["folder", "description"])
         self.client.login(username="operator", password="pass12345")
 
-        response = self.client.get(reverse("photos", args=[self.organ.pk]))
+        response = self.client.get(reverse("photos", args=[self.organ.pk]), {"folder": child.pk})
 
         self.assertContains(response, "Parent")
         self.assertContains(response, "Child")
         self.assertContains(response, f"?folder={child.pk}")
         self.assertContains(response, "Nested path photo")
+
+    def test_photos_root_shows_only_root_photos(self):
+        folder = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Folder")
+        inside = self.create_photo("inside-folder.png")
+        inside.folder = folder
+        inside.description = "Inside folder"
+        inside.save(update_fields=["folder", "description"])
+        root = self.create_photo("root-photo.png")
+        root.description = "Root photo"
+        root.save(update_fields=["description"])
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("photos", args=[self.organ.pk]))
+
+        self.assertContains(response, "Root photo")
+        self.assertContains(response, "Folder")
+        self.assertNotContains(response, "Inside folder")
 
     def test_photos_filter_by_folder(self):
         folder = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Facades")
@@ -1008,6 +1025,10 @@ class AppFlowTests(TestCase):
         response = self.client.get(reverse("photos", args=[self.organ.pk]), {"q": "фасад"})
 
         self.assertContains(response, "Фасад")
+        self.assertNotContains(response, "Фасад административного здания")
+
+        response = self.client.get(reverse("photos", args=[self.organ.pk]), {"folder": folder.pk, "q": "фасад"})
+
         self.assertContains(response, "Фасад административного здания")
 
 

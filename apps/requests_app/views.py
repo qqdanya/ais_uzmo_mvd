@@ -769,6 +769,8 @@ def render_photos(request, organ, folder_id_override=None):
     qs = organ.photos.select_related("created_by", "folder").filter(is_deleted=False)
     if folder_id:
         qs = qs.filter(folder_id=folder_id)
+    else:
+        qs = qs.filter(folder__isnull=True)
     if query:
         qs = [photo for photo in qs if photo_matches_query(photo, query)]
         qs = sorted(qs, key=lambda photo: (photo.created_at, photo.pk), reverse=sort != "oldest")
