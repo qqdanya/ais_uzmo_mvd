@@ -227,8 +227,8 @@ textarea {
 }
 .app-main {
   flex: 1 1 auto;
-  min-height: calc(100vh - var(--app-header-height) - var(--app-footer-height));
-  min-height: calc(100dvh - var(--app-header-height) - var(--app-footer-height));
+  min-height: calc(100vh - var(--app-header-height));
+  min-height: calc(100dvh - var(--app-header-height));
   display: flex;
   flex-direction: column;
 }
@@ -275,8 +275,8 @@ textarea {
   gap: 10px;
   padding: 10px;
   flex: 0 0 auto;
-  min-height: calc(100vh - var(--app-header-height) - var(--app-footer-height));
-  min-height: calc(100dvh - var(--app-header-height) - var(--app-footer-height));
+  min-height: calc(100vh - var(--app-header-height));
+  min-height: calc(100dvh - var(--app-header-height));
   height: auto;
   align-content: start;
   position: relative;
@@ -2043,15 +2043,15 @@ textarea.form-control {
   .organ-panel,
   .department-panel,
   .workspace-panel {
-    max-height: calc(100vh - var(--app-header-height) - var(--app-footer-height) - 20px);
-    max-height: calc(100dvh - var(--app-header-height) - var(--app-footer-height) - 20px);
+    max-height: calc(100vh - var(--app-header-height) - 20px);
+    max-height: calc(100dvh - var(--app-header-height) - 20px);
     overflow: auto;
   }
 }
 @media (min-width: 1401px) and (min-height: 720px) {
   .app-main {
-    flex: 0 0 calc(100vh - var(--app-header-height) - var(--app-footer-height));
-    flex-basis: calc(100dvh - var(--app-header-height) - var(--app-footer-height));
+    flex: 0 0 calc(100vh - var(--app-header-height));
+    flex-basis: calc(100dvh - var(--app-header-height));
     min-height: 0;
   }
   .dashboard-grid {
