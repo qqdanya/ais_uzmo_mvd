@@ -12,6 +12,16 @@
       {% if can_write %}<button class="btn btn-primary" hx-get="{% url 'photo_bulk_upload' organ.pk %}{% if photo_folder %}?folder={{ photo_folder }}{% endif %}" hx-target="#modal-content" data-open-modal="true"><i class="bi bi-cloud-arrow-up"></i> Загрузить</button>{% endif %}
     </div>
   </div>
+  <div class="photo-summary" aria-label="Сводка по фотографиям">
+    <span class="photo-summary-card">
+      <strong>{{ photo_page.paginator.count }}</strong>
+      <span>фотографий</span>
+    </span>
+    <span class="photo-summary-card">
+      <strong>{{ folders|length }}</strong>
+      <span>папок</span>
+    </span>
+  </div>
   <form class="photo-filters" hx-get="{% url 'photos' organ.pk %}" hx-target="#photo-results" hx-select="#photo-results" hx-swap="outerHTML" hx-trigger="input changed delay:500ms from:input, change from:select">
     <div class="search-box photo-search-box">
       <i class="bi bi-search"></i>

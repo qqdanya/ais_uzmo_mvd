@@ -1221,6 +1221,36 @@ textarea {
   grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
   gap: 10px;
 }
+.photo-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 10px;
+}
+.photo-summary-card {
+  display: inline-flex;
+  align-items: center;
+  gap: .42rem;
+  min-height: 34px;
+  padding: .34rem .58rem;
+  border: 1px solid #c9e2f4;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #f8fbff 0%, #eef7ff 100%);
+  color: var(--muted);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.82), 0 1px 0 rgba(11, 47, 91, .03);
+  white-space: nowrap;
+}
+.photo-summary-card strong {
+  min-width: 1.55rem;
+  color: var(--navy);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+}
+.photo-summary-card span {
+  font-size: .76rem;
+}
 .photo-filters {
   display: flex;
   flex-wrap: wrap;
