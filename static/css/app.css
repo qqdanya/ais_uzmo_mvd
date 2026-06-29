@@ -246,31 +246,11 @@ textarea {
   border-radius: 8px;
   box-shadow: 0 14px 34px rgba(11, 47, 91, .16);
 }
-[data-css-tooltip] {
-  position: relative;
-  overflow: visible;
-}
-[data-css-tooltip]::before,
-[data-css-tooltip]::after {
-  position: absolute;
-  left: 50%;
-  bottom: calc(100% + 8px);
+.css-tooltip-popover {
+  position: fixed;
   z-index: 2100;
-  opacity: 0;
-  pointer-events: none;
-  transform: translateX(-50%) translateY(2px);
-  transition: opacity .12s ease, transform .12s ease;
-}
-[data-css-tooltip]::before {
-  content: "";
-  bottom: calc(100% + 3px);
-  border: 5px solid transparent;
-  border-top-color: rgba(11, 47, 91, .94);
-}
-[data-css-tooltip]::after {
-  content: attr(data-css-tooltip);
   width: max-content;
-  max-width: 220px;
+  max-width: min(220px, calc(100vw - 16px));
   padding: .28rem .48rem;
   border-radius: 6px;
   background: rgba(11, 47, 91, .94);
@@ -279,13 +259,14 @@ textarea {
   line-height: 1.2;
   white-space: normal;
   box-shadow: 0 8px 20px rgba(11, 47, 91, .22);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(2px);
+  transition: opacity .12s ease, transform .12s ease;
 }
-[data-css-tooltip]:hover::before,
-[data-css-tooltip]:hover::after,
-[data-css-tooltip]:focus-visible::before,
-[data-css-tooltip]:focus-visible::after {
+.css-tooltip-popover.is-visible {
   opacity: 1;
-  transform: translateX(-50%) translateY(0);
+  transform: translateY(0);
 }
 .app-footer {
   flex: 0 0 auto;
@@ -423,7 +404,12 @@ textarea {
   min-width: 0;
   min-height: 0;
 }
-.organ-panel, .department-panel, .workspace-panel { overflow: visible; }
+.organ-panel,
+.department-panel,
+.workspace-panel {
+  overflow-x: hidden;
+  overflow-y: visible;
+}
 .organ-panel {
   transition: opacity .28s var(--motion-smooth), transform .36s var(--motion-smooth), visibility .28s var(--motion-smooth), max-height .36s var(--motion-smooth), padding .36s var(--motion-smooth), border-width .36s var(--motion-smooth);
 }
@@ -2055,7 +2041,8 @@ textarea.form-control {
   }
   .organ-panel, .department-panel, .workspace-panel {
     max-height: none;
-    overflow: visible;
+    overflow-x: hidden;
+    overflow-y: visible;
   }
   .table-wrap {
     max-height: none;
@@ -2071,7 +2058,8 @@ textarea.form-control {
   .workspace-panel {
     max-height: calc(100vh - var(--app-header-height) - 20px);
     max-height: calc(100dvh - var(--app-header-height) - 20px);
-    overflow: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
 }
 @media (min-width: 1401px) and (min-height: 720px) {
@@ -2093,7 +2081,8 @@ textarea.form-control {
   .organ-panel,
   .department-panel,
   .workspace-panel {
-    overflow: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
 }
 @media (min-height: 680px) {
@@ -2125,7 +2114,8 @@ textarea.form-control {
   }
   .organ-panel, .department-panel, .workspace-panel {
     max-height: none;
-    overflow: visible;
+    overflow-x: hidden;
+    overflow-y: visible;
   }
   .table-wrap {
     max-height: none;
