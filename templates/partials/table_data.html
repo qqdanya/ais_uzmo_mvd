@@ -16,6 +16,7 @@
       <div class="table-filter-slot">
     {% if is_request_table %}
         <form class="tmc-filter-form" hx-get="{% url 'table_data' organ.pk table.key %}" hx-target="#table-area" hx-trigger="input changed delay:500ms from:input, change from:input, change from:select" hx-swap="innerHTML">
+          {% if is_multi_organ %}{% for selected_organ in selected_organs %}<input type="hidden" name="organ_ids" value="{{ selected_organ.pk }}">{% endfor %}{% endif %}
           <div class="search-box table-search-box">
             <i class="bi bi-search"></i>
             <input id="table-search-{{ table.key }}" class="form-control form-control-sm" name="q" value="{{ request.GET.q }}" placeholder="{{ search_placeholder }}">
@@ -40,7 +41,7 @@
             <input class="form-control form-control-sm" type="date" name="date_to" value="{{ table_filters.date_to }}" aria-label="Дата по">
           </div>
           {% if table_querystring %}
-            <a class="btn btn-sm btn-outline-secondary" hx-get="{% url 'table_data' organ.pk table.key %}" hx-target="#table-area" hx-swap="innerHTML" href="{% url 'table_data' organ.pk table.key %}" aria-label="Сбросить фильтры"><i class="bi bi-x-lg"></i></a>
+            <a class="btn btn-sm btn-outline-secondary" hx-get="{% url 'table_data' organ.pk table.key %}{% if organ_querystring %}?{{ organ_querystring }}{% endif %}" hx-target="#table-area" hx-swap="innerHTML" href="{% url 'table_data' organ.pk table.key %}{% if organ_querystring %}?{{ organ_querystring }}{% endif %}" aria-label="Сбросить фильтры"><i class="bi bi-x-lg"></i></a>
           {% endif %}
         </form>
     {% else %}
@@ -72,7 +73,7 @@
         <a class="dropdown-item" href="{% url 'export_table' organ.pk table.key 'xlsx' %}{% if table_querystring %}?{{ table_querystring }}{% endif %}"><i class="bi bi-file-earmark-spreadsheet"></i> Экспорт в Excel</a>
       </div>
     </div>
-    {% if can_write %}
+    {% if can_add %}
       <button class="btn btn-sm btn-primary" hx-get="{% url 'record_create' organ.pk table.key %}" hx-target="#modal-content" data-open-modal="true"><i class="bi bi-plus-lg"></i> Добавить</button>
     {% endif %}
   </div>
@@ -82,6 +83,7 @@
     {% if table.key == "tmc-requests" %}
     <thead class="tmc-grouped-head">
       <tr>
+        {% if is_multi_organ %}<th rowspan="2" class="tmc-boundary-right">Территориальный орган</th>{% endif %}
         <th colspan="2" class="tmc-boundary-right">Сведения о потребности ТМЦ</th>
         <th colspan="3" class="tmc-boundary-right">Заявка</th>
         <th rowspan="2" class="tmc-boundary-right">Описание</th>
@@ -100,6 +102,9 @@
         {% with item_count=obj.items.all|length %}
           {% for item in obj.items.all %}
           <tr class="data-row {% if forloop.last and not forloop.parentloop.last %}tmc-group-last{% endif %} {% if obj.is_deleted %}table-warning{% endif %}" data-row-group="tmc-{{ obj.pk }}">
+            {% if forloop.first and is_multi_organ %}
+              <td rowspan="{{ item_count }}" class="tmc-request-cell tmc-boundary-right {% if forloop.parentloop.last %}tmc-bottom-span{% else %}tmc-group-span{% endif %}">{{ obj.territorial_organ.name }}</td>
+            {% endif %}
             <td>{{ item.name }}</td>
             <td class="tmc-boundary-right">{{ item.quantity }} {{ item.unit }}</td>
             {% if forloop.first %}
@@ -109,18 +114,19 @@
               <td rowspan="{{ item_count }}" class="tmc-boundary-right {% if forloop.parentloop.last %}tmc-bottom-span{% else %}tmc-group-span{% endif %}">{{ obj.comment }}</td>
               <td rowspan="{{ item_count }}" class="text-nowrap tmc-actions-cell {% if forloop.parentloop.last %}tmc-bottom-span{% else %}tmc-group-span{% endif %}">
                 {% if obj.attached_photo_count %}
-                  <button class="btn btn-icon request-photo-count" data-bs-toggle="tooltip" data-bs-title="Прикрепленные фотографии ({{ obj.attached_photo_count }} шт.)" hx-get="{% url 'request_photos' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Прикрепленные фотографии ({{ obj.attached_photo_count }} шт.)"><i class="bi bi-images"></i></button>
+                  <button class="btn btn-icon request-photo-count" data-bs-toggle="tooltip" data-bs-title="Прикрепленные фотографии ({{ obj.attached_photo_count }} шт.)" hx-get="{% url 'request_photos' obj.territorial_organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Прикрепленные фотографии ({{ obj.attached_photo_count }} шт.)"><i class="bi bi-images"></i></button>
                 {% endif %}
-                <button class="btn btn-icon" data-bs-toggle="tooltip" data-bs-title="История изменений" hx-get="{% url 'status_history' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="История изменений"><i class="bi bi-clock-history"></i></button>
+                <button class="btn btn-icon" data-bs-toggle="tooltip" data-bs-title="История изменений" hx-get="{% url 'status_history' obj.territorial_organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="История изменений"><i class="bi bi-clock-history"></i></button>
                 {% if can_write %}
-                  <button class="btn btn-icon edit" data-bs-toggle="tooltip" data-bs-title="Редактировать" hx-get="{% url 'record_update' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Редактировать"><i class="bi bi-pencil"></i></button>
-                  <button class="btn btn-icon danger" data-bs-toggle="tooltip" data-bs-title="Удалить" hx-get="{% url 'record_delete' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Удалить"><i class="bi bi-trash"></i></button>
+                  <button class="btn btn-icon edit" data-bs-toggle="tooltip" data-bs-title="Редактировать" hx-get="{% url 'record_update' obj.territorial_organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Редактировать"><i class="bi bi-pencil"></i></button>
+                  <button class="btn btn-icon danger" data-bs-toggle="tooltip" data-bs-title="Удалить" hx-get="{% url 'record_delete' obj.territorial_organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Удалить"><i class="bi bi-trash"></i></button>
                 {% endif %}
               </td>
             {% endif %}
           </tr>
           {% empty %}
           <tr class="data-row {% if not forloop.last %}tmc-group-last{% endif %} {% if obj.is_deleted %}table-warning{% endif %}" data-row-group="tmc-{{ obj.pk }}">
+            {% if is_multi_organ %}<td class="tmc-boundary-right">{{ obj.territorial_organ.name }}</td>{% endif %}
             <td>-</td>
             <td class="tmc-boundary-right">-</td>
             <td class="tmc-request-cell">{{ obj.request_number }}</td>
@@ -129,22 +135,22 @@
             <td class="tmc-boundary-right">{{ obj.comment }}</td>
             <td class="text-nowrap tmc-actions-cell">
               {% if obj.attached_photo_count %}
-                <button class="btn btn-icon request-photo-count" data-bs-toggle="tooltip" data-bs-title="Прикрепленные фотографии ({{ obj.attached_photo_count }} шт.)" hx-get="{% url 'request_photos' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Прикрепленные фотографии ({{ obj.attached_photo_count }} шт.)"><i class="bi bi-images"></i></button>
+                <button class="btn btn-icon request-photo-count" data-bs-toggle="tooltip" data-bs-title="Прикрепленные фотографии ({{ obj.attached_photo_count }} шт.)" hx-get="{% url 'request_photos' obj.territorial_organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Прикрепленные фотографии ({{ obj.attached_photo_count }} шт.)"><i class="bi bi-images"></i></button>
               {% endif %}
-              <button class="btn btn-icon" data-bs-toggle="tooltip" data-bs-title="История изменений" hx-get="{% url 'status_history' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="История изменений"><i class="bi bi-clock-history"></i></button>
+              <button class="btn btn-icon" data-bs-toggle="tooltip" data-bs-title="История изменений" hx-get="{% url 'status_history' obj.territorial_organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="История изменений"><i class="bi bi-clock-history"></i></button>
               {% if can_write %}
-                <button class="btn btn-icon edit" data-bs-toggle="tooltip" data-bs-title="Редактировать" hx-get="{% url 'record_update' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Редактировать"><i class="bi bi-pencil"></i></button>
-                <button class="btn btn-icon danger" data-bs-toggle="tooltip" data-bs-title="Удалить" hx-get="{% url 'record_delete' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Удалить"><i class="bi bi-trash"></i></button>
+                <button class="btn btn-icon edit" data-bs-toggle="tooltip" data-bs-title="Редактировать" hx-get="{% url 'record_update' obj.territorial_organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Редактировать"><i class="bi bi-pencil"></i></button>
+                <button class="btn btn-icon danger" data-bs-toggle="tooltip" data-bs-title="Удалить" hx-get="{% url 'record_delete' obj.territorial_organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Удалить"><i class="bi bi-trash"></i></button>
               {% endif %}
             </td>
           </tr>
           {% endfor %}
         {% endwith %}
       {% empty %}
-      <tr><td colspan="7">
+      <tr><td colspan="{% if is_multi_organ %}8{% else %}7{% endif %}">
         <div class="empty-state">
           <div>Записей пока нет</div>
-          {% if can_write %}
+          {% if can_add %}
             <button class="btn btn-sm btn-primary mt-2" hx-get="{% url 'record_create' organ.pk table.key %}" hx-target="#modal-content" data-open-modal="true"><i class="bi bi-plus-lg"></i> Добавить запись</button>
           {% endif %}
         </div>
@@ -153,23 +159,25 @@
     </tbody>
     {% else %}
     <thead><tr>
+      {% if is_multi_organ %}<th>Территориальный орган</th>{% endif %}
       {% for field in fields %}<th>{{ field.verbose_name|capfirst }}</th>{% endfor %}
       <th class="table-actions-head" aria-label="Действия"><i class="bi bi-gear"></i><span class="visually-hidden">Действия</span></th>
     </tr></thead>
     <tbody>
       {% for obj in page.object_list %}
       <tr class="data-row {% row_class table.key obj %} {% if obj.is_deleted %}table-warning{% endif %}">
+        {% if is_multi_organ %}<td>{{ obj.territorial_organ.name }}</td>{% endif %}
         {% for field in fields %}<td{% if field.name == "status" %} class="status-cell"{% endif %}>{% if field.name == "status" %}{% status_badge obj %}{% elif table.key == "fire-extinguishers" and field.name == "expiry_date" %}{% expiry_date_cell obj %}{% else %}{{ obj|get_attr:field.name }}{% endif %}</td>{% endfor %}
         <td class="text-center text-nowrap table-row-actions">
           {% if obj.attached_photo_count %}
-            <button class="btn btn-icon request-photo-count" data-bs-toggle="tooltip" data-bs-title="Прикрепленные фотографии ({{ obj.attached_photo_count }} шт.)" hx-get="{% url 'request_photos' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Прикрепленные фотографии ({{ obj.attached_photo_count }} шт.)"><i class="bi bi-images"></i></button>
+            <button class="btn btn-icon request-photo-count" data-bs-toggle="tooltip" data-bs-title="Прикрепленные фотографии ({{ obj.attached_photo_count }} шт.)" hx-get="{% url 'request_photos' obj.territorial_organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Прикрепленные фотографии ({{ obj.attached_photo_count }} шт.)"><i class="bi bi-images"></i></button>
           {% endif %}
           {% if has_status_history %}
-            <button class="btn btn-icon" data-bs-toggle="tooltip" data-bs-title="История изменений" hx-get="{% url 'status_history' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="История изменений"><i class="bi bi-clock-history"></i></button>
+            <button class="btn btn-icon" data-bs-toggle="tooltip" data-bs-title="История изменений" hx-get="{% url 'status_history' obj.territorial_organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="История изменений"><i class="bi bi-clock-history"></i></button>
           {% endif %}
           {% if can_write %}
-            <button class="btn btn-icon edit" data-bs-toggle="tooltip" data-bs-title="Редактировать" hx-get="{% url 'record_update' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Редактировать"><i class="bi bi-pencil"></i></button>
-            <button class="btn btn-icon danger" data-bs-toggle="tooltip" data-bs-title="Удалить" hx-get="{% url 'record_delete' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Удалить"><i class="bi bi-trash"></i></button>
+            <button class="btn btn-icon edit" data-bs-toggle="tooltip" data-bs-title="Редактировать" hx-get="{% url 'record_update' obj.territorial_organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Редактировать"><i class="bi bi-pencil"></i></button>
+            <button class="btn btn-icon danger" data-bs-toggle="tooltip" data-bs-title="Удалить" hx-get="{% url 'record_delete' obj.territorial_organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Удалить"><i class="bi bi-trash"></i></button>
           {% endif %}
         </td>
       </tr>
@@ -177,7 +185,7 @@
       <tr><td colspan="20">
         <div class="empty-state">
           <div>Записей пока нет</div>
-          {% if can_write %}
+          {% if can_add %}
             <button class="btn btn-sm btn-primary mt-2" hx-get="{% url 'record_create' organ.pk table.key %}" hx-target="#modal-content" data-open-modal="true"><i class="bi bi-plus-lg"></i> Добавить запись</button>
           {% endif %}
         </div>

@@ -11,7 +11,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, Min, Q
-from django.http import FileResponse, Http404, HttpResponse, JsonResponse
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse, QueryDict
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django.utils.dateparse import parse_date
@@ -52,6 +52,25 @@ def active_organs():
     return TerritorialOrgan.objects.filter(is_active=True, parent__isnull=True).prefetch_related("children")
 
 
+def selected_organs_from_request(request, fallback_organ):
+    raw_ids = request.GET.getlist("organ_ids")
+    if not raw_ids and request.GET.get("organ_ids"):
+        raw_ids = request.GET["organ_ids"].split(",")
+    ids = [int(value) for value in raw_ids if str(value).isdigit()]
+    if not ids:
+        return [fallback_organ]
+    organs = list(TerritorialOrgan.objects.filter(pk__in=ids, is_active=True, parent__isnull=True).order_by("order_number", "name"))
+    allowed = [organ for organ in organs if can_view(request.user, organ)]
+    return allowed or [fallback_organ]
+
+
+def selected_organs_querystring(organs):
+    query = QueryDict(mutable=True)
+    for organ in organs:
+        query.appendlist("organ_ids", str(organ.pk))
+    return query.urlencode()
+
+
 def photo_matches_query(photo, query):
     query_normalized = query.casefold()
     return query_normalized in photo.description.casefold() or query_normalized in photo.original_filename.casefold()
@@ -80,14 +99,27 @@ def department_tables(request, organ_id, department_slug):
     department = get_object_or_404(Department, slug=department_slug, is_active=True)
     if not can_view(request.user, organ):
         raise Http404
+    selected_organs = selected_organs_from_request(request, organ)
     table = TABLES[department.slug][0]
-    return render(request, "partials/tables_panel.html", {"organ": organ, "department": department, "tables": TABLES[department.slug], "active_table": table})
+    return render(
+        request,
+        "partials/tables_panel.html",
+        {
+            "organ": selected_organs[0],
+            "department": department,
+            "tables": TABLES[department.slug],
+            "active_table": table,
+            "selected_organs": selected_organs,
+            "is_multi_organ": len(selected_organs) > 1,
+            "organ_querystring": selected_organs_querystring(selected_organs) if len(selected_organs) > 1 else "",
+        },
+    )
 
 
-def filtered_queryset(request, table, organ):
-    qs = table["model"].objects.select_related("territorial_organ", "created_by", "updated_by").filter(territorial_organ=organ, is_deleted=False)
+def filtered_queryset(request, table, organs):
+    qs = table["model"].objects.select_related("territorial_organ", "created_by", "updated_by").filter(territorial_organ__in=organs, is_deleted=False)
     if table["key"] in REQUEST_TABLE_CONFIG:
-        return request_table_queryset(request, table["key"], organ, include_status=True)
+        return request_table_queryset(request, table["key"], organs, include_status=True)
     if request.GET.get("equipment_type") and hasattr(table["model"], "equipment_type"):
         qs = qs.filter(equipment_type=request.GET["equipment_type"])
     if request.GET.get("status"):
@@ -95,15 +127,15 @@ def filtered_queryset(request, table, organ):
     return qs
 
 
-def request_date_filter_values(request, model, organ):
-    oldest_date = model.objects.filter(territorial_organ=organ, is_deleted=False).aggregate(oldest=Min("request_date")).get("oldest")
+def request_date_filter_values(request, model, organs):
+    oldest_date = model.objects.filter(territorial_organ__in=organs, is_deleted=False).aggregate(oldest=Min("request_date")).get("oldest")
     date_from = request.GET.get("date_from") if "date_from" in request.GET else (oldest_date.isoformat() if oldest_date else "")
     date_to = request.GET.get("date_to") if "date_to" in request.GET else timezone.localdate().isoformat()
     return {"date_from": date_from, "date_to": date_to}
 
 
-def request_table_date_filter_values(request, table_key, organ):
-    return request_date_filter_values(request, REQUEST_TABLE_CONFIG[table_key]["model"], organ)
+def request_table_date_filter_values(request, table_key, organs):
+    return request_date_filter_values(request, REQUEST_TABLE_CONFIG[table_key]["model"], organs)
 
 
 def related_search_values(obj, field_name):
@@ -141,14 +173,14 @@ def apply_casefold_search(qs, search_fields, query):
     return qs.filter(pk__in=matched_ids)
 
 
-def request_table_queryset(request, table_key, organ, include_status=False):
+def request_table_queryset(request, table_key, organs, include_status=False):
     config = REQUEST_TABLE_CONFIG[table_key]
     qs = config["model"].objects.select_related("territorial_organ", "created_by", "updated_by")
     if config.get("prefetch"):
         qs = qs.prefetch_related(*config["prefetch"])
-    qs = qs.filter(territorial_organ=organ, is_deleted=False)
+    qs = qs.filter(territorial_organ__in=organs, is_deleted=False)
 
-    date_filters = request_table_date_filter_values(request, table_key, organ)
+    date_filters = request_table_date_filter_values(request, table_key, organs)
     date_from = parse_date(date_filters["date_from"])
     date_to = parse_date(date_filters["date_to"])
     if date_from:
@@ -343,14 +375,14 @@ def sync_request_photos(obj, photo_ids, user):
     )
 
 
-def attach_request_photo_counts(objects, model, organ):
+def attach_request_photo_counts(objects, model, organs):
     objects = list(objects)
     if not objects:
         return
     content_type = request_content_type_for_model(model)
     counts = dict(
         RequestPhotoLink.objects.filter(
-            territorial_organ=organ,
+            territorial_organ__in=organs,
             content_type=content_type,
             object_id__in=[obj.pk for obj in objects],
             photo__is_deleted=False,
@@ -508,18 +540,20 @@ def table_data(request, organ_id, table_key):
     organ = get_object_or_404(TerritorialOrgan, pk=organ_id, is_active=True)
     if not can_view(request.user, organ):
         raise Http404
+    selected_organs = selected_organs_from_request(request, organ)
+    is_multi_organ = len(selected_organs) > 1
     table_stats = {}
     table_filters = {}
-    qs = filtered_queryset(request, table, organ)
+    qs = filtered_queryset(request, table, selected_organs)
     is_request_table = table_key in REQUEST_TABLE_CONFIG
     if is_request_table:
-        table_filters = request_table_date_filter_values(request, table_key, organ)
-        stats_qs = request_table_queryset(request, table_key, organ)
+        table_filters = request_table_date_filter_values(request, table_key, selected_organs)
+        stats_qs = request_table_queryset(request, table_key, selected_organs)
         table_stats = request_status_stats(stats_qs)
     paginator = Paginator(qs, 20)
     page = paginator.get_page(request.GET.get("page"))
     if table_key in REQUEST_PHOTO_TABLES:
-        attach_request_photo_counts(page.object_list, table["model"], organ)
+        attach_request_photo_counts(page.object_list, table["model"], selected_organs)
     querystring = request.GET.copy()
     querystring.pop("page", None)
     return render(
@@ -530,8 +564,10 @@ def table_data(request, organ_id, table_key):
             "table": table,
             "fields": display_fields(table),
             "page": page,
-            "can_write": can_write(request.user, organ),
+            "can_write": can_write(request.user, organ) and not is_multi_organ,
+            "can_add": can_write(request.user, organ) and not is_multi_organ,
             "table_querystring": querystring.urlencode(),
+            "organ_querystring": selected_organs_querystring(selected_organs) if is_multi_organ else "",
             "status_choices": NeedStatus.choices,
             "table_stats": table_stats,
             "table_filters": table_filters,
@@ -539,6 +575,8 @@ def table_data(request, organ_id, table_key):
             "has_status_history": table_key in STATUS_HISTORY_TABLES,
             "search_placeholder": "Поиск по заявке и ТМЦ" if table_key == "tmc-requests" else "Поиск по заявке и комментарию",
             "equipment_type_choices": CitsiziEquipment._meta.get_field("equipment_type").choices,
+            "selected_organs": selected_organs,
+            "is_multi_organ": is_multi_organ,
         },
     )
 
@@ -1080,7 +1118,7 @@ def export_table(request, organ_id, table_key, fmt):
     organ = get_object_or_404(TerritorialOrgan, pk=organ_id)
     if not can_view(request.user, organ):
         raise Http404
-    qs = filtered_queryset(request, table, organ)
+    qs = filtered_queryset(request, table, selected_organs_from_request(request, organ))
     fields = display_fields(table)
     filename = f"{table_key}-{organ.pk}.{fmt}"
     if fmt == "csv":

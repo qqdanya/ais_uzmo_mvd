@@ -497,9 +497,69 @@ textarea {
 .search-box .form-control {
   padding-left: 2rem;
 }
+.organ-mode-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #eef6fb;
+}
+.organ-mode-switch button {
+  border: 0;
+  border-radius: 6px;
+  padding: .38rem .5rem;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 700;
+}
+.organ-mode-switch button.active {
+  background: #fff;
+  color: var(--navy);
+  box-shadow: 0 8px 18px rgba(23, 105, 170, .12);
+}
+.organ-bulk-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 8px;
+}
 .organ-list, .department-list {
   display: grid;
   gap: 6px;
+}
+.organ-row {
+  display: grid;
+  grid-template-columns: 0 1fr;
+  gap: 0;
+  align-items: stretch;
+  transition: grid-template-columns .18s ease, gap .18s ease;
+}
+.is-multi-organ-mode .organ-row {
+  grid-template-columns: 30px 1fr;
+  gap: 6px;
+}
+.organ-check {
+  width: 30px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .18s ease;
+}
+.is-multi-organ-mode .organ-check {
+  opacity: 1;
+  pointer-events: auto;
+}
+.organ-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--blue);
 }
 .organ-item, .department-item {
   width: 100%;
@@ -525,7 +585,7 @@ textarea {
   box-shadow: 0 8px 18px rgba(23, 105, 170, .12);
   transform: translateY(-1px);
 }
-.organ-item.active, .department-item.active {
+.organ-item.active, .organ-row.active .organ-item, .department-item.active {
   position: relative;
   border-color: #0f64a8;
   background: linear-gradient(135deg, #dff2ff 0%, #eef8ff 100%);

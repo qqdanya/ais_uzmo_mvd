@@ -442,6 +442,41 @@ class AppFlowTests(TestCase):
         self.assertContains(response, "Отклонено")
         self.assertContains(response, "<strong>1</strong>", html=True)
 
+    def test_tmc_table_supports_multi_organ_summary_mode(self):
+        other_organ = TerritorialOrgan.objects.create(name="Other territorial organ", order_number=2)
+        first = TmcRequest.objects.create(territorial_organ=self.organ, request_number="40/TMC", request_date="2026-06-20", status="new", comment="Office")
+        second = TmcRequest.objects.create(territorial_organ=other_organ, request_number="41/TMC", request_date="2026-06-21", status="in_work", comment="Office")
+        TmcRequestItem.objects.create(request=first, name="Бумага А4", quantity=5, unit="пач.")
+        TmcRequestItem.objects.create(request=second, name="Бумага А4", quantity=7, unit="пач.")
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(
+            reverse("table_data", args=[self.organ.pk, "tmc-requests"]),
+            {"organ_ids": [self.organ.pk, other_organ.pk], "q": "Бумага А4"},
+        )
+
+        self.assertContains(response, "Территориальный орган")
+        self.assertContains(response, "Test territorial organ")
+        self.assertContains(response, "Other territorial organ")
+        self.assertContains(response, "40/TMC")
+        self.assertContains(response, "41/TMC")
+        self.assertContains(response, f'name="organ_ids" value="{self.organ.pk}"')
+        self.assertContains(response, f'name="organ_ids" value="{other_organ.pk}"')
+        self.assertNotContains(response, "Добавить")
+
+    def test_department_panel_preserves_multi_organ_querystring(self):
+        other_organ = TerritorialOrgan.objects.create(name="Other territorial organ", order_number=2)
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(
+            reverse("department_tables", args=[self.organ.pk, "tmc"]),
+            {"organ_ids": [self.organ.pk, other_organ.pk]},
+        )
+
+        self.assertContains(response, "Сводный просмотр: 2 территориальных органов")
+        self.assertContains(response, f"organ_ids={self.organ.pk}")
+        self.assertContains(response, f"organ_ids={other_organ.pk}")
+
     def test_request_table_search_triggers_while_typing(self):
         self.client.login(username="operator", password="pass12345")
 

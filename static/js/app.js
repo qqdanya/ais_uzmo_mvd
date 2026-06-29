@@ -1,5 +1,7 @@
 window.selectedOrgan = window.selectedOrgan || null;
 const ORGAN_STORAGE_KEY = "asu-zmo:selected-organ";
+const ORGAN_MODE_KEY = "asu-zmo:organ-mode";
+const MULTI_ORGANS_KEY = "asu-zmo:multi-organs";
 const DEPARTMENT_STORAGE_PREFIX = "asu-zmo:last-department:";
 const COLLAPSED_PANELS_KEY = "asu-zmo:collapsed-panels";
 let htmxRequests = 0;
@@ -37,6 +39,89 @@ function findDepartmentBySlug(slug) {
 function findOrganById(organId) {
   return Array.from(document.querySelectorAll(".organ-item[data-organ-id]"))
     .find((item) => item.dataset.organId === String(organId));
+}
+
+function organSelectionMode() {
+  return sessionStorage.getItem(ORGAN_MODE_KEY) === "multi" ? "multi" : "single";
+}
+
+function isMultiOrganMode() {
+  return organSelectionMode() === "multi";
+}
+
+function checkedOrganIds() {
+  return Array.from(document.querySelectorAll("[data-organ-checkbox]:checked")).map((input) => input.value);
+}
+
+function storeCheckedOrganIds() {
+  sessionStorage.setItem(MULTI_ORGANS_KEY, checkedOrganIds().join(","));
+}
+
+function selectedOrganQueryString() {
+  const params = new URLSearchParams();
+  checkedOrganIds().forEach((id) => params.append("organ_ids", id));
+  return params.toString();
+}
+
+function baseOrganIdForRequest() {
+  return checkedOrganIds()[0] || window.selectedOrgan;
+}
+
+function loadOrganInfo(organId) {
+  if (!organId || !window.htmx) return;
+  window.htmx.ajax("GET", `/organs/${organId}/info/`, { target: "#organ-info", swap: "innerHTML" });
+}
+
+function renderMultiOrganInfo() {
+  const target = document.getElementById("organ-info");
+  if (!target) return;
+  const count = checkedOrganIds().length;
+  if (!count) {
+    target.innerHTML = '<div class="empty-state">Выберите хотя бы один территориальный орган</div>';
+    return;
+  }
+  target.innerHTML = `
+    <div class="organ-info organ-info-summary">
+      <div>
+        <div class="small text-secondary">Сводный просмотр</div>
+        <strong>Выбрано: ${count} территориальных органов</strong>
+        <p class="mb-0 mt-2 text-secondary">Данные таблиц будут показаны по выбранным территориальным органам.</p>
+      </div>
+    </div>
+  `;
+}
+
+function syncOrganModeButtons() {
+  document.querySelectorAll("[data-organ-mode]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.organMode === organSelectionMode());
+  });
+  const bulkActions = document.querySelector("[data-organ-bulk-actions]");
+  if (bulkActions) bulkActions.hidden = !isMultiOrganMode();
+  document.body.classList.toggle("is-multi-organ-mode", isMultiOrganMode());
+}
+
+function restoreCheckedOrgans() {
+  const saved = new Set((sessionStorage.getItem(MULTI_ORGANS_KEY) || "").split(",").filter(Boolean));
+  document.querySelectorAll("[data-organ-checkbox]").forEach((checkbox) => {
+    checkbox.checked = saved.has(checkbox.value);
+  });
+}
+
+function ensureMultiSelection() {
+  if (checkedOrganIds().length) return;
+  const active = document.querySelector(".organ-item.active[data-organ-id]") || document.querySelector(".organ-item[data-organ-id]");
+  const checkbox = active?.closest("[data-organ-row]")?.querySelector("[data-organ-checkbox]");
+  if (checkbox) checkbox.checked = true;
+  storeCheckedOrganIds();
+}
+
+function setOrganMode(mode) {
+  sessionStorage.setItem(ORGAN_MODE_KEY, mode === "multi" ? "multi" : "single");
+  if (isMultiOrganMode()) {
+    ensureMultiSelection();
+    renderMultiOrganInfo();
+  }
+  syncOrganModeButtons();
 }
 
 function normalizeAuthInput(input) {
@@ -694,6 +779,19 @@ function togglePhotoLightboxZoom() {
 
 function loadDepartment(department) {
   if (!department || !window.htmx) return;
+  if (isMultiOrganMode()) {
+    const baseOrganId = baseOrganIdForRequest();
+    const query = selectedOrganQueryString();
+    renderMultiOrganInfo();
+    if (!baseOrganId || !query) {
+      document.getElementById("workspace").innerHTML = '<div class="empty-state">Выберите хотя бы один территориальный орган</div>';
+      return;
+    }
+    sessionStorage.setItem(departmentStorageKey("multi"), department.dataset.departmentSlug);
+    const url = `/organs/${baseOrganId}/departments/${department.dataset.departmentSlug}/?${query}`;
+    window.htmx.ajax("GET", url, { target: "#workspace", swap: "innerHTML" });
+    return;
+  }
   if (!window.selectedOrgan) {
     const activeOrgan = document.querySelector(".organ-item.active[data-organ-id]") || document.querySelector(".organ-item[data-organ-id]");
     window.selectedOrgan = activeOrgan ? Number(activeOrgan.dataset.organId) : null;
@@ -705,10 +803,11 @@ function loadDepartment(department) {
 }
 
 function setActiveOrgan(organ) {
-  document.querySelectorAll(".organ-item").forEach((item) => {
+  document.querySelectorAll("[data-organ-row], .organ-item").forEach((item) => {
     item.classList.remove("active");
     item.removeAttribute("aria-current");
   });
+  organ.closest("[data-organ-row]")?.classList.add("active");
   organ.classList.add("active");
   organ.setAttribute("aria-current", "true");
   rememberSelectedOrgan(organ.dataset.organId);
@@ -727,6 +826,13 @@ function setActiveDepartment(department) {
 }
 
 function preferredDepartmentForOrgan(organId) {
+  if (isMultiOrganMode()) {
+    const savedMultiSlug = sessionStorage.getItem(departmentStorageKey("multi"));
+    if (savedMultiSlug) {
+      const savedDepartment = findDepartmentBySlug(savedMultiSlug);
+      if (savedDepartment) return savedDepartment;
+    }
+  }
   const savedSlug = sessionStorage.getItem(departmentStorageKey(organId));
   if (savedSlug) {
     const savedDepartment = findDepartmentBySlug(savedSlug);
@@ -811,7 +917,7 @@ document.addEventListener("input", (event) => {
   }
   if (event.target.id !== "organ-search") return;
   const query = normalizeSearchText(event.target.value);
-  document.querySelectorAll(".organ-item").forEach((item) => {
+  document.querySelectorAll("[data-organ-row]").forEach((item) => {
     if (!query) {
       item.hidden = false;
       item.style.order = "";
@@ -886,6 +992,50 @@ document.addEventListener("beforeinput", (event) => {
 });
 
 document.addEventListener("click", (event) => {
+  const organMode = event.target.closest("[data-organ-mode]");
+  if (organMode) {
+    event.preventDefault();
+    setOrganMode(organMode.dataset.organMode);
+    if (!isMultiOrganMode()) {
+      const firstChecked = checkedOrganIds()[0];
+      const organ = firstChecked ? findOrganById(firstChecked) : document.querySelector(".organ-item.active[data-organ-id]");
+      if (organ) {
+        setActiveOrgan(organ);
+        loadOrganInfo(organ.dataset.organId);
+      }
+    }
+    const department = preferredDepartmentForOrgan(window.selectedOrgan);
+    if (department) {
+      setActiveDepartment(department);
+      loadDepartment(department);
+    }
+    return;
+  }
+
+  const selectAll = event.target.closest("[data-organ-select-all]");
+  if (selectAll) {
+    event.preventDefault();
+    document.querySelectorAll("[data-organ-checkbox]").forEach((checkbox) => {
+      if (!checkbox.closest("[data-organ-row]")?.hidden) checkbox.checked = true;
+    });
+    storeCheckedOrganIds();
+    const department = preferredDepartmentForOrgan(window.selectedOrgan);
+    if (department) loadDepartment(department);
+    return;
+  }
+
+  const clearAll = event.target.closest("[data-organ-clear-all]");
+  if (clearAll) {
+    event.preventDefault();
+    document.querySelectorAll("[data-organ-checkbox]").forEach((checkbox) => {
+      checkbox.checked = false;
+    });
+    storeCheckedOrganIds();
+    renderMultiOrganInfo();
+    document.getElementById("workspace").innerHTML = '<div class="empty-state">Выберите хотя бы один территориальный орган</div>';
+    return;
+  }
+
   const productSuggestion = event.target.closest("[data-tmc-product-suggestion]");
   if (productSuggestion) {
     chooseTmcProductSuggestion(productSuggestion);
@@ -1034,6 +1184,17 @@ document.addEventListener("click", (event) => {
 document.addEventListener("click", (event) => {
   const organ = event.target.closest(".organ-item[data-organ-id]");
   if (!organ) return;
+  if (isMultiOrganMode()) {
+    event.preventDefault();
+    const checkbox = organ.closest("[data-organ-row]")?.querySelector("[data-organ-checkbox]");
+    if (checkbox) {
+      checkbox.checked = !checkbox.checked;
+      storeCheckedOrganIds();
+    }
+    const department = preferredDepartmentForOrgan(window.selectedOrgan);
+    if (department) loadDepartment(department);
+    return;
+  }
   setActiveOrgan(organ);
 
   const departments = document.querySelectorAll(".department-item[data-department-slug]");
@@ -1047,6 +1208,14 @@ document.addEventListener("click", (event) => {
     setActiveDepartment(department);
     loadDepartment(department);
   }
+});
+
+document.addEventListener("change", (event) => {
+  if (!event.target.matches("[data-organ-checkbox]")) return;
+  storeCheckedOrganIds();
+  if (!isMultiOrganMode()) return;
+  const department = preferredDepartmentForOrgan(window.selectedOrgan);
+  if (department) loadDepartment(department);
 });
 
 document.addEventListener("keydown", (event) => {
@@ -1119,12 +1288,18 @@ document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll(".auth-ascii-input").forEach(normalizeAuthInput);
   autoDismissAlerts();
   applyCollapsedPanels();
+  restoreCheckedOrgans();
   const savedOrganId = sessionStorage.getItem(ORGAN_STORAGE_KEY);
   const organ = savedOrganId
     ? findOrganById(savedOrganId)
     : document.querySelector(".organ-item[data-organ-id]");
   if (organ) {
     setActiveOrgan(organ);
+    if (isMultiOrganMode()) {
+      ensureMultiSelection();
+      renderMultiOrganInfo();
+    }
+    syncOrganModeButtons();
     const department = preferredDepartmentForOrgan(window.selectedOrgan);
     if (department) {
       setActiveDepartment(department);
