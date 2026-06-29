@@ -35,6 +35,7 @@ from .models import (
     RequestPhotoLink,
     RequestStatusHistory,
     TmcRequest,
+    VehicleFuelRequest,
     VehicleRepairRequest,
 )
 from .permissions import can_view, can_write
@@ -179,6 +180,7 @@ STATUS_HISTORY_TABLES = {
     "building-repair",
     "citsizi-equipment",
     "vehicle-repair",
+    "vehicle-fuel",
     "fire-requests",
 }
 
@@ -199,6 +201,11 @@ REQUEST_TABLE_CONFIG = {
     },
     "vehicle-repair": {
         "model": VehicleRepairRequest,
+        "search_fields": ("request_number", "comment"),
+        "completed_label": "Дата исполнения заявки",
+    },
+    "vehicle-fuel": {
+        "model": VehicleFuelRequest,
         "search_fields": ("request_number", "comment"),
         "completed_label": "Дата исполнения заявки",
     },
@@ -227,6 +234,15 @@ REQUEST_TABLE_CONFIG = {
 
 REQUEST_PHOTO_TABLES = set(REQUEST_TABLE_CONFIG)
 REQUEST_PHOTO_PICKER_PAGE_SIZE = 12
+SIMPLE_REQUEST_XLSX_CONFIG = {
+    "widths": {
+        "request_number": 18,
+        "request_date": 14,
+        "status": 22,
+        "comment": 38,
+    },
+    "center_columns": {"request_number", "request_date", "status"},
+}
 
 
 def request_content_type_for_model(model):
@@ -358,13 +374,10 @@ XLSX_EXPORT_CONFIG = {
         "center_columns": {"state_date", "required_count", "available_count", "broken_count", "writeoff_count"},
     },
     "vehicle-repair": {
-        "widths": {
-            "request_number": 18,
-            "request_date": 14,
-            "status": 22,
-            "comment": 38,
-        },
-        "center_columns": {"request_number", "request_date", "status"},
+        **SIMPLE_REQUEST_XLSX_CONFIG,
+    },
+    "vehicle-fuel": {
+        **SIMPLE_REQUEST_XLSX_CONFIG,
     },
     "fire-extinguishers": {
         "widths": {

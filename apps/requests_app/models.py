@@ -153,6 +153,21 @@ class VehicleRepairRequest(TrackableRequest):
         return f"Заявка на ремонт № {self.request_number}"
 
 
+class VehicleFuelRequest(TrackableRequest):
+    request_number = models.CharField("номер", max_length=80)
+    request_date = models.DateField("дата")
+    status = models.CharField("исполнение заявки", max_length=20, choices=NeedStatus.choices, default=NeedStatus.NEW, db_index=True)
+    completed_at = models.DateField("дата исполнения заявки", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "заявка на ГСМ"
+        verbose_name_plural = "Заявки на ГСМ"
+        ordering = ("-request_date",)
+
+    def __str__(self):
+        return f"Заявка на ГСМ № {self.request_number}"
+
+
 class FireExtinguisher(TrackableRequest):
     state_date = models.DateField("дата", default=timezone.localdate, db_index=True)
     required_count = models.PositiveIntegerField("положено", validators=[MinValueValidator(0)])

@@ -37,6 +37,7 @@ class TmcRequestAdmin(RequestAdmin):
 for model in [
     models.VehicleInventory,
     models.VehicleRepairRequest,
+    models.VehicleFuelRequest,
     models.FireExtinguisher,
     models.FireAlarm,
     models.SecurityAlarm,

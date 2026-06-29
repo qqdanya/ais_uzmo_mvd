@@ -29,6 +29,7 @@ from apps.requests_app.models import (
     ServiceHousing,
     TmcRequest,
     TmcRequestItem,
+    VehicleFuelRequest,
     VehicleInventory,
     VehicleRepairRequest,
 )
@@ -368,6 +369,15 @@ class AppFlowTests(TestCase):
         self.assertContains(response, "Отклонено")
         self.assertContains(response, "<strong>1</strong>", html=True)
 
+    def test_request_table_search_triggers_while_typing(self):
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("table_data", args=[self.organ.pk, "tmc-requests"]))
+
+        self.assertContains(response, 'id="table-search-tmc-requests"')
+        self.assertContains(response, "input changed delay:500ms from:input")
+        self.assertContains(response, "change from:select")
+
     def test_tmc_search_is_case_insensitive_for_cyrillic(self):
         matching = TmcRequest.objects.create(territorial_organ=self.organ, request_number="32/TMC", request_date="2026-06-20", status="new", comment="Склад")
         TmcRequestItem.objects.create(request=matching, name="Стол письменный", quantity=2, unit="шт.")
@@ -646,6 +656,62 @@ class AppFlowTests(TestCase):
         values = [cell.value for row in workbook.active.iter_rows() for cell in row]
         self.assertIn(included.request_number, values)
         self.assertNotIn(excluded.request_number, values)
+
+    def test_vehicle_fuel_request_matches_vehicle_repair_table_behavior(self):
+        VehicleFuelRequest.objects.create(
+            territorial_organ=self.organ,
+            request_number="GSM-1",
+            request_date="2026-06-27",
+            status="in_work",
+            comment="Fuel cards",
+        )
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("table_data", args=[self.organ.pk, "vehicle-fuel"]))
+
+        self.assertContains(response, "<th>Описание</th>", html=True)
+        self.assertContains(response, "Fuel cards")
+        self.assertContains(response, "table-vehicle-fuel")
+        self.assertContains(response, "bi-clock-history")
+
+        export_response = self.client.get(reverse("export_table", args=[self.organ.pk, "vehicle-fuel", "xlsx"]))
+        workbook = load_workbook(BytesIO(export_response.content))
+        sheet = workbook.active
+        self.assertEqual(sheet["A1"].value, "Номер")
+        self.assertEqual(sheet["D1"].value, "Описание")
+        self.assertEqual(sheet["D2"].value, "Fuel cards")
+        self.assertEqual(sheet["D1"].border.right.style, "medium")
+
+    def test_vehicle_fuel_status_history_records_completed_date(self):
+        request_obj = VehicleFuelRequest.objects.create(
+            territorial_organ=self.organ,
+            request_number="GSM-2",
+            request_date="2026-06-27",
+            status="new",
+            comment="Initial",
+        )
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.post(
+            reverse("record_update", args=[self.organ.pk, "vehicle-fuel", request_obj.pk]),
+            {
+                "request_number": "GSM-2",
+                "request_date": "2026-06-27",
+                "status": "done",
+                "completed_at": "2026-06-29",
+                "comment": "Completed",
+            },
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        history = self.status_history(request_obj).get(old_status="new", new_status="done")
+        self.assertEqual(history.completed_at.isoformat(), "2026-06-29")
+
+        modal = self.client.get(reverse("vehicle_fuel_status_history", args=[self.organ.pk, request_obj.pk]), HTTP_HX_REQUEST="true")
+        self.assertContains(modal, "История изменений заявки GSM-2")
+        self.assertContains(modal, "Дата исполнения заявки")
+        self.assertContains(modal, "29.06.2026")
 
     def test_fire_inventory_tabs_have_date_short_headers_and_styled_export(self):
         FireExtinguisher.objects.create(territorial_organ=self.organ, state_date="2026-06-27", required_count=10, available_count=8, expiry_date="2026-12-31", writeoff_count=1)
@@ -935,7 +1001,7 @@ class AppFlowTests(TestCase):
         self.assertEqual(TABLES["tmc"][0]["title"], "Заявка")
         self.assertEqual(TABLES["antiterror"][0]["title"], "Заявка (акт обследования)")
         self.assertEqual([item["key"] for item in TABLES["tmc"]], ["tmc-requests"])
-        self.assertEqual([item["key"] for item in TABLES["transport"]], ["vehicle-repair"])
+        self.assertEqual([item["key"] for item in TABLES["transport"]], ["vehicle-repair", "vehicle-fuel"])
         self.assertIn("vehicle-inventory", TABLE_BY_KEY)
         self.assertEqual([item["key"] for item in TABLES["fire"]], ["fire-extinguishers", "fire-alarm", "security-alarm", "fire-requests"])
         self.assertEqual([item["key"] for item in TABLES["uoto"]], ["service-housing", "building-repair"])

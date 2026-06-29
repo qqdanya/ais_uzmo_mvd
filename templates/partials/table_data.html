@@ -15,10 +15,10 @@
       </span>
       <div class="table-filter-slot">
     {% if is_request_table %}
-        <form class="tmc-filter-form" hx-get="{% url 'table_data' organ.pk table.key %}" hx-target="#table-area" hx-trigger="input changed delay:500ms, change" hx-swap="innerHTML">
+        <form class="tmc-filter-form" hx-get="{% url 'table_data' organ.pk table.key %}" hx-target="#table-area" hx-trigger="input changed delay:500ms from:input, change from:input, change from:select" hx-swap="innerHTML">
           <div class="search-box table-search-box">
             <i class="bi bi-search"></i>
-            <input class="form-control form-control-sm" name="q" value="{{ request.GET.q }}" placeholder="{{ search_placeholder }}">
+            <input id="table-search-{{ table.key }}" class="form-control form-control-sm" name="q" value="{{ request.GET.q }}" placeholder="{{ search_placeholder }}">
           </div>
           <select class="form-select form-select-sm" name="status" aria-label="Исполнение заявки">
             <option value="">Все статусы</option>

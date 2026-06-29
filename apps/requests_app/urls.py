@@ -18,6 +18,7 @@ urlpatterns = [
     path("organs/<int:organ_id>/tables/building-repair/<int:pk>/history/", views.status_history, {"table_key": "building-repair"}, name="building_repair_status_history"),
     path("organs/<int:organ_id>/tables/citsizi-equipment/<int:pk>/history/", views.status_history, {"table_key": "citsizi-equipment"}, name="citsizi_status_history"),
     path("organs/<int:organ_id>/tables/vehicle-repair/<int:pk>/history/", views.status_history, {"table_key": "vehicle-repair"}, name="vehicle_repair_status_history"),
+    path("organs/<int:organ_id>/tables/vehicle-fuel/<int:pk>/history/", views.status_history, {"table_key": "vehicle-fuel"}, name="vehicle_fuel_status_history"),
     path("organs/<int:organ_id>/tables/fire-requests/<int:pk>/history/", views.status_history, {"table_key": "fire-requests"}, name="fire_request_status_history"),
     path("organs/<int:organ_id>/tables/<slug:table_key>/<int:pk>/delete/", views.record_delete, name="record_delete"),
     path("organs/<int:organ_id>/tables/<slug:table_key>/export/<slug:fmt>/", views.export_table, name="export_table"),

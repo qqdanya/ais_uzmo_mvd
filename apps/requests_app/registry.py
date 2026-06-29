@@ -26,6 +26,14 @@ TABLES = {
             ["request_number", "request_date", "status", "comment"],
             ["request_number", "request_date", "status", "completed_at", "comment"],
         ),
+        table(
+            "vehicle-fuel",
+            "Заявка на ГСМ",
+            models.VehicleFuelRequest,
+            "transport",
+            ["request_number", "request_date", "status", "comment"],
+            ["request_number", "request_date", "status", "completed_at", "comment"],
+        ),
     ],
     "fire": [
         table("fire-extinguishers", "Огнетушители", models.FireExtinguisher, "fire", ["state_date", "required_count", "available_count", "expiry_date", "writeoff_count"]),
