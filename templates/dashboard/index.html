@@ -20,7 +20,7 @@
       </div>
       <div class="organ-list" id="organ-list">
         {% for organ in organs %}
-          <button class="organ-item" data-organ-id="{{ organ.pk }}" data-search="{{ organ.name|lower }} {% for child in organ.children.all %}{{ child.name|lower }} {% endfor %}" hx-get="{% url 'organ_info' organ.pk %}" hx-target="#organ-info" hx-swap="innerHTML">
+          <button class="organ-item" data-organ-id="{{ organ.pk }}" data-organ-search="{{ organ.order_number|floatformat:'-2' }} {{ organ.name|lower }}" data-child-search="{% for child in organ.children.all %}{{ child.order_number|floatformat:'-2' }} {{ child.name|lower }} {% endfor %}" hx-get="{% url 'organ_info' organ.pk %}" hx-target="#organ-info" hx-swap="innerHTML">
             <span>{{ organ.order_number|floatformat:"-2" }}. {{ organ.name }}</span>
           </button>
         {% empty %}

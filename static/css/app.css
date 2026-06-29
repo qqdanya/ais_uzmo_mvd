@@ -246,11 +246,30 @@ textarea {
   border-radius: 8px;
   box-shadow: 0 14px 34px rgba(11, 47, 91, .16);
 }
-.ui-tooltip {
-  position: fixed;
-  top: 0;
-  left: 0;
+[data-css-tooltip] {
+  position: relative;
+  overflow: visible;
+}
+[data-css-tooltip]::before,
+[data-css-tooltip]::after {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
   z-index: 2100;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%) translateY(2px);
+  transition: opacity .12s ease, transform .12s ease;
+}
+[data-css-tooltip]::before {
+  content: "";
+  bottom: calc(100% + 3px);
+  border: 5px solid transparent;
+  border-top-color: rgba(11, 47, 91, .94);
+}
+[data-css-tooltip]::after {
+  content: attr(data-css-tooltip);
+  width: max-content;
   max-width: 220px;
   padding: .28rem .48rem;
   border-radius: 6px;
@@ -258,8 +277,15 @@ textarea {
   color: #fff;
   font-size: .76rem;
   line-height: 1.2;
-  pointer-events: none;
+  white-space: normal;
   box-shadow: 0 8px 20px rgba(11, 47, 91, .22);
+}
+[data-css-tooltip]:hover::before,
+[data-css-tooltip]:hover::after,
+[data-css-tooltip]:focus-visible::before,
+[data-css-tooltip]:focus-visible::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
 .app-footer {
   flex: 0 0 auto;

@@ -4,7 +4,6 @@ const DEPARTMENT_STORAGE_PREFIX = "asu-zmo:last-department:";
 const COLLAPSED_PANELS_KEY = "asu-zmo:collapsed-panels";
 let htmxRequests = 0;
 let loadingFailsafeTimer = null;
-let tooltipTarget = null;
 let pendingBulkPhotoFiles = [];
 let photoLightboxState = {
   items: [],
@@ -60,9 +59,15 @@ function initTooltips() {
   document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((el) => {
     const title = el.getAttribute("data-bs-title") || el.getAttribute("title");
     if (!title) return;
-    el.dataset.uiTooltip = title;
     el.removeAttribute("title");
+    el.removeAttribute("data-ui-tooltip");
+    window.bootstrap?.Tooltip?.getInstance(el)?.dispose();
+    el.dataset.cssTooltip = title;
   });
+}
+
+function hideTooltips() {
+  return undefined;
 }
 
 function selectedOption(select) {
@@ -169,41 +174,6 @@ function initCustomSelects(scope = document) {
     select.addEventListener("change", () => syncCustomSelect(select));
     syncCustomSelect(select);
   });
-}
-
-function hideTooltip() {
-  tooltipTarget = null;
-  document.querySelector(".ui-tooltip")?.remove();
-}
-
-function showTooltip(target) {
-  const text = target.dataset.uiTooltip;
-  if (!text) return;
-  hideTooltip();
-  tooltipTarget = target;
-  const tooltip = document.createElement("div");
-  tooltip.className = "ui-tooltip";
-  tooltip.textContent = text;
-  document.body.appendChild(tooltip);
-  positionTooltip(target, tooltip);
-}
-
-function positionTooltip(target = tooltipTarget, tooltip = document.querySelector(".ui-tooltip")) {
-  if (!target || !tooltip || !document.body.contains(target)) {
-    hideTooltip();
-    return;
-  }
-  const rect = target.getBoundingClientRect();
-  const tipRect = tooltip.getBoundingClientRect();
-  const gap = 8;
-  const top = rect.top >= tipRect.height + gap + 4
-    ? rect.top - tipRect.height - gap
-    : rect.bottom + gap;
-  const left = Math.min(
-    Math.max(rect.left + (rect.width - tipRect.width) / 2, 8),
-    window.innerWidth - tipRect.width - 8
-  );
-  tooltip.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
 }
 
 function showToast(message, level = "success") {
@@ -696,9 +666,17 @@ document.addEventListener("input", (event) => {
     return;
   }
   if (event.target.id !== "organ-search") return;
-  const query = event.target.value.toLowerCase();
+  const query = event.target.value.trim().toLowerCase();
   document.querySelectorAll(".organ-item").forEach((item) => {
-    item.hidden = !item.dataset.search.includes(query);
+    if (!query) {
+      item.hidden = false;
+      item.style.order = "";
+      return;
+    }
+    const organMatch = (item.dataset.organSearch || "").includes(query);
+    const childMatch = (item.dataset.childSearch || "").includes(query);
+    item.hidden = !organMatch && !childMatch;
+    item.style.order = organMatch ? "0" : "1";
   });
 });
 
@@ -759,7 +737,7 @@ document.addEventListener("beforeinput", (event) => {
 });
 
 document.addEventListener("click", (event) => {
-  hideTooltip();
+  hideTooltips();
   const lightboxPhoto = event.target.closest("[data-lightbox-photo]");
   if (lightboxPhoto) {
     event.preventDefault();
@@ -981,20 +959,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 });
 
-document.addEventListener("mouseover", (event) => {
-  const target = event.target.closest("[data-ui-tooltip]");
-  if (target) showTooltip(target);
-});
-document.addEventListener("focusin", (event) => {
-  const target = event.target.closest("[data-ui-tooltip]");
-  if (target) showTooltip(target);
-});
-document.addEventListener("mouseout", (event) => {
-  if (tooltipTarget && !event.relatedTarget?.closest?.("[data-ui-tooltip]")) hideTooltip();
-});
-document.addEventListener("focusout", hideTooltip);
-document.addEventListener("scroll", () => positionTooltip(), true);
 window.addEventListener("resize", () => {
   syncHeaderHeight();
-  positionTooltip();
 });

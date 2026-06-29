@@ -64,19 +64,6 @@
   {% endfor %}
 </div>
 {% endif %}
-{% if photo_page.has_other_pages %}
-<nav class="mt-2 photo-pagination" aria-label="Страницы фотографий">
-  <div class="btn-group btn-group-sm">
-    {% if photo_page.has_previous %}
-      <button class="btn btn-outline-primary" hx-get="{% url 'photos' organ.pk %}?{% if photo_querystring %}{{ photo_querystring }}&{% endif %}page={{ photo_page.previous_page_number }}" hx-target="#workspace" hx-swap="innerHTML" aria-label="Предыдущая страница"><i class="bi bi-chevron-left"></i> Назад</button>
-    {% endif %}
-    <span class="btn btn-outline-secondary disabled">{{ photo_page.number }} / {{ photo_page.paginator.num_pages }}</span>
-    {% if photo_page.has_next %}
-      <button class="btn btn-outline-primary" hx-get="{% url 'photos' organ.pk %}?{% if photo_querystring %}{{ photo_querystring }}&{% endif %}page={{ photo_page.next_page_number }}" hx-target="#workspace" hx-swap="innerHTML" aria-label="Следующая страница">Вперед <i class="bi bi-chevron-right"></i></button>
-    {% endif %}
-  </div>
-</nav>
-{% endif %}
 <div class="photo-grid">
   {% for photo in photos %}
   <article class="photo-card">
@@ -111,4 +98,17 @@
   </div>
   {% endfor %}
 </div>
+{% if photo_page.has_other_pages %}
+<nav class="mt-2 photo-pagination" aria-label="Страницы фотографий">
+  <div class="btn-group btn-group-sm">
+    {% if photo_page.has_previous %}
+      <button class="btn btn-outline-primary" hx-get="{% url 'photos' organ.pk %}?{% if photo_querystring %}{{ photo_querystring }}&{% endif %}page={{ photo_page.previous_page_number }}" hx-target="#workspace" hx-swap="innerHTML" aria-label="Предыдущая страница"><i class="bi bi-chevron-left"></i> Назад</button>
+    {% endif %}
+    <span class="btn btn-outline-secondary disabled">{{ photo_page.number }} / {{ photo_page.paginator.num_pages }}</span>
+    {% if photo_page.has_next %}
+      <button class="btn btn-outline-primary" hx-get="{% url 'photos' organ.pk %}?{% if photo_querystring %}{{ photo_querystring }}&{% endif %}page={{ photo_page.next_page_number }}" hx-target="#workspace" hx-swap="innerHTML" aria-label="Следующая страница">Вперед <i class="bi bi-chevron-right"></i></button>
+    {% endif %}
+  </div>
+</nav>
+{% endif %}
 </div>
