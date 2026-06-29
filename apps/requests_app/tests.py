@@ -251,6 +251,19 @@ class AppFlowTests(TestCase):
         self.assertContains(response, "Отклонено")
         self.assertContains(response, "<strong>1</strong>", html=True)
 
+    def test_tmc_search_is_case_insensitive_for_cyrillic(self):
+        matching = TmcRequest.objects.create(territorial_organ=self.organ, request_number="32/TMC", request_date="2026-06-20", status="new", comment="Склад")
+        TmcRequestItem.objects.create(request=matching, name="Стол письменный", quantity=2, unit="шт.")
+        other = TmcRequest.objects.create(territorial_organ=self.organ, request_number="33/TMC", request_date="2026-06-20", status="new", comment="Кабинет")
+        TmcRequestItem.objects.create(request=other, name="Кресло офисное", quantity=1, unit="шт.")
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("table_data", args=[self.organ.pk, "tmc-requests"]), {"q": "стол"})
+
+        self.assertContains(response, "32/TMC")
+        self.assertContains(response, "Стол письменный")
+        self.assertNotContains(response, "33/TMC")
+
     def test_tmc_in_work_counter_ignores_selected_status_filter(self):
         in_work = TmcRequest.objects.create(territorial_organ=self.organ, request_number="28/TMC", request_date="2026-06-20", status="in_work", comment="Office")
         TmcRequestItem.objects.create(request=in_work, name="Monitor", quantity=1, unit="pcs")

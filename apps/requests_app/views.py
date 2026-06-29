@@ -102,21 +102,47 @@ def request_table_date_filter_values(request, table_key, organ):
     return request_date_filter_values(request, REQUEST_TABLE_CONFIG[table_key]["model"], organ)
 
 
+def related_search_values(obj, field_name):
+    values = [obj]
+    for part in field_name.split("__"):
+        next_values = []
+        for value in values:
+            attr = getattr(value, part, None)
+            if attr is None:
+                continue
+            if hasattr(attr, "all") and callable(attr.all):
+                next_values.extend(attr.all())
+            else:
+                next_values.append(attr)
+        values = next_values
+    return values
+
+
+def object_matches_casefold_search(obj, search_fields, query):
+    query = query.casefold()
+    for field_name in search_fields:
+        for value in related_search_values(obj, field_name):
+            if query in str(value or "").casefold():
+                return True
+    return False
+
+
+def apply_casefold_search(qs, search_fields, query):
+    query = query.strip()
+    if not query:
+        return qs
+    matched_ids = [obj.pk for obj in qs if object_matches_casefold_search(obj, search_fields, query)]
+    if not matched_ids:
+        return qs.none()
+    return qs.filter(pk__in=matched_ids)
+
+
 def request_table_queryset(request, table_key, organ, include_status=False):
     config = REQUEST_TABLE_CONFIG[table_key]
     qs = config["model"].objects.select_related("territorial_organ", "created_by", "updated_by")
     if config.get("prefetch"):
         qs = qs.prefetch_related(*config["prefetch"])
     qs = qs.filter(territorial_organ=organ, is_deleted=False)
-
-    query = request.GET.get("q", "").strip()
-    if query:
-        search_q = Q()
-        for field_name in config["search_fields"]:
-            search_q |= Q(**{f"{field_name}__icontains": query})
-        qs = qs.filter(search_q)
-        if config.get("distinct_search"):
-            qs = qs.distinct()
 
     date_filters = request_table_date_filter_values(request, table_key, organ)
     date_from = parse_date(date_filters["date_from"])
@@ -125,10 +151,11 @@ def request_table_queryset(request, table_key, organ, include_status=False):
         qs = qs.filter(request_date__gte=date_from)
     if date_to:
         qs = qs.filter(request_date__lte=date_to)
-    if include_status and request.GET.get("status") in NeedStatus.values:
-        qs = qs.filter(status=request.GET["status"])
     if config.get("equipment_type_filter") and valid_equipment_type(request.GET.get("equipment_type")):
         qs = qs.filter(equipment_type=request.GET["equipment_type"])
+    qs = apply_casefold_search(qs, config["search_fields"], request.GET.get("q", ""))
+    if include_status and request.GET.get("status") in NeedStatus.values:
+        qs = qs.filter(status=request.GET["status"])
     return qs
 
 

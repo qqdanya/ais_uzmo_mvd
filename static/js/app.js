@@ -43,6 +43,10 @@ function normalizeAuthInput(input) {
   if (input.value !== value) input.value = value;
 }
 
+function normalizeSearchText(value) {
+  return String(value || "").trim().toLocaleLowerCase("ru-RU");
+}
+
 function autoDismissAlerts() {
   document.querySelectorAll("[data-auto-dismiss]").forEach((alert) => {
     if (alert.dataset.dismissScheduled === "true") return;
@@ -294,7 +298,7 @@ function applyCollapsedPanels() {
 
 function filterCurrentTable(input) {
   const tableWrap = input.closest("#table-area") || document;
-  const query = input.value.trim().toLowerCase();
+  const query = normalizeSearchText(input.value);
   let visibleRows = 0;
   const rows = Array.from(tableWrap.querySelectorAll(".data-row"));
   const groupedRows = rows.reduce((groups, row) => {
@@ -306,7 +310,7 @@ function filterCurrentTable(input) {
   }, new Map());
 
   groupedRows.forEach((groupRows) => {
-    const groupText = groupRows.map((row) => row.textContent).join(" ").toLowerCase();
+    const groupText = normalizeSearchText(groupRows.map((row) => row.textContent).join(" "));
     const isVisible = !query || groupText.includes(query);
     groupRows.forEach((row) => {
       row.hidden = !isVisible;
@@ -315,7 +319,7 @@ function filterCurrentTable(input) {
   });
 
   rows.filter((row) => !row.dataset.rowGroup).forEach((row) => {
-    const isVisible = !query || row.textContent.toLowerCase().includes(query);
+    const isVisible = !query || normalizeSearchText(row.textContent).includes(query);
     row.hidden = !isVisible;
     if (isVisible) visibleRows += 1;
   });
@@ -668,15 +672,15 @@ document.addEventListener("input", (event) => {
     return;
   }
   if (event.target.id !== "organ-search") return;
-  const query = event.target.value.trim().toLowerCase();
+  const query = normalizeSearchText(event.target.value);
   document.querySelectorAll(".organ-item").forEach((item) => {
     if (!query) {
       item.hidden = false;
       item.style.order = "";
       return;
     }
-    const organMatch = (item.dataset.organSearch || "").includes(query);
-    const childMatch = (item.dataset.childSearch || "").includes(query);
+    const organMatch = normalizeSearchText(item.dataset.organSearch).includes(query);
+    const childMatch = normalizeSearchText(item.dataset.childSearch).includes(query);
     item.hidden = !organMatch && !childMatch;
     item.style.order = organMatch ? "0" : "1";
   });
