@@ -1,4 +1,5 @@
 from django import template
+from django import forms
 from django.utils.html import format_html
 from django.utils import timezone
 
@@ -49,4 +50,29 @@ def model_fields(model):
 
 @register.simple_tag
 def row_class(table_key, obj):
+    return ""
+
+
+@register.filter
+def is_select_field(bound_field):
+    return isinstance(bound_field.field.widget, forms.Select)
+
+
+@register.filter
+def option_selected(bound_field, value):
+    selected = bound_field.value()
+    if selected is None:
+        selected = ""
+    return str(selected) == str(value)
+
+
+@register.simple_tag
+def selected_choice_label(bound_field):
+    selected = bound_field.value()
+    if selected is None:
+        selected = ""
+    selected = str(selected)
+    for value, label in bound_field.field.choices:
+        if str(value) == selected:
+            return label
     return ""

@@ -18,7 +18,6 @@ let photoLightboxState = {
   dragOriginY: 0,
   didDrag: false,
 };
-let activeTooltipAnchor = null;
 
 function rememberSelectedOrgan(organId) {
   window.selectedOrgan = Number(organId);
@@ -58,75 +57,13 @@ function autoDismissAlerts() {
 
 function initTooltips() {
   document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((el) => {
-    const title = el.getAttribute("data-bs-title") || el.getAttribute("title");
+    const title = el.getAttribute("data-bs-title") || el.getAttribute("title") || el.dataset.cssTooltip;
     if (!title) return;
     el.removeAttribute("title");
     el.removeAttribute("data-ui-tooltip");
     window.bootstrap?.Tooltip?.getInstance(el)?.dispose();
     el.dataset.cssTooltip = title;
-    if (el.dataset.tooltipReady === "true") return;
-    el.dataset.tooltipReady = "true";
-    el.addEventListener("mouseenter", () => showCssTooltip(el));
-    el.addEventListener("focus", () => showCssTooltip(el));
-    el.addEventListener("mouseleave", hideTooltips);
-    el.addEventListener("blur", hideTooltips);
   });
-}
-
-function tooltipElement() {
-  let tooltip = document.querySelector("[data-css-tooltip-popover]");
-  if (tooltip) return tooltip;
-  tooltip = document.createElement("div");
-  tooltip.className = "css-tooltip-popover";
-  tooltip.dataset.cssTooltipPopover = "";
-  tooltip.setAttribute("role", "tooltip");
-  document.body.appendChild(tooltip);
-  return tooltip;
-}
-
-function positionCssTooltip(anchor, tooltip) {
-  const rect = anchor.getBoundingClientRect();
-  const margin = 8;
-  const tooltipRect = tooltip.getBoundingClientRect();
-  const placeBelow = rect.top < tooltipRect.height + 14;
-  const top = placeBelow ? rect.bottom + 8 : rect.top - tooltipRect.height - 8;
-  const centeredLeft = rect.left + (rect.width / 2) - (tooltipRect.width / 2);
-  const left = Math.min(
-    window.innerWidth - tooltipRect.width - margin,
-    Math.max(margin, centeredLeft),
-  );
-  tooltip.style.left = `${Math.round(left)}px`;
-  tooltip.style.top = `${Math.round(top)}px`;
-  tooltip.dataset.placement = placeBelow ? "bottom" : "top";
-}
-
-function showCssTooltip(anchor) {
-  const text = anchor.dataset.cssTooltip;
-  if (!text) return;
-  const tooltip = tooltipElement();
-  activeTooltipAnchor = anchor;
-  tooltip.textContent = text;
-  tooltip.dataset.anchorActive = "true";
-  tooltip.classList.add("is-visible");
-  positionCssTooltip(anchor, tooltip);
-  window.requestAnimationFrame(() => positionCssTooltip(anchor, tooltip));
-}
-
-function hideTooltips() {
-  const tooltip = document.querySelector("[data-css-tooltip-popover]");
-  activeTooltipAnchor = null;
-  if (!tooltip) return;
-  tooltip.classList.remove("is-visible");
-  delete tooltip.dataset.anchorActive;
-}
-
-function refreshTooltipPosition() {
-  const tooltip = document.querySelector("[data-css-tooltip-popover].is-visible");
-  if (!tooltip || !activeTooltipAnchor?.isConnected) {
-    hideTooltips();
-    return;
-  }
-  positionCssTooltip(activeTooltipAnchor, tooltip);
 }
 
 function selectedOption(select) {
@@ -187,6 +124,8 @@ function initCustomSelects(scope = document) {
     : Array.from(scope.querySelectorAll("select.form-select:not([data-native-select])"));
   selects.forEach((select) => {
     if (select.nextElementSibling?.matches?.("[data-custom-select]")) {
+      select.dataset.nativeSelect = "true";
+      select.classList.add("custom-select-native");
       syncCustomSelect(select);
       return;
     }
@@ -665,12 +604,16 @@ function preferredDepartmentForOrgan(organId) {
 
 document.body.addEventListener("htmx:afterSwap", (event) => {
   if (event.detail.target.id === "modal-content") {
+    initCustomSelects(event.detail.target);
+    initTooltips();
+    autoDismissAlerts();
     bootstrap.Modal.getOrCreateInstance(document.getElementById("modal-root")).show();
     const bulkForm = event.detail.target.querySelector("[data-bulk-photo-form]");
     if (bulkForm) {
       renderBulkPhotoFiles(bulkForm, pendingBulkPhotoFiles);
       pendingBulkPhotoFiles = [];
     }
+    return;
   }
   initCustomSelects(event.detail.target);
   initTooltips();
@@ -796,7 +739,6 @@ document.addEventListener("beforeinput", (event) => {
 });
 
 document.addEventListener("click", (event) => {
-  hideTooltips();
   const lightboxPhoto = event.target.closest("[data-lightbox-photo]");
   if (lightboxPhoto) {
     event.preventDefault();
@@ -1020,7 +962,4 @@ document.addEventListener("DOMContentLoaded", () => {
 
 window.addEventListener("resize", () => {
   syncHeaderHeight();
-  refreshTooltipPosition();
 });
-
-window.addEventListener("scroll", hideTooltips, true);

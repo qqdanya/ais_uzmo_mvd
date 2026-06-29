@@ -1,0 +1,13 @@
+{% load request_tags %}
+{{ field }}
+<div class="custom-select" data-custom-select="true">
+  <button type="button" class="custom-select-trigger" data-custom-select-trigger="true" aria-haspopup="listbox" aria-expanded="false" aria-label="{{ field.label }}">
+    <span class="custom-select-value" data-custom-select-value="true">{% selected_choice_label field %}</span>
+    <i class="bi bi-chevron-down"></i>
+  </button>
+  <div class="custom-select-menu" role="listbox">
+    {% for value, label in field.field.choices %}
+      <button type="button" class="custom-select-option {% if field|option_selected:value %}is-selected{% endif %}" data-custom-select-option="true" data-value="{{ value }}" role="option" aria-selected="{% if field|option_selected:value %}true{% else %}false{% endif %}">{{ label }}</button>
+    {% endfor %}
+  </div>
+</div>
