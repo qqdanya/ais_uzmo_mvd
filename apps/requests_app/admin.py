@@ -55,3 +55,11 @@ class RequestStatusHistoryAdmin(admin.ModelAdmin):
     list_filter = ("content_type", "new_status", "changed_at")
     search_fields = ("note",)
     readonly_fields = ("content_type", "object_id", "old_status", "new_status", "completed_at", "changed_by", "changed_at", "note")
+
+
+@admin.register(models.RequestPhotoLink)
+class RequestPhotoLinkAdmin(admin.ModelAdmin):
+    list_display = ("request", "photo", "territorial_organ", "created_by", "created_at")
+    list_filter = ("territorial_organ", "content_type", "created_at")
+    search_fields = ("photo__description", "photo__original_filename", "territorial_organ__name")
+    readonly_fields = ("created_at",)

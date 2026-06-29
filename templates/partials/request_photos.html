@@ -1,0 +1,31 @@
+<div class="modal-header">
+  <h5 class="modal-title">Прикрепленные фотографии</h5>
+  <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+</div>
+<div class="modal-body">
+  <div class="upload-meta mb-3"><i class="bi bi-card-checklist"></i> {{ object }}</div>
+  {% if links %}
+    <div class="request-linked-photos">
+      {% for link in links %}
+        {% with photo=link.photo %}
+        <article class="request-linked-photo">
+          <button class="photo-image" type="button" data-lightbox-photo data-src="{{ photo.image.url }}" data-download-url="{% url 'photo_download' organ.pk photo.pk %}" data-description="{{ photo.description|default:'Описание не добавлено' }}" data-meta="{{ photo.created_at|date:'d.m.Y H:i' }} · {{ photo.created_by|default:'-' }}">
+            <img src="{{ photo.image.url }}" alt="{{ photo.description|default:photo.original_filename }}">
+          </button>
+          <div class="request-linked-photo-body">
+            <strong>{{ photo.original_filename|default:"Фотография" }}</strong>
+            <span>{{ photo.created_at|date:"d.m.Y H:i" }} · {{ photo.created_by|default:"-" }}</span>
+            {% if photo.description %}<p>{{ photo.description }}</p>{% endif %}
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'photo_download' organ.pk photo.pk %}"><i class="bi bi-download"></i> Скачать</a>
+          </div>
+        </article>
+        {% endwith %}
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="empty-state">К заявке фотографии не прикреплены</div>
+  {% endif %}
+</div>
+<div class="modal-footer">
+  <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Закрыть</button>
+</div>

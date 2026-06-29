@@ -14,7 +14,7 @@ class TrackableRequest(models.Model):
     created_at = models.DateTimeField("создано", auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField("обновлено", auto_now=True)
     is_deleted = models.BooleanField("удалено", default=False, db_index=True)
-    comment = models.TextField("комментарий", blank=True)
+    comment = models.TextField("описание", blank=True)
 
     class Meta:
         abstract = True
@@ -87,6 +87,31 @@ class RequestStatusHistory(models.Model):
     def __str__(self):
         old_status = self.get_old_status_display() if self.old_status else "создана"
         return f"{old_status} -> {self.get_new_status_display()}"
+
+
+class RequestPhotoLink(models.Model):
+    territorial_organ = models.ForeignKey("directory.TerritorialOrgan", verbose_name="территориальный орган", on_delete=models.CASCADE, related_name="request_photo_links")
+    photo = models.ForeignKey("directory.TerritorialOrganPhoto", verbose_name="фотография", on_delete=models.CASCADE, related_name="request_links")
+    content_type = models.ForeignKey(ContentType, verbose_name="тип заявки", on_delete=models.CASCADE)
+    object_id = models.PositiveBigIntegerField("ID заявки")
+    request = GenericForeignKey("content_type", "object_id")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name="создал", null=True, blank=True, on_delete=models.SET_NULL, related_name="created_request_photo_links")
+    created_at = models.DateTimeField("создано", auto_now_add=True, db_index=True)
+
+    class Meta:
+        verbose_name = "связь заявки с фотографией"
+        verbose_name_plural = "Связи заявок с фотографиями"
+        ordering = ("-created_at", "-id")
+        constraints = [
+            models.UniqueConstraint(fields=["photo", "content_type", "object_id"], name="unique_request_photo_link"),
+        ]
+        indexes = [
+            models.Index(fields=["territorial_organ", "content_type", "object_id"]),
+            models.Index(fields=["photo", "content_type", "object_id"]),
+        ]
+
+    def __str__(self):
+        return f"{self.request} - {self.photo}"
 
 
 class VehicleInventory(TrackableRequest):

@@ -24,6 +24,7 @@ from apps.requests_app.models import (
     FireExtinguisher,
     SecurityAlarm,
     BuildingRepairRequest,
+    RequestPhotoLink,
     RequestStatusHistory,
     ServiceHousing,
     TmcRequest,
@@ -79,6 +80,73 @@ class AppFlowTests(TestCase):
         self.assertTrue(request_obj.items.filter(name="Keyboard", quantity=3, unit="pcs").exists())
         self.assertTrue(self.status_history(request_obj).filter(old_status__isnull=True, new_status="new", changed_by=self.user).exists())
         self.assertTrue(AuditLog.objects.filter(action=AuditLog.Action.CREATE, model_name="TmcRequest").exists())
+        self.assertNotContains(response, "request-photo-count")
+
+    def test_tmc_request_can_attach_and_show_photos(self):
+        photo = self.create_photo("request-photo.png")
+        photo.description = "Repair evidence"
+        photo.save(update_fields=["description"])
+        self.client.login(username="operator", password="pass12345")
+
+        form_response = self.client.get(reverse("record_create", args=[self.organ.pk, "tmc-requests"]), HTTP_HX_REQUEST="true")
+        self.assertContains(form_response, "Прикрепить фотографии")
+        self.assertContains(form_response, "request-photo.png")
+
+        response = self.client.post(
+            reverse("record_create", args=[self.organ.pk, "tmc-requests"]),
+            {
+                "request_number": "15-Photo/TMC",
+                "request_date": "2026-06-27",
+                "status": "new",
+                "comment": "With photo",
+                "item_name": ["Desk"],
+                "item_quantity": ["1"],
+                "item_unit": ["шт."],
+                "attached_photos": [str(photo.pk)],
+            },
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        request_obj = TmcRequest.objects.get(request_number="15-Photo/TMC")
+        self.assertTrue(RequestPhotoLink.objects.filter(photo=photo, object_id=request_obj.pk).exists())
+        self.assertContains(response, "request-photo-count")
+        self.assertContains(response, "<span>1</span>", html=True)
+
+        photos_response = self.client.get(reverse("request_photos", args=[self.organ.pk, "tmc-requests", request_obj.pk]), HTTP_HX_REQUEST="true")
+        self.assertContains(photos_response, "Repair evidence")
+        self.assertContains(photos_response, "request-photo.png")
+
+    def test_request_photo_picker_filters_paginates_and_keeps_selected(self):
+        folder = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Evidence")
+        selected = self.create_photo("selected-proof.png")
+        selected.description = "Already selected"
+        selected.save(update_fields=["description"])
+        folder_photo = self.create_photo("folder-proof.png")
+        folder_photo.folder = folder
+        folder_photo.description = "Folder proof"
+        folder_photo.save(update_fields=["folder", "description"])
+        root_photo = self.create_photo("root-proof.png")
+        root_photo.description = "Root proof"
+        root_photo.save(update_fields=["description"])
+        for index in range(14):
+            photo = self.create_photo(f"page-photo-{index}.png")
+            photo.description = f"Page photo {index}"
+            photo.save(update_fields=["description"])
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("request_photo_picker", args=[self.organ.pk]), {"attached_photos": [selected.pk], "photo_q": "folder"})
+        self.assertContains(response, "selected-proof.png")
+        self.assertContains(response, "folder-proof.png")
+        self.assertNotContains(response, "root-proof.png")
+
+        response = self.client.get(reverse("request_photo_picker", args=[self.organ.pk]), {"photo_folder": folder.pk})
+        self.assertContains(response, "folder-proof.png")
+        self.assertNotContains(response, "root-proof.png")
+
+        response = self.client.get(reverse("request_photo_picker", args=[self.organ.pk]), {"photo_page": 2})
+        self.assertContains(response, "request-photo-grid")
+        self.assertContains(response, "photo_page=1")
 
     def test_tmc_status_history_records_status_changes(self):
         request_obj = TmcRequest.objects.create(
@@ -206,7 +274,7 @@ class AppFlowTests(TestCase):
         sheet = workbook.active
         self.assertEqual(sheet["A1"].value, "Сведения о потребности ТМЦ")
         self.assertEqual(sheet["C1"].value, "Заявка")
-        self.assertEqual(sheet["F1"].value, "Комментарий")
+        self.assertEqual(sheet["F1"].value, "Описание")
         self.assertIn("A1:B1", {str(item) for item in sheet.merged_cells.ranges})
         self.assertIn("C1:E1", {str(item) for item in sheet.merged_cells.ranges})
         self.assertIn("F1:F2", {str(item) for item in sheet.merged_cells.ranges})
@@ -343,7 +411,7 @@ class AppFlowTests(TestCase):
         self.assertContains(table_response, "<th>Количество</th>", html=True)
         self.assertContains(table_response, "<th>Исполнение</th>", html=True)
         self.assertContains(table_response, "<th>Тип техники</th>", html=True)
-        self.assertContains(table_response, "<th>Комментарий</th>", html=True)
+        self.assertContains(table_response, "<th>Описание</th>", html=True)
         self.assertContains(table_response, "Install radio")
         self.assertContains(table_response, included.request_number)
         self.assertNotContains(table_response, excluded.request_number)
@@ -375,7 +443,7 @@ class AppFlowTests(TestCase):
         sheet = workbook.active
         self.assertEqual(sheet["A1"].value, "Номер")
         self.assertEqual(sheet["E1"].value, "Тип техники")
-        self.assertEqual(sheet["F1"].value, "Комментарий")
+        self.assertEqual(sheet["F1"].value, "Описание")
         self.assertEqual(sheet.freeze_panes, "A2")
         self.assertEqual(sheet["F1"].border.right.style, "medium")
 
@@ -434,7 +502,7 @@ class AppFlowTests(TestCase):
         response = self.client.get(reverse("table_data", args=[self.organ.pk, "vehicle-repair"]))
 
         self.assertNotContains(response, "<th>Дата исполнения заявки</th>", html=True)
-        self.assertContains(response, "<th>Комментарий</th>", html=True)
+        self.assertContains(response, "<th>Описание</th>", html=True)
         self.assertContains(response, "Needs diagnostics")
         self.assertContains(response, "table-vehicle-repair")
         self.assertContains(response, "table-row-actions")
@@ -443,7 +511,7 @@ class AppFlowTests(TestCase):
         export_response = self.client.get(reverse("export_table", args=[self.organ.pk, "vehicle-repair", "xlsx"]))
         workbook = load_workbook(BytesIO(export_response.content))
         sheet = workbook.active
-        self.assertEqual(sheet["D1"].value, "Комментарий")
+        self.assertEqual(sheet["D1"].value, "Описание")
         self.assertEqual(sheet["D2"].value, "Needs diagnostics")
         self.assertIsNone(sheet["E1"].value)
         self.assertEqual(sheet.freeze_panes, "A2")
@@ -582,7 +650,7 @@ class AppFlowTests(TestCase):
             reverse("table_data", args=[self.organ.pk, "fire-requests"]),
             {"status": "in_work", "date_from": "2026-06-01", "date_to": "2026-06-30", "q": "Recharge"},
         )
-        self.assertContains(table_response, "<th>Комментарий</th>", html=True)
+        self.assertContains(table_response, "<th>Описание</th>", html=True)
         self.assertContains(table_response, "bi-clock-history")
         self.assertContains(table_response, included.request_number)
         self.assertNotContains(table_response, excluded.request_number)
@@ -611,7 +679,7 @@ class AppFlowTests(TestCase):
         export_response = self.client.get(reverse("export_table", args=[self.organ.pk, "fire-requests", "xlsx"]), {"status": "done", "q": "Completed"})
         workbook = load_workbook(BytesIO(export_response.content))
         sheet = workbook.active
-        self.assertEqual(sheet["D1"].value, "Комментарий")
+        self.assertEqual(sheet["D1"].value, "Описание")
         self.assertEqual(sheet.freeze_panes, "A2")
         self.assertEqual(sheet["D1"].border.right.style, "medium")
 
@@ -627,7 +695,7 @@ class AppFlowTests(TestCase):
         self.assertContains(table_response, "<th>Номер</th>", html=True)
         self.assertContains(table_response, "<th>Дата</th>", html=True)
         self.assertContains(table_response, "<th>Исполнение</th>", html=True)
-        self.assertContains(table_response, "<th>Комментарий</th>", html=True)
+        self.assertContains(table_response, "<th>Описание</th>", html=True)
         self.assertNotContains(table_response, "Потребность финансирования")
         self.assertContains(table_response, "bi-clock-history")
         self.assertContains(table_response, included.request_number)
@@ -656,7 +724,7 @@ class AppFlowTests(TestCase):
         workbook = load_workbook(BytesIO(export_response.content))
         sheet = workbook.active
         self.assertEqual(sheet["A1"].value, "Номер")
-        self.assertEqual(sheet["D1"].value, "Комментарий")
+        self.assertEqual(sheet["D1"].value, "Описание")
         self.assertEqual(sheet.freeze_panes, "A2")
         self.assertEqual(sheet["D1"].border.right.style, "medium")
 
@@ -768,7 +836,7 @@ class AppFlowTests(TestCase):
         sheet = workbook.active
         self.assertEqual(sheet["A1"].value, "Номер")
         self.assertEqual(sheet["C1"].value, "Исполнение заявки")
-        self.assertEqual(sheet["D1"].value, "Комментарий")
+        self.assertEqual(sheet["D1"].value, "Описание")
         self.assertEqual(sheet["D2"].value, "Roof")
         self.assertEqual(sheet.freeze_panes, "A2")
 
@@ -793,7 +861,7 @@ class AppFlowTests(TestCase):
         self.assertContains(response, "Номер")
         self.assertContains(response, "Дата")
         self.assertContains(response, "Исполнение заявки")
-        self.assertContains(response, "Комментарий")
+        self.assertContains(response, "Описание")
         self.assertContains(response, "16/TMC")
         self.assertContains(response, "Cartridge")
         self.assertContains(response, "2 pcs")

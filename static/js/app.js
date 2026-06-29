@@ -244,6 +244,35 @@ function resetHtmxLoading() {
   syncLoadingState();
 }
 
+function syncRequestPhotoPicker(box) {
+  const selectedBox = box.querySelector("[data-request-photo-selected]");
+  const checkboxes = Array.from(box.querySelectorAll("[data-request-photo-checkbox]"));
+  const selectedIds = new Set(Array.from(selectedBox?.querySelectorAll("[data-request-photo-hidden]") || []).map((input) => input.value));
+  checkboxes.forEach((checkbox) => {
+    checkbox.checked = selectedIds.has(checkbox.value);
+  });
+  box.querySelector("[data-request-photo-count]").textContent = String(selectedIds.size);
+  checkboxes.forEach((checkbox) => {
+    checkbox.closest(".request-photo-option")?.classList.toggle("is-selected", checkbox.checked);
+  });
+}
+
+function setRequestPhotoSelected(checkbox) {
+  const box = checkbox.closest("[data-request-photo-box]");
+  const selectedBox = box?.querySelector("[data-request-photo-selected]");
+  if (!box || !selectedBox) return;
+  selectedBox.querySelectorAll(`[data-request-photo-hidden][value="${CSS.escape(checkbox.value)}"]`).forEach((input) => input.remove());
+  if (checkbox.checked) {
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = "attached_photos";
+    input.value = checkbox.value;
+    input.dataset.requestPhotoHidden = "true";
+    selectedBox.append(input);
+  }
+  syncRequestPhotoPicker(box);
+}
+
 function readCollapsedPanels() {
   try {
     const state = JSON.parse(localStorage.getItem(COLLAPSED_PANELS_KEY)) || {};
@@ -617,11 +646,14 @@ document.body.addEventListener("htmx:afterSwap", (event) => {
       renderBulkPhotoFiles(bulkForm, pendingBulkPhotoFiles);
       pendingBulkPhotoFiles = [];
     }
+    event.detail.target.querySelectorAll("[data-request-photo-box]").forEach(syncRequestPhotoPicker);
     return;
   }
   initCustomSelects(event.detail.target);
   initTooltips();
   autoDismissAlerts();
+  event.detail.target.querySelectorAll?.("[data-request-photo-box]").forEach(syncRequestPhotoPicker);
+  event.detail.target.closest?.("[data-request-photo-box]") && syncRequestPhotoPicker(event.detail.target.closest("[data-request-photo-box]"));
   applyCollapsedPanels();
 });
 
@@ -699,6 +731,11 @@ document.addEventListener("mouseout", (event) => {
 });
 
 document.addEventListener("change", (event) => {
+  if (event.target.matches("[data-request-photo-checkbox]")) {
+    setRequestPhotoSelected(event.target);
+    return;
+  }
+
   const status = event.target.closest('[data-tmc-request-form] [name="status"], [data-status-form] [name="status"]');
   if (status) {
     fillCompletedDate(status.closest("[data-tmc-request-form], [data-status-form]"));
@@ -813,6 +850,16 @@ document.addEventListener("click", (event) => {
   const singleFileButton = event.target.closest("[data-single-file-button]");
   if (singleFileButton) {
     singleFileButton.closest("[data-single-file-picker]")?.querySelector("input[type='file']")?.click();
+    return;
+  }
+
+  const requestPhotoToggle = event.target.closest("[data-request-photo-toggle]");
+  if (requestPhotoToggle) {
+    const box = requestPhotoToggle.closest("[data-request-photo-box]");
+    const panel = box?.querySelector("[data-request-photo-panel]");
+    if (!box || !panel) return;
+    panel.hidden = !panel.hidden;
+    syncRequestPhotoPicker(box);
     return;
   }
 

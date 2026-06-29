@@ -32,6 +32,7 @@ from .models import (
     CitsiziEquipment,
     FireDepartmentRequest,
     NeedStatus,
+    RequestPhotoLink,
     RequestStatusHistory,
     TmcRequest,
     VehicleRepairRequest,
@@ -224,6 +225,126 @@ REQUEST_TABLE_CONFIG = {
     },
 }
 
+REQUEST_PHOTO_TABLES = set(REQUEST_TABLE_CONFIG)
+REQUEST_PHOTO_PICKER_PAGE_SIZE = 12
+
+
+def request_content_type_for_model(model):
+    return ContentType.objects.get_for_model(model, for_concrete_model=False)
+
+
+def request_content_type_for_object(obj):
+    return ContentType.objects.get_for_model(obj, for_concrete_model=False)
+
+
+def available_request_photos(organ):
+    return (
+        organ.photos.select_related("folder", "created_by")
+        .filter(is_deleted=False)
+        .filter(Q(folder__isnull=True) | Q(folder__is_deleted=False))
+        .order_by("-created_at", "-pk")
+    )
+
+
+def selected_request_photo_ids(instance):
+    if not instance:
+        return []
+    content_type = request_content_type_for_object(instance)
+    return list(
+        RequestPhotoLink.objects.filter(
+            territorial_organ=instance.territorial_organ,
+            content_type=content_type,
+            object_id=instance.pk,
+            photo__is_deleted=False,
+        )
+        .filter(Q(photo__folder__isnull=True) | Q(photo__folder__is_deleted=False))
+        .values_list("photo_id", flat=True)
+    )
+
+
+def request_photo_picker_context(request, organ, selected_ids):
+    selected_ids = {int(value) for value in selected_ids if str(value).isdigit()}
+    query = request.GET.get("photo_q", "").strip()
+    folder = request.GET.get("photo_folder", "").strip()
+    sort = request.GET.get("photo_sort", "newest")
+    folders = organ.photo_folders.filter(is_deleted=False).order_by("name")
+
+    selected_photos = list(available_request_photos(organ).filter(pk__in=selected_ids))
+    qs = available_request_photos(organ).exclude(pk__in=selected_ids)
+    if folder == "__root__":
+        qs = qs.filter(folder__isnull=True)
+    elif folder.isdigit():
+        qs = qs.filter(folder_id=folder)
+    if query:
+        query_normalized = query.casefold()
+        qs = [photo for photo in qs if query_normalized in photo.description.casefold() or query_normalized in photo.original_filename.casefold()]
+        qs = sorted(qs, key=lambda photo: (photo.created_at, photo.pk), reverse=sort != "oldest")
+    else:
+        qs = qs.order_by("created_at", "pk") if sort == "oldest" else qs.order_by("-created_at", "-pk")
+
+    page = Paginator(qs, REQUEST_PHOTO_PICKER_PAGE_SIZE).get_page(request.GET.get("photo_page"))
+    photos = selected_photos + list(page.object_list)
+    for photo in photos:
+        photo.is_attached_to_request = photo.pk in selected_ids
+    return {
+        "available_photos": photos,
+        "attached_photo_ids": selected_ids,
+        "attached_photo_count": len(selected_ids),
+        "photo_picker_page": page,
+        "photo_picker_page_links": page.paginator.get_elided_page_range(page.number, on_each_side=1, on_ends=1),
+        "photo_picker_folders": folders,
+        "photo_picker_query": query,
+        "photo_picker_folder": folder,
+        "photo_picker_sort": sort,
+    }
+
+
+def request_photo_form_context(request, organ, selected_ids):
+    return request_photo_picker_context(request, organ, selected_ids)
+
+
+def sync_request_photos(obj, photo_ids, user):
+    selected_ids = {int(value) for value in photo_ids if str(value).isdigit()}
+    content_type = request_content_type_for_object(obj)
+    valid_photo_ids = set(available_request_photos(obj.territorial_organ).filter(pk__in=selected_ids).values_list("pk", flat=True))
+    links = RequestPhotoLink.objects.filter(territorial_organ=obj.territorial_organ, content_type=content_type, object_id=obj.pk)
+    links.exclude(photo_id__in=valid_photo_ids).delete()
+    existing_ids = set(links.values_list("photo_id", flat=True))
+    RequestPhotoLink.objects.bulk_create(
+        [
+            RequestPhotoLink(
+                territorial_organ=obj.territorial_organ,
+                photo_id=photo_id,
+                content_type=content_type,
+                object_id=obj.pk,
+                created_by=user,
+            )
+            for photo_id in valid_photo_ids - existing_ids
+        ],
+        ignore_conflicts=True,
+    )
+
+
+def attach_request_photo_counts(objects, model, organ):
+    objects = list(objects)
+    if not objects:
+        return
+    content_type = request_content_type_for_model(model)
+    counts = dict(
+        RequestPhotoLink.objects.filter(
+            territorial_organ=organ,
+            content_type=content_type,
+            object_id__in=[obj.pk for obj in objects],
+            photo__is_deleted=False,
+        )
+        .filter(Q(photo__folder__isnull=True) | Q(photo__folder__is_deleted=False))
+        .values("object_id")
+        .annotate(total=Count("id"))
+        .values_list("object_id", "total")
+    )
+    for obj in objects:
+        obj.attached_photo_count = counts.get(obj.pk, 0)
+
 
 XLSX_EXPORT_CONFIG = {
     "vehicle-inventory": {
@@ -382,6 +503,8 @@ def table_data(request, organ_id, table_key):
         table_stats = request_status_stats(stats_qs)
     paginator = Paginator(qs, 20)
     page = paginator.get_page(request.GET.get("page"))
+    if table_key in REQUEST_PHOTO_TABLES:
+        attach_request_photo_counts(page.object_list, table["model"], organ)
     querystring = request.GET.copy()
     querystring.pop("page", None)
     return render(
@@ -455,6 +578,7 @@ def tmc_record_form(request, organ, table, instance=None):
     form = TmcRequestForm(request.POST or None, instance=instance)
     item_rows = tmc_item_rows_from_instance(instance)
     item_errors = []
+    selected_photo_ids = request.POST.getlist("attached_photos") if request.method == "POST" else selected_request_photo_ids(instance)
     if request.method == "POST":
         item_rows, item_errors = tmc_item_rows_from_request(request)
         if form.is_valid() and not item_errors:
@@ -469,6 +593,7 @@ def tmc_record_form(request, organ, table, instance=None):
                 obj.items.all().delete()
                 for row in item_rows:
                     obj.items.create(name=row["name"], quantity=row["quantity"], unit=row["unit"])
+                sync_request_photos(obj, selected_photo_ids, request.user)
                 if is_create or old_status != obj.status:
                     create_status_history(
                         obj=obj,
@@ -482,7 +607,9 @@ def tmc_record_form(request, organ, table, instance=None):
             response = table_data(request, organ.pk, table["key"])
             response["HX-Trigger"] = htmx_triggers("Заявка сохранена.")
             return response
-    return render(request, "partials/tmc_request_form.html", {"form": form, "organ": organ, "table": table, "instance": instance, "item_rows": item_rows, "item_errors": item_errors})
+    context = {"form": form, "organ": organ, "table": table, "instance": instance, "item_rows": item_rows, "item_errors": item_errors, "show_request_photo_picker": True}
+    context.update(request_photo_form_context(request, organ, selected_photo_ids))
+    return render(request, "partials/tmc_request_form.html", context)
 
 
 @login_required
@@ -506,6 +633,35 @@ def status_history(request, organ_id, table_key, pk):
     )
 
 
+@login_required
+def request_photos(request, organ_id, table_key, pk):
+    if table_key not in REQUEST_PHOTO_TABLES:
+        raise Http404
+    organ = get_object_or_404(TerritorialOrgan, pk=organ_id, is_active=True)
+    model = REQUEST_TABLE_CONFIG[table_key]["model"]
+    obj = get_object_or_404(model, pk=pk, territorial_organ=organ, is_deleted=False)
+    if not can_view(request.user, organ):
+        raise Http404
+    content_type = request_content_type_for_object(obj)
+    links = (
+        RequestPhotoLink.objects.select_related("photo", "photo__folder", "photo__created_by")
+        .filter(territorial_organ=organ, content_type=content_type, object_id=obj.pk, photo__is_deleted=False)
+        .filter(Q(photo__folder__isnull=True) | Q(photo__folder__is_deleted=False))
+        .order_by("-created_at", "-id")
+    )
+    return render(request, "partials/request_photos.html", {"organ": organ, "object": obj, "links": links})
+
+
+@login_required
+def request_photo_picker(request, organ_id):
+    organ = get_object_or_404(TerritorialOrgan, pk=organ_id, is_active=True)
+    if not can_view(request.user, organ):
+        raise Http404
+    context = {"organ": organ}
+    context.update(request_photo_picker_context(request, organ, request.GET.getlist("attached_photos")))
+    return render(request, "partials/request_photo_picker_results.html", context)
+
+
 def tmc_xlsx_response(qs, organ, filename):
     wb = Workbook()
     ws = wb.active
@@ -516,7 +672,7 @@ def tmc_xlsx_response(qs, organ, filename):
     ws.merge_cells("F1:F2")
     ws["A1"] = "Сведения о потребности ТМЦ"
     ws["C1"] = "Заявка"
-    ws["F1"] = "Комментарий"
+    ws["F1"] = "Описание"
     headers = ["Наименование", "Количество", "Номер", "Дата", "Исполнение заявки", ""]
     for column, value in enumerate(headers, start=1):
         if value:
@@ -671,31 +827,38 @@ def record_form(request, organ_id, table_key, pk=None):
     old_values = serialize_instance(instance) if instance else None
     old_status = instance.status if instance and table_key in STATUS_HISTORY_TABLES else None
     form = Form(request.POST or None, instance=instance)
+    selected_photo_ids = request.POST.getlist("attached_photos") if request.method == "POST" else selected_request_photo_ids(instance)
     if request.method == "POST" and form.is_valid():
         is_create = instance is None
-        obj = form.save(commit=False)
-        obj.territorial_organ = organ
-        completion_field = completed_date_field(table_key)
-        if table_key in STATUS_HISTORY_TABLES and obj.status == NeedStatus.DONE and not getattr(obj, completion_field):
-            setattr(obj, completion_field, timezone.localdate())
-        if not obj.pk:
-            obj.created_by = request.user
-        obj.updated_by = request.user
-        obj.save()
-        if table_key in STATUS_HISTORY_TABLES and (is_create or old_status != obj.status):
-            create_status_history(
-                obj=obj,
-                old_status=None if is_create else old_status,
-                new_status=obj.status,
-                completed_at=getattr(obj, completion_field) if obj.status == NeedStatus.DONE else None,
-                changed_by=request.user,
-                note="Создание заявки" if is_create else "Изменение статуса",
-            )
+        with transaction.atomic():
+            obj = form.save(commit=False)
+            obj.territorial_organ = organ
+            completion_field = completed_date_field(table_key)
+            if table_key in STATUS_HISTORY_TABLES and obj.status == NeedStatus.DONE and not getattr(obj, completion_field):
+                setattr(obj, completion_field, timezone.localdate())
+            if not obj.pk:
+                obj.created_by = request.user
+            obj.updated_by = request.user
+            obj.save()
+            if table_key in REQUEST_PHOTO_TABLES:
+                sync_request_photos(obj, selected_photo_ids, request.user)
+            if table_key in STATUS_HISTORY_TABLES and (is_create or old_status != obj.status):
+                create_status_history(
+                    obj=obj,
+                    old_status=None if is_create else old_status,
+                    new_status=obj.status,
+                    completed_at=getattr(obj, completion_field) if obj.status == NeedStatus.DONE else None,
+                    changed_by=request.user,
+                    note="Создание заявки" if is_create else "Изменение статуса",
+                )
         write_audit(AuditLog.Action.UPDATE if instance else AuditLog.Action.CREATE, obj, old_values=old_values, new_values=serialize_instance(obj), request=request)
         response = table_data(request, organ.pk, table_key)
         response["HX-Trigger"] = htmx_triggers("Запись сохранена.")
         return response
-    return render(request, "partials/record_form.html", {"form": form, "organ": organ, "table": table, "instance": instance})
+    context = {"form": form, "organ": organ, "table": table, "instance": instance, "show_request_photo_picker": table_key in REQUEST_PHOTO_TABLES}
+    if table_key in REQUEST_PHOTO_TABLES:
+        context.update(request_photo_form_context(request, organ, selected_photo_ids))
+    return render(request, "partials/record_form.html", context)
 
 
 @login_required

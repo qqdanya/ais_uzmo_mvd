@@ -45,6 +45,7 @@
       {% endfor %}
     </div>
     {% if item_errors %}<div class="alert alert-danger mt-3">{{ item_errors|join:" " }}</div>{% endif %}
+    {% include "partials/request_photo_picker.html" %}
     {% if form.non_field_errors %}<div class="alert alert-danger mt-3">{{ form.non_field_errors }}</div>{% endif %}
   </div>
   <div class="modal-footer">
