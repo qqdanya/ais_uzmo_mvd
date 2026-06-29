@@ -8,7 +8,7 @@ class TerritorialOrganPhotoForm(forms.ModelForm):
         organ = kwargs.pop("organ", None)
         super().__init__(*args, **kwargs)
         if organ:
-            self.fields["folder"].queryset = organ.photo_folders.all()
+            self.fields["folder"].queryset = organ.photo_folders.filter(is_deleted=False)
         self.fields["folder"].empty_label = "Без папки"
         for field_name, field in self.fields.items():
             css_class = "form-select" if field_name == "folder" else "form-control"
@@ -32,7 +32,7 @@ class TerritorialOrganPhotoFolderForm(forms.ModelForm):
     def clean_name(self):
         name = self.cleaned_data["name"].strip()
         if self.organ:
-            duplicate = TerritorialOrganPhotoFolder.objects.filter(territorial_organ=self.organ, parent=self.parent, name__iexact=name)
+            duplicate = TerritorialOrganPhotoFolder.objects.filter(territorial_organ=self.organ, parent=self.parent, name__iexact=name, is_deleted=False)
             if self.instance.pk:
                 duplicate = duplicate.exclude(pk=self.instance.pk)
             if duplicate.exists():

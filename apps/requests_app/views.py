@@ -739,6 +739,8 @@ def photos(request, organ_id):
 def folder_path(folder):
     path = []
     while folder:
+        if folder.is_deleted:
+            return []
         path.append(folder)
         folder = folder.parent
     return list(reversed(path))
@@ -747,6 +749,8 @@ def folder_path(folder):
 def folder_path_from_map(folder, folders_by_id):
     path = []
     while folder:
+        if folder.is_deleted:
+            return []
         path.append(folder)
         folder = folders_by_id.get(folder.parent_id)
     return list(reversed(path))
@@ -758,15 +762,15 @@ def render_photos(request, organ, folder_id_override=None):
     folder_id = str(folder_id_override) if folder_id_override is not None else request.GET.get("folder", "").strip()
     selected_folder = None
     if folder_id:
-        selected_folder = get_object_or_404(TerritorialOrganPhotoFolder, pk=folder_id, territorial_organ=organ)
-    folders = organ.photo_folders.filter(parent=selected_folder).annotate(
+        selected_folder = get_object_or_404(TerritorialOrganPhotoFolder, pk=folder_id, territorial_organ=organ, is_deleted=False)
+    folders = organ.photo_folders.filter(parent=selected_folder, is_deleted=False).annotate(
         photo_count=Count("photos", filter=Q(photos__is_deleted=False)),
-        child_count=Count("children", distinct=True),
+        child_count=Count("children", filter=Q(children__is_deleted=False), distinct=True),
     )
     if query:
         query_normalized = query.casefold()
         folders = [folder for folder in folders if query_normalized in folder.name.casefold()]
-    qs = organ.photos.select_related("created_by", "folder").filter(is_deleted=False)
+    qs = organ.photos.select_related("created_by", "folder").filter(is_deleted=False).filter(Q(folder__isnull=True) | Q(folder__is_deleted=False))
     if folder_id:
         qs = qs.filter(folder_id=folder_id)
     else:
@@ -778,7 +782,8 @@ def render_photos(request, organ, folder_id_override=None):
         qs = qs.order_by("created_at", "pk") if sort == "oldest" else qs.order_by("-created_at", "-pk")
     paginator = Paginator(qs, 24)
     page = paginator.get_page(request.GET.get("page"))
-    folders_by_id = {folder.pk: folder for folder in organ.photo_folders.all()}
+    page_links = paginator.get_elided_page_range(page.number, on_each_side=1, on_ends=1)
+    folders_by_id = {folder.pk: folder for folder in organ.photo_folders.filter(is_deleted=False)}
     for photo in page.object_list:
         photo.folder_path = folder_path_from_map(photo.folder, folders_by_id) if photo.folder else []
     querystring = request.GET.copy()
@@ -790,6 +795,7 @@ def render_photos(request, organ, folder_id_override=None):
             "organ": organ,
             "photos": page.object_list,
             "photo_page": page,
+            "photo_page_links": page_links,
             "photo_querystring": querystring.urlencode(),
             "folders": folders,
             "photo_folder_count": len(folders),
@@ -813,7 +819,12 @@ def photo_download(request, organ_id, pk):
     organ = get_object_or_404(TerritorialOrgan, pk=organ_id, is_active=True)
     if not can_view(request.user, organ):
         raise Http404
-    photo = get_object_or_404(TerritorialOrganPhoto, pk=pk, territorial_organ=organ, is_deleted=False)
+    photo = get_object_or_404(
+        TerritorialOrganPhoto.objects.filter(Q(folder__isnull=True) | Q(folder__is_deleted=False)),
+        pk=pk,
+        territorial_organ=organ,
+        is_deleted=False,
+    )
     if not photo.image:
         raise Http404
     try:
@@ -830,7 +841,7 @@ def photos_download_all(request, organ_id):
     organ = get_object_or_404(TerritorialOrgan, pk=organ_id, is_active=True)
     if not can_view(request.user, organ):
         raise Http404
-    photos_qs = organ.photos.filter(is_deleted=False).order_by("created_at")
+    photos_qs = organ.photos.filter(is_deleted=False).filter(Q(folder__isnull=True) | Q(folder__is_deleted=False)).order_by("created_at")
     if not photos_qs.exists():
         raise Http404
     archive = BytesIO()
@@ -888,7 +899,7 @@ def photo_folder_form(request, organ_id):
     parent_id = request.POST.get("parent") if request.method == "POST" else request.GET.get("folder")
     current_folder = None
     if parent_id:
-        current_folder = get_object_or_404(TerritorialOrganPhotoFolder, pk=parent_id, territorial_organ=organ)
+        current_folder = get_object_or_404(TerritorialOrganPhotoFolder, pk=parent_id, territorial_organ=organ, is_deleted=False)
     form = TerritorialOrganPhotoFolderForm(request.POST or None, organ=organ, parent=current_folder)
     if request.method == "POST" and form.is_valid():
         folder = form.save(commit=False)
@@ -901,6 +912,41 @@ def photo_folder_form(request, organ_id):
     return render(request, "partials/photo_folder_form.html", {"form": form, "organ": organ, "current_folder": current_folder})
 
 
+def photo_folder_descendant_ids(folder):
+    folder_ids = [folder.pk]
+    pending = [folder.pk]
+    while pending:
+        child_ids = list(TerritorialOrganPhotoFolder.objects.filter(parent_id__in=pending, is_deleted=False).values_list("pk", flat=True))
+        folder_ids.extend(child_ids)
+        pending = child_ids
+    return folder_ids
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def photo_folder_delete(request, organ_id, pk):
+    organ = get_object_or_404(TerritorialOrgan, pk=organ_id, is_active=True)
+    folder = get_object_or_404(TerritorialOrganPhotoFolder, pk=pk, territorial_organ=organ, is_deleted=False)
+    if not can_write(request.user, organ):
+        raise Http404
+    parent = folder.parent
+    if request.method == "POST":
+        with transaction.atomic():
+            old_values = serialize_instance(folder)
+            folder_ids = photo_folder_descendant_ids(folder)
+            TerritorialOrganPhoto.objects.filter(territorial_organ=organ, folder_id__in=folder_ids, is_deleted=False).update(
+                is_deleted=True,
+                updated_by=request.user,
+                updated_at=timezone.now(),
+            )
+            TerritorialOrganPhotoFolder.objects.filter(territorial_organ=organ, pk__in=folder_ids).update(is_deleted=True)
+            write_audit(AuditLog.Action.DELETE, folder, old_values=old_values, new_values=None, request=request)
+        response = render_photos(request, organ, parent.pk if parent else "")
+        response["HX-Trigger"] = htmx_triggers("Папка удалена.")
+        return response
+    return render(request, "partials/confirm_delete.html", {"object": folder, "organ": organ, "folder_delete": True})
+
+
 @login_required
 @require_http_methods(["GET", "POST"])
 def photo_bulk_upload(request, organ_id):
@@ -909,17 +955,19 @@ def photo_bulk_upload(request, organ_id):
         raise Http404
     current_folder = None
     if request.GET.get("folder"):
-        current_folder = get_object_or_404(TerritorialOrganPhotoFolder, pk=request.GET["folder"], territorial_organ=organ)
+        current_folder = get_object_or_404(TerritorialOrganPhotoFolder, pk=request.GET["folder"], territorial_organ=organ, is_deleted=False)
     if request.method == "POST":
         files = request.FILES.getlist("images")
         descriptions = request.POST.getlist("descriptions")
         folder = None
         folder_id = request.POST.get("folder")
         if folder_id and current_folder is None:
-            current_folder = get_object_or_404(TerritorialOrganPhotoFolder, pk=folder_id, territorial_organ=organ)
+            current_folder = get_object_or_404(TerritorialOrganPhotoFolder, pk=folder_id, territorial_organ=organ, is_deleted=False)
         new_folder_name = request.POST.get("new_folder", "").strip()
         if new_folder_name:
-            folder, _ = TerritorialOrganPhotoFolder.objects.get_or_create(territorial_organ=organ, parent=current_folder, name=new_folder_name)
+            folder = TerritorialOrganPhotoFolder.objects.filter(territorial_organ=organ, parent=current_folder, name=new_folder_name, is_deleted=False).first()
+            if folder is None:
+                folder = TerritorialOrganPhotoFolder.objects.create(territorial_organ=organ, parent=current_folder, name=new_folder_name)
         elif folder_id:
             folder = current_folder
         errors = []

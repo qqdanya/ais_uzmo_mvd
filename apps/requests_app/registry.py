@@ -18,7 +18,6 @@ TABLES = {
         table("tmc-requests", "Заявка", models.TmcRequest, "tmc", ["request_number", "request_date", "items_summary", "status", "due_date", "comment"]),
     ],
     "transport": [
-        table("vehicle-inventory", "Автотранспорт", models.VehicleInventory, "transport", ["state_date", "required_count", "available_count", "broken_count", "writeoff_count"]),
         table(
             "vehicle-repair",
             "Заявка на ремонт",
@@ -75,4 +74,11 @@ TABLES = {
     ],
 }
 
+# Вкладка временно скрыта по требованию заказчика. Конфигурация оставлена,
+# чтобы быстро вернуть таблицу без восстановления модели и представлений.
+HIDDEN_TABLES = [
+    table("vehicle-inventory", "Автотранспорт", models.VehicleInventory, "transport", ["state_date", "required_count", "available_count", "broken_count", "writeoff_count"]),
+]
+
 TABLE_BY_KEY = {item["key"]: item for group in TABLES.values() for item in group}
+TABLE_BY_KEY.update({item["key"]: item for item in HIDDEN_TABLES})

@@ -54,13 +54,18 @@
 {% if folders %}
 <div class="photo-grid folder-grid">
   {% for folder in folders %}
-    <button class="folder-card" type="button" hx-get="{% url 'photos' organ.pk %}?folder={{ folder.pk }}{% if photo_query %}&q={{ photo_query|urlencode }}{% endif %}{% if photo_sort == 'oldest' %}&sort=oldest{% endif %}" hx-target="#workspace" hx-swap="innerHTML" {% if can_write %}data-photo-upload-url="{% url 'photo_bulk_upload' organ.pk %}?folder={{ folder.pk }}"{% endif %}>
-      <div class="folder-card-icon"><i class="bi bi-folder2-open"></i></div>
-      <div class="folder-card-body">
-        <strong>{{ folder.name }}</strong>
-        <span>{{ folder.photo_count }} фото{% if folder.child_count %} · {{ folder.child_count }} папок{% endif %}</span>
-      </div>
-    </button>
+    <article class="folder-card" {% if can_write %}data-photo-upload-url="{% url 'photo_bulk_upload' organ.pk %}?folder={{ folder.pk }}"{% endif %}>
+      <button class="folder-card-open" type="button" hx-get="{% url 'photos' organ.pk %}?folder={{ folder.pk }}{% if photo_query %}&q={{ photo_query|urlencode }}{% endif %}{% if photo_sort == 'oldest' %}&sort=oldest{% endif %}" hx-target="#workspace" hx-swap="innerHTML">
+        <div class="folder-card-icon"><i class="bi bi-folder2-open"></i></div>
+        <div class="folder-card-body">
+          <strong>{{ folder.name }}</strong>
+          <span>{{ folder.photo_count }} фото{% if folder.child_count %} · {{ folder.child_count }} папок{% endif %}</span>
+        </div>
+      </button>
+      {% if can_write %}
+        <button class="btn btn-sm btn-outline-danger folder-card-delete" type="button" hx-get="{% url 'photo_folder_delete' organ.pk folder.pk %}" hx-target="#modal-content" data-open-modal="true" data-bs-toggle="tooltip" data-bs-title="Удалить папку" aria-label="Удалить папку"><i class="bi bi-trash"></i></button>
+      {% endif %}
+    </article>
   {% endfor %}
 </div>
 {% endif %}
@@ -100,13 +105,23 @@
 </div>
 {% if photo_page.has_other_pages %}
 <nav class="mt-2 photo-pagination" aria-label="Страницы фотографий">
-  <div class="btn-group btn-group-sm">
+  <div class="photo-pagination-group">
     {% if photo_page.has_previous %}
-      <button class="btn btn-outline-primary" hx-get="{% url 'photos' organ.pk %}?{% if photo_querystring %}{{ photo_querystring }}&{% endif %}page={{ photo_page.previous_page_number }}" hx-target="#workspace" hx-swap="innerHTML" aria-label="Предыдущая страница"><i class="bi bi-chevron-left"></i> Назад</button>
+      <button class="btn btn-sm btn-outline-primary" hx-get="{% url 'photos' organ.pk %}?{% if photo_querystring %}{{ photo_querystring }}&{% endif %}page={{ photo_page.previous_page_number }}" hx-target="#workspace" hx-swap="innerHTML" aria-label="Предыдущая страница"><i class="bi bi-chevron-left"></i> Назад</button>
     {% endif %}
-    <span class="btn btn-outline-secondary disabled">{{ photo_page.number }} / {{ photo_page.paginator.num_pages }}</span>
+    <div class="photo-page-numbers" aria-label="Выбор страницы">
+      {% for page_number in photo_page_links %}
+        {% if page_number == photo_page.paginator.ELLIPSIS %}
+          <span class="photo-page-ellipsis">{{ page_number }}</span>
+        {% elif page_number == photo_page.number %}
+          <span class="photo-page-number is-active" aria-current="page">{{ page_number }}</span>
+        {% else %}
+          <button class="photo-page-number" type="button" hx-get="{% url 'photos' organ.pk %}?{% if photo_querystring %}{{ photo_querystring }}&{% endif %}page={{ page_number }}" hx-target="#workspace" hx-swap="innerHTML" aria-label="Страница {{ page_number }}">{{ page_number }}</button>
+        {% endif %}
+      {% endfor %}
+    </div>
     {% if photo_page.has_next %}
-      <button class="btn btn-outline-primary" hx-get="{% url 'photos' organ.pk %}?{% if photo_querystring %}{{ photo_querystring }}&{% endif %}page={{ photo_page.next_page_number }}" hx-target="#workspace" hx-swap="innerHTML" aria-label="Следующая страница">Вперед <i class="bi bi-chevron-right"></i></button>
+      <button class="btn btn-sm btn-outline-primary" hx-get="{% url 'photos' organ.pk %}?{% if photo_querystring %}{{ photo_querystring }}&{% endif %}page={{ photo_page.next_page_number }}" hx-target="#workspace" hx-swap="innerHTML" aria-label="Следующая страница">Вперед <i class="bi bi-chevron-right"></i></button>
     {% endif %}
   </div>
 </nav>

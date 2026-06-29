@@ -51,16 +51,17 @@ class TerritorialOrganPhotoFolder(models.Model):
     parent = models.ForeignKey("self", verbose_name="родительская папка", null=True, blank=True, on_delete=models.CASCADE, related_name="children")
     name = models.CharField("наименование", max_length=120)
     created_at = models.DateTimeField("создано", auto_now_add=True)
+    is_deleted = models.BooleanField("удалено", default=False, db_index=True)
 
     class Meta:
         verbose_name = "папка фотографий"
         verbose_name_plural = "папки фотографий"
         ordering = ("name",)
         constraints = [
-            models.UniqueConstraint(fields=["territorial_organ", "name"], condition=Q(parent__isnull=True), name="unique_root_photo_folder_per_organ"),
-            models.UniqueConstraint(fields=["territorial_organ", "parent", "name"], condition=Q(parent__isnull=False), name="unique_child_photo_folder_per_parent"),
+            models.UniqueConstraint(fields=["territorial_organ", "name"], condition=Q(parent__isnull=True, is_deleted=False), name="unique_root_photo_folder_per_organ"),
+            models.UniqueConstraint(fields=["territorial_organ", "parent", "name"], condition=Q(parent__isnull=False, is_deleted=False), name="unique_child_photo_folder_per_parent"),
         ]
-        indexes = [models.Index(fields=["territorial_organ", "parent", "name"])]
+        indexes = [models.Index(fields=["territorial_organ", "parent", "is_deleted", "name"])]
 
     def __str__(self):
         return self.name

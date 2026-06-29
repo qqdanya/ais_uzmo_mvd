@@ -1,5 +1,14 @@
-<form method="post" hx-post="{{ request.path }}" hx-target="{% if photo_delete %}#workspace{% else %}#table-area{% endif %}">
+<form method="post" hx-post="{{ request.path }}" hx-target="{% if photo_delete or folder_delete %}#workspace{% else %}#table-area{% endif %}">
   <div class="modal-header"><h5 class="modal-title">Подтвердите удаление</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-  <div class="modal-body">{% csrf_token %}<p>Удалить запись <strong>{{ object }}</strong>?</p><p class="text-secondary">Запись будет скрыта из рабочих таблиц.</p></div>
+  <div class="modal-body">
+    {% csrf_token %}
+    {% if folder_delete %}
+      <p>Удалить папку <strong>{{ object }}</strong>?</p>
+      <p class="text-secondary">Папка, вложенные папки и фотографии будут скрыты из раздела. Файлы останутся на сервере.</p>
+    {% else %}
+      <p>Удалить запись <strong>{{ object }}</strong>?</p>
+      <p class="text-secondary">{% if photo_delete %}Фотография будет скрыта из раздела фотографий.{% else %}Запись будет скрыта из рабочих таблиц.{% endif %}</p>
+    {% endif %}
+  </div>
   <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button><button class="btn btn-danger">Удалить</button></div>
 </form>

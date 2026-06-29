@@ -231,6 +231,7 @@ class EquipmentType(models.TextChoices):
     COMPUTING = "computing", "Вычислительная техника"
     SPECIAL = "special", "Специальная техника"
     VIDEO = "video", "Видеонаблюдение"
+    SOUND_ALERT = "sound_alert", "Система звукового оповещения"
 
 
 class CitsiziEquipment(TrackableRequest):

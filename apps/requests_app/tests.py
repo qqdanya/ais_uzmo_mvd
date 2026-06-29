@@ -18,6 +18,7 @@ from apps.directory.models import Department, TerritorialOrgan, TerritorialOrgan
 from apps.requests_app.models import (
     AntiTerrorMeasure,
     CitsiziEquipment,
+    EquipmentType,
     FireAlarm,
     FireDepartmentRequest,
     FireExtinguisher,
@@ -30,7 +31,7 @@ from apps.requests_app.models import (
     VehicleInventory,
     VehicleRepairRequest,
 )
-from apps.requests_app.registry import TABLES
+from apps.requests_app.registry import TABLES, TABLE_BY_KEY
 
 
 class AppFlowTests(TestCase):
@@ -307,6 +308,13 @@ class AppFlowTests(TestCase):
         self.assertContains(response, "C-1")
         self.assertContains(response, "Средства связи")
         self.assertNotContains(response, "C-2")
+
+    def test_citsizi_form_includes_sound_alert_equipment_type(self):
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("record_create", args=[self.organ.pk, "citsizi-equipment"]), HTTP_HX_REQUEST="true")
+
+        self.assertContains(response, f'value="{EquipmentType.SOUND_ALERT}"')
 
     def test_citsizi_request_table_history_filters_and_styled_export(self):
         included = CitsiziEquipment.objects.create(territorial_organ=self.organ, request_number="C-10", request_date="2026-06-20", equipment_type="communication", quantity=3, status="in_work", comment="Install radio")
@@ -797,7 +805,8 @@ class AppFlowTests(TestCase):
         self.assertEqual(TABLES["tmc"][0]["title"], "Заявка")
         self.assertEqual(TABLES["antiterror"][0]["title"], "Заявка (акт обследования)")
         self.assertEqual([item["key"] for item in TABLES["tmc"]], ["tmc-requests"])
-        self.assertEqual([item["key"] for item in TABLES["transport"]], ["vehicle-inventory", "vehicle-repair"])
+        self.assertEqual([item["key"] for item in TABLES["transport"]], ["vehicle-repair"])
+        self.assertIn("vehicle-inventory", TABLE_BY_KEY)
         self.assertEqual([item["key"] for item in TABLES["fire"]], ["fire-extinguishers", "fire-alarm", "security-alarm", "fire-requests"])
         self.assertEqual([item["key"] for item in TABLES["uoto"]], ["service-housing", "building-repair"])
 
@@ -855,6 +864,8 @@ class AppFlowTests(TestCase):
         response = self.client.get(reverse("photos", args=[self.organ.pk]))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.context["photo_page"].object_list), 24)
+        self.assertContains(response, "photo-page-number")
+        self.assertContains(response, "page=2")
 
         response = self.client.get(reverse("photos", args=[self.organ.pk]), {"q": "photo-24", "sort": "oldest"})
         self.assertContains(response, "photo-24")
@@ -921,6 +932,30 @@ class AppFlowTests(TestCase):
         self.assertEqual(nested.parent, parent)
         self.assertContains(response, "Nested")
         self.assertEqual(response.context["selected_folder"], parent)
+
+    def test_photo_folder_delete_soft_deletes_content(self):
+        parent = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Parent")
+        folder = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, parent=parent, name="Delete me")
+        child = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, parent=folder, name="Child")
+        photo = self.create_photo("folder-photo.png")
+        photo.folder = folder
+        photo.description = "Folder photo"
+        photo.save(update_fields=["folder", "description"])
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.post(reverse("photo_folder_delete", args=[self.organ.pk, folder.pk]), HTTP_HX_REQUEST="true")
+
+        self.assertEqual(response.status_code, 200)
+        folder.refresh_from_db()
+        photo.refresh_from_db()
+        child.refresh_from_db()
+        self.assertTrue(folder.is_deleted)
+        self.assertTrue(child.is_deleted)
+        self.assertTrue(photo.is_deleted)
+        self.assertEqual(photo.folder, folder)
+        self.assertEqual(child.parent, folder)
+        self.assertNotContains(response, "Folder photo")
+        self.assertNotContains(response, "Delete me")
 
     def test_photos_show_nested_folders_in_current_folder(self):
         parent = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Parent")
