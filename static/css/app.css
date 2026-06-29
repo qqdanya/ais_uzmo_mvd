@@ -994,25 +994,6 @@ textarea {
 .tmc-actions-cell .btn + .btn {
   margin-left: 4px;
 }
-.request-photo-count {
-  position: relative;
-}
-.request-photo-count span {
-  min-width: 16px;
-  height: 16px;
-  position: absolute;
-  right: -4px;
-  top: -5px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 4px;
-  border-radius: 999px;
-  background: var(--primary);
-  color: #fff;
-  font-size: .64rem;
-  line-height: 1;
-}
 .request-photo-box {
   grid-column: 1 / -1;
   margin-top: 14px;
@@ -1026,6 +1007,14 @@ textarea {
   justify-content: space-between;
   gap: 12px;
   padding: 12px;
+}
+.request-photo-summary-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
 }
 .request-photo-picker {
   border-top: 1px solid var(--line);
@@ -1137,6 +1126,12 @@ textarea {
   margin: 0;
   color: var(--ink);
   overflow-wrap: anywhere;
+}
+.request-linked-photo-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 .status-badge {
   display: inline-flex;
@@ -2446,7 +2441,11 @@ textarea.form-control {
   .request-photo-summary {
     align-items: stretch;
   }
-  .request-photo-summary .btn {
+  .request-photo-summary-actions {
+    justify-content: stretch;
+    margin-left: 0;
+  }
+  .request-photo-summary-actions .btn {
     width: 100%;
   }
   .history-summary,

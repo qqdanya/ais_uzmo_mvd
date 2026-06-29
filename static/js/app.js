@@ -273,6 +273,34 @@ function setRequestPhotoSelected(checkbox) {
   syncRequestPhotoPicker(box);
 }
 
+function detachRequestPhoto(button) {
+  const box = button.closest("[data-request-photo-box]");
+  if (!box) return;
+  const photoId = button.dataset.detachRequestPhoto;
+  box.querySelectorAll(`[data-request-photo-hidden][value="${CSS.escape(photoId)}"]`).forEach((input) => input.remove());
+  box.querySelectorAll(`[data-request-photo-checkbox][value="${CSS.escape(photoId)}"]`).forEach((checkbox) => {
+    checkbox.checked = false;
+  });
+  button.closest("[data-request-linked-photo]")?.remove();
+  const list = box.querySelector("[data-request-linked-photos]");
+  if (list && !list.querySelector("[data-request-linked-photo]") && !list.querySelector("[data-request-linked-empty]")) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.dataset.requestLinkedEmpty = "true";
+    empty.textContent = "К заявке фотографии не прикреплены";
+    list.append(empty);
+  }
+  syncRequestPhotoPicker(box);
+}
+
+function refreshCurrentTableArea() {
+  const tableArea = document.getElementById("table-area");
+  if (!tableArea || !window.htmx) return;
+  const activeTab = document.querySelector('[data-table-tab="true"].active');
+  const url = activeTab?.getAttribute("hx-get") || tableArea.getAttribute("hx-get");
+  if (url) window.htmx.ajax("GET", url, { target: "#table-area", swap: "innerHTML" });
+}
+
 function readCollapsedPanels() {
   try {
     const state = JSON.parse(localStorage.getItem(COLLAPSED_PANELS_KEY)) || {};
@@ -689,6 +717,8 @@ document.body.addEventListener("toast", (event) => {
   showToast(value.message || value, value.level);
 });
 
+document.body.addEventListener("requestPhotosChanged", refreshCurrentTableArea);
+
 document.body.addEventListener("modal:close", () => {
   const modal = bootstrap.Modal.getInstance(document.getElementById("modal-root"));
   if (modal) modal.hide();
@@ -860,6 +890,12 @@ document.addEventListener("click", (event) => {
     if (!box || !panel) return;
     panel.hidden = !panel.hidden;
     syncRequestPhotoPicker(box);
+    return;
+  }
+
+  const detachPhoto = event.target.closest("[data-detach-request-photo]");
+  if (detachPhoto) {
+    detachRequestPhoto(detachPhoto);
     return;
   }
 

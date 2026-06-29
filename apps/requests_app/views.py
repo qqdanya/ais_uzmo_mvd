@@ -634,7 +634,43 @@ def status_history(request, organ_id, table_key, pk):
 
 
 @login_required
+@require_http_methods(["GET", "POST"])
 def request_photos(request, organ_id, table_key, pk):
+    if table_key not in REQUEST_PHOTO_TABLES:
+        raise Http404
+    organ = get_object_or_404(TerritorialOrgan, pk=organ_id, is_active=True)
+    model = REQUEST_TABLE_CONFIG[table_key]["model"]
+    obj = get_object_or_404(model, pk=pk, territorial_organ=organ, is_deleted=False)
+    if not can_view(request.user, organ):
+        raise Http404
+    if request.method == "POST":
+        if not can_write(request.user, organ):
+            raise Http404
+        sync_request_photos(obj, request.POST.getlist("attached_photos"), request.user)
+    content_type = request_content_type_for_object(obj)
+    links = (
+        RequestPhotoLink.objects.select_related("photo", "photo__folder", "photo__created_by")
+        .filter(territorial_organ=organ, content_type=content_type, object_id=obj.pk, photo__is_deleted=False)
+        .filter(Q(photo__folder__isnull=True) | Q(photo__folder__is_deleted=False))
+        .order_by("-created_at", "-id")
+    )
+    selected_ids = [link.photo_id for link in links]
+    context = {
+        "organ": organ,
+        "object": obj,
+        "table_key": table_key,
+        "links": links,
+        "can_write": can_write(request.user, organ),
+    }
+    context.update(request_photo_form_context(request, organ, selected_ids))
+    response = render(request, "partials/request_photos.html", context)
+    if request.method == "POST":
+        response["HX-Trigger"] = json.dumps({"toast": {"message": "Связанные фотографии обновлены.", "level": "success"}, "requestPhotosChanged": True})
+    return response
+
+
+@login_required
+def request_photos_download(request, organ_id, table_key, pk):
     if table_key not in REQUEST_PHOTO_TABLES:
         raise Http404
     organ = get_object_or_404(TerritorialOrgan, pk=organ_id, is_active=True)
@@ -644,12 +680,36 @@ def request_photos(request, organ_id, table_key, pk):
         raise Http404
     content_type = request_content_type_for_object(obj)
     links = (
-        RequestPhotoLink.objects.select_related("photo", "photo__folder", "photo__created_by")
+        RequestPhotoLink.objects.select_related("photo")
         .filter(territorial_organ=organ, content_type=content_type, object_id=obj.pk, photo__is_deleted=False)
         .filter(Q(photo__folder__isnull=True) | Q(photo__folder__is_deleted=False))
-        .order_by("-created_at", "-id")
+        .order_by("photo__created_at", "photo_id")
     )
-    return render(request, "partials/request_photos.html", {"organ": organ, "object": obj, "links": links})
+    if not links.exists():
+        raise Http404
+
+    archive = BytesIO()
+    used_names = set()
+    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as zip_file:
+        for index, link in enumerate(links, start=1):
+            photo = link.photo
+            if not photo.image:
+                continue
+            source_name = safe_download_name(Path(photo.image.name).name, f"photo-{photo.pk}")
+            stem = Path(source_name).stem
+            suffix = Path(source_name).suffix
+            archive_name = source_name
+            if archive_name in used_names:
+                archive_name = f"{stem}-{photo.pk}{suffix}"
+            used_names.add(archive_name)
+            try:
+                with photo.image.open("rb") as file_handle:
+                    zip_file.writestr(f"{index:03d}-{archive_name}", file_handle.read())
+            except FileNotFoundError:
+                continue
+    archive.seek(0)
+    filename = safe_download_name(f"{obj}-photos.zip", f"request-{obj.pk}-photos.zip")
+    return FileResponse(archive, as_attachment=True, filename=filename, content_type="application/zip")
 
 
 @login_required

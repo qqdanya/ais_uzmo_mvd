@@ -111,11 +111,60 @@ class AppFlowTests(TestCase):
         request_obj = TmcRequest.objects.get(request_number="15-Photo/TMC")
         self.assertTrue(RequestPhotoLink.objects.filter(photo=photo, object_id=request_obj.pk).exists())
         self.assertContains(response, "request-photo-count")
-        self.assertContains(response, "<span>1</span>", html=True)
+        self.assertContains(response, "Прикрепленные фотографии (1 шт.)")
+        self.assertNotContains(response, "<span>1</span>", html=True)
 
         photos_response = self.client.get(reverse("request_photos", args=[self.organ.pk, "tmc-requests", request_obj.pk]), HTTP_HX_REQUEST="true")
         self.assertContains(photos_response, "Repair evidence")
         self.assertContains(photos_response, "request-photo.png")
+        self.assertContains(photos_response, "Открепить")
+        self.assertContains(photos_response, "Скачать все")
+        self.assertContains(photos_response, "Прикрепить еще")
+
+        download_response = self.client.get(reverse("request_photos_download", args=[self.organ.pk, "tmc-requests", request_obj.pk]))
+        self.assertEqual(download_response.status_code, 200)
+        self.assertEqual(download_response["Content-Type"], "application/zip")
+        archive_data = b"".join(download_response.streaming_content)
+        with zipfile.ZipFile(BytesIO(archive_data)) as archive:
+            self.assertTrue(any(name.endswith(".png") for name in archive.namelist()))
+
+    def test_request_photos_modal_can_replace_attached_photos(self):
+        first = self.create_photo("first-proof.png")
+        first.description = "First proof"
+        first.save(update_fields=["description"])
+        second = self.create_photo("second-proof.png")
+        second.description = "Second proof"
+        second.save(update_fields=["description"])
+        request_obj = TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            created_by=self.user,
+            updated_by=self.user,
+            request_number="15-Replace/TMC",
+            request_date="2026-06-27",
+            status="new",
+        )
+        TmcRequestItem.objects.create(request=request_obj, name="Desk", quantity=1, unit="шт.")
+        self.client.login(username="operator", password="pass12345")
+        self.client.post(
+            reverse("request_photos", args=[self.organ.pk, "tmc-requests", request_obj.pk]),
+            {"attached_photos": [str(first.pk)]},
+            HTTP_HX_REQUEST="true",
+        )
+        self.assertTrue(RequestPhotoLink.objects.filter(photo=first, object_id=request_obj.pk).exists())
+
+        response = self.client.post(
+            reverse("request_photos", args=[self.organ.pk, "tmc-requests", request_obj.pk]),
+            {"attached_photos": [str(second.pk)]},
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(RequestPhotoLink.objects.filter(photo=first, object_id=request_obj.pk).exists())
+        self.assertTrue(RequestPhotoLink.objects.filter(photo=second, object_id=request_obj.pk).exists())
+        self.assertContains(response, "Second proof")
+        self.assertContains(response, f'data-request-linked-photo="{second.pk}"')
+        self.assertNotContains(response, f'data-request-linked-photo="{first.pk}"')
+        self.assertIn("requestPhotosChanged", response["HX-Trigger"])
 
     def test_request_photo_picker_filters_paginates_and_keeps_selected(self):
         folder = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Evidence")

@@ -11,6 +11,7 @@ urlpatterns = [
     path("organs/<int:organ_id>/tables/<slug:table_key>/<int:pk>/edit/", views.record_form, name="record_update"),
     path("organs/<int:organ_id>/tables/<slug:table_key>/<int:pk>/history/", views.status_history, name="status_history"),
     path("organs/<int:organ_id>/tables/<slug:table_key>/<int:pk>/photos/", views.request_photos, name="request_photos"),
+    path("organs/<int:organ_id>/tables/<slug:table_key>/<int:pk>/photos/download/", views.request_photos_download, name="request_photos_download"),
     path("organs/<int:organ_id>/tables/photos/picker/", views.request_photo_picker, name="request_photo_picker"),
     path("organs/<int:organ_id>/tables/tmc-requests/<int:pk>/history/", views.status_history, {"table_key": "tmc-requests"}, name="tmc_status_history"),
     path("organs/<int:organ_id>/tables/anti-terror/<int:pk>/history/", views.status_history, {"table_key": "anti-terror"}, name="anti_terror_status_history"),

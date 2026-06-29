@@ -109,7 +109,7 @@
               <td rowspan="{{ item_count }}" class="tmc-boundary-right {% if forloop.parentloop.last %}tmc-bottom-span{% else %}tmc-group-span{% endif %}">{{ obj.comment }}</td>
               <td rowspan="{{ item_count }}" class="text-nowrap tmc-actions-cell {% if forloop.parentloop.last %}tmc-bottom-span{% else %}tmc-group-span{% endif %}">
                 {% if obj.attached_photo_count %}
-                  <button class="btn btn-icon request-photo-count" data-bs-toggle="tooltip" data-bs-title="Прикрепленные фотографии" hx-get="{% url 'request_photos' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Прикрепленные фотографии"><i class="bi bi-images"></i><span>{{ obj.attached_photo_count }}</span></button>
+                  <button class="btn btn-icon request-photo-count" data-bs-toggle="tooltip" data-bs-title="Прикрепленные фотографии ({{ obj.attached_photo_count }} шт.)" hx-get="{% url 'request_photos' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Прикрепленные фотографии ({{ obj.attached_photo_count }} шт.)"><i class="bi bi-images"></i></button>
                 {% endif %}
                 <button class="btn btn-icon" data-bs-toggle="tooltip" data-bs-title="История изменений" hx-get="{% url 'status_history' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="История изменений"><i class="bi bi-clock-history"></i></button>
                 {% if can_write %}
@@ -129,7 +129,7 @@
             <td class="tmc-boundary-right">{{ obj.comment }}</td>
             <td class="text-nowrap tmc-actions-cell">
               {% if obj.attached_photo_count %}
-                <button class="btn btn-icon request-photo-count" data-bs-toggle="tooltip" data-bs-title="Прикрепленные фотографии" hx-get="{% url 'request_photos' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Прикрепленные фотографии"><i class="bi bi-images"></i><span>{{ obj.attached_photo_count }}</span></button>
+                <button class="btn btn-icon request-photo-count" data-bs-toggle="tooltip" data-bs-title="Прикрепленные фотографии ({{ obj.attached_photo_count }} шт.)" hx-get="{% url 'request_photos' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Прикрепленные фотографии ({{ obj.attached_photo_count }} шт.)"><i class="bi bi-images"></i></button>
               {% endif %}
               <button class="btn btn-icon" data-bs-toggle="tooltip" data-bs-title="История изменений" hx-get="{% url 'status_history' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="История изменений"><i class="bi bi-clock-history"></i></button>
               {% if can_write %}
@@ -162,7 +162,7 @@
         {% for field in fields %}<td{% if field.name == "status" %} class="status-cell"{% endif %}>{% if field.name == "status" %}{% status_badge obj %}{% elif table.key == "fire-extinguishers" and field.name == "expiry_date" %}{% expiry_date_cell obj %}{% else %}{{ obj|get_attr:field.name }}{% endif %}</td>{% endfor %}
         <td class="text-center text-nowrap table-row-actions">
           {% if obj.attached_photo_count %}
-            <button class="btn btn-icon request-photo-count" data-bs-toggle="tooltip" data-bs-title="Прикрепленные фотографии" hx-get="{% url 'request_photos' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Прикрепленные фотографии"><i class="bi bi-images"></i><span>{{ obj.attached_photo_count }}</span></button>
+            <button class="btn btn-icon request-photo-count" data-bs-toggle="tooltip" data-bs-title="Прикрепленные фотографии ({{ obj.attached_photo_count }} шт.)" hx-get="{% url 'request_photos' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Прикрепленные фотографии ({{ obj.attached_photo_count }} шт.)"><i class="bi bi-images"></i></button>
           {% endif %}
           {% if has_status_history %}
             <button class="btn btn-icon" data-bs-toggle="tooltip" data-bs-title="История изменений" hx-get="{% url 'status_history' organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="История изменений"><i class="bi bi-clock-history"></i></button>
