@@ -1396,9 +1396,20 @@ textarea {
   outline-offset: 3px;
   border-radius: 6px;
 }
-.folder-card-delete {
+.folder-card-actions {
   flex: 0 0 auto;
   align-self: flex-end;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.folder-card-actions .btn {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
 }
 .folder-card-icon {
   width: 42px;

@@ -919,24 +919,27 @@ def photo_form(request, organ_id, pk=None):
 
 @login_required
 @require_http_methods(["GET", "POST"])
-def photo_folder_form(request, organ_id):
+def photo_folder_form(request, organ_id, pk=None):
     organ = get_object_or_404(TerritorialOrgan, pk=organ_id, is_active=True)
     if not can_write(request.user, organ):
         raise Http404
+    folder = get_object_or_404(TerritorialOrganPhotoFolder, pk=pk, territorial_organ=organ, is_deleted=False) if pk else None
+    old_values = serialize_instance(folder) if folder else None
     parent_id = request.POST.get("parent") if request.method == "POST" else request.GET.get("folder")
-    current_folder = None
-    if parent_id:
+    current_folder = folder.parent if folder else None
+    if parent_id and not folder:
         current_folder = get_object_or_404(TerritorialOrganPhotoFolder, pk=parent_id, territorial_organ=organ, is_deleted=False)
-    form = TerritorialOrganPhotoFolderForm(request.POST or None, organ=organ, parent=current_folder)
+    form = TerritorialOrganPhotoFolderForm(request.POST or None, instance=folder, organ=organ, parent=current_folder)
     if request.method == "POST" and form.is_valid():
-        folder = form.save(commit=False)
-        folder.territorial_organ = organ
-        folder.parent = current_folder
-        folder.save()
-        response = render_photos(request, organ, current_folder.pk if current_folder else "")
-        response["HX-Trigger"] = htmx_triggers("Папка создана.")
+        obj = form.save(commit=False)
+        obj.territorial_organ = organ
+        obj.parent = current_folder
+        obj.save()
+        write_audit(AuditLog.Action.UPDATE if folder else AuditLog.Action.CREATE, obj, old_values=old_values, new_values=serialize_instance(obj), request=request)
+        response = render_photos(request, organ, obj.parent_id or "")
+        response["HX-Trigger"] = htmx_triggers("Папка переименована." if folder else "Папка создана.")
         return response
-    return render(request, "partials/photo_folder_form.html", {"form": form, "organ": organ, "current_folder": current_folder})
+    return render(request, "partials/photo_folder_form.html", {"form": form, "organ": organ, "folder": folder, "current_folder": current_folder})
 
 
 def photo_folder_descendant_ids(folder):

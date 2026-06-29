@@ -1,15 +1,19 @@
 <form method="post" hx-post="{{ request.path }}" hx-target="#workspace">
   <div class="modal-header">
-    <h5 class="modal-title">Новая папка фотографий</h5>
+    <h5 class="modal-title">{% if folder %}Переименование папки{% else %}Новая папка фотографий{% endif %}</h5>
     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
   </div>
   <div class="modal-body">
     {% csrf_token %}
-    {% if current_folder %}
-      <input type="hidden" name="parent" value="{{ current_folder.pk }}">
-      <div class="upload-meta mb-3"><i class="bi bi-folder2-open"></i> Новая папка внутри «{{ current_folder.name }}»</div>
+    {% if folder %}
+      <div class="upload-meta mb-3"><i class="bi bi-folder2-open"></i> Текущее название: «{{ folder.name }}»</div>
     {% else %}
-      <div class="upload-meta mb-3"><i class="bi bi-folder2-open"></i> Новая папка в корне</div>
+      {% if current_folder %}
+        <input type="hidden" name="parent" value="{{ current_folder.pk }}">
+        <div class="upload-meta mb-3"><i class="bi bi-folder2-open"></i> Новая папка внутри «{{ current_folder.name }}»</div>
+      {% else %}
+        <div class="upload-meta mb-3"><i class="bi bi-folder2-open"></i> Новая папка в корне</div>
+      {% endif %}
     {% endif %}
     {% for field in form %}
       <div class="form-field wide">
@@ -21,6 +25,6 @@
   </div>
   <div class="modal-footer">
     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
-    <button class="btn btn-primary">Создать</button>
+    <button class="btn btn-primary">{% if folder %}Сохранить{% else %}Создать{% endif %}</button>
   </div>
 </form>

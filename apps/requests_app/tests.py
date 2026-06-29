@@ -946,6 +946,29 @@ class AppFlowTests(TestCase):
         self.assertContains(response, "Nested")
         self.assertEqual(response.context["selected_folder"], parent)
 
+    def test_photo_folder_can_be_renamed(self):
+        parent = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Parent")
+        folder = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, parent=parent, name="Old name")
+        self.client.login(username="operator", password="pass12345")
+
+        form_response = self.client.get(reverse("photo_folder_update", args=[self.organ.pk, folder.pk]), HTTP_HX_REQUEST="true")
+        self.assertContains(form_response, "Old name")
+        self.assertContains(form_response, "Сохранить")
+
+        response = self.client.post(
+            reverse("photo_folder_update", args=[self.organ.pk, folder.pk]),
+            {"name": "New name"},
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        folder.refresh_from_db()
+        self.assertEqual(folder.name, "New name")
+        self.assertEqual(folder.parent, parent)
+        self.assertContains(response, "New name")
+        self.assertNotContains(response, "Old name")
+        self.assertTrue(AuditLog.objects.filter(action=AuditLog.Action.UPDATE, model_name="TerritorialOrganPhotoFolder").exists())
+
     def test_photo_folder_delete_soft_deletes_content(self):
         parent = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Parent")
         folder = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, parent=parent, name="Delete me")
