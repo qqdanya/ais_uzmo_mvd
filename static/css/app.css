@@ -287,6 +287,16 @@ textarea {
   opacity: 1;
   transform: translateY(0);
 }
+[data-tooltip-placement="bottom"][data-css-tooltip]::before,
+[data-tooltip-placement="bottom"][data-css-tooltip]::after {
+  top: calc(100% + 8px);
+  bottom: auto;
+}
+[data-tooltip-placement="bottom"][data-css-tooltip]::before {
+  top: calc(100% + 3px);
+  border-top-color: transparent;
+  border-bottom-color: rgba(11, 47, 91, .94);
+}
 .app-footer {
   flex: 0 0 auto;
   padding: .55rem 1rem;
