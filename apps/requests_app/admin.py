@@ -16,6 +16,14 @@ class TmcRequestItemInline(admin.TabularInline):
     extra = 1
 
 
+@admin.register(models.TmcProduct)
+class TmcProductAdmin(admin.ModelAdmin):
+    list_display = ("name", "unit", "is_active", "updated_at")
+    list_filter = ("is_active", "unit")
+    search_fields = ("name", "normalized_name")
+    readonly_fields = ("normalized_name", "created_at", "updated_at")
+
+
 class RequestStatusHistoryInline(GenericTabularInline):
     model = models.RequestStatusHistory
     extra = 0

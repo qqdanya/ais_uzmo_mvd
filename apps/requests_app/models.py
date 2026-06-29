@@ -5,6 +5,13 @@ from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils import timezone
+import re
+
+
+def normalize_product_name(value):
+    value = (value or "").replace("ё", "е").replace("Ё", "Е").casefold()
+    value = re.sub(r"[^\w\s]+", " ", value, flags=re.UNICODE)
+    return re.sub(r"\s+", " ", value).strip()
 
 
 class TrackableRequest(models.Model):
@@ -54,6 +61,7 @@ class TmcRequest(TrackableRequest):
 
 class TmcRequestItem(models.Model):
     request = models.ForeignKey(TmcRequest, verbose_name="заявка", on_delete=models.CASCADE, related_name="items")
+    product = models.ForeignKey("TmcProduct", verbose_name="товар", null=True, blank=True, on_delete=models.PROTECT, related_name="request_items")
     name = models.CharField("наименование", max_length=180)
     quantity = models.PositiveIntegerField("количество", validators=[MinValueValidator(1)])
     unit = models.CharField("единица измерения", max_length=40, default="шт.")
@@ -65,6 +73,28 @@ class TmcRequestItem(models.Model):
 
     def __str__(self):
         return f"{self.name} {self.quantity} {self.unit}"
+
+
+class TmcProduct(models.Model):
+    name = models.CharField("наименование", max_length=180)
+    normalized_name = models.CharField("нормализованное наименование", max_length=180, unique=True, db_index=True)
+    unit = models.CharField("единица измерения", max_length=40, default="шт.")
+    is_active = models.BooleanField("активен", default=True, db_index=True)
+    created_at = models.DateTimeField("создано", auto_now_add=True)
+    updated_at = models.DateTimeField("обновлено", auto_now=True)
+
+    class Meta:
+        verbose_name = "товар ТМЦ"
+        verbose_name_plural = "Справочник товаров ТМЦ"
+        ordering = ("name",)
+
+    def save(self, *args, **kwargs):
+        self.name = re.sub(r"\s+", " ", (self.name or "").strip())
+        self.normalized_name = normalize_product_name(self.name)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
 
 
 class RequestStatusHistory(models.Model):

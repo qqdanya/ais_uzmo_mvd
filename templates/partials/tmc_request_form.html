@@ -30,7 +30,11 @@
       <div class="tmc-item-row" data-tmc-item-row>
         <div>
           <label class="form-label">Наименование</label>
-          <input class="form-control" name="item_name" value="{{ item.name }}" placeholder="Стол компьютерный">
+          <div class="tmc-product-field" data-tmc-product-field>
+            <input type="hidden" name="item_product" value="{{ item.product_id|default:'' }}" data-tmc-product-id>
+            <input class="form-control" name="item_name" value="{{ item.name }}" placeholder="Стол компьютерный" autocomplete="off" data-tmc-product-input data-suggest-url="{% url 'tmc_product_suggest' %}">
+            <div class="tmc-product-suggestions" data-tmc-product-suggestions hidden></div>
+          </div>
         </div>
         <div>
           <label class="form-label">Количество</label>

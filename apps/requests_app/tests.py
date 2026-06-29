@@ -27,6 +27,7 @@ from apps.requests_app.models import (
     RequestPhotoLink,
     RequestStatusHistory,
     ServiceHousing,
+    TmcProduct,
     TmcRequest,
     TmcRequestItem,
     VehicleFuelRequest,
@@ -79,9 +80,81 @@ class AppFlowTests(TestCase):
         self.assertEqual(request_obj.items.count(), 2)
         self.assertTrue(request_obj.items.filter(name="Paper", quantity=10, unit="pack").exists())
         self.assertTrue(request_obj.items.filter(name="Keyboard", quantity=3, unit="pcs").exists())
+        self.assertTrue(TmcProduct.objects.filter(name="Paper", normalized_name="paper").exists())
+        self.assertTrue(request_obj.items.filter(name="Paper", product__name="Paper").exists())
         self.assertTrue(self.status_history(request_obj).filter(old_status__isnull=True, new_status="new", changed_by=self.user).exists())
         self.assertTrue(AuditLog.objects.filter(action=AuditLog.Action.CREATE, model_name="TmcRequest").exists())
         self.assertNotContains(response, "request-photo-count")
+
+    def test_tmc_request_uses_selected_product_from_suggestion(self):
+        product = TmcProduct.objects.create(name="Стол компьютерный", unit="шт.")
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.post(
+            reverse("record_create", args=[self.organ.pk, "tmc-requests"]),
+            {
+                "request_number": "16/TMC",
+                "request_date": "2026-06-27",
+                "status": "new",
+                "comment": "Selected product",
+                "item_product": [str(product.pk)],
+                "item_name": ["компьютерный стол"],
+                "item_quantity": ["2"],
+                "item_unit": ["шт."],
+            },
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        item = TmcRequest.objects.get(request_number="16/TMC").items.get()
+        self.assertEqual(item.product, product)
+        self.assertEqual(item.name, "Стол компьютерный")
+        self.assertEqual(TmcProduct.objects.count(), 1)
+
+    def test_tmc_request_creates_new_product_when_suggestion_not_selected(self):
+        TmcProduct.objects.create(name="Стол компьютерный", unit="шт.")
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.post(
+            reverse("record_create", args=[self.organ.pk, "tmc-requests"]),
+            {
+                "request_number": "17/TMC",
+                "request_date": "2026-06-27",
+                "status": "new",
+                "comment": "Manual product",
+                "item_product": [""],
+                "item_name": ["Компьютерный стол"],
+                "item_quantity": ["1"],
+                "item_unit": ["шт."],
+            },
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(TmcProduct.objects.filter(name="Компьютерный стол").exists())
+        self.assertEqual(TmcProduct.objects.count(), 2)
+
+    def test_tmc_product_suggest_finds_words_in_any_order(self):
+        TmcProduct.objects.create(name="Стол компьютерный", unit="шт.")
+        TmcProduct.objects.create(name="Стол письменный", unit="шт.")
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("tmc_product_suggest"), {"q": "компьютерный стол"})
+
+        self.assertEqual(response.status_code, 200)
+        names = [item["name"] for item in response.json()["results"]]
+        self.assertEqual(names[0], "Стол компьютерный")
+
+    def test_tmc_product_suggest_finds_typo_matches(self):
+        TmcProduct.objects.create(name="Пылесос", unit="шт.")
+        TmcProduct.objects.create(name="Пылесборник", unit="шт.")
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("tmc_product_suggest"), {"q": "пылксос"})
+
+        self.assertEqual(response.status_code, 200)
+        names = [item["name"] for item in response.json()["results"]]
+        self.assertEqual(names[0], "Пылесос")
 
     def test_tmc_request_can_attach_and_show_photos(self):
         photo = self.create_photo("request-photo.png")

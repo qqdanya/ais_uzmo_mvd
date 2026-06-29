@@ -7,6 +7,7 @@ urlpatterns = [
     path("organs/<int:pk>/info/", views.organ_info, name="organ_info"),
     path("organs/<int:organ_id>/departments/<slug:department_slug>/", views.department_tables, name="department_tables"),
     path("organs/<int:organ_id>/tables/<slug:table_key>/", views.table_data, name="table_data"),
+    path("tmc-products/suggest/", views.tmc_product_suggest, name="tmc_product_suggest"),
     path("organs/<int:organ_id>/tables/<slug:table_key>/new/", views.record_form, name="record_create"),
     path("organs/<int:organ_id>/tables/<slug:table_key>/<int:pk>/edit/", views.record_form, name="record_update"),
     path("organs/<int:organ_id>/tables/<slug:table_key>/<int:pk>/history/", views.status_history, name="status_history"),

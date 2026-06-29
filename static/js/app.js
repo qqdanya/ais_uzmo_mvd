@@ -5,6 +5,7 @@ const COLLAPSED_PANELS_KEY = "asu-zmo:collapsed-panels";
 let htmxRequests = 0;
 let loadingFailsafeTimer = null;
 let pendingBulkPhotoFiles = [];
+const tmcProductSuggestTimers = new WeakMap();
 let photoLightboxState = {
   items: [],
   index: 0,
@@ -86,6 +87,77 @@ function syncCustomSelect(select) {
   });
   wrapper.classList.toggle("is-disabled", select.disabled);
   wrapper.querySelector("[data-custom-select-trigger]").disabled = select.disabled;
+}
+
+function closeTmcProductSuggestions(field) {
+  const box = field?.querySelector("[data-tmc-product-suggestions]");
+  if (!box) return;
+  box.hidden = true;
+  box.innerHTML = "";
+}
+
+function closeAllTmcProductSuggestions(exceptField = null) {
+  document.querySelectorAll("[data-tmc-product-field]").forEach((field) => {
+    if (field !== exceptField) closeTmcProductSuggestions(field);
+  });
+}
+
+function renderTmcProductSuggestions(input, results) {
+  const field = input.closest("[data-tmc-product-field]");
+  const box = field?.querySelector("[data-tmc-product-suggestions]");
+  if (!field || !box) return;
+  box.innerHTML = "";
+  if (!results.length) {
+    closeTmcProductSuggestions(field);
+    return;
+  }
+  results.forEach((product) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "tmc-product-suggestion";
+    button.dataset.tmcProductSuggestion = "true";
+    button.dataset.productId = product.id;
+    button.dataset.productName = product.name;
+    button.dataset.productUnit = product.unit || "шт.";
+    button.innerHTML = `<span>${product.name}</span><small>${product.unit || "шт."}</small>`;
+    box.append(button);
+  });
+  box.hidden = false;
+}
+
+function requestTmcProductSuggestions(input) {
+  const field = input.closest("[data-tmc-product-field]");
+  if (!field) return;
+  field.querySelector("[data-tmc-product-id]").value = "";
+  const query = input.value.trim();
+  window.clearTimeout(tmcProductSuggestTimers.get(input));
+  if (query.length < 2) {
+    closeTmcProductSuggestions(field);
+    return;
+  }
+  const timer = window.setTimeout(async () => {
+    try {
+      const url = `${input.dataset.suggestUrl}?q=${encodeURIComponent(query)}`;
+      const response = await fetch(url, { headers: { Accept: "application/json" } });
+      if (!response.ok || input.value.trim() !== query) return;
+      const data = await response.json();
+      renderTmcProductSuggestions(input, data.results || []);
+    } catch {
+      closeTmcProductSuggestions(field);
+    }
+  }, 250);
+  tmcProductSuggestTimers.set(input, timer);
+}
+
+function chooseTmcProductSuggestion(button) {
+  const field = button.closest("[data-tmc-product-field]");
+  const row = button.closest("[data-tmc-item-row]");
+  if (!field || !row) return;
+  field.querySelector("[data-tmc-product-id]").value = button.dataset.productId || "";
+  field.querySelector("[data-tmc-product-input]").value = button.dataset.productName || "";
+  const unitInput = row.querySelector('[name="item_unit"]');
+  if (unitInput && button.dataset.productUnit) unitInput.value = button.dataset.productUnit;
+  closeTmcProductSuggestions(field);
 }
 
 function closeCustomSelects(except = null) {
@@ -729,6 +801,10 @@ document.addEventListener("input", (event) => {
     normalizeAuthInput(event.target);
     return;
   }
+  if (event.target.matches("[data-tmc-product-input]")) {
+    requestTmcProductSuggestions(event.target);
+    return;
+  }
   if (event.target.matches("[data-table-search]")) {
     filterCurrentTable(event.target);
     return;
@@ -810,6 +886,12 @@ document.addEventListener("beforeinput", (event) => {
 });
 
 document.addEventListener("click", (event) => {
+  const productSuggestion = event.target.closest("[data-tmc-product-suggestion]");
+  if (productSuggestion) {
+    chooseTmcProductSuggestion(productSuggestion);
+    return;
+  }
+
   const lightboxPhoto = event.target.closest("[data-lightbox-photo]");
   if (lightboxPhoto) {
     event.preventDefault();
@@ -853,6 +935,7 @@ document.addEventListener("click", (event) => {
   }
 
   if (!event.target.closest("[data-custom-select]")) closeCustomSelects();
+  if (!event.target.closest("[data-tmc-product-field]")) closeAllTmcProductSuggestions();
 
   const panelToggle = event.target.closest("[data-panel-toggle]");
   if (panelToggle) {
@@ -982,7 +1065,10 @@ document.addEventListener("keydown", (event) => {
     openCustomSelect(trigger.closest("[data-custom-select]"));
     return;
   }
-  if (event.key === "Escape") closeCustomSelects();
+  if (event.key === "Escape") {
+    closeCustomSelects();
+    closeAllTmcProductSuggestions();
+  }
 });
 
 document.addEventListener("wheel", (event) => {

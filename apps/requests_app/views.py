@@ -11,7 +11,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, Min, Q
-from django.http import FileResponse, Http404, HttpResponse
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django.utils.dateparse import parse_date
@@ -37,6 +37,8 @@ from .models import (
     TmcRequest,
     VehicleFuelRequest,
     VehicleRepairRequest,
+    TmcProduct,
+    normalize_product_name,
 )
 from .permissions import can_view, can_write
 from .registry import TABLES, TABLE_BY_KEY
@@ -545,19 +547,123 @@ def htmx_triggers(message, level="success"):
     return json.dumps({"modal:close": True, "toast": {"message": message, "level": level}})
 
 
+def clean_product_name(value):
+    return " ".join((value or "").split())
+
+
+def product_tokens(value):
+    return {token for token in normalize_product_name(value).split() if token}
+
+
+def levenshtein_distance(left, right):
+    if left == right:
+        return 0
+    if not left:
+        return len(right)
+    if not right:
+        return len(left)
+    previous = list(range(len(right) + 1))
+    for left_index, left_char in enumerate(left, start=1):
+        current = [left_index]
+        for right_index, right_char in enumerate(right, start=1):
+            current.append(
+                min(
+                    previous[right_index] + 1,
+                    current[right_index - 1] + 1,
+                    previous[right_index - 1] + (left_char != right_char),
+                )
+            )
+        previous = current
+    return previous[-1]
+
+
+def similarity_ratio(left, right):
+    left = normalize_product_name(left)
+    right = normalize_product_name(right)
+    longest = max(len(left), len(right))
+    if not longest:
+        return 1
+    return 1 - (levenshtein_distance(left, right) / longest)
+
+
+def fuzzy_threshold(value):
+    length = len(normalize_product_name(value))
+    if length <= 4:
+        return .92
+    if length <= 7:
+        return .82
+    return .74
+
+
+def best_fuzzy_similarity(query_normalized, product):
+    candidates = [product.normalized_name]
+    product_tokens_sorted = sorted(product_tokens(product.name))
+    if len(product_tokens_sorted) > 1:
+        candidates.append(" ".join(product_tokens_sorted))
+    return max(similarity_ratio(query_normalized, candidate) for candidate in candidates if candidate)
+
+
+def tmc_product_suggestions(query, limit=8):
+    query = clean_product_name(query)
+    if not query:
+        return []
+    query_normalized = normalize_product_name(query)
+    query_tokens = product_tokens(query)
+    suggestions = []
+    for product in TmcProduct.objects.filter(is_active=True):
+        product_tokens_set = product_tokens(product.name)
+        if not product_tokens_set:
+            continue
+        if product.normalized_name == query_normalized:
+            score = 100
+        elif query_tokens and query_tokens.issubset(product_tokens_set):
+            score = 90
+        elif query_tokens and product_tokens_set.issubset(query_tokens):
+            score = 80
+        elif query_normalized and query_normalized in product.normalized_name:
+            score = 70
+        else:
+            common_tokens = query_tokens & product_tokens_set
+            if common_tokens:
+                score = 50 + len(common_tokens)
+            else:
+                ratio = best_fuzzy_similarity(query_normalized, product)
+                score = 40 + int(ratio * 10) if ratio >= fuzzy_threshold(query_normalized) else 0
+        if score:
+            suggestions.append((score, product.name.casefold(), product))
+    suggestions.sort(key=lambda item: (-item[0], item[1]))
+    return [product for _, __, product in suggestions[:limit]]
+
+
+def get_or_create_tmc_product(name, unit, product_id=None):
+    name = clean_product_name(name)
+    unit = clean_product_name(unit) or "шт."
+    if product_id and str(product_id).isdigit():
+        product = TmcProduct.objects.filter(pk=product_id, is_active=True).first()
+        if product:
+            return product
+    normalized_name = normalize_product_name(name)
+    product = TmcProduct.objects.filter(normalized_name=normalized_name).first()
+    if product:
+        return product
+    return TmcProduct.objects.create(name=name, unit=unit)
+
+
 def tmc_item_rows_from_request(request):
     rows = []
     errors = []
+    product_ids = request.POST.getlist("item_product")
     names = request.POST.getlist("item_name")
     quantities = request.POST.getlist("item_quantity")
     units = request.POST.getlist("item_unit")
     for index, name in enumerate(names):
-        name = name.strip()
+        name = clean_product_name(name)
         quantity_raw = quantities[index].strip() if index < len(quantities) else ""
-        unit = units[index].strip() if index < len(units) else "шт."
+        unit = clean_product_name(units[index]) if index < len(units) else "шт."
+        product_id = product_ids[index].strip() if index < len(product_ids) else ""
         if not name and not quantity_raw:
             continue
-        row = {"name": name, "quantity": quantity_raw, "unit": unit or "шт."}
+        row = {"product_id": product_id, "name": name, "quantity": quantity_raw, "unit": unit or "шт."}
         if not name:
             errors.append("Укажите наименование в каждой заполненной позиции.")
         try:
@@ -575,8 +681,8 @@ def tmc_item_rows_from_request(request):
 
 def tmc_item_rows_from_instance(instance):
     if not instance:
-        return [{"name": "", "quantity": "", "unit": "шт."}]
-    return [{"name": item.name, "quantity": item.quantity, "unit": item.unit} for item in instance.items.all()] or [{"name": "", "quantity": "", "unit": "шт."}]
+        return [{"product_id": "", "name": "", "quantity": "", "unit": "шт."}]
+    return [{"product_id": item.product_id or "", "name": item.name, "quantity": item.quantity, "unit": item.unit} for item in instance.items.all()] or [{"product_id": "", "name": "", "quantity": "", "unit": "шт."}]
 
 
 def tmc_snapshot(instance):
@@ -605,7 +711,8 @@ def tmc_record_form(request, organ, table, instance=None):
                 obj.save()
                 obj.items.all().delete()
                 for row in item_rows:
-                    obj.items.create(name=row["name"], quantity=row["quantity"], unit=row["unit"])
+                    product = get_or_create_tmc_product(row["name"], row["unit"], row.get("product_id"))
+                    obj.items.create(product=product, name=product.name, quantity=row["quantity"], unit=row["unit"])
                 sync_request_photos(obj, selected_photo_ids, request.user)
                 if is_create or old_status != obj.status:
                     create_status_history(
@@ -623,6 +730,19 @@ def tmc_record_form(request, organ, table, instance=None):
     context = {"form": form, "organ": organ, "table": table, "instance": instance, "item_rows": item_rows, "item_errors": item_errors, "show_request_photo_picker": True}
     context.update(request_photo_form_context(request, organ, selected_photo_ids))
     return render(request, "partials/tmc_request_form.html", context)
+
+
+@login_required
+def tmc_product_suggest(request):
+    suggestions = tmc_product_suggestions(request.GET.get("q", ""))
+    return JsonResponse(
+        {
+            "results": [
+                {"id": product.pk, "name": product.name, "unit": product.unit}
+                for product in suggestions
+            ]
+        }
+    )
 
 
 @login_required
