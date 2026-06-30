@@ -270,6 +270,8 @@ class AppFlowTests(TestCase):
         response = self.client.get(reverse("request_photo_picker", args=[self.organ.pk]), {"photo_page": 2})
         self.assertContains(response, "request-photo-grid")
         self.assertContains(response, "photo_page=1")
+        self.assertContains(response, 'class="pagination-jump"')
+        self.assertContains(response, 'name="photo_page"')
 
     def test_tmc_status_history_records_status_changes(self):
         request_obj = TmcRequest.objects.create(
@@ -526,8 +528,8 @@ class AppFlowTests(TestCase):
         response = self.client.get(reverse("table_data", args=[self.organ.pk, "tmc-requests"]))
 
         self.assertContains(response, 'id="table-search-tmc-requests"')
-        self.assertContains(response, "input changed delay:500ms from:input")
-        self.assertContains(response, "change from:select")
+        self.assertContains(response, "input changed delay:500ms, change")
+        self.assertNotContains(response, "from:input")
 
     def test_tmc_search_is_case_insensitive_for_cyrillic(self):
         matching = TmcRequest.objects.create(territorial_organ=self.organ, request_number="32/TMC", request_date="2026-06-20", status="new", comment="Склад")
@@ -592,6 +594,10 @@ class AppFlowTests(TestCase):
         self.assertContains(response, 'class="table-pagination"')
         self.assertContains(response, 'class="photo-page-number is-active"')
         self.assertContains(response, "page=2")
+        self.assertContains(response, 'class="pagination-jump"')
+        self.assertContains(response, 'name="page"')
+        self.assertContains(response, f"/ {response.context['page'].paginator.num_pages}")
+        self.assertNotContains(response, "pagination-jump-submit")
         self.assertNotContains(response, "btn-group btn-group-sm")
 
     def test_tmc_xlsx_export_uses_current_filters(self):
@@ -1230,6 +1236,8 @@ class AppFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.context["photo_page"].object_list), 24)
         self.assertContains(response, "photo-page-number")
+        self.assertContains(response, 'class="pagination-jump"')
+        self.assertContains(response, 'name="page"')
         self.assertContains(response, "page=2")
 
         response = self.client.get(reverse("photos", args=[self.organ.pk]), {"q": "photo-24", "sort": "oldest"})

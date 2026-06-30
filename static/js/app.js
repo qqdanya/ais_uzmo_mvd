@@ -970,6 +970,18 @@ function preferredDepartmentForOrgan(organId) {
   return document.querySelector(".department-item[data-department-slug]");
 }
 
+function scrollAfterPaginationSwap(event) {
+  const trigger = event.detail?.requestConfig?.elt;
+  const pagination = trigger?.closest?.("[data-pagination-scroll]");
+  if (!pagination) return;
+  const targetSelector = pagination.dataset.paginationScroll;
+  if (!targetSelector) return;
+  const swapTarget = event.detail?.target;
+  const target = swapTarget?.querySelector?.(targetSelector);
+  if (!target) return;
+  target.scrollTo?.({ top: 0, left: target.scrollLeft, behavior: "smooth" });
+}
+
 document.body.addEventListener("htmx:afterSwap", (event) => {
   if (event.detail.target.id === "modal-content") {
     initCustomSelects(event.detail.target);
@@ -990,6 +1002,7 @@ document.body.addEventListener("htmx:afterSwap", (event) => {
   event.detail.target.querySelectorAll?.("[data-request-photo-box]").forEach(syncRequestPhotoPicker);
   event.detail.target.closest?.("[data-request-photo-box]") && syncRequestPhotoPicker(event.detail.target.closest("[data-request-photo-box]"));
   applyCollapsedPanels();
+  scrollAfterPaginationSwap(event);
 });
 
 document.body.addEventListener("htmx:beforeRequest", startHtmxRequest);
