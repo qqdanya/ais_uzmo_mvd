@@ -641,6 +641,24 @@ textarea {
   border-bottom: 1px solid var(--line);
   backdrop-filter: blur(8px);
 }
+.tables-workspace-layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+#table-area {
+  min-height: 0;
+}
+.tables-workspace-layout #table-area {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  overflow: hidden;
+}
+.tables-workspace-layout #table-area > .loading {
+  flex: 1 1 auto;
+}
 .photo-head-panel {
   margin: -10px -10px 0;
   padding: 10px 10px 0;
@@ -937,9 +955,14 @@ textarea {
 }
 .table-wrap {
   overflow: auto;
+  flex: 1 1 auto;
+  min-height: 0;
   max-height: calc(100vh - 246px);
   border: 1px solid #b9d2e3;
   border-radius: 8px;
+}
+.tables-workspace-layout .table-wrap {
+  max-height: none;
 }
 .data-table {
   margin: 0;
@@ -2578,6 +2601,17 @@ textarea.form-control {
     overflow-x: hidden;
     overflow-y: visible;
   }
+  .workspace-panel:has(.tables-workspace-layout) {
+    display: block;
+  }
+  .tables-workspace-layout {
+    display: block;
+    height: auto;
+  }
+  .tables-workspace-layout #table-area {
+    display: block;
+    overflow: visible;
+  }
   .table-wrap {
     max-height: none;
   }
@@ -2594,6 +2628,11 @@ textarea.form-control {
     max-height: calc(100dvh - var(--app-header-height) - 20px);
     overflow-x: hidden;
     overflow-y: auto;
+  }
+  .workspace-panel:has(.tables-workspace-layout) {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
 }
 @media (min-width: 1401px) and (min-height: 720px) {
@@ -2617,6 +2656,9 @@ textarea.form-control {
   .workspace-panel {
     overflow-x: hidden;
     overflow-y: auto;
+  }
+  .workspace-panel:has(.tables-workspace-layout) {
+    overflow: hidden;
   }
 }
 @media (min-height: 680px) {
@@ -2650,6 +2692,17 @@ textarea.form-control {
     max-height: none;
     overflow-x: hidden;
     overflow-y: visible;
+  }
+  .workspace-panel:has(.tables-workspace-layout) {
+    display: block;
+  }
+  .tables-workspace-layout {
+    display: block;
+    height: auto;
+  }
+  .tables-workspace-layout #table-area {
+    display: block;
+    overflow: visible;
   }
   .table-wrap {
     max-height: none;
