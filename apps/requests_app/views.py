@@ -205,6 +205,31 @@ def request_status_stats(qs):
     }
 
 
+def active_table_conditions(request, table_key, selected_organs, is_tmc_grouped):
+    conditions = []
+    if len(selected_organs) > 1:
+        conditions.append(f"выборочно: {len(selected_organs)} органов")
+    if is_tmc_grouped:
+        conditions.append("режим: По ТМЦ")
+    query = request.GET.get("q", "").strip()
+    if query:
+        conditions.append(f"поиск: {query}")
+    status_labels = dict(NeedStatus.choices)
+    status = request.GET.get("status")
+    if status in status_labels:
+        conditions.append(f"исполнение: {status_labels[status]}")
+    if table_key == "citsizi-equipment":
+        equipment_labels = dict(CitsiziEquipment._meta.get_field("equipment_type").choices)
+        equipment_type = request.GET.get("equipment_type")
+        if equipment_type in equipment_labels:
+            conditions.append(f"тип техники: {equipment_labels[equipment_type]}")
+    if request.GET.get("date_from"):
+        conditions.append(f"с {request.GET['date_from']}")
+    if request.GET.get("date_to"):
+        conditions.append(f"по {request.GET['date_to']}")
+    return conditions
+
+
 def tmc_grouped_rows(qs):
     return (
         TmcRequestItem.objects.filter(request__in=qs)
@@ -216,6 +241,16 @@ def tmc_grouped_rows(qs):
         )
         .order_by("-request_count", "-total_quantity", "product__name", "name", "unit")
     )
+
+
+def tmc_grouped_summary(qs, grouped_count):
+    items = TmcRequestItem.objects.filter(request__in=qs)
+    return {
+        "position_count": grouped_count,
+        "request_count": qs.count(),
+        "organ_count": qs.values("territorial_organ_id").distinct().count(),
+        "total_quantity": items.aggregate(total=Sum("quantity")).get("total") or 0,
+    }
 
 
 def valid_equipment_type(value):
@@ -567,6 +602,7 @@ def table_data(request, organ_id, table_key):
         stats_qs = request_table_queryset(request, table_key, selected_organs)
         table_stats = request_status_stats(stats_qs)
     page_qs = tmc_grouped_rows(qs) if is_tmc_grouped else qs
+    tmc_summary = tmc_grouped_summary(qs, page_qs.count()) if is_tmc_grouped else {}
     paginator = Paginator(page_qs, 20)
     page = paginator.get_page(request.GET.get("page"))
     if table_key in REQUEST_PHOTO_TABLES and not is_tmc_grouped:
@@ -596,6 +632,8 @@ def table_data(request, organ_id, table_key):
             "status_choices": NeedStatus.choices,
             "table_stats": table_stats,
             "table_filters": table_filters,
+            "active_conditions": active_table_conditions(request, table_key, selected_organs, is_tmc_grouped),
+            "tmc_summary": tmc_summary,
             "is_request_table": is_request_table,
             "is_tmc_grouped": is_tmc_grouped,
             "record_label": "позиций" if is_tmc_grouped else "записей",

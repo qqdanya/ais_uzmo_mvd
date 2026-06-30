@@ -40,9 +40,6 @@
             <span class="tmc-date-separator">-</span>
             <input class="form-control form-control-sm" type="date" name="date_to" value="{{ table_filters.date_to }}" aria-label="Дата по">
           </div>
-          {% if table_querystring %}
-            <a class="btn btn-sm btn-outline-secondary" hx-get="{% url 'table_data' organ.pk table.key %}{% if organ_querystring %}?{{ organ_querystring }}{% endif %}" hx-target="#table-area" hx-swap="innerHTML" href="{% url 'table_data' organ.pk table.key %}{% if organ_querystring %}?{{ organ_querystring }}{% endif %}" aria-label="Сбросить фильтры"><i class="bi bi-x-lg"></i></a>
-          {% endif %}
         </form>
     {% else %}
         <div class="search-box table-search-box">
@@ -54,8 +51,31 @@
     </div>
   </div>
 </div>
+{% if active_conditions %}
+<div class="active-filter-bar">
+  <div class="active-filter-content">
+    <span class="active-filter-title"><i class="bi bi-funnel"></i> Применены фильтры:</span>
+    <span class="active-filter-list">
+      {% for condition in active_conditions %}
+        <span class="active-filter-chip">{{ condition }}</span>
+      {% endfor %}
+    </span>
+  </div>
+  <a class="btn btn-sm btn-outline-secondary" data-reset-table-state data-reset-organ-id="{{ organ.pk }}" hx-get="{% url 'table_data' organ.pk table.key %}" hx-target="#table-area" hx-swap="innerHTML" href="{% url 'table_data' organ.pk table.key %}">
+    <i class="bi bi-x-lg"></i> Сбросить все
+  </a>
+</div>
+{% endif %}
+{% if is_tmc_grouped %}
+<div class="tmc-summary-row" aria-label="Сводка по ТМЦ">
+  <span class="summary-pill"><span>Позиций найдено</span><strong>{{ tmc_summary.position_count }}</strong></span>
+  <span class="summary-pill"><span>Всего заявок</span><strong>{{ tmc_summary.request_count }}</strong></span>
+  <span class="summary-pill"><span>Всего органов</span><strong>{{ tmc_summary.organ_count }}</strong></span>
+  <span class="summary-pill"><span>Общее количество</span><strong>{{ tmc_summary.total_quantity }}</strong></span>
+</div>
+{% endif %}
 <div class="table-actions-row">
-  {% if is_request_table %}
+  {% if is_request_table and not is_tmc_grouped %}
     <span class="status-summary">
       <span class="summary-pill summary-pill-in-work"><span>В работе</span><strong>{{ table_stats.in_work_count }}</strong></span>
       <span class="summary-pill summary-pill-new"><span>Новых</span><strong>{{ table_stats.new_count }}</strong></span>

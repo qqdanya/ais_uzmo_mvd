@@ -126,6 +126,19 @@ function setOrganMode(mode) {
   syncOrganModeButtons();
 }
 
+function resetTableStateToSingleOrgan(organId) {
+  const organ = findOrganById(organId) || document.querySelector(".organ-item.active[data-organ-id]");
+  document.querySelectorAll("[data-organ-checkbox]").forEach((checkbox) => {
+    checkbox.checked = false;
+  });
+  storeCheckedOrganIds();
+  setOrganMode("single");
+  if (organ) {
+    setActiveOrgan(organ);
+    loadOrganInfo(organ.dataset.organId);
+  }
+}
+
 function normalizeAuthInput(input) {
   const value = input.value.replace(/[^\x21-\x7E]/g, "");
   if (input.value !== value) input.value = value;
@@ -1146,6 +1159,11 @@ document.addEventListener("beforeinput", (event) => {
 });
 
 document.addEventListener("click", (event) => {
+  const resetTableState = event.target.closest("[data-reset-table-state]");
+  if (resetTableState) {
+    resetTableStateToSingleOrgan(resetTableState.dataset.resetOrganId);
+  }
+
   const organMode = event.target.closest("[data-organ-mode]");
   if (organMode) {
     event.preventDefault();

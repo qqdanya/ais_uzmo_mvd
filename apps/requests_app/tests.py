@@ -520,7 +520,49 @@ class AppFlowTests(TestCase):
         self.assertContains(response, "<td class=\"text-center\">2</td>", html=True)
         self.assertContains(response, "<td class=\"text-center\">12</td>", html=True)
         self.assertContains(response, "позиций")
+        self.assertContains(response, "Применены фильтры:")
+        self.assertContains(response, "выборочно: 2 органов")
+        self.assertContains(response, "режим: По ТМЦ")
+        self.assertContains(response, "Сбросить все")
+        self.assertContains(response, "data-reset-table-state")
+        self.assertContains(response, "Позиций найдено")
+        self.assertContains(response, "Всего заявок")
+        self.assertContains(response, "Всего органов")
+        self.assertContains(response, "Общее количество")
+        self.assertContains(response, "<strong>2</strong>", count=3, html=True)
+        self.assertContains(response, "<strong>3</strong>", html=True)
+        self.assertContains(response, "<strong>13</strong>", html=True)
+        self.assertNotContains(response, "summary-pill-in-work")
+        self.assertNotContains(response, "summary-pill-new")
+        self.assertNotContains(response, "summary-pill-done")
+        self.assertNotContains(response, "summary-pill-rejected")
+        self.assertNotContains(response, "Сбросить фильтры")
         self.assertNotContains(response, reverse("record_update", args=[self.organ.pk, "tmc-requests", first.pk]))
+
+    def test_table_active_conditions_show_filters_and_reset(self):
+        request_obj = TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            request_number="47/TMC",
+            request_date="2026-06-20",
+            status="in_work",
+            comment="Office paper",
+        )
+        TmcRequestItem.objects.create(request=request_obj, name="Бумага А4", quantity=5, unit="пач.")
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(
+            reverse("table_data", args=[self.organ.pk, "tmc-requests"]),
+            {"q": "бумага", "status": "in_work", "date_from": "2026-06-01", "date_to": "2026-06-30"},
+        )
+
+        self.assertContains(response, "Применены фильтры:")
+        self.assertContains(response, "поиск: бумага")
+        self.assertContains(response, "исполнение: В работе")
+        self.assertContains(response, "с 2026-06-01")
+        self.assertContains(response, "по 2026-06-30")
+        self.assertContains(response, "Сбросить все")
+        self.assertContains(response, "data-reset-table-state")
+        self.assertNotContains(response, "Сбросить фильтры")
 
     def test_request_table_search_triggers_while_typing(self):
         self.client.login(username="operator", password="pass12345")
