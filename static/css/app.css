@@ -991,6 +991,9 @@ textarea {
 .data-table tbody tr:last-child > td {
   border-bottom: 0;
 }
+.data-table:not(.table-tmc-requests) tbody tr.data-row:not(:last-child) > td {
+  border-bottom: 2px solid #7faed0;
+}
 .data-table tbody tr:hover > td {
   background: #f2f9ff;
 }
@@ -1104,7 +1107,7 @@ textarea {
 }
 .table-actions-head {
   width: 1%;
-  min-width: 96px;
+  min-width: 56px;
   color: var(--muted);
   white-space: nowrap;
 }
@@ -1140,8 +1143,20 @@ textarea {
   text-align: center;
   vertical-align: middle !important;
 }
-.tmc-actions-cell .btn + .btn {
-  margin-left: 4px;
+.table-action-stack {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  justify-items: stretch;
+  align-items: center;
+  width: 100%;
+  min-width: 36px;
+  max-width: 44px;
+  margin: 0 auto;
+}
+.table-action-stack .btn-icon {
+  width: 100%;
+  height: 30px;
 }
 .request-photo-box {
   grid-column: 1 / -1;

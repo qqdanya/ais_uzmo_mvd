@@ -490,6 +490,20 @@ class AppFlowTests(TestCase):
         self.assertContains(response, f"organ_ids={self.organ.pk}")
         self.assertContains(response, f"organ_ids={other_organ.pk}")
 
+    def test_department_panel_restores_requested_table_and_filters(self):
+        Department.objects.create(name="Transport", slug="transport", order_number=2)
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(
+            reverse("department_tables", args=[self.organ.pk, "transport"]),
+            {"table": "vehicle-fuel", "status": "in_work", "q": "diesel"},
+        )
+
+        self.assertContains(response, 'data-table-key="vehicle-fuel"')
+        self.assertContains(response, reverse("table_data", args=[self.organ.pk, "vehicle-fuel"]) + "?status=in_work&amp;q=diesel")
+        self.assertContains(response, 'data-table-key="vehicle-fuel" hx-get')
+        self.assertNotContains(response, reverse("table_data", args=[self.organ.pk, "vehicle-repair"]) + "?status=in_work")
+
     def test_multi_organ_summary_keeps_row_actions_for_writable_organs(self):
         other_organ = TerritorialOrgan.objects.create(name="Other territorial organ", order_number=2)
         first = TmcRequest.objects.create(territorial_organ=self.organ, request_number="42/TMC", request_date="2026-06-20", status="new")
@@ -569,8 +583,8 @@ class AppFlowTests(TestCase):
         self.assertContains(response, "Применены фильтры:")
         self.assertContains(response, "поиск: бумага")
         self.assertContains(response, "исполнение: В работе")
-        self.assertContains(response, "с 2026-06-01")
-        self.assertContains(response, "по 2026-06-30")
+        self.assertContains(response, "с 01.06.2026")
+        self.assertContains(response, "по 30.06.2026")
         self.assertContains(response, "Сбросить все")
         self.assertContains(response, "data-reset-table-state")
         self.assertNotContains(response, "Сбросить фильтры")
@@ -629,6 +643,8 @@ class AppFlowTests(TestCase):
 
         self.assertContains(response, f'value="{oldest_date.isoformat()}"')
         self.assertContains(response, f'value="{today.isoformat()}"')
+        self.assertContains(response, f'data-default-date-from="{oldest_date.isoformat()}"')
+        self.assertContains(response, f'data-default-date-to="{today.isoformat()}"')
         self.assertContains(response, "30/TMC")
         self.assertNotContains(response, "31/TMC")
 
@@ -1329,6 +1345,7 @@ class AppFlowTests(TestCase):
         self.assertEqual(len(response.context["photo_page"].object_list), 24)
         self.assertContains(response, "photo-page-number")
         self.assertContains(response, 'class="pagination-jump"')
+        self.assertContains(response, 'data-pagination-scroll="self"')
         self.assertContains(response, 'name="page"')
         self.assertContains(response, "page=2")
 

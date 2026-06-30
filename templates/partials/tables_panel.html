@@ -1,4 +1,4 @@
-<div class="tables-workspace-layout">
+<div class="tables-workspace-layout" data-tables-workspace data-department-slug="{{ department.slug }}">
   <div class="workspace-sticky">
     <div class="workspace-head">
       <div>
@@ -13,12 +13,12 @@
     <ul class="nav nav-tabs">
       {% for item in tables %}
         <li class="nav-item">
-          <button class="nav-link {% if forloop.first %}active{% endif %}" data-table-tab="true" hx-get="{% url 'table_data' organ.pk item.key %}{% if organ_querystring %}?{{ organ_querystring }}{% endif %}" hx-target="#table-area" hx-swap="innerHTML">{{ item.parent_title|default:item.title }}</button>
+          <button class="nav-link {% if item.key == active_table.key %}active{% endif %}" data-table-tab="true" data-table-key="{{ item.key }}" hx-get="{% url 'table_data' organ.pk item.key %}{% if organ_querystring %}?{{ organ_querystring }}{% endif %}" hx-target="#table-area" hx-swap="innerHTML">{{ item.parent_title|default:item.title }}</button>
         </li>
       {% endfor %}
     </ul>
   </div>
-  <div id="table-area" class="pt-3" hx-get="{% url 'table_data' organ.pk active_table.key %}{% if organ_querystring %}?{{ organ_querystring }}{% endif %}" hx-trigger="load" hx-swap="innerHTML">
+  <div id="table-area" class="pt-3" hx-get="{% url 'table_data' organ.pk active_table.key %}{% if table_querystring %}?{{ table_querystring }}{% endif %}" hx-trigger="load" hx-swap="innerHTML">
     <div class="loading">Загрузка...</div>
   </div>
 </div>

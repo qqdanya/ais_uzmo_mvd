@@ -107,7 +107,7 @@
   {% endfor %}
 </div>
 {% if photo_page.has_other_pages %}
-<nav class="mt-2 photo-pagination" aria-label="Страницы фотографий">
+<nav class="mt-2 photo-pagination" data-pagination-scroll="self" aria-label="Страницы фотографий">
   <div class="photo-pagination-group">
     {% if photo_page.has_previous %}
       <button class="photo-page-number pagination-arrow" type="button" hx-get="{% url 'photos' organ.pk %}?{% if photo_querystring %}{{ photo_querystring }}&{% endif %}page={{ photo_page.previous_page_number }}" hx-target="#workspace" hx-swap="innerHTML" aria-label="Предыдущая страница"><i class="bi bi-chevron-left"></i></button>

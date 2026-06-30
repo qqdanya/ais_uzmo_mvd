@@ -3,6 +3,8 @@ const ORGAN_STORAGE_KEY = "asu-zmo:selected-organ";
 const ORGAN_MODE_KEY = "asu-zmo:organ-mode";
 const MULTI_ORGANS_KEY = "asu-zmo:multi-organs";
 const DEPARTMENT_STORAGE_PREFIX = "asu-zmo:last-department:";
+const DEPARTMENT_TABLE_PREFIX = "asu-zmo:last-table:";
+const TABLE_STATE_PREFIX = "asu-zmo:table-state:";
 const COLLAPSED_PANELS_KEY = "asu-zmo:collapsed-panels";
 const BULK_PHOTO_BATCH_SIZE = 25;
 const BULK_PHOTO_MAX_FILES = 300;
@@ -24,13 +26,142 @@ let photoLightboxState = {
   didDrag: false,
 };
 
+function storedValue(key) {
+  try {
+    return localStorage.getItem(key) ?? sessionStorage.getItem(key);
+  } catch (error) {
+    return null;
+  }
+}
+
+function storeValue(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch (error) {
+    try {
+      sessionStorage.setItem(key, value);
+    } catch (fallbackError) {
+      // Browser storage can be unavailable in strict privacy modes.
+    }
+  }
+}
+
+function removeStoredValue(key) {
+  try {
+    localStorage.removeItem(key);
+    sessionStorage.removeItem(key);
+  } catch (error) {
+    // Nothing to clean up when storage is unavailable.
+  }
+}
+
 function rememberSelectedOrgan(organId) {
   window.selectedOrgan = Number(organId);
-  sessionStorage.setItem(ORGAN_STORAGE_KEY, String(window.selectedOrgan));
+  storeValue(ORGAN_STORAGE_KEY, String(window.selectedOrgan));
 }
 
 function departmentStorageKey(organId) {
   return `${DEPARTMENT_STORAGE_PREFIX}${organId}`;
+}
+
+function departmentTableStorageKey(departmentSlug) {
+  return `${DEPARTMENT_TABLE_PREFIX}${departmentSlug}`;
+}
+
+function tableStateStorageKey(departmentSlug, tableKey) {
+  return `${TABLE_STATE_PREFIX}${departmentSlug}:${tableKey}`;
+}
+
+function activeDepartmentSlug() {
+  return document.querySelector("[data-tables-workspace]")?.dataset.departmentSlug
+    || document.querySelector(".department-item.active[data-department-slug]")?.dataset.departmentSlug
+    || "";
+}
+
+function savedTableKeyForDepartment(departmentSlug) {
+  const savedKey = storedValue(departmentTableStorageKey(departmentSlug));
+  if (savedKey) return savedKey;
+  return findTableTab(departmentSlug)?.dataset.tableKey || "";
+}
+
+function savedTableQuery(departmentSlug, tableKey) {
+  return storedValue(tableStateStorageKey(departmentSlug, tableKey)) || "";
+}
+
+function currentTableDateDefaults(scope = document) {
+  const form = scope.querySelector?.("[data-table-filter-form]") || document.querySelector("[data-table-filter-form]");
+  if (!form) return {};
+  return {
+    dateFrom: form.dataset.defaultDateFrom || "",
+    dateTo: form.dataset.defaultDateTo || "",
+  };
+}
+
+function normalizeSavedTableParams(params, defaults = {}) {
+  params.delete("page");
+  params.delete("table");
+  params.delete("organ_ids");
+  if (params.get("date_from") === defaults.dateFrom) params.delete("date_from");
+  if (params.get("date_to") === defaults.dateTo) params.delete("date_to");
+  return params;
+}
+
+function withCurrentOrganSelection(params) {
+  params.delete("organ_ids");
+  if (isMultiOrganMode()) {
+    checkedOrganIds().forEach((id) => params.append("organ_ids", id));
+  }
+  return params;
+}
+
+function findTableTab(departmentSlug, tableKey = "") {
+  const workspace = document.querySelector(`[data-tables-workspace][data-department-slug="${CSS.escape(departmentSlug)}"]`);
+  const selector = tableKey ? `[data-table-tab="true"][data-table-key="${CSS.escape(tableKey)}"]` : '[data-table-tab="true"][data-table-key]';
+  return workspace?.querySelector(selector) || null;
+}
+
+function departmentRequestQuery(departmentSlug) {
+  const tableKey = savedTableKeyForDepartment(departmentSlug);
+  const params = normalizeSavedTableParams(new URLSearchParams(savedTableQuery(departmentSlug, tableKey)));
+  if (tableKey) params.set("table", tableKey);
+  return withCurrentOrganSelection(params).toString();
+}
+
+function tableUrlWithSavedState(tab) {
+  const departmentSlug = tab.closest("[data-tables-workspace]")?.dataset.departmentSlug || activeDepartmentSlug();
+  const tableKey = tab.dataset.tableKey;
+  if (!departmentSlug || !tableKey) return tab.getAttribute("hx-get");
+  const url = new URL(tab.getAttribute("hx-get"), window.location.href);
+  const params = normalizeSavedTableParams(new URLSearchParams(savedTableQuery(departmentSlug, tableKey)));
+  withCurrentOrganSelection(params);
+  url.search = params.toString();
+  return `${url.pathname}${url.search}`;
+}
+
+function saveTableStateFromUrl(urlValue, scope = document) {
+  if (!urlValue) return;
+  const departmentSlug = activeDepartmentSlug();
+  if (!departmentSlug) return;
+  const url = new URL(urlValue, window.location.href);
+  const match = url.pathname.match(/\/organs\/\d+\/tables\/([^/]+)\//);
+  if (!match) return;
+  const tableKey = match[1];
+  const params = normalizeSavedTableParams(url.searchParams, currentTableDateDefaults(scope));
+  storeValue(departmentTableStorageKey(departmentSlug), tableKey);
+  storeValue(tableStateStorageKey(departmentSlug, tableKey), params.toString());
+}
+
+function saveTableStateFromHtmxEvent(event) {
+  if (event.detail?.target?.id !== "table-area") return;
+  const url = event.detail?.xhr?.responseURL || event.detail?.requestConfig?.path;
+  saveTableStateFromUrl(url, event.detail.target);
+}
+
+function clearCurrentTableState() {
+  const departmentSlug = activeDepartmentSlug();
+  const tableKey = document.querySelector('[data-table-tab="true"].active[data-table-key]')?.dataset.tableKey;
+  if (!departmentSlug || !tableKey) return;
+  removeStoredValue(tableStateStorageKey(departmentSlug, tableKey));
 }
 
 function findDepartmentBySlug(slug) {
@@ -44,7 +175,7 @@ function findOrganById(organId) {
 }
 
 function organSelectionMode() {
-  return sessionStorage.getItem(ORGAN_MODE_KEY) === "multi" ? "multi" : "single";
+  return storedValue(ORGAN_MODE_KEY) === "multi" ? "multi" : "single";
 }
 
 function isMultiOrganMode() {
@@ -56,7 +187,7 @@ function checkedOrganIds() {
 }
 
 function storeCheckedOrganIds() {
-  sessionStorage.setItem(MULTI_ORGANS_KEY, checkedOrganIds().join(","));
+  storeValue(MULTI_ORGANS_KEY, checkedOrganIds().join(","));
 }
 
 function selectedOrganQueryString() {
@@ -103,7 +234,7 @@ function syncOrganModeButtons() {
 }
 
 function restoreCheckedOrgans() {
-  const saved = new Set((sessionStorage.getItem(MULTI_ORGANS_KEY) || "").split(",").filter(Boolean));
+  const saved = new Set((storedValue(MULTI_ORGANS_KEY) || "").split(",").filter(Boolean));
   document.querySelectorAll("[data-organ-checkbox]").forEach((checkbox) => {
     checkbox.checked = saved.has(checkbox.value);
   });
@@ -118,7 +249,7 @@ function ensureMultiSelection() {
 }
 
 function setOrganMode(mode) {
-  sessionStorage.setItem(ORGAN_MODE_KEY, mode === "multi" ? "multi" : "single");
+  storeValue(ORGAN_MODE_KEY, mode === "multi" ? "multi" : "single");
   if (isMultiOrganMode()) {
     ensureMultiSelection();
     renderMultiOrganInfo();
@@ -921,16 +1052,18 @@ function togglePhotoLightboxZoom() {
 
 function loadDepartment(department) {
   if (!department || !window.htmx) return;
+  const departmentSlug = department.dataset.departmentSlug;
   if (isMultiOrganMode()) {
     const baseOrganId = baseOrganIdForRequest();
-    const query = selectedOrganQueryString();
+    const organQuery = selectedOrganQueryString();
+    const query = departmentRequestQuery(departmentSlug);
     renderMultiOrganInfo();
-    if (!baseOrganId || !query) {
+    if (!baseOrganId || !organQuery) {
       document.getElementById("workspace").innerHTML = '<div class="empty-state">Выберите хотя бы один территориальный орган</div>';
       return;
     }
-    sessionStorage.setItem(departmentStorageKey("multi"), department.dataset.departmentSlug);
-    const url = `/organs/${baseOrganId}/departments/${department.dataset.departmentSlug}/?${query}`;
+    storeValue(departmentStorageKey("multi"), departmentSlug);
+    const url = `/organs/${baseOrganId}/departments/${departmentSlug}/${query ? `?${query}` : ""}`;
     window.htmx.ajax("GET", url, { target: "#workspace", swap: "innerHTML" });
     return;
   }
@@ -939,8 +1072,9 @@ function loadDepartment(department) {
     window.selectedOrgan = activeOrgan ? Number(activeOrgan.dataset.organId) : null;
   }
   if (!window.selectedOrgan) return;
-  sessionStorage.setItem(departmentStorageKey(window.selectedOrgan), department.dataset.departmentSlug);
-  const url = `/organs/${window.selectedOrgan}/departments/${department.dataset.departmentSlug}/`;
+  storeValue(departmentStorageKey(window.selectedOrgan), departmentSlug);
+  const query = departmentRequestQuery(departmentSlug);
+  const url = `/organs/${window.selectedOrgan}/departments/${departmentSlug}/${query ? `?${query}` : ""}`;
   window.htmx.ajax("GET", url, { target: "#workspace", swap: "innerHTML" });
 }
 
@@ -969,13 +1103,13 @@ function setActiveDepartment(department) {
 
 function preferredDepartmentForOrgan(organId) {
   if (isMultiOrganMode()) {
-    const savedMultiSlug = sessionStorage.getItem(departmentStorageKey("multi"));
+    const savedMultiSlug = storedValue(departmentStorageKey("multi"));
     if (savedMultiSlug) {
       const savedDepartment = findDepartmentBySlug(savedMultiSlug);
       if (savedDepartment) return savedDepartment;
     }
   }
-  const savedSlug = sessionStorage.getItem(departmentStorageKey(organId));
+  const savedSlug = storedValue(departmentStorageKey(organId));
   if (savedSlug) {
     const savedDepartment = findDepartmentBySlug(savedSlug);
     if (savedDepartment) return savedDepartment;
@@ -990,7 +1124,7 @@ function scrollAfterPaginationSwap(event) {
   const targetSelector = pagination.dataset.paginationScroll;
   if (!targetSelector) return;
   const swapTarget = event.detail?.target;
-  const target = swapTarget?.querySelector?.(targetSelector);
+  const target = targetSelector === "self" ? swapTarget : swapTarget?.querySelector?.(targetSelector);
   if (!target) return;
   target.scrollTo?.({ top: 0, left: target.scrollLeft, behavior: "smooth" });
 }
@@ -1009,6 +1143,7 @@ document.body.addEventListener("htmx:afterSwap", (event) => {
     event.detail.target.querySelectorAll("[data-request-photo-box]").forEach(syncRequestPhotoPicker);
     return;
   }
+  saveTableStateFromHtmxEvent(event);
   initCustomSelects(event.detail.target);
   initTooltips();
   autoDismissAlerts();
@@ -1159,8 +1294,19 @@ document.addEventListener("beforeinput", (event) => {
 });
 
 document.addEventListener("click", (event) => {
+  const tab = event.target.closest('[data-table-tab="true"][data-table-key]');
+  if (!tab) return;
+  const departmentSlug = tab.closest("[data-tables-workspace]")?.dataset.departmentSlug;
+  if (departmentSlug) {
+    storeValue(departmentTableStorageKey(departmentSlug), tab.dataset.tableKey);
+    tab.setAttribute("hx-get", tableUrlWithSavedState(tab));
+  }
+}, true);
+
+document.addEventListener("click", (event) => {
   const resetTableState = event.target.closest("[data-reset-table-state]");
   if (resetTableState) {
+    clearCurrentTableState();
     resetTableStateToSingleOrgan(resetTableState.dataset.resetOrganId);
   }
 
@@ -1461,7 +1607,7 @@ document.addEventListener("DOMContentLoaded", () => {
   autoDismissAlerts();
   applyCollapsedPanels();
   restoreCheckedOrgans();
-  const savedOrganId = sessionStorage.getItem(ORGAN_STORAGE_KEY);
+  const savedOrganId = storedValue(ORGAN_STORAGE_KEY);
   const organ = savedOrganId
     ? findOrganById(savedOrganId)
     : document.querySelector(".organ-item[data-organ-id]");

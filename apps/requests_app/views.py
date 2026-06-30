@@ -102,18 +102,23 @@ def department_tables(request, organ_id, department_slug):
     if not can_view(request.user, organ):
         raise Http404
     selected_organs = selected_organs_from_request(request, organ)
-    table = TABLES[department.slug][0]
+    department_tables = TABLES[department.slug]
+    requested_table_key = request.GET.get("table")
+    table = next((item for item in department_tables if item["key"] == requested_table_key), department_tables[0])
+    table_query = request.GET.copy()
+    table_query.pop("table", None)
     return render(
         request,
         "partials/tables_panel.html",
         {
             "organ": selected_organs[0],
             "department": department,
-            "tables": TABLES[department.slug],
+            "tables": department_tables,
             "active_table": table,
             "selected_organs": selected_organs,
             "is_multi_organ": len(selected_organs) > 1,
             "organ_querystring": selected_organs_querystring(selected_organs) if len(selected_organs) > 1 else "",
+            "table_querystring": table_query.urlencode(),
         },
     )
 
@@ -129,11 +134,23 @@ def filtered_queryset(request, table, organs):
     return qs
 
 
-def request_date_filter_values(request, model, organs):
+def request_date_filter_defaults(model, organs):
     oldest_date = model.objects.filter(territorial_organ__in=organs, is_deleted=False).aggregate(oldest=Min("request_date")).get("oldest")
-    date_from = request.GET.get("date_from") if "date_from" in request.GET else (oldest_date.isoformat() if oldest_date else "")
-    date_to = request.GET.get("date_to") if "date_to" in request.GET else timezone.localdate().isoformat()
+    return {
+        "date_from": oldest_date.isoformat() if oldest_date else "",
+        "date_to": timezone.localdate().isoformat(),
+    }
+
+
+def request_date_filter_values(request, model, organs):
+    defaults = request_date_filter_defaults(model, organs)
+    date_from = request.GET.get("date_from") if "date_from" in request.GET else defaults["date_from"]
+    date_to = request.GET.get("date_to") if "date_to" in request.GET else defaults["date_to"]
     return {"date_from": date_from, "date_to": date_to}
+
+
+def request_table_date_filter_defaults(table_key, organs):
+    return request_date_filter_defaults(REQUEST_TABLE_CONFIG[table_key]["model"], organs)
 
 
 def request_table_date_filter_values(request, table_key, organs):
@@ -205,6 +222,11 @@ def request_status_stats(qs):
     }
 
 
+def format_filter_date(value):
+    date = parse_date(value or "")
+    return date.strftime("%d.%m.%Y") if date else value
+
+
 def active_table_conditions(request, table_key, selected_organs, is_tmc_grouped):
     conditions = []
     if len(selected_organs) > 1:
@@ -224,9 +246,9 @@ def active_table_conditions(request, table_key, selected_organs, is_tmc_grouped)
         if equipment_type in equipment_labels:
             conditions.append(f"тип техники: {equipment_labels[equipment_type]}")
     if request.GET.get("date_from"):
-        conditions.append(f"с {request.GET['date_from']}")
+        conditions.append(f"с {format_filter_date(request.GET['date_from'])}")
     if request.GET.get("date_to"):
-        conditions.append(f"по {request.GET['date_to']}")
+        conditions.append(f"по {format_filter_date(request.GET['date_to'])}")
     return conditions
 
 
@@ -594,10 +616,12 @@ def table_data(request, organ_id, table_key):
     is_multi_organ = len(selected_organs) > 1
     table_stats = {}
     table_filters = {}
+    table_filter_defaults = {}
     qs = filtered_queryset(request, table, selected_organs)
     is_request_table = table_key in REQUEST_TABLE_CONFIG
     is_tmc_grouped = table_key == "tmc-requests" and request.GET.get("group") == "products"
     if is_request_table:
+        table_filter_defaults = request_table_date_filter_defaults(table_key, selected_organs)
         table_filters = request_table_date_filter_values(request, table_key, selected_organs)
         stats_qs = request_table_queryset(request, table_key, selected_organs)
         table_stats = request_status_stats(stats_qs)
@@ -632,6 +656,7 @@ def table_data(request, organ_id, table_key):
             "status_choices": ACTIVE_NEED_STATUS_CHOICES,
             "table_stats": table_stats,
             "table_filters": table_filters,
+            "table_filter_defaults": table_filter_defaults,
             "active_conditions": active_table_conditions(request, table_key, selected_organs, is_tmc_grouped),
             "tmc_summary": tmc_summary,
             "is_request_table": is_request_table,
