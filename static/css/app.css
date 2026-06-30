@@ -731,6 +731,18 @@ textarea {
   margin-left: auto;
   white-space: nowrap;
 }
+.table-view-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-ui);
+  background: #fff;
+}
+.table-view-switch .btn {
+  border-radius: 6px;
+}
 .table-actions-row {
   display: flex;
   align-items: flex-start;
@@ -1183,6 +1195,11 @@ textarea {
 }
 .request-linked-photo .photo-image {
   min-height: 110px;
+  overflow: hidden;
+  border-radius: 8px;
+}
+.request-linked-photo .photo-image img {
+  border-radius: inherit;
 }
 .request-linked-photo-body {
   min-width: 0;
@@ -1874,6 +1891,11 @@ textarea {
 .photo-pagination {
   display: flex;
   justify-content: flex-end;
+}
+.table-pagination {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 8px;
 }
 .photo-pagination-group {
   display: flex;

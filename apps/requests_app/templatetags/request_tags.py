@@ -66,6 +66,11 @@ def option_selected(bound_field, value):
     return str(selected) == str(value)
 
 
+@register.filter
+def in_list(value, values):
+    return value in values
+
+
 @register.simple_tag
 def selected_choice_label(bound_field):
     selected = bound_field.value()

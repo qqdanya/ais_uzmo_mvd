@@ -477,6 +477,49 @@ class AppFlowTests(TestCase):
         self.assertContains(response, f"organ_ids={self.organ.pk}")
         self.assertContains(response, f"organ_ids={other_organ.pk}")
 
+    def test_multi_organ_summary_keeps_row_actions_for_writable_organs(self):
+        other_organ = TerritorialOrgan.objects.create(name="Other territorial organ", order_number=2)
+        first = TmcRequest.objects.create(territorial_organ=self.organ, request_number="42/TMC", request_date="2026-06-20", status="new")
+        second = TmcRequest.objects.create(territorial_organ=other_organ, request_number="43/TMC", request_date="2026-06-21", status="in_work")
+        TmcRequestItem.objects.create(request=first, name="Paper", quantity=5, unit="pcs")
+        TmcRequestItem.objects.create(request=second, name="Paper", quantity=7, unit="pcs")
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(
+            reverse("table_data", args=[self.organ.pk, "tmc-requests"]),
+            {"organ_ids": [self.organ.pk, other_organ.pk], "q": "Paper"},
+        )
+
+        self.assertContains(response, reverse("record_update", args=[self.organ.pk, "tmc-requests", first.pk]))
+        self.assertContains(response, reverse("record_update", args=[other_organ.pk, "tmc-requests", second.pk]))
+        self.assertContains(response, reverse("record_delete", args=[self.organ.pk, "tmc-requests", first.pk]))
+        self.assertContains(response, reverse("record_delete", args=[other_organ.pk, "tmc-requests", second.pk]))
+        self.assertNotContains(response, reverse("record_create", args=[self.organ.pk, "tmc-requests"]))
+
+    def test_tmc_table_can_group_products_across_selected_organs(self):
+        other_organ = TerritorialOrgan.objects.create(name="Other territorial organ", order_number=2)
+        first = TmcRequest.objects.create(territorial_organ=self.organ, request_number="44/TMC", request_date="2026-06-20", status="new")
+        second = TmcRequest.objects.create(territorial_organ=other_organ, request_number="45/TMC", request_date="2026-06-21", status="in_work")
+        third = TmcRequest.objects.create(territorial_organ=other_organ, request_number="46/TMC", request_date="2026-06-22", status="done")
+        TmcRequestItem.objects.create(request=first, name="Бумага А4", quantity=5, unit="пач.")
+        TmcRequestItem.objects.create(request=second, name="Бумага А4", quantity=7, unit="пач.")
+        TmcRequestItem.objects.create(request=third, name="Кресло офисное", quantity=1, unit="шт.")
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(
+            reverse("table_data", args=[self.organ.pk, "tmc-requests"]),
+            {"organ_ids": [self.organ.pk, other_organ.pk], "group": "products"},
+        )
+
+        self.assertContains(response, "По заявкам")
+        self.assertContains(response, "По ТМЦ")
+        self.assertContains(response, "Бумага А4")
+        self.assertContains(response, "Кресло офисное")
+        self.assertContains(response, "<td class=\"text-center\">2</td>", html=True)
+        self.assertContains(response, "<td class=\"text-center\">12</td>", html=True)
+        self.assertContains(response, "позиций")
+        self.assertNotContains(response, reverse("record_update", args=[self.organ.pk, "tmc-requests", first.pk]))
+
     def test_request_table_search_triggers_while_typing(self):
         self.client.login(username="operator", password="pass12345")
 
@@ -532,6 +575,24 @@ class AppFlowTests(TestCase):
         self.assertContains(response, f'value="{today.isoformat()}"')
         self.assertContains(response, "30/TMC")
         self.assertNotContains(response, "31/TMC")
+
+    def test_table_pagination_uses_photo_style_controls_above_table(self):
+        for index in range(21):
+            request_obj = TmcRequest.objects.create(
+                territorial_organ=self.organ,
+                request_number=f"PAGE-{index:02d}",
+                request_date="2026-06-20",
+                status="new",
+            )
+            TmcRequestItem.objects.create(request=request_obj, name="Paper", quantity=1, unit="pcs")
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("table_data", args=[self.organ.pk, "tmc-requests"]))
+
+        self.assertContains(response, 'class="table-pagination"')
+        self.assertContains(response, 'class="photo-page-number is-active"')
+        self.assertContains(response, "page=2")
+        self.assertNotContains(response, "btn-group btn-group-sm")
 
     def test_tmc_xlsx_export_uses_current_filters(self):
         included = TmcRequest.objects.create(territorial_organ=self.organ, request_number="26/TMC", request_date="2026-06-20", status="new")

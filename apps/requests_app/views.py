@@ -10,7 +10,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.contenttypes.models import ContentType
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Count, Min, Q
+from django.db.models import Count, Min, Q, Sum
 from django.http import FileResponse, Http404, HttpResponse, JsonResponse, QueryDict
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
@@ -35,6 +35,7 @@ from .models import (
     RequestPhotoLink,
     RequestStatusHistory,
     TmcRequest,
+    TmcRequestItem,
     VehicleFuelRequest,
     VehicleRepairRequest,
     TmcProduct,
@@ -202,6 +203,19 @@ def request_status_stats(qs):
         "done_count": qs.filter(status=NeedStatus.DONE).count(),
         "rejected_count": qs.filter(status=NeedStatus.REJECTED).count(),
     }
+
+
+def tmc_grouped_rows(qs):
+    return (
+        TmcRequestItem.objects.filter(request__in=qs)
+        .values("product_id", "product__name", "name", "unit")
+        .annotate(
+            request_count=Count("request_id", distinct=True),
+            organ_count=Count("request__territorial_organ_id", distinct=True),
+            total_quantity=Sum("quantity"),
+        )
+        .order_by("-request_count", "-total_quantity", "product__name", "name", "unit")
+    )
 
 
 def valid_equipment_type(value):
@@ -546,16 +560,23 @@ def table_data(request, organ_id, table_key):
     table_filters = {}
     qs = filtered_queryset(request, table, selected_organs)
     is_request_table = table_key in REQUEST_TABLE_CONFIG
+    is_tmc_grouped = table_key == "tmc-requests" and request.GET.get("group") == "products"
     if is_request_table:
         table_filters = request_table_date_filter_values(request, table_key, selected_organs)
         stats_qs = request_table_queryset(request, table_key, selected_organs)
         table_stats = request_status_stats(stats_qs)
-    paginator = Paginator(qs, 20)
+    page_qs = tmc_grouped_rows(qs) if is_tmc_grouped else qs
+    paginator = Paginator(page_qs, 20)
     page = paginator.get_page(request.GET.get("page"))
-    if table_key in REQUEST_PHOTO_TABLES:
+    if table_key in REQUEST_PHOTO_TABLES and not is_tmc_grouped:
         attach_request_photo_counts(page.object_list, table["model"], selected_organs)
     querystring = request.GET.copy()
     querystring.pop("page", None)
+    list_querystring = querystring.copy()
+    list_querystring.pop("group", None)
+    grouped_querystring = querystring.copy()
+    grouped_querystring["group"] = "products"
+    writable_organ_ids = [selected_organ.pk for selected_organ in selected_organs if can_write(request.user, selected_organ)]
     return render(
         request,
         "partials/table_data.html",
@@ -564,14 +585,19 @@ def table_data(request, organ_id, table_key):
             "table": table,
             "fields": display_fields(table),
             "page": page,
-            "can_write": can_write(request.user, organ) and not is_multi_organ,
+            "table_page_links": page.paginator.get_elided_page_range(page.number, on_each_side=1, on_ends=1),
             "can_add": can_write(request.user, organ) and not is_multi_organ,
+            "writable_organ_ids": writable_organ_ids,
             "table_querystring": querystring.urlencode(),
+            "list_querystring": list_querystring.urlencode(),
+            "grouped_querystring": grouped_querystring.urlencode(),
             "organ_querystring": selected_organs_querystring(selected_organs) if is_multi_organ else "",
             "status_choices": NeedStatus.choices,
             "table_stats": table_stats,
             "table_filters": table_filters,
             "is_request_table": is_request_table,
+            "is_tmc_grouped": is_tmc_grouped,
+            "record_label": "позиций" if is_tmc_grouped else "записей",
             "has_status_history": table_key in STATUS_HISTORY_TABLES,
             "search_placeholder": "Поиск по заявке и ТМЦ" if table_key == "tmc-requests" else "Поиск по заявке и комментарию",
             "equipment_type_choices": CitsiziEquipment._meta.get_field("equipment_type").choices,
