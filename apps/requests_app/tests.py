@@ -55,10 +55,15 @@ class AppFlowTests(TestCase):
         self.assertEqual(response.status_code, 302)
 
     def test_dashboard_after_login(self):
+        Department.objects.create(name="Transport", slug="transport", order_number=2)
+        Department.objects.create(name="Unknown", slug="unknown", order_number=3)
         self.client.login(username="operator", password="pass12345")
         response = self.client.get(reverse("dashboard"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Test territorial organ")
+        self.assertContains(response, "bi-box-seam")
+        self.assertContains(response, "bi-truck")
+        self.assertContains(response, "bi-folder2-open")
 
     def test_crud_creates_tmc_request_with_multiple_items_and_audit_log(self):
         self.client.login(username="operator", password="pass12345")
@@ -1348,6 +1353,7 @@ class AppFlowTests(TestCase):
         self.assertContains(response, 'data-pagination-scroll="self"')
         self.assertContains(response, 'name="page"')
         self.assertContains(response, "page=2")
+        self.assertNotContains(response, "Описание не добавлено")
 
         response = self.client.get(reverse("photos", args=[self.organ.pk]), {"q": "photo-24", "sort": "oldest"})
         self.assertContains(response, "photo-24")
@@ -1566,6 +1572,8 @@ class AppFlowTests(TestCase):
 
         self.assertContains(response, "Root photo")
         self.assertContains(response, "Folder")
+        self.assertContains(response, '<article class="folder-card" hx-get=', html=False)
+        self.assertContains(response, "hx-trigger=\"click[!event.target.closest('[data-folder-card-action]')]\"")
         self.assertNotContains(response, "Inside folder")
 
     def test_photos_filter_by_folder(self):

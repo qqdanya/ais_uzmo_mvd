@@ -78,12 +78,24 @@ def photo_matches_query(photo, query):
     return query_normalized in photo.description.casefold() or query_normalized in photo.original_filename.casefold()
 
 
+DEPARTMENT_ICONS = {
+    "tmc": "bi-box-seam",
+    "transport": "bi-truck",
+    "fire": "bi-fire",
+    "antiterror": "bi-shield-lock",
+    "citsizi": "bi-router",
+    "uoto": "bi-building",
+}
+
+
 @login_required
 def dashboard(request):
     organs = active_organs()
-    departments = Department.objects.filter(is_active=True)
+    departments = list(Department.objects.filter(is_active=True))
+    for department in departments:
+        department.icon_class = DEPARTMENT_ICONS.get(department.slug, "bi-folder2-open")
     selected_organ = organs.first()
-    selected_department = departments.first()
+    selected_department = departments[0] if departments else None
     return render(request, "dashboard/index.html", {"organs": organs, "departments": departments, "selected_organ": selected_organ, "selected_department": selected_department, "tables": TABLES})
 
 

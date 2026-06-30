@@ -8,7 +8,7 @@
   <div class="navigation-shell">
     <aside class="panel organ-panel">
       <div class="panel-title">
-        <span><i class="bi bi-building"></i> Территориальные органы</span>
+        <span><i class="bi bi-geo-alt"></i> Территориальные органы</span>
         <div class="panel-title-actions">
           <button class="btn btn-icon" type="button" data-panel-toggle="organs" data-bs-toggle="tooltip" data-tooltip-placement="bottom" data-bs-title="Свернуть территориальные органы" aria-label="Свернуть территориальные органы" aria-pressed="false"><i class="bi bi-chevron-left"></i></button>
         </div>
@@ -56,11 +56,11 @@
         {% for department in departments %}
           {% if selected_organ %}
           <button class="department-item" data-department-slug="{{ department.slug }}" type="button">
-            <i class="bi bi-folder2-open"></i>
+            <i class="bi {{ department.icon_class }}"></i>
             <span>{{ department.name }}</span>
           </button>
           {% else %}
-          <button class="department-item" disabled><i class="bi bi-folder2-open"></i><span>{{ department.name }}</span></button>
+          <button class="department-item" disabled><i class="bi {{ department.icon_class }}"></i><span>{{ department.name }}</span></button>
           {% endif %}
         {% endfor %}
       </div>

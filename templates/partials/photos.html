@@ -54,8 +54,8 @@
 {% if folders %}
 <div class="photo-grid folder-grid">
   {% for folder in folders %}
-    <article class="folder-card" {% if can_write %}data-photo-upload-url="{% url 'photo_bulk_upload' organ.pk %}?folder={{ folder.pk }}"{% endif %}>
-      <button class="folder-card-open" type="button" hx-get="{% url 'photos' organ.pk %}?folder={{ folder.pk }}{% if photo_query %}&q={{ photo_query|urlencode }}{% endif %}{% if photo_sort == 'oldest' %}&sort=oldest{% endif %}" hx-target="#workspace" hx-swap="innerHTML">
+    <article class="folder-card" hx-get="{% url 'photos' organ.pk %}?folder={{ folder.pk }}{% if photo_query %}&q={{ photo_query|urlencode }}{% endif %}{% if photo_sort == 'oldest' %}&sort=oldest{% endif %}" hx-trigger="click[!event.target.closest('[data-folder-card-action]')]" hx-target="#workspace" hx-swap="innerHTML" {% if can_write %}data-photo-upload-url="{% url 'photo_bulk_upload' organ.pk %}?folder={{ folder.pk }}"{% endif %}>
+      <button class="folder-card-open" type="button">
         <div class="folder-card-icon"><i class="bi bi-folder2-open"></i></div>
         <div class="folder-card-body">
           <strong>{{ folder.name }}</strong>
@@ -64,8 +64,8 @@
       </button>
       {% if can_write %}
         <div class="folder-card-actions">
-          <button class="btn btn-sm btn-outline-primary" type="button" hx-get="{% url 'photo_folder_update' organ.pk folder.pk %}" hx-target="#modal-content" data-open-modal="true" data-bs-toggle="tooltip" data-bs-title="Переименовать папку" aria-label="Переименовать папку"><i class="bi bi-pencil"></i></button>
-          <button class="btn btn-sm btn-outline-danger" type="button" hx-get="{% url 'photo_folder_delete' organ.pk folder.pk %}" hx-target="#modal-content" data-open-modal="true" data-bs-toggle="tooltip" data-bs-title="Удалить папку" aria-label="Удалить папку"><i class="bi bi-trash"></i></button>
+          <button class="btn btn-sm btn-outline-primary" type="button" data-folder-card-action hx-get="{% url 'photo_folder_update' organ.pk folder.pk %}" hx-target="#modal-content" data-open-modal="true" data-bs-toggle="tooltip" data-bs-title="Переименовать папку" aria-label="Переименовать папку"><i class="bi bi-pencil"></i></button>
+          <button class="btn btn-sm btn-outline-danger" type="button" data-folder-card-action hx-get="{% url 'photo_folder_delete' organ.pk folder.pk %}" hx-target="#modal-content" data-open-modal="true" data-bs-toggle="tooltip" data-bs-title="Удалить папку" aria-label="Удалить папку"><i class="bi bi-trash"></i></button>
         </div>
       {% endif %}
     </article>
@@ -75,7 +75,7 @@
 <div class="photo-grid">
   {% for photo in photos %}
   <article class="photo-card">
-    <button class="photo-image" type="button" data-lightbox-photo data-src="{{ photo.image.url }}" data-download-url="{% url 'photo_download' organ.pk photo.pk %}" data-description="{{ photo.description|default:'Описание не добавлено' }}" data-meta="{{ photo.created_at|date:'d.m.Y H:i' }} · {{ photo.created_by|default:'-' }}"><img src="{{ photo.image.url }}" alt="{{ photo.description }}"></button>
+    <button class="photo-image" type="button" data-lightbox-photo data-src="{{ photo.image.url }}" data-download-url="{% url 'photo_download' organ.pk photo.pk %}" data-description="{{ photo.description }}" data-meta="{{ photo.created_at|date:'d.m.Y H:i' }} · {{ photo.created_by|default:'-' }}"><img src="{{ photo.image.url }}" alt="{{ photo.description|default:photo.original_filename }}"></button>
     <div class="photo-body">
       <div class="small text-secondary">{{ photo.created_at|date:"d.m.Y H:i" }} · {{ photo.created_by|default:"-" }}</div>
       {% if photo.folder_path %}
@@ -87,7 +87,7 @@
           {% endfor %}
         </nav>
       {% endif %}
-      <p class="photo-description" title="{{ photo.description|default:'Описание не добавлено' }}">{{ photo.description|default:"Описание не добавлено" }}</p>
+      {% if photo.description %}<p class="photo-description" title="{{ photo.description }}">{{ photo.description }}</p>{% endif %}
       <div class="photo-actions">
         <a class="btn btn-sm btn-outline-secondary" href="{% url 'photo_download' organ.pk photo.pk %}" data-bs-toggle="tooltip" data-bs-title="Скачать" aria-label="Скачать фотографию"><i class="bi bi-download"></i></a>
         {% if can_write %}

@@ -1672,6 +1672,7 @@ textarea {
   align-items: center;
   gap: 12px;
   text-align: left;
+  cursor: pointer;
   transition: border-color .15s, box-shadow .15s, transform .15s;
 }
 .folder-card:focus-within,
@@ -1718,6 +1719,7 @@ textarea {
   align-items: center;
   justify-content: center;
   padding: 0;
+  cursor: pointer;
 }
 .folder-card-icon {
   width: 42px;

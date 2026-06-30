@@ -967,7 +967,7 @@ function collectLightboxPhotos(trigger) {
     trigger: button,
     src: button.dataset.src,
     downloadUrl: button.dataset.downloadUrl,
-    description: button.dataset.description || "Описание не добавлено",
+    description: button.dataset.description || "",
     meta: button.dataset.meta || "",
   }));
 }

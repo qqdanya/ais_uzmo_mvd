@@ -1,6 +1,6 @@
 <div class="organ-info">
   <div>
-    <div class="small text-secondary">Выбранный орган</div>
+    <div class="small text-secondary">Выбранный территориальный орган</div>
     <strong>{{ organ.name }}</strong>
     <div class="mt-2">
       <button class="btn btn-sm btn-outline-primary organ-photo-btn w-100" hx-get="{% url 'photos' organ.pk %}" hx-target="#workspace" hx-swap="innerHTML">
