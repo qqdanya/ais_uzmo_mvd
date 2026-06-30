@@ -1057,6 +1057,72 @@ def tmc_xlsx_response(qs, organ, filename):
     return response
 
 
+def tmc_grouped_export_headers(is_multi_organ):
+    headers = ["Наименование ТМЦ", "Заявок"]
+    if is_multi_organ:
+        headers.append("Территориальных органов")
+    headers.extend(["Общее количество", "Единица измерения"])
+    return headers
+
+
+def tmc_grouped_export_row(row, is_multi_organ):
+    values = [row.get("product__name") or row.get("name") or "-", row.get("request_count") or 0]
+    if is_multi_organ:
+        values.append(row.get("organ_count") or 0)
+    values.extend([row.get("total_quantity") or 0, row.get("unit") or ""])
+    return values
+
+
+def tmc_grouped_xlsx_response(rows, is_multi_organ, filename):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "ТМЦ"
+    headers = tmc_grouped_export_headers(is_multi_organ)
+    ws.append(headers)
+
+    widths = [36, 14, 24, 18, 18] if is_multi_organ else [36, 14, 18, 18]
+    for index, width in enumerate(widths, start=1):
+        ws.column_dimensions[ws.cell(row=1, column=index).column_letter].width = width
+
+    ws.freeze_panes = "A2"
+    ws.sheet_view.showGridLines = False
+    ws.page_setup.orientation = "landscape"
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+
+    thin = Side(style="thin", color="C6DBE9")
+    block = Side(style="medium", color="7FAED0")
+    header_bottom = Side(style="medium", color="8FBFDD")
+    header_fill = PatternFill("solid", fgColor="D6EAF7")
+    header_font = Font(bold=True, color="0B2F5B")
+    body_alignment = Alignment(vertical="top", wrap_text=True)
+    center_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    last_column = len(headers)
+
+    for column in range(1, last_column + 1):
+        cell = ws.cell(row=1, column=column)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = center_alignment
+        cell.border = Border(left=thin, right=block if column == last_column else thin, top=thin, bottom=header_bottom)
+
+    for row_index, row in enumerate(rows, start=2):
+        for column, value in enumerate(tmc_grouped_export_row(row, is_multi_organ), start=1):
+            cell = ws.cell(row=row_index, column=column, value=value)
+            cell.alignment = body_alignment if column == 1 else center_alignment
+            cell.border = Border(left=thin, right=block if column == last_column else thin, top=thin, bottom=thin)
+
+    if ws.max_row > 1:
+        ws.auto_filter.ref = f"A1:{ws.cell(row=1, column=last_column).column_letter}{ws.max_row}"
+
+    buffer = BytesIO()
+    wb.save(buffer)
+    response = HttpResponse(buffer.getvalue(), content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
 def styled_xlsx_response(qs, table, fields, filename, widths=None, center_columns=None):
     wb = Workbook()
     ws = wb.active
@@ -1183,9 +1249,25 @@ def export_table(request, organ_id, table_key, fmt):
     organ = get_object_or_404(TerritorialOrgan, pk=organ_id)
     if not can_view(request.user, organ):
         raise Http404
-    qs = filtered_queryset(request, table, selected_organs_from_request(request, organ))
+    selected_organs = selected_organs_from_request(request, organ)
+    qs = filtered_queryset(request, table, selected_organs)
     fields = display_fields(table)
     filename = f"{table_key}-{organ.pk}.{fmt}"
+    is_tmc_grouped = table_key == "tmc-requests" and request.GET.get("group") == "products"
+    if is_tmc_grouped:
+        rows = list(tmc_grouped_rows(qs))
+        is_multi_organ = len(selected_organs) > 1
+        if fmt == "csv":
+            response = HttpResponse(content_type="text/csv; charset=utf-8")
+            response["Content-Disposition"] = f'attachment; filename="{filename}"'
+            response.write("\ufeff")
+            writer = csv.writer(response)
+            writer.writerow(tmc_grouped_export_headers(is_multi_organ))
+            for row in rows:
+                writer.writerow(tmc_grouped_export_row(row, is_multi_organ))
+            return response
+        if fmt == "xlsx":
+            return tmc_grouped_xlsx_response(rows, is_multi_organ, filename)
     if fmt == "csv":
         response = HttpResponse(content_type="text/csv; charset=utf-8")
         response["Content-Disposition"] = f'attachment; filename="{filename}"'

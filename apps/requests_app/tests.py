@@ -1,3 +1,4 @@
+import csv
 from io import BytesIO
 from datetime import timedelta
 import zipfile
@@ -657,6 +658,43 @@ class AppFlowTests(TestCase):
         values = [cell.value for row in sheet.iter_rows() for cell in row]
         self.assertIn("26/TMC", values)
         self.assertNotIn("27/TMC", values)
+
+    def test_tmc_grouped_xlsx_export_matches_grouped_table(self):
+        other_organ = TerritorialOrgan.objects.create(name="Other territorial organ", order_number=2)
+        first = TmcRequest.objects.create(territorial_organ=self.organ, request_number="48/TMC", request_date="2026-06-20", status="new")
+        second = TmcRequest.objects.create(territorial_organ=other_organ, request_number="49/TMC", request_date="2026-06-21", status="in_work")
+        TmcRequestItem.objects.create(request=first, name="Бумага А4", quantity=5, unit="пач.")
+        TmcRequestItem.objects.create(request=second, name="Бумага А4", quantity=7, unit="пач.")
+        TmcRequestItem.objects.create(request=second, name="Кресло офисное", quantity=1, unit="шт.")
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(
+            reverse("export_table", args=[self.organ.pk, "tmc-requests", "xlsx"]),
+            {"organ_ids": [self.organ.pk, other_organ.pk], "group": "products"},
+        )
+
+        workbook = load_workbook(BytesIO(response.content))
+        sheet = workbook.active
+        self.assertEqual(sheet.title, "ТМЦ")
+        self.assertEqual([sheet.cell(row=1, column=column).value for column in range(1, 6)], ["Наименование ТМЦ", "Заявок", "Территориальных органов", "Общее количество", "Единица измерения"])
+        values = [cell.value for row in sheet.iter_rows() for cell in row]
+        self.assertIn("Бумага А4", values)
+        self.assertIn("Кресло офисное", values)
+        self.assertIn(12, values)
+        self.assertNotIn("48/TMC", values)
+        self.assertNotIn("49/TMC", values)
+
+    def test_tmc_grouped_csv_export_matches_grouped_table(self):
+        request_obj = TmcRequest.objects.create(territorial_organ=self.organ, request_number="50/TMC", request_date="2026-06-20", status="new")
+        TmcRequestItem.objects.create(request=request_obj, name="Сканер", quantity=2, unit="шт.")
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("export_table", args=[self.organ.pk, "tmc-requests", "csv"]), {"group": "products"})
+
+        rows = list(csv.reader(response.content.decode("utf-8-sig").splitlines()))
+        self.assertEqual(rows[0], ["Наименование ТМЦ", "Заявок", "Общее количество", "Единица измерения"])
+        self.assertEqual(rows[1], ["Сканер", "1", "2", "шт."])
+        self.assertNotIn("50/TMC", ",".join(rows[1]))
 
     def test_citsizi_filter_by_equipment_type(self):
         CitsiziEquipment.objects.create(territorial_organ=self.organ, request_number="C-1", request_date="2026-06-20", equipment_type="communication", quantity=1)
