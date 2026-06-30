@@ -282,6 +282,7 @@ REQUEST_TABLE_CONFIG = {
 
 REQUEST_PHOTO_TABLES = set(REQUEST_TABLE_CONFIG)
 REQUEST_PHOTO_PICKER_PAGE_SIZE = 12
+BULK_PHOTO_MAX_FILES = 300
 SIMPLE_REQUEST_XLSX_CONFIG = {
     "widths": {
         "request_number": 18,
@@ -1409,6 +1410,13 @@ def photo_bulk_upload(request, organ_id):
     if request.method == "POST":
         files = request.FILES.getlist("images")
         descriptions = request.POST.getlist("descriptions")
+        if len(files) > BULK_PHOTO_MAX_FILES:
+            message = f"За один раз можно загрузить не более {BULK_PHOTO_MAX_FILES} фотографий."
+            if request.headers.get("X-Bulk-Photo-Batch") == "true":
+                return JsonResponse({"created": 0, "failed": len(files), "errors": [message], "folder": None}, status=400)
+            response = render_photos(request, organ, request.POST.get("folder", ""))
+            response["HX-Trigger"] = htmx_triggers(message, "warning")
+            return response
         folder = None
         folder_id = request.POST.get("folder")
         if folder_id and current_folder is None:
@@ -1437,6 +1445,15 @@ def photo_bulk_upload(request, organ_id):
                 created += 1
             else:
                 errors.append(f"{image.name}: {form.errors.as_text()}")
+        if request.headers.get("X-Bulk-Photo-Batch") == "true":
+            return JsonResponse(
+                {
+                    "created": created,
+                    "failed": len(errors),
+                    "errors": errors[:10],
+                    "folder": folder.pk if folder else None,
+                }
+            )
         response = render_photos(request, organ, folder.pk if folder else "")
         if errors:
             response["HX-Trigger"] = htmx_triggers(f"Загружено: {created}. Не загружено: {len(errors)}.", "warning")

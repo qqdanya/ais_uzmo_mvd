@@ -4,6 +4,8 @@ const ORGAN_MODE_KEY = "asu-zmo:organ-mode";
 const MULTI_ORGANS_KEY = "asu-zmo:multi-organs";
 const DEPARTMENT_STORAGE_PREFIX = "asu-zmo:last-department:";
 const COLLAPSED_PANELS_KEY = "asu-zmo:collapsed-panels";
+const BULK_PHOTO_BATCH_SIZE = 25;
+const BULK_PHOTO_MAX_FILES = 300;
 let htmxRequests = 0;
 let loadingFailsafeTimer = null;
 let pendingBulkPhotoFiles = [];
@@ -577,22 +579,46 @@ function renderBulkPhotoFiles(form, files, descriptions = null) {
   const list = form.querySelector("[data-bulk-photo-list]");
   if (!input || !list) return;
   const previousDescriptions = descriptions || Array.from(list.querySelectorAll("[data-bulk-description]")).map((textarea) => textarea.value);
+  list.querySelectorAll("[data-bulk-preview-url]").forEach((preview) => {
+    URL.revokeObjectURL(preview.dataset.bulkPreviewUrl);
+  });
   const images = Array.from(files).filter((file) => file.type.startsWith("image/"));
+  if (images.length > BULK_PHOTO_MAX_FILES) {
+    showToast(`За один раз можно загрузить не более ${BULK_PHOTO_MAX_FILES} фотографий.`, "warning");
+  }
+  const selectedImages = images.slice(0, BULK_PHOTO_MAX_FILES);
   const transfer = new DataTransfer();
-  images.forEach((file) => transfer.items.add(file));
+  selectedImages.forEach((file) => transfer.items.add(file));
   input.files = transfer.files;
   list.replaceChildren();
-  if (!images.length) {
+  if (!selectedImages.length) {
     const empty = document.createElement("div");
     empty.className = "empty-state";
     empty.textContent = "Изображения не выбраны";
     list.append(empty);
     return;
   }
-  images.forEach((file, index) => {
+  if (images.length > BULK_PHOTO_MAX_FILES) {
+    const warning = document.createElement("div");
+    warning.className = "empty-state";
+    warning.textContent = `Выбрано ${images.length} файлов. К загрузке взяты первые ${BULK_PHOTO_MAX_FILES}.`;
+    list.append(warning);
+  }
+  selectedImages.forEach((file, index) => {
     const item = document.createElement("div");
     item.className = "bulk-photo-item";
     item.dataset.bulkPhotoIndex = String(index);
+    const previewUrl = URL.createObjectURL(file);
+    const preview = document.createElement("div");
+    preview.className = "bulk-photo-preview";
+    preview.dataset.bulkPreviewUrl = previewUrl;
+    const image = document.createElement("img");
+    image.src = previewUrl;
+    image.alt = file.name;
+    image.loading = "lazy";
+    preview.append(image);
+    const body = document.createElement("div");
+    body.className = "bulk-photo-body";
     const meta = document.createElement("div");
     meta.className = "bulk-photo-meta";
     const metaInfo = document.createElement("div");
@@ -621,7 +647,8 @@ function renderBulkPhotoFiles(form, files, descriptions = null) {
     textarea.rows = 2;
     textarea.placeholder = "Описание фотографии";
     textarea.value = previousDescriptions[index] || "";
-    item.append(meta, label, textarea);
+    body.append(meta, label, textarea);
+    item.append(preview, body);
     list.append(item);
   });
 }
@@ -635,6 +662,108 @@ function removeBulkPhotoFile(form, index) {
     .filter((_, descriptionIndex) => descriptionIndex !== index)
     .map((textarea) => textarea.value);
   renderBulkPhotoFiles(form, files, descriptions);
+}
+
+function csrfToken(form) {
+  return form.querySelector('[name="csrfmiddlewaretoken"]')?.value || "";
+}
+
+function setBulkUploadProgress(form, uploaded, total, note = "") {
+  const progress = form.querySelector("[data-bulk-upload-progress]");
+  const counter = form.querySelector("[data-bulk-upload-counter]");
+  const bar = form.querySelector("[data-bulk-upload-bar]");
+  const noteNode = form.querySelector("[data-bulk-upload-note]");
+  if (!progress) return;
+  progress.hidden = false;
+  if (counter) counter.textContent = `${uploaded} / ${total}`;
+  if (bar) bar.style.width = `${total ? Math.round((uploaded / total) * 100) : 0}%`;
+  if (noteNode && note) noteNode.textContent = note;
+}
+
+function setBulkPhotoFormBusy(form, isBusy) {
+  form.classList.toggle("is-uploading", isBusy);
+  form.querySelectorAll("button, input, textarea").forEach((control) => {
+    control.disabled = isBusy;
+  });
+  const submit = form.querySelector("[data-bulk-upload-submit]");
+  if (submit) {
+    submit.innerHTML = isBusy
+      ? '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Загрузка...'
+      : '<i class="bi bi-cloud-arrow-up"></i> Загрузить';
+  }
+}
+
+async function postBulkPhotoBatch(form, files, descriptions, startIndex) {
+  const formData = new FormData();
+  formData.append("csrfmiddlewaretoken", csrfToken(form));
+  const folder = form.querySelector('[name="folder"]')?.value;
+  const newFolder = form.querySelector('[name="new_folder"]')?.value?.trim();
+  if (folder) formData.append("folder", folder);
+  if (newFolder) formData.append("new_folder", newFolder);
+  files.forEach((file, offset) => {
+    formData.append("images", file, file.name);
+    formData.append("descriptions", descriptions[startIndex + offset] || "");
+  });
+  const response = await fetch(form.getAttribute("hx-post") || form.action || window.location.href, {
+    method: "POST",
+    body: formData,
+    headers: {
+      "X-Bulk-Photo-Batch": "true",
+      "X-CSRFToken": csrfToken(form),
+      "X-Requested-With": "XMLHttpRequest",
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+  return response.json();
+}
+
+async function uploadBulkPhotos(form) {
+  const input = form.querySelector("[data-bulk-photo-input]");
+  const files = Array.from(input?.files || []);
+  if (!files.length) {
+    showToast("Выберите хотя бы одно изображение.", "warning");
+    return;
+  }
+  if (files.length > BULK_PHOTO_MAX_FILES) {
+    showToast(`За один раз можно загрузить не более ${BULK_PHOTO_MAX_FILES} фотографий.`, "warning");
+    return;
+  }
+  const descriptions = Array.from(form.querySelectorAll("[data-bulk-description]")).map((textarea) => textarea.value);
+  let uploaded = 0;
+  let created = 0;
+  let failed = 0;
+  const errors = [];
+  setBulkPhotoFormBusy(form, true);
+  setLoading(true);
+  try {
+    for (let start = 0; start < files.length; start += BULK_PHOTO_BATCH_SIZE) {
+      const batch = files.slice(start, start + BULK_PHOTO_BATCH_SIZE);
+      setBulkUploadProgress(form, uploaded, files.length, `Отправка ${start + 1}-${Math.min(start + batch.length, files.length)} из ${files.length}`);
+      const result = await postBulkPhotoBatch(form, batch, descriptions, start);
+      uploaded += batch.length;
+      created += Number(result.created || 0);
+      failed += Number(result.failed || 0);
+      if (Array.isArray(result.errors)) errors.push(...result.errors);
+      setBulkUploadProgress(form, uploaded, files.length, `Загружено: ${created}. Ошибок: ${failed}.`);
+    }
+    const modal = bootstrap.Modal.getInstance(document.getElementById("modal-root"));
+    if (modal) modal.hide();
+    showToast(failed ? `Загружено: ${created}. Не загружено: ${failed}.` : `Фотографий загружено: ${created}.`, failed ? "warning" : "success");
+    if (errors.length) console.warn("Bulk photo upload errors:", errors);
+    const refreshUrl = form.dataset.bulkRefreshUrl;
+    if (refreshUrl && window.htmx) {
+      window.htmx.ajax("GET", refreshUrl, { target: "#workspace", swap: "innerHTML" });
+    }
+  } catch (error) {
+    setBulkUploadProgress(form, uploaded, files.length, "Загрузка остановлена из-за ошибки.");
+    showToast("Загрузка прервана. Попробуйте повторить или выбрать меньше файлов.", "danger");
+    console.error(error);
+  } finally {
+    setBulkPhotoFormBusy(form, false);
+    setLoading(false);
+  }
 }
 
 function openBulkPhotoModal(dropzone, files) {
@@ -867,9 +996,13 @@ document.body.addEventListener("htmx:beforeRequest", startHtmxRequest);
 
 document.body.addEventListener("htmx:afterRequest", finishHtmxRequest);
 
-document.body.addEventListener("htmx:responseError", () => {
+document.body.addEventListener("htmx:responseError", (event) => {
   resetHtmxLoading();
-  showToast("Не удалось выполнить действие.", "danger");
+  const status = event.detail?.xhr?.status;
+  const message = status === 413
+    ? "Слишком большой объем данных для одного запроса. Фотографии будут надежнее загружаться пакетами."
+    : "Не удалось выполнить действие.";
+  showToast(message, "danger");
 });
 
 document.body.addEventListener("htmx:sendError", () => {
@@ -901,6 +1034,14 @@ document.body.addEventListener("modal:close", () => {
   const modal = bootstrap.Modal.getInstance(document.getElementById("modal-root"));
   if (modal) modal.hide();
 });
+
+document.addEventListener("submit", (event) => {
+  const bulkForm = event.target.closest("[data-bulk-photo-form]");
+  if (!bulkForm) return;
+  event.preventDefault();
+  event.stopPropagation();
+  uploadBulkPhotos(bulkForm);
+}, true);
 
 document.addEventListener("input", (event) => {
   if (event.target.matches(".auth-ascii-input")) {

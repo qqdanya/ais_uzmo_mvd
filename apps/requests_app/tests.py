@@ -1266,6 +1266,50 @@ class AppFlowTests(TestCase):
         self.assertEqual(TerritorialOrganPhoto.objects.filter(folder=folder).count(), 2)
         self.assertTrue(TerritorialOrganPhoto.objects.filter(description="First photo").exists())
 
+    def test_photo_bulk_upload_form_has_progress_state(self):
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("photo_bulk_upload", args=[self.organ.pk]), HTTP_HX_REQUEST="true")
+
+        self.assertContains(response, "data-bulk-upload-progress")
+        self.assertContains(response, "data-bulk-refresh-url")
+        self.assertContains(response, "data-bulk-upload-submit")
+
+    def test_photo_bulk_upload_batch_returns_json(self):
+        self.client.login(username="operator", password="pass12345")
+        buffer = BytesIO()
+        Image.new("RGB", (2, 2), "white").save(buffer, format="PNG")
+        image = SimpleUploadedFile("batch.png", buffer.getvalue(), content_type="image/png")
+
+        response = self.client.post(
+            reverse("photo_bulk_upload", args=[self.organ.pk]),
+            {"images": [image], "descriptions": ["Batch photo"]},
+            HTTP_X_BULK_PHOTO_BATCH="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/json")
+        self.assertEqual(response.json()["created"], 1)
+        self.assertEqual(response.json()["failed"], 0)
+        self.assertTrue(TerritorialOrganPhoto.objects.filter(description="Batch photo").exists())
+
+    def test_photo_bulk_upload_rejects_more_than_300_files(self):
+        self.client.login(username="operator", password="pass12345")
+        files = []
+        for index in range(301):
+            buffer = BytesIO()
+            Image.new("RGB", (1, 1), "white").save(buffer, format="PNG")
+            files.append(SimpleUploadedFile(f"too-many-{index}.png", buffer.getvalue(), content_type="image/png"))
+
+        response = self.client.post(
+            reverse("photo_bulk_upload", args=[self.organ.pk]),
+            {"images": files},
+            HTTP_X_BULK_PHOTO_BATCH="true",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(TerritorialOrganPhoto.objects.exists())
+
     def test_photo_bulk_upload_uses_current_folder(self):
         folder = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Current")
         self.client.login(username="operator", password="pass12345")

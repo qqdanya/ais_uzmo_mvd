@@ -1,4 +1,4 @@
-<form method="post" enctype="multipart/form-data" hx-encoding="multipart/form-data" hx-post="{{ request.path }}" hx-target="#workspace" data-bulk-photo-form>
+<form method="post" enctype="multipart/form-data" hx-encoding="multipart/form-data" hx-post="{{ request.path }}" hx-target="#workspace" data-bulk-photo-form data-bulk-refresh-url="{% url 'photos' organ.pk %}{% if current_folder %}?folder={{ current_folder.pk }}{% endif %}">
   <div class="modal-header">
     <h5 class="modal-title">Загрузка фотографий</h5>
     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -18,9 +18,19 @@
     </div>
     <button class="btn btn-outline-primary mt-3" type="button" data-bulk-photo-picker><i class="bi bi-images"></i> Выбрать изображения</button>
     <div class="bulk-photo-list mt-3" data-bulk-photo-list></div>
+    <div class="bulk-upload-progress mt-3" data-bulk-upload-progress hidden>
+      <div class="bulk-upload-progress-head">
+        <strong>Загрузка фотографий</strong>
+        <span data-bulk-upload-counter>0 / 0</span>
+      </div>
+      <div class="bulk-upload-track" aria-hidden="true">
+        <div class="bulk-upload-bar" data-bulk-upload-bar></div>
+      </div>
+      <div class="bulk-upload-note" data-bulk-upload-note>Подготовка к загрузке...</div>
+    </div>
   </div>
   <div class="modal-footer">
     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
-    <button class="btn btn-primary">Загрузить</button>
+    <button class="btn btn-primary" data-bulk-upload-submit><i class="bi bi-cloud-arrow-up"></i> Загрузить</button>
   </div>
 </form>
