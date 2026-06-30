@@ -1317,6 +1317,27 @@ class AppFlowTests(TestCase):
         self.assertContains(response, "Выбрать изображение")
         self.assertContains(response, 'type="file"')
 
+    def test_photo_edit_form_shows_preview_and_custom_folder_select(self):
+        parent = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Parent")
+        folder = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, parent=parent, name="Folder")
+        photo = self.create_photo("edit-preview.png")
+        photo.folder = folder
+        photo.description = "Preview description"
+        photo.save(update_fields=["folder", "description"])
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("photo_update", args=[self.organ.pk, photo.pk]), HTTP_HX_REQUEST="true")
+
+        self.assertContains(response, "photo-edit-preview")
+        self.assertContains(response, "edit-preview.png")
+        self.assertContains(response, "Preview description")
+        self.assertContains(response, "photo-edit-replace")
+        self.assertContains(response, "Выбрать изображение")
+        self.assertContains(response, "Parent / Folder")
+        self.assertContains(response, "custom-select-field")
+        self.assertContains(response, "custom-select")
+        self.assertContains(response, "custom-select-native", count=0)
+
     def create_photo(self, filename="photo.png"):
         buffer = BytesIO()
         Image.new("RGB", (2, 2), "white").save(buffer, format="PNG")
@@ -1559,8 +1580,9 @@ class AppFlowTests(TestCase):
 
     def test_photos_root_shows_only_root_photos(self):
         folder = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Folder")
+        child = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, parent=folder, name="Child")
         inside = self.create_photo("inside-folder.png")
-        inside.folder = folder
+        inside.folder = child
         inside.description = "Inside folder"
         inside.save(update_fields=["folder", "description"])
         root = self.create_photo("root-photo.png")
@@ -1575,6 +1597,7 @@ class AppFlowTests(TestCase):
         self.assertContains(response, '<article class="folder-card" hx-get=', html=False)
         self.assertContains(response, "hx-trigger=\"click[!event.target.closest('[data-folder-card-action]')]\"")
         self.assertNotContains(response, "Inside folder")
+        self.assertContains(response, '<strong>2</strong>', html=True)
 
     def test_photos_filter_by_folder(self):
         folder = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Facades")

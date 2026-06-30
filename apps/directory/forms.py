@@ -3,13 +3,23 @@ from django import forms
 from .models import TerritorialOrganPhoto, TerritorialOrganPhotoFolder
 
 
+def photo_folder_path_label(folder):
+    path = []
+    current = folder
+    while current:
+        path.append(current.name)
+        current = current.parent
+    return " / ".join(reversed(path))
+
+
 class TerritorialOrganPhotoForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         organ = kwargs.pop("organ", None)
         super().__init__(*args, **kwargs)
         if organ:
-            self.fields["folder"].queryset = organ.photo_folders.filter(is_deleted=False)
+            self.fields["folder"].queryset = organ.photo_folders.select_related("parent").filter(is_deleted=False)
         self.fields["folder"].empty_label = "Без папки"
+        self.fields["folder"].label_from_instance = photo_folder_path_label
         for field_name, field in self.fields.items():
             css_class = "form-select" if field_name == "folder" else "form-control"
             field.widget.attrs.setdefault("class", css_class)

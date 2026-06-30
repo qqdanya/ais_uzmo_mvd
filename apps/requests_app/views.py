@@ -1393,6 +1393,9 @@ def render_photos(request, organ, folder_id_override=None):
         photo.folder_path = folder_path_from_map(photo.folder, folders_by_id) if photo.folder else []
     querystring = request.GET.copy()
     querystring.pop("page", None)
+    total_photo_count = organ.photos.filter(is_deleted=False).filter(Q(folder__isnull=True) | Q(folder__is_deleted=False)).count()
+    total_folder_count = len(folders_by_id)
+    show_total_photo_summary = not selected_folder and not query
     return render(
         request,
         "partials/photos.html",
@@ -1404,6 +1407,8 @@ def render_photos(request, organ, folder_id_override=None):
             "photo_querystring": querystring.urlencode(),
             "folders": folders,
             "photo_folder_count": len(folders),
+            "photo_summary_count": total_photo_count if show_total_photo_summary else page.paginator.count,
+            "photo_summary_folder_count": total_folder_count if show_total_photo_summary else len(folders),
             "selected_folder": selected_folder,
             "folder_path": folder_path(selected_folder),
             "photo_folder": folder_id,

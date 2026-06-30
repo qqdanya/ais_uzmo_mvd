@@ -1302,6 +1302,40 @@ textarea {
   flex-wrap: wrap;
   gap: 6px;
 }
+.photo-edit-preview {
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) 1fr;
+  gap: 12px;
+  align-items: start;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+.photo-edit-preview .photo-image {
+  min-height: 110px;
+  overflow: hidden;
+  border-radius: 8px;
+}
+.photo-edit-preview .photo-image img {
+  border-radius: inherit;
+}
+.photo-edit-preview-body {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  font-size: .84rem;
+}
+.photo-edit-preview-body span {
+  color: var(--muted);
+}
+.photo-edit-preview-body p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.photo-edit-replace {
+  justify-self: start;
+}
 .status-badge {
   display: inline-flex;
   align-items: center;

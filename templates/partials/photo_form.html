@@ -1,3 +1,4 @@
+{% load request_tags %}
 <form method="post" enctype="multipart/form-data" hx-encoding="multipart/form-data" hx-post="{{ request.path }}" hx-target="#workspace" novalidate>
   <div class="modal-header">
     <h5 class="modal-title">{% if photo %}Редактирование фотографии{% else %}Добавление фотографии{% endif %}</h5>
@@ -7,10 +8,25 @@
     {% csrf_token %}
     {% if photo %}
       <div class="upload-meta mb-3"><i class="bi bi-clock-history"></i> Загружено {{ photo.created_at|date:"d.m.Y H:i" }}</div>
+      {% if photo.image %}
+        <article class="photo-edit-preview mb-3" data-single-file-picker>
+          <button class="photo-image" type="button" data-lightbox-photo data-src="{{ photo.image.url }}" data-download-url="{% url 'photo_download' organ.pk photo.pk %}" data-description="{{ photo.description }}" data-meta="{{ photo.created_at|date:'d.m.Y H:i' }} · {{ photo.created_by|default:'-' }}">
+            <img src="{{ photo.image.url }}" alt="{{ photo.description|default:photo.original_filename }}">
+          </button>
+          <div class="photo-edit-preview-body">
+            <strong data-single-file-name>{{ photo.original_filename|default:"Фотография" }}</strong>
+            <span>{{ photo.created_at|date:"d.m.Y H:i" }} · {{ photo.created_by|default:"-" }}</span>
+            {% if photo.description %}<p>{{ photo.description }}</p>{% endif %}
+            <button class="btn btn-sm btn-outline-primary photo-edit-replace" type="button" data-single-file-button><i class="bi bi-file-image"></i> Выбрать изображение</button>
+            <div class="visually-hidden">{{ form.image }}</div>
+          </div>
+        </article>
+      {% endif %}
     {% endif %}
     <div class="form-grid one-col">
       {% for field in form %}
-        <div class="form-field wide">
+        {% if field.name != "image" or not photo %}
+        <div class="form-field wide {% if field|is_select_field %}custom-select-field{% endif %}">
           <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
           {% if field.name == "image" %}
             <div class="single-file-picker" data-single-file-picker>
@@ -24,11 +40,14 @@
               </div>
               <div class="visually-hidden">{{ field }}</div>
             </div>
+          {% elif field|is_select_field %}
+            {% include "partials/custom_select_field.html" %}
           {% else %}
             {{ field }}
           {% endif %}
           {% for error in field.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
         </div>
+        {% endif %}
       {% endfor %}
     </div>
   </div>
