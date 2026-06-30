@@ -570,7 +570,8 @@ class AppFlowTests(TestCase):
         response = self.client.get(reverse("table_data", args=[self.organ.pk, "tmc-requests"]))
 
         self.assertContains(response, 'id="table-search-tmc-requests"')
-        self.assertContains(response, "input changed delay:500ms, change")
+        self.assertContains(response, "input delay:500ms from:#table-search-tmc-requests")
+        self.assertContains(response, "change")
         self.assertNotContains(response, "from:input")
 
     def test_tmc_search_is_case_insensitive_for_cyrillic(self):

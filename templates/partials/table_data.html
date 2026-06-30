@@ -15,7 +15,7 @@
       </span>
       <div class="table-filter-slot">
     {% if is_request_table %}
-        <form class="tmc-filter-form" hx-get="{% url 'table_data' organ.pk table.key %}" hx-target="#table-area" hx-trigger="input changed delay:500ms, change" hx-swap="innerHTML">
+        <form class="tmc-filter-form" hx-get="{% url 'table_data' organ.pk table.key %}" hx-target="#table-area" hx-trigger="input delay:500ms from:#table-search-{{ table.key }}, change" hx-swap="innerHTML">
           {% if is_multi_organ %}{% for selected_organ in selected_organs %}<input type="hidden" name="organ_ids" value="{{ selected_organ.pk }}">{% endfor %}{% endif %}
           <div class="search-box table-search-box">
             <i class="bi bi-search"></i>
