@@ -34,6 +34,13 @@ class NeedStatus(models.TextChoices):
     REJECTED = "rejected", "Отклонена"
 
 
+ACTIVE_NEED_STATUS_CHOICES = (
+    (NeedStatus.IN_WORK, NeedStatus.IN_WORK.label),
+    (NeedStatus.DONE, NeedStatus.DONE.label),
+    (NeedStatus.REJECTED, NeedStatus.REJECTED.label),
+)
+
+
 def validate_lte(errors, field, value, limit, message):
     if value is not None and limit is not None and value > limit:
         errors[field] = message
@@ -42,7 +49,7 @@ def validate_lte(errors, field, value, limit, message):
 class TmcRequest(TrackableRequest):
     request_number = models.CharField("номер заявки", max_length=80)
     request_date = models.DateField("дата заявки")
-    status = models.CharField("исполнение заявки", max_length=20, choices=NeedStatus.choices, default=NeedStatus.NEW, db_index=True)
+    status = models.CharField("исполнение заявки", max_length=20, choices=NeedStatus.choices, default=NeedStatus.IN_WORK, db_index=True)
     due_date = models.DateField("дата исполнения", null=True, blank=True)
 
     class Meta:
@@ -171,7 +178,7 @@ class VehicleInventory(TrackableRequest):
 class VehicleRepairRequest(TrackableRequest):
     request_number = models.CharField("номер", max_length=80)
     request_date = models.DateField("дата")
-    status = models.CharField("исполнение заявки", max_length=20, choices=NeedStatus.choices, default=NeedStatus.NEW, db_index=True)
+    status = models.CharField("исполнение заявки", max_length=20, choices=NeedStatus.choices, default=NeedStatus.IN_WORK, db_index=True)
     completed_at = models.DateField("дата исполнения заявки", null=True, blank=True)
 
     class Meta:
@@ -186,7 +193,7 @@ class VehicleRepairRequest(TrackableRequest):
 class VehicleFuelRequest(TrackableRequest):
     request_number = models.CharField("номер", max_length=80)
     request_date = models.DateField("дата")
-    status = models.CharField("исполнение заявки", max_length=20, choices=NeedStatus.choices, default=NeedStatus.NEW, db_index=True)
+    status = models.CharField("исполнение заявки", max_length=20, choices=NeedStatus.choices, default=NeedStatus.IN_WORK, db_index=True)
     completed_at = models.DateField("дата исполнения заявки", null=True, blank=True)
 
     class Meta:
@@ -268,7 +275,7 @@ class SecurityAlarm(TrackableRequest):
 class FireDepartmentRequest(TrackableRequest):
     request_number = models.CharField("номер", max_length=80)
     request_date = models.DateField("дата")
-    status = models.CharField("исполнение заявки", max_length=20, choices=NeedStatus.choices, default=NeedStatus.NEW, db_index=True)
+    status = models.CharField("исполнение заявки", max_length=20, choices=NeedStatus.choices, default=NeedStatus.IN_WORK, db_index=True)
     completed_at = models.DateField("дата исполнения заявки", null=True, blank=True)
 
     class Meta:
@@ -283,7 +290,7 @@ class FireDepartmentRequest(TrackableRequest):
 class AntiTerrorMeasure(TrackableRequest):
     request_number = models.CharField("номер", max_length=80)
     request_date = models.DateField("дата", default=timezone.localdate, db_index=True)
-    status = models.CharField("исполнение", max_length=20, choices=NeedStatus.choices, default=NeedStatus.NEW, db_index=True)
+    status = models.CharField("исполнение", max_length=20, choices=NeedStatus.choices, default=NeedStatus.IN_WORK, db_index=True)
     completed_at = models.DateField("дата исполнения заявки", null=True, blank=True)
 
     class Meta:
@@ -309,7 +316,7 @@ class CitsiziEquipment(TrackableRequest):
     request_date = models.DateField("дата", default=timezone.localdate, db_index=True)
     equipment_type = models.CharField("тип техники", max_length=30, choices=EquipmentType.choices, db_index=True)
     quantity = models.PositiveIntegerField("количество", validators=[MinValueValidator(1)])
-    status = models.CharField("исполнение", max_length=20, choices=NeedStatus.choices, default=NeedStatus.NEW, db_index=True)
+    status = models.CharField("исполнение", max_length=20, choices=NeedStatus.choices, default=NeedStatus.IN_WORK, db_index=True)
     due_date = models.DateField("дата исполнения заявки", null=True, blank=True)
 
     class Meta:
@@ -349,7 +356,7 @@ class ServiceHousing(TrackableRequest):
 class BuildingRepairRequest(TrackableRequest):
     request_number = models.CharField("номер", max_length=80)
     request_date = models.DateField("дата")
-    status = models.CharField("исполнение заявки", max_length=20, choices=NeedStatus.choices, default=NeedStatus.NEW, db_index=True)
+    status = models.CharField("исполнение заявки", max_length=20, choices=NeedStatus.choices, default=NeedStatus.IN_WORK, db_index=True)
     completed_at = models.DateField("дата исполнения", null=True, blank=True)
 
     class Meta:

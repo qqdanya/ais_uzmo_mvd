@@ -78,7 +78,6 @@
   {% if is_request_table and not is_tmc_grouped %}
     <span class="status-summary">
       <span class="summary-pill summary-pill-in-work"><span>В работе</span><strong>{{ table_stats.in_work_count }}</strong></span>
-      <span class="summary-pill summary-pill-new"><span>Новых</span><strong>{{ table_stats.new_count }}</strong></span>
       <span class="summary-pill summary-pill-done"><span>Исполнено</span><strong>{{ table_stats.done_count }}</strong></span>
       <span class="summary-pill summary-pill-rejected {% if not table_stats.rejected_count %}is-zero{% endif %}"><span>Отклонено</span><strong>{{ table_stats.rejected_count }}</strong></span>
     </span>

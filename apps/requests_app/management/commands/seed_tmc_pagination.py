@@ -41,7 +41,7 @@ class Command(BaseCommand):
                 product = TmcProduct.objects.create(name=name, unit=unit)
             product_objs.append(product)
 
-        statuses = [NeedStatus.NEW, NeedStatus.IN_WORK, NeedStatus.DONE, NeedStatus.REJECTED]
+        statuses = [NeedStatus.IN_WORK, NeedStatus.DONE, NeedStatus.REJECTED]
         created = 0
         count = options["count"]
         for index in range(1, count + 1):

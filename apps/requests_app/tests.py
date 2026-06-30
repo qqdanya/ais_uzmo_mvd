@@ -67,7 +67,7 @@ class AppFlowTests(TestCase):
             {
                 "request_number": "15/TMC",
                 "request_date": "2026-06-27",
-                "status": "new",
+                "status": "in_work",
                 "comment": "Urgent",
                 "item_name": ["Paper", "Keyboard"],
                 "item_quantity": ["10", "3"],
@@ -83,7 +83,7 @@ class AppFlowTests(TestCase):
         self.assertTrue(request_obj.items.filter(name="Keyboard", quantity=3, unit="pcs").exists())
         self.assertTrue(TmcProduct.objects.filter(name="Paper", normalized_name="paper").exists())
         self.assertTrue(request_obj.items.filter(name="Paper", product__name="Paper").exists())
-        self.assertTrue(self.status_history(request_obj).filter(old_status__isnull=True, new_status="new", changed_by=self.user).exists())
+        self.assertTrue(self.status_history(request_obj).filter(old_status__isnull=True, new_status="in_work", changed_by=self.user).exists())
         self.assertTrue(AuditLog.objects.filter(action=AuditLog.Action.CREATE, model_name="TmcRequest").exists())
         self.assertNotContains(response, "request-photo-count")
 
@@ -96,7 +96,7 @@ class AppFlowTests(TestCase):
             {
                 "request_number": "16/TMC",
                 "request_date": "2026-06-27",
-                "status": "new",
+                "status": "in_work",
                 "comment": "Selected product",
                 "item_product": [str(product.pk)],
                 "item_name": ["компьютерный стол"],
@@ -121,7 +121,7 @@ class AppFlowTests(TestCase):
             {
                 "request_number": "17/TMC",
                 "request_date": "2026-06-27",
-                "status": "new",
+                "status": "in_work",
                 "comment": "Manual product",
                 "item_product": [""],
                 "item_name": ["Компьютерный стол"],
@@ -134,6 +134,15 @@ class AppFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(TmcProduct.objects.filter(name="Компьютерный стол").exists())
         self.assertEqual(TmcProduct.objects.count(), 2)
+
+    def test_request_create_form_uses_in_work_status_by_default(self):
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("record_create", args=[self.organ.pk, "tmc-requests"]), HTTP_HX_REQUEST="true")
+
+        self.assertContains(response, 'name="status"')
+        self.assertContains(response, 'value="in_work"')
+        self.assertNotContains(response, 'value="new"')
 
     def test_tmc_product_suggest_finds_words_in_any_order(self):
         TmcProduct.objects.create(name="Стол компьютерный", unit="шт.")
@@ -172,7 +181,7 @@ class AppFlowTests(TestCase):
             {
                 "request_number": "15-Photo/TMC",
                 "request_date": "2026-06-27",
-                "status": "new",
+                "status": "in_work",
                 "comment": "With photo",
                 "item_name": ["Desk"],
                 "item_quantity": ["1"],
@@ -440,7 +449,8 @@ class AppFlowTests(TestCase):
         self.assertContains(response, "date_to=2026-06-30")
         self.assertContains(response, "q=Monitor")
         self.assertContains(response, "В работе")
-        self.assertContains(response, "Новых")
+        self.assertNotContains(response, 'value="new"')
+        self.assertNotContains(response, "Новых")
         self.assertContains(response, "Исполнено")
         self.assertContains(response, "Отклонено")
         self.assertContains(response, "<strong>1</strong>", html=True)
@@ -645,13 +655,13 @@ class AppFlowTests(TestCase):
         self.assertNotContains(response, "btn-group btn-group-sm")
 
     def test_tmc_xlsx_export_uses_current_filters(self):
-        included = TmcRequest.objects.create(territorial_organ=self.organ, request_number="26/TMC", request_date="2026-06-20", status="new")
+        included = TmcRequest.objects.create(territorial_organ=self.organ, request_number="26/TMC", request_date="2026-06-20", status="in_work")
         TmcRequestItem.objects.create(request=included, name="Scanner", quantity=1, unit="pcs")
         excluded = TmcRequest.objects.create(territorial_organ=self.organ, request_number="27/TMC", request_date="2026-06-20", status="done")
         TmcRequestItem.objects.create(request=excluded, name="Scanner", quantity=1, unit="pcs")
         self.client.login(username="operator", password="pass12345")
 
-        response = self.client.get(reverse("export_table", args=[self.organ.pk, "tmc-requests", "xlsx"]), {"status": "new", "q": "Scanner"})
+        response = self.client.get(reverse("export_table", args=[self.organ.pk, "tmc-requests", "xlsx"]), {"status": "in_work", "q": "Scanner"})
 
         workbook = load_workbook(BytesIO(response.content))
         sheet = workbook.active
@@ -897,16 +907,17 @@ class AppFlowTests(TestCase):
         self.assertContains(response, "date_to=2026-06-30")
         self.assertContains(response, "q=Diagnostics")
         self.assertContains(response, "В работе")
-        self.assertContains(response, "Новых")
+        self.assertNotContains(response, 'value="new"')
+        self.assertNotContains(response, "Новых")
         self.assertContains(response, "Исполнено")
         self.assertContains(response, "Отклонено")
 
     def test_vehicle_repair_xlsx_export_uses_current_filters(self):
-        included = VehicleRepairRequest.objects.create(territorial_organ=self.organ, request_number="R-20", request_date="2026-06-20", status="new", comment="Transmission")
+        included = VehicleRepairRequest.objects.create(territorial_organ=self.organ, request_number="R-20", request_date="2026-06-20", status="in_work", comment="Transmission")
         excluded = VehicleRepairRequest.objects.create(territorial_organ=self.organ, request_number="R-21", request_date="2026-06-20", status="done", comment="Transmission")
         self.client.login(username="operator", password="pass12345")
 
-        response = self.client.get(reverse("export_table", args=[self.organ.pk, "vehicle-repair", "xlsx"]), {"status": "new", "q": "Transmission"})
+        response = self.client.get(reverse("export_table", args=[self.organ.pk, "vehicle-repair", "xlsx"]), {"status": "in_work", "q": "Transmission"})
 
         workbook = load_workbook(BytesIO(response.content))
         values = [cell.value for row in workbook.active.iter_rows() for cell in row]

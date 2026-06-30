@@ -1,7 +1,7 @@
 from django import forms
 from django.utils import timezone
 
-from .models import TmcRequest
+from .models import ACTIVE_NEED_STATUS_CHOICES, TmcRequest
 from .registry import TABLE_BY_KEY
 
 
@@ -10,6 +10,10 @@ class BootstrapModelForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         if not self.is_bound and not self.instance.pk and "request_date" in self.fields:
             self.fields["request_date"].initial = timezone.localdate
+        if "status" in self.fields:
+            self.fields["status"].choices = ACTIVE_NEED_STATUS_CHOICES
+            if not self.is_bound and not self.instance.pk:
+                self.fields["status"].initial = ACTIVE_NEED_STATUS_CHOICES[0][0]
         for field in self.fields.values():
             css = "form-select" if isinstance(field.widget, forms.Select) else "form-control"
             if isinstance(field.widget, (forms.CheckboxInput, forms.ClearableFileInput)):

@@ -40,6 +40,7 @@ from .models import (
     VehicleRepairRequest,
     TmcProduct,
     normalize_product_name,
+    ACTIVE_NEED_STATUS_CHOICES,
 )
 from .permissions import can_view, can_write
 from .registry import TABLES, TABLE_BY_KEY
@@ -191,14 +192,13 @@ def request_table_queryset(request, table_key, organs, include_status=False):
     if config.get("equipment_type_filter") and valid_equipment_type(request.GET.get("equipment_type")):
         qs = qs.filter(equipment_type=request.GET["equipment_type"])
     qs = apply_casefold_search(qs, config["search_fields"], request.GET.get("q", ""))
-    if include_status and request.GET.get("status") in NeedStatus.values:
+    if include_status and request.GET.get("status") in dict(ACTIVE_NEED_STATUS_CHOICES):
         qs = qs.filter(status=request.GET["status"])
     return qs
 
 
 def request_status_stats(qs):
     return {
-        "new_count": qs.filter(status=NeedStatus.NEW).count(),
         "in_work_count": qs.filter(status=NeedStatus.IN_WORK).count(),
         "done_count": qs.filter(status=NeedStatus.DONE).count(),
         "rejected_count": qs.filter(status=NeedStatus.REJECTED).count(),
@@ -214,7 +214,7 @@ def active_table_conditions(request, table_key, selected_organs, is_tmc_grouped)
     query = request.GET.get("q", "").strip()
     if query:
         conditions.append(f"поиск: {query}")
-    status_labels = dict(NeedStatus.choices)
+    status_labels = dict(ACTIVE_NEED_STATUS_CHOICES)
     status = request.GET.get("status")
     if status in status_labels:
         conditions.append(f"исполнение: {status_labels[status]}")
@@ -629,7 +629,7 @@ def table_data(request, organ_id, table_key):
             "list_querystring": list_querystring.urlencode(),
             "grouped_querystring": grouped_querystring.urlencode(),
             "organ_querystring": selected_organs_querystring(selected_organs) if is_multi_organ else "",
-            "status_choices": NeedStatus.choices,
+            "status_choices": ACTIVE_NEED_STATUS_CHOICES,
             "table_stats": table_stats,
             "table_filters": table_filters,
             "active_conditions": active_table_conditions(request, table_key, selected_organs, is_tmc_grouped),

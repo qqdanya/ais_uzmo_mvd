@@ -871,11 +871,6 @@ textarea {
   text-align: center;
   box-shadow: inset 0 0 0 1px rgba(255,255,255,.82);
 }
-.summary-pill-new {
-  --summary-accent: #2b8ed8;
-  --summary-bg: #eaf6ff;
-  --summary-border: #bfe1f8;
-}
 .summary-pill-in-work {
   --summary-accent: #d5a316;
   --summary-bg: #fff7df;
