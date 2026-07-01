@@ -1679,6 +1679,9 @@ class AppFlowTests(TestCase):
         self.assertContains(response, "Child")
         self.assertContains(response, f"?folder={child.pk}")
         self.assertContains(response, "Nested path photo")
+        self.assertContains(response, "bi-chevron-right")
+        self.assertContains(response, "В папке Parent: 0 фотографий, 1 папок")
+        self.assertContains(response, "В папке Child: 1 фотографий, 0 папок")
 
     def test_photos_root_shows_only_root_photos(self):
         folder = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Folder")
@@ -1700,7 +1703,10 @@ class AppFlowTests(TestCase):
         self.assertContains(response, "hx-trigger=\"click[!event.target.closest('[data-folder-card-action]')]\"")
         self.assertContains(response, "Редактировать папку")
         self.assertNotContains(response, "Inside folder")
-        self.assertContains(response, '<strong>2</strong>', html=True)
+        self.assertContains(response, "всего фотографий")
+        self.assertContains(response, "всего папок")
+        self.assertContains(response, "В корне: 1 фотографий, 1 папок")
+        self.assertContains(response, '<strong>2</strong>', count=2, html=True)
 
     def test_photos_filter_by_folder(self):
         folder = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Facades")

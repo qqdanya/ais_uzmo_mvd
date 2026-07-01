@@ -179,6 +179,10 @@ function findOrganById(organId) {
     .find((item) => item.dataset.organId === String(organId));
 }
 
+function rememberedSingleOrganId() {
+  return window.selectedOrgan || storedValue(ORGAN_STORAGE_KEY);
+}
+
 function organSelectionMode() {
   return storedValue(ORGAN_MODE_KEY) === "multi" ? "multi" : "single";
 }
@@ -238,6 +242,13 @@ function syncOrganModeButtons() {
   document.body.classList.toggle("is-multi-organ-mode", isMultiOrganMode());
 }
 
+function clearSingleOrganHighlight() {
+  document.querySelectorAll("[data-organ-row], .organ-item").forEach((item) => {
+    item.classList.remove("active");
+    item.removeAttribute("aria-current");
+  });
+}
+
 function restoreCheckedOrgans() {
   const saved = new Set((storedValue(MULTI_ORGANS_KEY) || "").split(",").filter(Boolean));
   document.querySelectorAll("[data-organ-checkbox]").forEach((checkbox) => {
@@ -254,9 +265,15 @@ function ensureMultiSelection() {
 }
 
 function setOrganMode(mode) {
-  storeValue(ORGAN_MODE_KEY, mode === "multi" ? "multi" : "single");
+  const nextMode = mode === "multi" ? "multi" : "single";
+  if (nextMode === "multi") {
+    const activeOrgan = document.querySelector(".organ-item.active[data-organ-id]");
+    if (activeOrgan) rememberSelectedOrgan(activeOrgan.dataset.organId);
+  }
+  storeValue(ORGAN_MODE_KEY, nextMode);
   if (isMultiOrganMode()) {
     ensureMultiSelection();
+    clearSingleOrganHighlight();
     renderMultiOrganInfo();
   }
   syncOrganModeButtons();
@@ -1349,8 +1366,7 @@ document.addEventListener("click", (event) => {
     event.preventDefault();
     setOrganMode(organMode.dataset.organMode);
     if (!isMultiOrganMode()) {
-      const firstChecked = checkedOrganIds()[0];
-      const organ = firstChecked ? findOrganById(firstChecked) : document.querySelector(".organ-item.active[data-organ-id]");
+      const organ = findOrganById(rememberedSingleOrganId()) || document.querySelector(".organ-item[data-organ-id]");
       if (organ) {
         setActiveOrgan(organ);
         loadOrganInfo(organ.dataset.organId);

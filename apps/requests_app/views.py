@@ -1367,6 +1367,28 @@ def folder_path_from_map(folder, folders_by_id):
     return list(reversed(path))
 
 
+def add_folder_content_counts(organ, path):
+    folder_ids = [folder.pk for folder in path]
+    if not folder_ids:
+        return path
+    photo_counts = dict(
+        organ.photos.filter(is_deleted=False, folder_id__in=folder_ids)
+        .values("folder_id")
+        .annotate(count=Count("id"))
+        .values_list("folder_id", "count")
+    )
+    child_counts = dict(
+        organ.photo_folders.filter(is_deleted=False, parent_id__in=folder_ids)
+        .values("parent_id")
+        .annotate(count=Count("id"))
+        .values_list("parent_id", "count")
+    )
+    for folder in path:
+        folder.breadcrumb_photo_count = photo_counts.get(folder.pk, 0)
+        folder.breadcrumb_folder_count = child_counts.get(folder.pk, 0)
+    return path
+
+
 def render_photos(request, organ, folder_id_override=None):
     query = request.GET.get("q", "").strip()
     sort = request.GET.get("sort", "newest")
@@ -1399,9 +1421,11 @@ def render_photos(request, organ, folder_id_override=None):
         photo.folder_path = folder_path_from_map(photo.folder, folders_by_id) if photo.folder else []
     querystring = request.GET.copy()
     querystring.pop("page", None)
+    folder_path_items = add_folder_content_counts(organ, folder_path(selected_folder))
+    root_photo_count = organ.photos.filter(is_deleted=False, folder__isnull=True).count()
+    root_folder_count = organ.photo_folders.filter(is_deleted=False, parent__isnull=True).count()
     total_photo_count = organ.photos.filter(is_deleted=False).filter(Q(folder__isnull=True) | Q(folder__is_deleted=False)).count()
     total_folder_count = len(folders_by_id)
-    show_total_photo_summary = not selected_folder and not query
     return render(
         request,
         "partials/photos.html",
@@ -1413,10 +1437,14 @@ def render_photos(request, organ, folder_id_override=None):
             "photo_querystring": querystring.urlencode(),
             "folders": folders,
             "photo_folder_count": len(folders),
-            "photo_summary_count": total_photo_count if show_total_photo_summary else page.paginator.count,
-            "photo_summary_folder_count": total_folder_count if show_total_photo_summary else len(folders),
+            "photo_summary_count": page.paginator.count,
+            "photo_summary_folder_count": len(folders),
+            "photo_total_count": total_photo_count,
+            "photo_total_folder_count": total_folder_count,
+            "photo_root_count": root_photo_count,
+            "photo_root_folder_count": root_folder_count,
             "selected_folder": selected_folder,
-            "folder_path": folder_path(selected_folder),
+            "folder_path": folder_path_items,
             "photo_folder": folder_id,
             "can_write": can_write(request.user, organ),
             "photo_query": query,
