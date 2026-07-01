@@ -27,6 +27,7 @@ urlpatterns = [
     path("organs/<int:organ_id>/photos/download/", views.photos_download_all, name="photos_download_all"),
     path("organs/<int:organ_id>/photos/bulk/", views.photo_bulk_upload, name="photo_bulk_upload"),
     path("organs/<int:organ_id>/photos/folders/new/", views.photo_folder_form, name="photo_folder_create"),
+    path("organs/<int:organ_id>/photos/folders/<int:pk>/download/", views.photo_folder_download, name="photo_folder_download"),
     path("organs/<int:organ_id>/photos/folders/<int:pk>/edit/", views.photo_folder_form, name="photo_folder_update"),
     path("organs/<int:organ_id>/photos/folders/<int:pk>/delete/", views.photo_folder_delete, name="photo_folder_delete"),
     path("organs/<int:organ_id>/photos/new/", views.photo_form, name="photo_create"),

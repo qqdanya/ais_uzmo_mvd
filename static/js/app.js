@@ -7,7 +7,6 @@ const DEPARTMENT_TABLE_PREFIX = "asu-zmo:last-table:";
 const TABLE_STATE_PREFIX = "asu-zmo:table-state:";
 const COLLAPSED_PANELS_KEY = "asu-zmo:collapsed-panels";
 const BULK_PHOTO_BATCH_SIZE = 25;
-const BULK_PHOTO_MAX_FILES = 300;
 let htmxRequests = 0;
 let loadingFailsafeTimer = null;
 let pendingBulkPhotoFiles = [];
@@ -523,6 +522,159 @@ function showToast(message, level = "success") {
   autoDismissAlerts();
 }
 
+let downloadPreparingNoticeTimer = null;
+const DOWNLOAD_READY_COOKIE_PREFIX = "download-ready-";
+const activeDownloads = new Map();
+
+function showDownloadPreparingNotice(label) {
+  const stack = document.querySelector(".toast-stack") || document.body.appendChild(document.createElement("div"));
+  stack.classList.add("toast-stack");
+  let notice = stack.querySelector("[data-download-preparing-notice]");
+  if (!notice) {
+    notice = document.createElement("div");
+    notice.className = "app-toast download-preparing-notice alert alert-info show";
+    notice.dataset.downloadPreparingNotice = "true";
+    notice.setAttribute("role", "status");
+    stack.appendChild(notice);
+  }
+  notice.replaceChildren();
+  const spinner = document.createElement("span");
+  spinner.className = "spinner-border spinner-border-sm";
+  spinner.setAttribute("aria-hidden", "true");
+  const content = document.createElement("span");
+  content.className = "download-preparing-text";
+  const title = document.createElement("strong");
+  title.textContent = label;
+  const hint = document.createElement("span");
+  hint.textContent = "Файл начнет скачиваться автоматически.";
+  content.append(title, hint);
+  notice.append(spinner, content);
+  window.clearTimeout(downloadPreparingNoticeTimer);
+  downloadPreparingNoticeTimer = window.setTimeout(() => notice.remove(), 600000);
+}
+
+function hideDownloadPreparingNotice() {
+  window.clearTimeout(downloadPreparingNoticeTimer);
+  document.querySelector("[data-download-preparing-notice]")?.remove();
+}
+
+function refreshDownloadPreparingNotice() {
+  const nextDownload = activeDownloads.values().next().value;
+  if (nextDownload) {
+    showDownloadPreparingNotice(nextDownload.label);
+  } else {
+    hideDownloadPreparingNotice();
+  }
+}
+
+function isIconOnlyDownload(trigger) {
+  return !trigger.textContent.trim();
+}
+
+function restorePreparingDownload(trigger) {
+  if (!trigger?.dataset.downloadOriginalHtml) return;
+  trigger.innerHTML = trigger.dataset.downloadOriginalHtml;
+  trigger.classList.remove("is-preparing");
+  trigger.classList.remove("is-preparing-icon");
+  trigger.removeAttribute("aria-disabled");
+  delete trigger.dataset.downloadOriginalHtml;
+  delete trigger.dataset.downloadPreparingActive;
+  delete trigger.dataset.downloadPreparingKey;
+}
+
+function downloadReadyCookieName(token) {
+  return `${DOWNLOAD_READY_COOKIE_PREFIX}${token}`;
+}
+
+function hasCookie(name) {
+  return document.cookie.split(";").some((item) => item.trim().startsWith(`${name}=`));
+}
+
+function clearCookie(name) {
+  document.cookie = `${name}=; Max-Age=0; path=/`;
+}
+
+function downloadToken() {
+  if (window.crypto?.randomUUID) return window.crypto.randomUUID().replace(/-/g, "");
+  return `${Date.now()}${Math.random().toString(36).slice(2)}`;
+}
+
+function downloadUrlWithToken(href, token) {
+  const url = new URL(href, window.location.href);
+  url.searchParams.set("download_token", token);
+  return url.toString();
+}
+
+function downloadKey(trigger) {
+  if (trigger.dataset.downloadKey) return trigger.dataset.downloadKey;
+  const url = new URL(trigger.href, window.location.href);
+  url.searchParams.delete("download_token");
+  return `${url.pathname}?${url.searchParams.toString()}`;
+}
+
+function restorePreparingDownloadsByKey(key) {
+  document.querySelectorAll("a[data-download-preparing]").forEach((trigger) => {
+    if (downloadKey(trigger) === key) restorePreparingDownload(trigger);
+  });
+}
+
+function syncActiveDownloadButtons(root = document) {
+  root.querySelectorAll?.("a[data-download-preparing]").forEach((trigger) => {
+    const key = downloadKey(trigger);
+    const active = activeDownloads.get(key);
+    if (active && trigger.dataset.downloadPreparingActive !== "true") {
+      markPreparingDownload(trigger, key, active.label);
+    }
+  });
+}
+
+function waitForDownloadStart(token, key) {
+  const cookieName = downloadReadyCookieName(token);
+  const startedAt = Date.now();
+  const interval = window.setInterval(() => {
+    if (hasCookie(cookieName)) {
+      window.clearInterval(interval);
+      clearCookie(cookieName);
+      activeDownloads.delete(key);
+      restorePreparingDownloadsByKey(key);
+      refreshDownloadPreparingNotice();
+      return;
+    }
+    if (Date.now() - startedAt > 600000) {
+      window.clearInterval(interval);
+      activeDownloads.delete(key);
+      restorePreparingDownloadsByKey(key);
+      refreshDownloadPreparingNotice();
+    }
+  }, 500);
+}
+
+function markPreparingDownload(trigger, key = downloadKey(trigger), label = null) {
+  label = label || trigger.dataset.downloadPreparing || "Подготовка файла...";
+  const iconOnly = isIconOnlyDownload(trigger);
+  trigger.dataset.downloadOriginalHtml = trigger.innerHTML;
+  trigger.dataset.downloadPreparingActive = "true";
+  trigger.dataset.downloadPreparingKey = key;
+  trigger.classList.add("is-preparing");
+  trigger.setAttribute("aria-disabled", "true");
+  trigger.replaceChildren();
+
+  const spinner = document.createElement("span");
+  spinner.className = "spinner-border spinner-border-sm";
+  spinner.setAttribute("aria-hidden", "true");
+  if (iconOnly) {
+    trigger.classList.add("is-preparing-icon");
+    trigger.append(spinner);
+  } else {
+    const text = document.createElement("span");
+    text.textContent = label;
+    trigger.append(spinner, text);
+  }
+
+  bootstrap.Tooltip.getInstance(trigger)?.hide();
+  showDownloadPreparingNotice(label);
+}
+
 function setLoading(isLoading) {
   const progress = document.getElementById("htmx-progress");
   if (!progress) return;
@@ -749,10 +901,7 @@ function renderBulkPhotoFiles(form, files, descriptions = null) {
     URL.revokeObjectURL(preview.dataset.bulkPreviewUrl);
   });
   const images = Array.from(files).filter((file) => file.type.startsWith("image/"));
-  if (images.length > BULK_PHOTO_MAX_FILES) {
-    showToast(`За один раз можно загрузить не более ${BULK_PHOTO_MAX_FILES} фотографий.`, "warning");
-  }
-  const selectedImages = images.slice(0, BULK_PHOTO_MAX_FILES);
+  const selectedImages = images;
   const transfer = new DataTransfer();
   selectedImages.forEach((file) => transfer.items.add(file));
   input.files = transfer.files;
@@ -763,12 +912,6 @@ function renderBulkPhotoFiles(form, files, descriptions = null) {
     empty.textContent = "Изображения не выбраны";
     list.append(empty);
     return;
-  }
-  if (images.length > BULK_PHOTO_MAX_FILES) {
-    const warning = document.createElement("div");
-    warning.className = "empty-state";
-    warning.textContent = `Выбрано ${images.length} файлов. К загрузке взяты первые ${BULK_PHOTO_MAX_FILES}.`;
-    list.append(warning);
   }
   selectedImages.forEach((file, index) => {
     const item = document.createElement("div");
@@ -923,10 +1066,6 @@ async function uploadBulkPhotos(form) {
     showToast("Выберите хотя бы одно изображение.", "warning");
     return;
   }
-  if (files.length > BULK_PHOTO_MAX_FILES) {
-    showToast(`За один раз можно загрузить не более ${BULK_PHOTO_MAX_FILES} фотографий.`, "warning");
-    return;
-  }
   const descriptions = Array.from(form.querySelectorAll("[data-bulk-description]")).map((textarea) => textarea.value);
   let uploaded = 0;
   let created = 0;
@@ -997,7 +1136,7 @@ function ensurePhotoLightbox() {
         <button class="btn btn-icon" type="button" data-lightbox-action="zoom-out" data-bs-toggle="tooltip" data-bs-title="Уменьшить" aria-label="Уменьшить"><i class="bi bi-zoom-out"></i></button>
         <button class="btn btn-icon" type="button" data-lightbox-action="reset" data-bs-toggle="tooltip" data-bs-title="Масштаб 100%" aria-label="Сбросить масштаб"><span data-lightbox-scale>100%</span></button>
         <button class="btn btn-icon" type="button" data-lightbox-action="zoom-in" data-bs-toggle="tooltip" data-bs-title="Увеличить" aria-label="Увеличить"><i class="bi bi-zoom-in"></i></button>
-        <a class="btn btn-icon" data-lightbox-download data-bs-toggle="tooltip" data-bs-title="Скачать" aria-label="Скачать фотографию"><i class="bi bi-download"></i></a>
+        <a class="btn btn-icon btn-download" data-lightbox-download data-bs-toggle="tooltip" data-bs-title="Скачать" aria-label="Скачать фотографию"><i class="bi bi-download"></i></a>
         <button class="btn btn-icon danger" type="button" data-lightbox-action="close" data-bs-toggle="tooltip" data-bs-title="Закрыть" aria-label="Закрыть"><i class="bi bi-x-lg"></i></button>
       </div>
       <div class="photo-lightbox-viewport" data-lightbox-viewport>
@@ -1182,6 +1321,43 @@ function scrollAfterPaginationSwap(event) {
   target.scrollTo?.({ top: 0, left: target.scrollLeft, behavior: "smooth" });
 }
 
+function isEditableTarget(target) {
+  return Boolean(target?.closest?.("input, textarea, select, [contenteditable='true'], [data-custom-select]"));
+}
+
+function isVisibleElement(element) {
+  return Boolean(element && !element.disabled && element.getClientRects().length);
+}
+
+function focusCurrentSearch() {
+  const modal = document.querySelector("#modal-root.show .modal-content");
+  const scopes = [modal, document.getElementById("workspace"), document].filter(Boolean);
+  const selectors = [
+    "#request-photo-search-input",
+    "#photo-search-input",
+    "[id^='table-search-']",
+    "[data-table-search]",
+    "#organ-search",
+  ];
+  for (const scope of scopes) {
+    for (const selector of selectors) {
+      const input = scope.querySelector(selector);
+      if (!isVisibleElement(input)) continue;
+      input.focus();
+      input.select?.();
+      return true;
+    }
+  }
+  return false;
+}
+
+function closeOpenModal() {
+  const modalElement = document.getElementById("modal-root");
+  if (!modalElement?.classList.contains("show")) return false;
+  bootstrap.Modal.getInstance(modalElement)?.hide();
+  return true;
+}
+
 document.body.addEventListener("htmx:afterSwap", (event) => {
   if (event.detail.target.id === "modal-content") {
     initCustomSelects(event.detail.target);
@@ -1194,6 +1370,7 @@ document.body.addEventListener("htmx:afterSwap", (event) => {
       pendingBulkPhotoFiles = [];
     }
     event.detail.target.querySelectorAll("[data-request-photo-box]").forEach(syncRequestPhotoPicker);
+    syncActiveDownloadButtons(event.detail.target);
     return;
   }
   saveTableStateFromHtmxEvent(event);
@@ -1202,6 +1379,7 @@ document.body.addEventListener("htmx:afterSwap", (event) => {
   autoDismissAlerts();
   event.detail.target.querySelectorAll?.("[data-request-photo-box]").forEach(syncRequestPhotoPicker);
   event.detail.target.closest?.("[data-request-photo-box]") && syncRequestPhotoPicker(event.detail.target.closest("[data-request-photo-box]"));
+  syncActiveDownloadButtons(event.detail.target);
   applyCollapsedPanels();
   scrollAfterPaginationSwap(event);
 });
@@ -1345,6 +1523,32 @@ document.addEventListener("beforeinput", (event) => {
 });
 
 document.addEventListener("click", (event) => {
+  const preparingDownload = event.target.closest("a[data-download-preparing]");
+  if (preparingDownload) {
+    const key = downloadKey(preparingDownload);
+    const activeDownload = activeDownloads.get(key);
+    if (preparingDownload.dataset.downloadPreparingActive === "true") {
+      event.preventDefault();
+      showDownloadPreparingNotice(activeDownload?.label || preparingDownload.dataset.downloadPreparing || "Файл уже готовится...");
+      return;
+    }
+    if (activeDownload) {
+      event.preventDefault();
+      showDownloadPreparingNotice(activeDownload.label);
+      return;
+    }
+    if (!event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey && preparingDownload.target !== "_blank") {
+      event.preventDefault();
+      const token = downloadToken();
+      const label = preparingDownload.dataset.downloadPreparing || "Подготовка файла...";
+      activeDownloads.set(key, { token, label, startedAt: Date.now() });
+      markPreparingDownload(preparingDownload, key, label);
+      waitForDownloadStart(token, key);
+      window.location.href = downloadUrlWithToken(preparingDownload.href, token);
+    }
+    return;
+  }
+
   const tab = event.target.closest('[data-table-tab="true"][data-table-key]');
   if (!tab) return;
   const departmentSlug = tab.closest("[data-tables-workspace]")?.dataset.departmentSlug;
@@ -1589,11 +1793,19 @@ document.addEventListener("change", (event) => {
 document.addEventListener("keydown", (event) => {
   if (document.querySelector("[data-photo-lightbox].is-open")) {
     if (event.key === "Escape") closePhotoLightbox();
-    if (event.key === "ArrowLeft") navigatePhotoLightbox(-1);
-    if (event.key === "ArrowRight") navigatePhotoLightbox(1);
-    if (event.key === "+" || event.key === "=") zoomPhotoLightbox(.25);
-    if (event.key === "-") zoomPhotoLightbox(-.25);
-    if (event.key === "0") resetLightboxView();
+    else if (event.key === "ArrowLeft") navigatePhotoLightbox(-1);
+    else if (event.key === "ArrowRight") navigatePhotoLightbox(1);
+    else if (event.key === "+" || event.key === "=") zoomPhotoLightbox(.25);
+    else if (event.key === "-") zoomPhotoLightbox(-.25);
+    else if (event.key === "0") resetLightboxView();
+    else return;
+    event.preventDefault();
+    return;
+  }
+
+  if (event.key === "/" && !event.ctrlKey && !event.metaKey && !event.altKey && !isEditableTarget(event.target)) {
+    if (focusCurrentSearch()) event.preventDefault();
+    return;
   }
 
   const trigger = event.target.closest("[data-custom-select-trigger]");
@@ -1605,6 +1817,7 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     closeCustomSelects();
     closeAllTmcProductSuggestions();
+    closeOpenModal();
   }
 });
 

@@ -1,9 +1,10 @@
 import csv
 import json
 import mimetypes
+import os
+import tempfile
 import zipfile
-from io import BytesIO
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
 
 from django.contrib.auth.decorators import login_required
@@ -11,7 +12,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, Min, Q, Sum
-from django.http import FileResponse, Http404, HttpResponse, JsonResponse, QueryDict
+from django.http import FileResponse, Http404, JsonResponse, QueryDict
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django.utils.dateparse import parse_date
@@ -287,6 +288,15 @@ def tmc_grouped_summary(qs, grouped_count):
     }
 
 
+def attach_tmc_drilldown_querystrings(rows, base_querystring):
+    for row in rows:
+        product_name = row.get("product__name") or row.get("name") or ""
+        drilldown_querystring = base_querystring.copy()
+        drilldown_querystring["q"] = product_name
+        row["drilldown_querystring"] = drilldown_querystring.urlencode()
+    return rows
+
+
 def valid_equipment_type(value):
     return value in {choice[0] for choice in CitsiziEquipment._meta.get_field("equipment_type").choices}
 
@@ -351,7 +361,8 @@ REQUEST_TABLE_CONFIG = {
 
 REQUEST_PHOTO_TABLES = set(REQUEST_TABLE_CONFIG)
 REQUEST_PHOTO_PICKER_PAGE_SIZE = 12
-BULK_PHOTO_MAX_FILES = 300
+XLSX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+DOWNLOAD_READY_COOKIE_PREFIX = "download-ready-"
 SIMPLE_REQUEST_XLSX_CONFIG = {
     "widths": {
         "request_number": 18,
@@ -361,6 +372,67 @@ SIMPLE_REQUEST_XLSX_CONFIG = {
     },
     "center_columns": {"request_number", "request_date", "status"},
 }
+
+
+class TemporaryDownloadFile:
+    def __init__(self, path):
+        self.path = path
+        self.file = open(path, "rb")
+
+    def __getattr__(self, name):
+        return getattr(self.file, name)
+
+    def close(self):
+        try:
+            self.file.close()
+        finally:
+            try:
+                os.remove(self.path)
+            except FileNotFoundError:
+                pass
+
+
+def temporary_download_response(path, filename, content_type):
+    return FileResponse(TemporaryDownloadFile(path), as_attachment=True, filename=filename, content_type=content_type)
+
+
+def download_ready_response(request, response):
+    token = request.GET.get("download_token", "").strip()
+    if token and all(char.isalnum() or char in "-_" for char in token):
+        response.set_cookie(f"{DOWNLOAD_READY_COOKIE_PREFIX}{token}", "1", max_age=120, path="/", samesite="Lax")
+    return response
+
+
+def workbook_file_response(workbook, filename):
+    temp = tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False)
+    path = temp.name
+    temp.close()
+    try:
+        workbook.save(path)
+    except Exception:
+        try:
+            os.remove(path)
+        except FileNotFoundError:
+            pass
+        raise
+    return temporary_download_response(path, filename, XLSX_CONTENT_TYPE)
+
+
+def csv_file_response(filename, rows):
+    temp = tempfile.NamedTemporaryFile("w", suffix=".csv", newline="", encoding="utf-8-sig", delete=False)
+    path = temp.name
+    try:
+        writer = csv.writer(temp)
+        writer.writerows(rows)
+    except Exception:
+        temp.close()
+        try:
+            os.remove(path)
+        except FileNotFoundError:
+            pass
+        raise
+    temp.close()
+    return temporary_download_response(path, filename, "text/csv; charset=utf-8")
 
 
 def request_content_type_for_model(model):
@@ -649,6 +721,8 @@ def table_data(request, organ_id, table_key):
     list_querystring.pop("group", None)
     grouped_querystring = querystring.copy()
     grouped_querystring["group"] = "products"
+    if is_tmc_grouped:
+        page.object_list = attach_tmc_drilldown_querystrings(list(page.object_list), list_querystring)
     writable_organ_ids = [selected_organ.pk for selected_organ in selected_organs if can_write(request.user, selected_organ)]
     return render(
         request,
@@ -675,7 +749,7 @@ def table_data(request, organ_id, table_key):
             "is_tmc_grouped": is_tmc_grouped,
             "record_label": "позиций" if is_tmc_grouped else "записей",
             "has_status_history": table_key in STATUS_HISTORY_TABLES,
-            "search_placeholder": "Поиск по заявке и ТМЦ" if table_key == "tmc-requests" else "Поиск по заявке и комментарию",
+            "search_placeholder": "Поиск по заявке и ТМЦ" if table_key == "tmc-requests" else "Поиск по заявке и описанию",
             "equipment_type_choices": CitsiziEquipment._meta.get_field("equipment_type").choices,
             "selected_organs": selected_organs,
             "is_multi_organ": is_multi_organ,
@@ -964,28 +1038,8 @@ def request_photos_download(request, organ_id, table_key, pk):
     if not links.exists():
         raise Http404
 
-    archive = BytesIO()
-    used_names = set()
-    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as zip_file:
-        for index, link in enumerate(links, start=1):
-            photo = link.photo
-            if not photo.image:
-                continue
-            source_name = safe_download_name(Path(photo.image.name).name, f"photo-{photo.pk}")
-            stem = Path(source_name).stem
-            suffix = Path(source_name).suffix
-            archive_name = source_name
-            if archive_name in used_names:
-                archive_name = f"{stem}-{photo.pk}{suffix}"
-            used_names.add(archive_name)
-            try:
-                with photo.image.open("rb") as file_handle:
-                    zip_file.writestr(f"{index:03d}-{archive_name}", file_handle.read())
-            except FileNotFoundError:
-                continue
-    archive.seek(0)
     filename = safe_download_name(f"{obj}-photos.zip", f"request-{obj.pk}-photos.zip")
-    return FileResponse(archive, as_attachment=True, filename=filename, content_type="application/zip")
+    return download_ready_response(request, photos_zip_response((link.photo for link in links), filename))
 
 
 @login_required
@@ -1090,11 +1144,7 @@ def tmc_xlsx_response(qs, organ, filename):
     if current_row > 3:
         ws.auto_filter.ref = f"A2:F{current_row - 1}"
 
-    buffer = BytesIO()
-    wb.save(buffer)
-    response = HttpResponse(buffer.getvalue(), content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    response["Content-Disposition"] = f'attachment; filename="{filename}"'
-    return response
+    return workbook_file_response(wb, filename)
 
 
 def tmc_grouped_export_headers(is_multi_organ):
@@ -1156,11 +1206,7 @@ def tmc_grouped_xlsx_response(rows, is_multi_organ, filename):
     if ws.max_row > 1:
         ws.auto_filter.ref = f"A1:{ws.cell(row=1, column=last_column).column_letter}{ws.max_row}"
 
-    buffer = BytesIO()
-    wb.save(buffer)
-    response = HttpResponse(buffer.getvalue(), content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    response["Content-Disposition"] = f'attachment; filename="{filename}"'
-    return response
+    return workbook_file_response(wb, filename)
 
 
 def styled_xlsx_response(qs, table, fields, filename, widths=None, center_columns=None):
@@ -1208,11 +1254,7 @@ def styled_xlsx_response(qs, table, fields, filename, widths=None, center_column
     if ws.max_row > 1:
         ws.auto_filter.ref = f"A1:{ws.cell(row=1, column=last_column).column_letter}{ws.max_row}"
 
-    buffer = BytesIO()
-    wb.save(buffer)
-    response = HttpResponse(buffer.getvalue(), content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    response["Content-Disposition"] = f'attachment; filename="{filename}"'
-    return response
+    return workbook_file_response(wb, filename)
 
 
 @login_required
@@ -1301,41 +1343,28 @@ def export_table(request, organ_id, table_key, fmt):
         rows = list(tmc_grouped_rows(qs))
         is_multi_organ = len(selected_organs) > 1
         if fmt == "csv":
-            response = HttpResponse(content_type="text/csv; charset=utf-8")
-            response["Content-Disposition"] = f'attachment; filename="{filename}"'
-            response.write("\ufeff")
-            writer = csv.writer(response)
-            writer.writerow(tmc_grouped_export_headers(is_multi_organ))
-            for row in rows:
-                writer.writerow(tmc_grouped_export_row(row, is_multi_organ))
-            return response
+            csv_rows = [tmc_grouped_export_headers(is_multi_organ)]
+            csv_rows.extend(tmc_grouped_export_row(row, is_multi_organ) for row in rows)
+            return download_ready_response(request, csv_file_response(filename, csv_rows))
         if fmt == "xlsx":
-            return tmc_grouped_xlsx_response(rows, is_multi_organ, filename)
+            return download_ready_response(request, tmc_grouped_xlsx_response(rows, is_multi_organ, filename))
     if fmt == "csv":
-        response = HttpResponse(content_type="text/csv; charset=utf-8")
-        response["Content-Disposition"] = f'attachment; filename="{filename}"'
-        response.write("\ufeff")
-        writer = csv.writer(response)
-        writer.writerow(table_header_labels(fields))
+        csv_rows = [table_header_labels(fields)]
         for obj in qs:
-            writer.writerow([getattr(obj, f"get_{f.name}_display", lambda: getattr(obj, f.name))() for f in fields])
-        return response
+            csv_rows.append([getattr(obj, f"get_{f.name}_display", lambda: getattr(obj, f.name))() for f in fields])
+        return download_ready_response(request, csv_file_response(filename, csv_rows))
     if fmt == "xlsx":
         if table_key == "tmc-requests":
-            return tmc_xlsx_response(qs, organ, filename)
+            return download_ready_response(request, tmc_xlsx_response(qs, organ, filename))
         if table_key in XLSX_EXPORT_CONFIG:
-            return styled_xlsx_response(qs, table, fields, filename, **XLSX_EXPORT_CONFIG[table_key])
+            return download_ready_response(request, styled_xlsx_response(qs, table, fields, filename, **XLSX_EXPORT_CONFIG[table_key]))
         wb = Workbook()
         ws = wb.active
         ws.title = table["title"][:31]
         ws.append(table_header_labels(fields))
         for obj in qs:
             ws.append([str(getattr(obj, f"get_{f.name}_display", lambda: getattr(obj, f.name))()) for f in fields])
-        buffer = BytesIO()
-        wb.save(buffer)
-        response = HttpResponse(buffer.getvalue(), content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-        response["Content-Disposition"] = f'attachment; filename="{filename}"'
-        return response
+        return download_ready_response(request, workbook_file_response(wb, filename))
     raise Http404
 
 
@@ -1392,6 +1421,7 @@ def add_folder_content_counts(organ, path):
 def render_photos(request, organ, folder_id_override=None):
     query = request.GET.get("q", "").strip()
     sort = request.GET.get("sort", "newest")
+    item_order = "photos" if request.GET.get("order") == "photos" else "folders"
     folder_id = str(folder_id_override) if folder_id_override is not None else request.GET.get("folder", "").strip()
     selected_folder = None
     if folder_id:
@@ -1400,6 +1430,7 @@ def render_photos(request, organ, folder_id_override=None):
         photo_count=Count("photos", filter=Q(photos__is_deleted=False)),
         child_count=Count("children", filter=Q(children__is_deleted=False), distinct=True),
     )
+    folders = folders.order_by("created_at", "pk") if sort == "oldest" else folders.order_by("-created_at", "-pk")
     if query:
         query_normalized = query.casefold()
         folders = [folder for folder in folders if query_normalized in folder.name.casefold()]
@@ -1449,6 +1480,7 @@ def render_photos(request, organ, folder_id_override=None):
             "can_write": can_write(request.user, organ),
             "photo_query": query,
             "photo_sort": sort,
+            "photo_item_order": item_order,
         },
     )
 
@@ -1456,6 +1488,53 @@ def render_photos(request, organ, folder_id_override=None):
 def safe_download_name(value, fallback):
     name = "".join(char if char.isalnum() or char in "._- " else "_" for char in value).strip()
     return name or fallback
+
+
+def photo_download_name(photo):
+    return safe_download_name(photo.original_filename or Path(photo.image.name).name, f"photo-{photo.pk}")
+
+
+def unique_archive_name(relative_name, photo_pk, used_names):
+    path = PurePosixPath(relative_name)
+    parent = "" if str(path.parent) == "." else f"{path.parent}/"
+    source_name = path.name
+    stem = Path(source_name).stem
+    suffix = Path(source_name).suffix
+    archive_name = relative_name
+    counter = 1
+    while archive_name in used_names:
+        extra = f"-{photo_pk}" if counter == 1 else f"-{photo_pk}-{counter}"
+        archive_name = f"{parent}{stem}{extra}{suffix}"
+        counter += 1
+    used_names.add(archive_name)
+    return archive_name
+
+
+def photos_zip_response(photos, filename, archive_path_builder=None):
+    temp = tempfile.NamedTemporaryFile(suffix=".zip", delete=False)
+    path = temp.name
+    temp.close()
+    used_names = set()
+    try:
+        with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as zip_file:
+            for index, photo in enumerate(photos, start=1):
+                if not photo.image:
+                    continue
+                source_name = photo_download_name(photo)
+                relative_name = archive_path_builder(photo, source_name) if archive_path_builder else f"{index:03d}-{source_name}"
+                archive_name = unique_archive_name(relative_name, photo.pk, used_names)
+                try:
+                    with photo.image.open("rb") as file_handle:
+                        zip_file.writestr(archive_name, file_handle.read())
+                except FileNotFoundError:
+                    continue
+    except Exception:
+        try:
+            os.remove(path)
+        except FileNotFoundError:
+            pass
+        raise
+    return temporary_download_response(path, filename, "application/zip")
 
 
 @login_required
@@ -1475,7 +1554,7 @@ def photo_download(request, organ_id, pk):
         file_handle = photo.image.open("rb")
     except FileNotFoundError:
         raise Http404
-    filename = safe_download_name(Path(photo.image.name).name, f"photo-{photo.pk}")
+    filename = photo_download_name(photo)
     content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
     return FileResponse(file_handle, as_attachment=True, filename=filename, content_type=content_type)
 
@@ -1488,27 +1567,36 @@ def photos_download_all(request, organ_id):
     photos_qs = organ.photos.filter(is_deleted=False).filter(Q(folder__isnull=True) | Q(folder__is_deleted=False)).order_by("created_at")
     if not photos_qs.exists():
         raise Http404
-    archive = BytesIO()
-    used_names = set()
-    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as zip_file:
-        for index, photo in enumerate(photos_qs, start=1):
-            if not photo.image:
-                continue
-            source_name = safe_download_name(Path(photo.image.name).name, f"photo-{photo.pk}")
-            stem = Path(source_name).stem
-            suffix = Path(source_name).suffix
-            archive_name = source_name
-            if archive_name in used_names:
-                archive_name = f"{stem}-{photo.pk}{suffix}"
-            used_names.add(archive_name)
-            try:
-                with photo.image.open("rb") as file_handle:
-                    zip_file.writestr(f"{index:03d}-{archive_name}", file_handle.read())
-            except FileNotFoundError:
-                continue
-    archive.seek(0)
     filename = safe_download_name(f"{organ.name}-photos.zip", f"organ-{organ.pk}-photos.zip")
-    return FileResponse(archive, as_attachment=True, filename=filename, content_type="application/zip")
+    return download_ready_response(request, photos_zip_response(photos_qs, filename))
+
+
+@login_required
+def photo_folder_download(request, organ_id, pk):
+    organ = get_object_or_404(TerritorialOrgan, pk=organ_id, is_active=True)
+    if not can_view(request.user, organ):
+        raise Http404
+    folder = get_object_or_404(TerritorialOrganPhotoFolder, pk=pk, territorial_organ=organ, is_deleted=False)
+    folder_ids = photo_folder_descendant_ids(folder)
+    photos_qs = (
+        organ.photos.select_related("folder")
+        .filter(is_deleted=False, folder_id__in=folder_ids)
+        .filter(folder__is_deleted=False)
+        .order_by("folder_id", "created_at", "pk")
+    )
+    if not photos_qs.exists():
+        raise Http404
+    folders_by_id = {item.pk: item for item in organ.photo_folders.filter(pk__in=folder_ids, is_deleted=False)}
+    root_index = folder_path_from_map(folder, folders_by_id)
+
+    def archive_path(photo, source_name):
+        current_path = folder_path_from_map(photo.folder, folders_by_id)
+        nested_path = current_path[len(root_index):]
+        parts = [safe_download_name(item.name, f"folder-{item.pk}") for item in nested_path]
+        return "/".join([*parts, source_name]) if parts else source_name
+
+    filename = safe_download_name(f"{folder.name}-photos.zip", f"folder-{folder.pk}-photos.zip")
+    return download_ready_response(request, photos_zip_response(photos_qs, filename, archive_path))
 
 
 @login_required
@@ -1611,13 +1699,6 @@ def photo_bulk_upload(request, organ_id):
     if request.method == "POST":
         files = request.FILES.getlist("images")
         descriptions = request.POST.getlist("descriptions")
-        if len(files) > BULK_PHOTO_MAX_FILES:
-            message = f"За один раз можно загрузить не более {BULK_PHOTO_MAX_FILES} фотографий."
-            if request.headers.get("X-Bulk-Photo-Batch") == "true":
-                return JsonResponse({"created": 0, "failed": len(files), "errors": [message], "folder": None}, status=400)
-            response = render_photos(request, organ, request.POST.get("folder", ""))
-            response["HX-Trigger"] = htmx_triggers(message, "warning")
-            return response
         folder = None
         folder_id = request.POST.get("folder")
         if folder_id and current_folder is None:

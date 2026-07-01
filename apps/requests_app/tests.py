@@ -1,6 +1,7 @@
 import csv
 from io import BytesIO
 from datetime import timedelta
+from urllib.parse import quote_plus
 import zipfile
 
 from django.contrib.auth import get_user_model
@@ -49,6 +50,14 @@ class AppFlowTests(TestCase):
     def status_history(self, obj):
         content_type = ContentType.objects.get_for_model(obj, for_concrete_model=False)
         return RequestStatusHistory.objects.filter(content_type=content_type, object_id=obj.pk)
+
+    def response_bytes(self, response):
+        if getattr(response, "streaming", False):
+            return b"".join(response.streaming_content)
+        return response.content
+
+    def response_workbook(self, response):
+        return load_workbook(BytesIO(self.response_bytes(response)))
 
     def test_dashboard_requires_login(self):
         response = self.client.get(reverse("dashboard"))
@@ -412,7 +421,7 @@ class AppFlowTests(TestCase):
         response = self.client.get(reverse("export_table", args=[self.organ.pk, "tmc-requests", "xlsx"]))
 
         self.assertEqual(response.status_code, 200)
-        workbook = load_workbook(BytesIO(response.content))
+        workbook = self.response_workbook(response)
         sheet = workbook.active
         self.assertEqual(sheet["A1"].value, "Сведения о потребности ТМЦ")
         self.assertEqual(sheet["C1"].value, "Заявка")
@@ -549,6 +558,10 @@ class AppFlowTests(TestCase):
         self.assertContains(response, "По ТМЦ")
         self.assertContains(response, "Бумага А4")
         self.assertContains(response, "Кресло офисное")
+        self.assertContains(response, "tmc-drilldown-link")
+        self.assertContains(response, f"organ_ids={self.organ.pk}")
+        self.assertContains(response, f"organ_ids={other_organ.pk}")
+        self.assertContains(response, f"q={quote_plus('Бумага А4')}")
         self.assertContains(response, "<td class=\"text-center\">2</td>", html=True)
         self.assertContains(response, "<td class=\"text-center\">12</td>", html=True)
         self.assertContains(response, "позиций")
@@ -561,6 +574,7 @@ class AppFlowTests(TestCase):
         self.assertContains(response, "Всего заявок")
         self.assertContains(response, "Всего органов")
         self.assertContains(response, "Общее количество")
+        self.assertContains(response, 'data-download-preparing="Подготовка экспорта..."')
         self.assertContains(response, "<strong>2</strong>", count=3, html=True)
         self.assertContains(response, "<strong>3</strong>", html=True)
         self.assertContains(response, "<strong>13</strong>", html=True)
@@ -684,9 +698,10 @@ class AppFlowTests(TestCase):
         TmcRequestItem.objects.create(request=excluded, name="Scanner", quantity=1, unit="pcs")
         self.client.login(username="operator", password="pass12345")
 
-        response = self.client.get(reverse("export_table", args=[self.organ.pk, "tmc-requests", "xlsx"]), {"status": "in_work", "q": "Scanner"})
+        response = self.client.get(reverse("export_table", args=[self.organ.pk, "tmc-requests", "xlsx"]), {"status": "in_work", "q": "Scanner", "download_token": "exporttest"})
 
-        workbook = load_workbook(BytesIO(response.content))
+        self.assertIn("download-ready-exporttest", response.cookies)
+        workbook = self.response_workbook(response)
         sheet = workbook.active
         values = [cell.value for row in sheet.iter_rows() for cell in row]
         self.assertIn("26/TMC", values)
@@ -706,7 +721,7 @@ class AppFlowTests(TestCase):
             {"organ_ids": [self.organ.pk, other_organ.pk], "group": "products"},
         )
 
-        workbook = load_workbook(BytesIO(response.content))
+        workbook = self.response_workbook(response)
         sheet = workbook.active
         self.assertEqual(sheet.title, "ТМЦ")
         self.assertEqual([sheet.cell(row=1, column=column).value for column in range(1, 6)], ["Наименование ТМЦ", "Заявок", "Территориальных органов", "Общее количество", "Единица измерения"])
@@ -724,7 +739,7 @@ class AppFlowTests(TestCase):
 
         response = self.client.get(reverse("export_table", args=[self.organ.pk, "tmc-requests", "csv"]), {"group": "products"})
 
-        rows = list(csv.reader(response.content.decode("utf-8-sig").splitlines()))
+        rows = list(csv.reader(self.response_bytes(response).decode("utf-8-sig").splitlines()))
         self.assertEqual(rows[0], ["Наименование ТМЦ", "Заявок", "Общее количество", "Единица измерения"])
         self.assertEqual(rows[1], ["Сканер", "1", "2", "шт."])
         self.assertNotIn("50/TMC", ",".join(rows[1]))
@@ -837,7 +852,7 @@ class AppFlowTests(TestCase):
         self.assertContains(modal, "История изменений заявки C-10")
 
         export_response = self.client.get(reverse("export_table", args=[self.organ.pk, "citsizi-equipment", "xlsx"]), {"status": "done", "equipment_type": "communication"})
-        workbook = load_workbook(BytesIO(export_response.content))
+        workbook = self.response_workbook(export_response)
         sheet = workbook.active
         self.assertEqual(sheet["A1"].value, "Номер")
         self.assertEqual(sheet["E1"].value, "Тип техники")
@@ -855,7 +870,7 @@ class AppFlowTests(TestCase):
         self.assertNotContains(response, "<th>положено</th>", html=True)
 
         export_response = self.client.get(reverse("export_table", args=[self.organ.pk, "vehicle-inventory", "xlsx"]))
-        workbook = load_workbook(BytesIO(export_response.content))
+        workbook = self.response_workbook(export_response)
         sheet = workbook.active
         self.assertEqual(sheet["B1"].value, "Положено")
         self.assertEqual(sheet.freeze_panes, "A2")
@@ -879,7 +894,7 @@ class AppFlowTests(TestCase):
         self.assertContains(response, "table-vehicle-inventory")
 
         export_response = self.client.get(reverse("export_table", args=[self.organ.pk, "vehicle-inventory", "xlsx"]))
-        workbook = load_workbook(BytesIO(export_response.content))
+        workbook = self.response_workbook(export_response)
         sheet = workbook.active
         self.assertEqual(sheet["A1"].value, "Дата")
         self.assertEqual(sheet["B1"].value, "Положено")
@@ -907,7 +922,7 @@ class AppFlowTests(TestCase):
         self.assertContains(response, "bi-clock-history")
 
         export_response = self.client.get(reverse("export_table", args=[self.organ.pk, "vehicle-repair", "xlsx"]))
-        workbook = load_workbook(BytesIO(export_response.content))
+        workbook = self.response_workbook(export_response)
         sheet = workbook.active
         self.assertEqual(sheet["D1"].value, "Описание")
         self.assertEqual(sheet["D2"].value, "Needs diagnostics")
@@ -992,7 +1007,7 @@ class AppFlowTests(TestCase):
 
         response = self.client.get(reverse("export_table", args=[self.organ.pk, "vehicle-repair", "xlsx"]), {"status": "in_work", "q": "Transmission"})
 
-        workbook = load_workbook(BytesIO(response.content))
+        workbook = self.response_workbook(response)
         values = [cell.value for row in workbook.active.iter_rows() for cell in row]
         self.assertIn(included.request_number, values)
         self.assertNotIn(excluded.request_number, values)
@@ -1015,7 +1030,7 @@ class AppFlowTests(TestCase):
         self.assertContains(response, "bi-clock-history")
 
         export_response = self.client.get(reverse("export_table", args=[self.organ.pk, "vehicle-fuel", "xlsx"]))
-        workbook = load_workbook(BytesIO(export_response.content))
+        workbook = self.response_workbook(export_response)
         sheet = workbook.active
         self.assertEqual(sheet["A1"].value, "Номер")
         self.assertEqual(sheet["D1"].value, "Описание")
@@ -1073,7 +1088,7 @@ class AppFlowTests(TestCase):
         self.assertContains(security_alarm, "Объектов с неисправной ОС")
 
         export_response = self.client.get(reverse("export_table", args=[self.organ.pk, "fire-alarm", "xlsx"]))
-        workbook = load_workbook(BytesIO(export_response.content))
+        workbook = self.response_workbook(export_response)
         sheet = workbook.active
         self.assertEqual(sheet["A1"].value, "Дата")
         self.assertEqual(sheet["B1"].value, "Подлежит оборудованию ПС")
@@ -1132,7 +1147,7 @@ class AppFlowTests(TestCase):
         self.assertContains(modal, "Дата исполнения заявки")
 
         export_response = self.client.get(reverse("export_table", args=[self.organ.pk, "fire-requests", "xlsx"]), {"status": "done", "q": "Completed"})
-        workbook = load_workbook(BytesIO(export_response.content))
+        workbook = self.response_workbook(export_response)
         sheet = workbook.active
         self.assertEqual(sheet["D1"].value, "Описание")
         self.assertEqual(sheet.freeze_panes, "A2")
@@ -1176,7 +1191,7 @@ class AppFlowTests(TestCase):
         self.assertContains(modal, "История изменений заявки A-1")
 
         export_response = self.client.get(reverse("export_table", args=[self.organ.pk, "anti-terror", "xlsx"]), {"status": "done", "q": "Completed"})
-        workbook = load_workbook(BytesIO(export_response.content))
+        workbook = self.response_workbook(export_response)
         sheet = workbook.active
         self.assertEqual(sheet["A1"].value, "Номер")
         self.assertEqual(sheet["D1"].value, "Описание")
@@ -1195,7 +1210,7 @@ class AppFlowTests(TestCase):
         self.assertContains(response, "table-service-housing")
 
         export_response = self.client.get(reverse("export_table", args=[self.organ.pk, "service-housing", "xlsx"]))
-        workbook = load_workbook(BytesIO(export_response.content))
+        workbook = self.response_workbook(export_response)
         sheet = workbook.active
         self.assertEqual(sheet["A1"].value, "Дата")
         self.assertEqual(sheet["D1"].value, "Готово к заселению")
@@ -1287,7 +1302,7 @@ class AppFlowTests(TestCase):
         self.assertContains(modal, "История изменений заявки B-1")
 
         export_response = self.client.get(reverse("export_table", args=[self.organ.pk, "building-repair", "xlsx"]), {"status": "done", "q": "B-1"})
-        workbook = load_workbook(BytesIO(export_response.content))
+        workbook = self.response_workbook(export_response)
         sheet = workbook.active
         self.assertEqual(sheet["A1"].value, "Номер")
         self.assertEqual(sheet["C1"].value, "Исполнение заявки")
@@ -1426,12 +1441,37 @@ class AppFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("attachment", response["Content-Disposition"])
 
-        response = self.client.get(reverse("photos_download_all", args=[self.organ.pk]))
+        response = self.client.get(reverse("photos_download_all", args=[self.organ.pk]), {"download_token": "photostest"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/zip")
+        self.assertIn("download-ready-photostest", response.cookies)
+        archive_data = b"".join(response.streaming_content)
+        with zipfile.ZipFile(BytesIO(archive_data)) as archive:
+            self.assertTrue(any(name.endswith(".png") for name in archive.namelist()))
+
+    def test_photo_folder_download_includes_nested_photos(self):
+        folder = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Folder")
+        child = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, parent=folder, name="Child")
+        parent_photo = self.create_photo("folder-parent-download.png")
+        parent_photo.folder = folder
+        parent_photo.save(update_fields=["folder"])
+        child_photo = self.create_photo("folder-child-download.png")
+        child_photo.folder = child
+        child_photo.save(update_fields=["folder"])
+        outside_photo = self.create_photo("folder-outside-marker.png")
+        outside_photo.save()
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("photo_folder_download", args=[self.organ.pk, folder.pk]))
+
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "application/zip")
         archive_data = b"".join(response.streaming_content)
         with zipfile.ZipFile(BytesIO(archive_data)) as archive:
-            self.assertTrue(any(name.endswith(".png") for name in archive.namelist()))
+            names = archive.namelist()
+            self.assertTrue(any(name.endswith("folder-parent-download.png") for name in names))
+            self.assertTrue(any(name.startswith("Child/") and name.endswith("folder-child-download.png") for name in names))
+            self.assertFalse(any("outside-marker" in name for name in names))
 
     def test_photos_are_paginated_and_filterable(self):
         for index in range(25):
@@ -1443,6 +1483,7 @@ class AppFlowTests(TestCase):
         response = self.client.get(reverse("photos", args=[self.organ.pk]))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.context["photo_page"].object_list), 24)
+        self.assertContains(response, 'data-download-preparing="Подготовка архива..."')
         self.assertContains(response, "photo-page-number")
         self.assertContains(response, 'class="pagination-jump"')
         self.assertContains(response, 'data-pagination-scroll="self"')
@@ -1511,13 +1552,13 @@ class AppFlowTests(TestCase):
         self.assertEqual(response.json()["failed"], 0)
         self.assertTrue(TerritorialOrganPhoto.objects.filter(description="Batch photo").exists())
 
-    def test_photo_bulk_upload_rejects_more_than_300_files(self):
+    def test_photo_bulk_upload_accepts_more_than_300_files(self):
         self.client.login(username="operator", password="pass12345")
         files = []
         for index in range(301):
             buffer = BytesIO()
             Image.new("RGB", (1, 1), "white").save(buffer, format="PNG")
-            files.append(SimpleUploadedFile(f"too-many-{index}.png", buffer.getvalue(), content_type="image/png"))
+            files.append(SimpleUploadedFile(f"many-{index}.png", buffer.getvalue(), content_type="image/png"))
 
         response = self.client.post(
             reverse("photo_bulk_upload", args=[self.organ.pk]),
@@ -1525,8 +1566,10 @@ class AppFlowTests(TestCase):
             HTTP_X_BULK_PHOTO_BATCH="true",
         )
 
-        self.assertEqual(response.status_code, 400)
-        self.assertFalse(TerritorialOrganPhoto.objects.exists())
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["created"], 301)
+        self.assertEqual(response.json()["failed"], 0)
+        self.assertEqual(TerritorialOrganPhoto.objects.count(), 301)
 
     def test_photo_bulk_upload_uses_current_folder(self):
         folder = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Current")
@@ -1699,8 +1742,11 @@ class AppFlowTests(TestCase):
 
         self.assertContains(response, "Root photo")
         self.assertContains(response, "Folder")
-        self.assertContains(response, '<article class="folder-card" hx-get=', html=False)
-        self.assertContains(response, "hx-trigger=\"click[!event.target.closest('[data-folder-card-action]')]\"")
+        self.assertContains(response, '<article class="folder-card"', html=False)
+        self.assertContains(response, 'class="folder-card-open"')
+        self.assertContains(response, f"folder={folder.pk}")
+        self.assertContains(response, "folder-card-counts")
+        self.assertNotContains(response, '<article class="folder-card" hx-get=', html=False)
         self.assertContains(response, "Редактировать папку")
         self.assertNotContains(response, "Inside folder")
         self.assertContains(response, "всего фотографий")
@@ -1734,6 +1780,37 @@ class AppFlowTests(TestCase):
         self.assertContains(response, "inside")
         self.assertContains(response, "oldest")
         self.assertContains(response, f'hx-get="{reset_url}"')
+
+    def test_photos_can_prioritize_photos_before_folders(self):
+        TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Folder")
+        photo = self.create_photo("photo-first.png")
+        photo.description = "Photo first"
+        photo.save(update_fields=["description"])
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("photos", args=[self.organ.pk]), {"order": "photos"})
+
+        self.assertEqual(response.context["photo_item_order"], "photos")
+        self.assertContains(response, "photo-order-photos")
+        self.assertContains(response, "order=photos")
+        self.assertContains(response, "порядок: сначала фотографии")
+        self.assertContains(response, "Photo first")
+        self.assertContains(response, "Folder")
+
+    def test_photo_sort_applies_to_folders(self):
+        older = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Older folder")
+        newer = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Newer folder")
+        TerritorialOrganPhotoFolder.objects.filter(pk=older.pk).update(created_at=timezone.now() - timedelta(days=3))
+        TerritorialOrganPhotoFolder.objects.filter(pk=newer.pk).update(created_at=timezone.now())
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("photos", args=[self.organ.pk]))
+
+        self.assertEqual(list(response.context["folders"])[0].name, "Newer folder")
+
+        response = self.client.get(reverse("photos", args=[self.organ.pk]), {"sort": "oldest"})
+
+        self.assertEqual(list(response.context["folders"])[0].name, "Older folder")
 
     def test_photos_search_includes_folder_names(self):
         TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Assembly hall")

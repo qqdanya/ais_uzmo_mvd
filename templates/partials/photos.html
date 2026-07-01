@@ -6,7 +6,7 @@
     </div>
     <div class="d-flex gap-2 flex-wrap justify-content-end">
       {% if photo_page.paginator.count %}
-        <a class="btn btn-outline-primary" href="{% url 'photos_download_all' organ.pk %}"><i class="bi bi-file-earmark-zip"></i> Скачать все</a>
+        <a class="btn btn-outline-primary" href="{% url 'photos_download_all' organ.pk %}" data-download-preparing="Подготовка архива..."><i class="bi bi-file-earmark-zip"></i> Скачать все</a>
       {% endif %}
       {% if can_write %}<button class="btn btn-outline-primary" hx-get="{% url 'photo_folder_create' organ.pk %}{% if photo_folder %}?folder={{ photo_folder }}{% endif %}" hx-target="#modal-content" data-open-modal="true"><i class="bi bi-folder-plus"></i> Папка</button>{% endif %}
       {% if can_write %}<button class="btn btn-primary" hx-get="{% url 'photo_bulk_upload' organ.pk %}{% if photo_folder %}?folder={{ photo_folder }}{% endif %}" hx-target="#modal-content" data-open-modal="true"><i class="bi bi-cloud-arrow-up"></i> Загрузить</button>{% endif %}
@@ -32,16 +32,21 @@
       <option value="newest" {% if photo_sort != "oldest" %}selected{% endif %}>Сначала новые</option>
       <option value="oldest" {% if photo_sort == "oldest" %}selected{% endif %}>Сначала старые</option>
     </select>
+    <select class="form-select form-select-sm" name="order" aria-label="Порядок отображения">
+      <option value="folders" {% if photo_item_order != "photos" %}selected{% endif %}>Сначала папки</option>
+      <option value="photos" {% if photo_item_order == "photos" %}selected{% endif %}>Сначала фотографии</option>
+    </select>
   </form>
 </div>
-<div id="photo-results" class="photo-browser" {% if can_write %}data-photo-dropzone data-photo-upload-url="{% url 'photo_bulk_upload' organ.pk %}{% if photo_folder %}?folder={{ photo_folder }}{% endif %}"{% endif %}>
-{% if photo_query or photo_sort == "oldest" %}
+<div id="photo-results" class="photo-browser photo-order-{{ photo_item_order }}" {% if can_write %}data-photo-dropzone data-photo-upload-url="{% url 'photo_bulk_upload' organ.pk %}{% if photo_folder %}?folder={{ photo_folder }}{% endif %}"{% endif %}>
+{% if photo_query or photo_sort == "oldest" or photo_item_order == "photos" %}
 <div class="active-filter-bar">
   <div class="active-filter-content">
     <span class="active-filter-title"><i class="bi bi-funnel"></i> Применены фильтры:</span>
     <span class="active-filter-list">
       {% if photo_query %}<span class="active-filter-chip">поиск: {{ photo_query }}</span>{% endif %}
       {% if photo_sort == "oldest" %}<span class="active-filter-chip">сортировка: сначала старые</span>{% endif %}
+      {% if photo_item_order == "photos" %}<span class="active-filter-chip">порядок: сначала фотографии</span>{% endif %}
     </span>
   </div>
   <button class="btn btn-sm btn-outline-secondary" type="button" hx-get="{% url 'photos' organ.pk %}{% if photo_folder %}?folder={{ photo_folder }}{% endif %}" hx-target="#workspace" hx-swap="innerHTML">
@@ -50,7 +55,7 @@
 </div>
 {% endif %}
 <div class="photo-breadcrumb">
-  <button class="btn btn-sm photo-breadcrumb-item {% if not photo_folder %}btn-primary{% else %}btn-outline-primary{% endif %}" hx-get="{% url 'photos' organ.pk %}{% if photo_query or photo_sort == 'oldest' %}?{% if photo_query %}q={{ photo_query|urlencode }}{% endif %}{% if photo_query and photo_sort == 'oldest' %}&{% endif %}{% if photo_sort == 'oldest' %}sort=oldest{% endif %}{% endif %}" hx-target="#workspace" hx-swap="innerHTML">
+  <button class="btn btn-sm photo-breadcrumb-item {% if not photo_folder %}btn-primary{% else %}btn-outline-primary{% endif %}" hx-get="{% url 'photos' organ.pk %}{% if photo_query or photo_sort == 'oldest' or photo_item_order == 'photos' %}?{% if photo_query %}q={{ photo_query|urlencode }}{% endif %}{% if photo_query and photo_sort == 'oldest' %}&{% endif %}{% if photo_sort == 'oldest' %}sort=oldest{% endif %}{% if photo_item_order == 'photos' %}{% if photo_query or photo_sort == 'oldest' %}&{% endif %}order=photos{% endif %}{% endif %}" hx-target="#workspace" hx-swap="innerHTML">
     <span class="photo-breadcrumb-name"><i class="bi bi-house"></i> Корень</span>
     <span class="photo-breadcrumb-counts" aria-label="В корне: {{ photo_root_count }} фотографий, {{ photo_root_folder_count }} папок">
       <span><i class="bi bi-image"></i>{{ photo_root_count }}</span>
@@ -68,7 +73,7 @@
         </span>
       </span>
     {% else %}
-      <button class="btn btn-sm btn-outline-primary photo-breadcrumb-item" hx-get="{% url 'photos' organ.pk %}?folder={{ folder.pk }}{% if photo_query %}&q={{ photo_query|urlencode }}{% endif %}{% if photo_sort == 'oldest' %}&sort=oldest{% endif %}" hx-target="#workspace" hx-swap="innerHTML">
+      <button class="btn btn-sm btn-outline-primary photo-breadcrumb-item" hx-get="{% url 'photos' organ.pk %}?folder={{ folder.pk }}{% if photo_query %}&q={{ photo_query|urlencode }}{% endif %}{% if photo_sort == 'oldest' %}&sort=oldest{% endif %}{% if photo_item_order == 'photos' %}&order=photos{% endif %}" hx-target="#workspace" hx-swap="innerHTML">
         <span class="photo-breadcrumb-name"><i class="bi bi-folder2"></i> {{ folder.name }}</span>
         <span class="photo-breadcrumb-counts" aria-label="В папке {{ folder.name }}: {{ folder.breadcrumb_photo_count }} фотографий, {{ folder.breadcrumb_folder_count }} папок">
           <span><i class="bi bi-image"></i>{{ folder.breadcrumb_photo_count }}</span>
@@ -81,25 +86,31 @@
 {% if folders %}
 <div class="photo-grid folder-grid">
   {% for folder in folders %}
-    <article class="folder-card" hx-get="{% url 'photos' organ.pk %}?folder={{ folder.pk }}{% if photo_query %}&q={{ photo_query|urlencode }}{% endif %}{% if photo_sort == 'oldest' %}&sort=oldest{% endif %}" hx-trigger="click[!event.target.closest('[data-folder-card-action]')]" hx-target="#workspace" hx-swap="innerHTML" {% if can_write %}data-photo-upload-url="{% url 'photo_bulk_upload' organ.pk %}?folder={{ folder.pk }}"{% endif %}>
-      <button class="folder-card-open" type="button">
+    <article class="folder-card" {% if can_write %}data-photo-upload-url="{% url 'photo_bulk_upload' organ.pk %}?folder={{ folder.pk }}"{% endif %}>
+      <button class="folder-card-open" type="button" hx-get="{% url 'photos' organ.pk %}?folder={{ folder.pk }}{% if photo_query %}&q={{ photo_query|urlencode }}{% endif %}{% if photo_sort == 'oldest' %}&sort=oldest{% endif %}{% if photo_item_order == 'photos' %}&order=photos{% endif %}" hx-target="#workspace" hx-swap="innerHTML">
         <div class="folder-card-icon"><i class="bi bi-folder2-open"></i></div>
         <div class="folder-card-body">
           <strong>{{ folder.name }}</strong>
-          <span>{{ folder.photo_count }} фото{% if folder.child_count %} · {{ folder.child_count }} папок{% endif %}</span>
         </div>
       </button>
-      {% if can_write %}
+      <div class="folder-card-footer">
+        <span class="folder-card-counts" aria-label="В папке: {{ folder.photo_count }} фотографий, {{ folder.child_count }} папок">
+          <span><i class="bi bi-image"></i>{{ folder.photo_count }}</span>
+          <span><i class="bi bi-folder2"></i>{{ folder.child_count }}</span>
+        </span>
         <div class="folder-card-actions">
+          <a class="btn btn-sm btn-download" data-folder-card-action href="{% url 'photo_folder_download' organ.pk folder.pk %}" data-download-preparing="Подготовка архива..." data-bs-toggle="tooltip" data-bs-title="Скачать папку" aria-label="Скачать папку"><i class="bi bi-download"></i></a>
+      {% if can_write %}
           <button class="btn btn-sm btn-outline-primary" type="button" data-folder-card-action hx-get="{% url 'photo_folder_update' organ.pk folder.pk %}" hx-target="#modal-content" data-open-modal="true" data-bs-toggle="tooltip" data-bs-title="Редактировать папку" aria-label="Редактировать папку"><i class="bi bi-pencil"></i></button>
           <button class="btn btn-sm btn-outline-danger" type="button" data-folder-card-action hx-get="{% url 'photo_folder_delete' organ.pk folder.pk %}" hx-target="#modal-content" data-open-modal="true" data-bs-toggle="tooltip" data-bs-title="Удалить папку" aria-label="Удалить папку"><i class="bi bi-trash"></i></button>
-        </div>
       {% endif %}
+        </div>
+      </div>
     </article>
   {% endfor %}
 </div>
 {% endif %}
-<div class="photo-grid">
+<div class="photo-grid photo-file-grid">
   {% for photo in photos %}
   <article class="photo-card">
     <button class="photo-image" type="button" data-lightbox-photo data-src="{{ photo.image.url }}" data-download-url="{% url 'photo_download' organ.pk photo.pk %}" data-description="{{ photo.description }}" data-meta="{{ photo.created_at|date:'d.m.Y H:i' }} · {{ photo.created_by|default:'-' }}"><img src="{{ photo.image.url }}" alt="{{ photo.description|default:photo.original_filename }}"></button>
@@ -110,13 +121,13 @@
           <i class="bi bi-folder"></i>
           {% for folder in photo.folder_path %}
             {% if not forloop.first %}<span class="photo-folder-separator">/</span>{% endif %}
-            <button type="button" hx-get="{% url 'photos' organ.pk %}?folder={{ folder.pk }}{% if photo_sort == 'oldest' %}&sort=oldest{% endif %}" hx-target="#workspace" hx-swap="innerHTML">{{ folder.name }}</button>
+            <button type="button" hx-get="{% url 'photos' organ.pk %}?folder={{ folder.pk }}{% if photo_sort == 'oldest' %}&sort=oldest{% endif %}{% if photo_item_order == 'photos' %}&order=photos{% endif %}" hx-target="#workspace" hx-swap="innerHTML">{{ folder.name }}</button>
           {% endfor %}
         </nav>
       {% endif %}
       {% if photo.description %}<p class="photo-description" title="{{ photo.description }}">{{ photo.description }}</p>{% endif %}
       <div class="photo-actions">
-        <a class="btn btn-sm btn-outline-secondary" href="{% url 'photo_download' organ.pk photo.pk %}" data-bs-toggle="tooltip" data-bs-title="Скачать" aria-label="Скачать фотографию"><i class="bi bi-download"></i></a>
+        <a class="btn btn-sm btn-download" href="{% url 'photo_download' organ.pk photo.pk %}" data-bs-toggle="tooltip" data-bs-title="Скачать" aria-label="Скачать фотографию"><i class="bi bi-download"></i></a>
         {% if can_write %}
         <button class="btn btn-sm btn-outline-primary" hx-get="{% url 'photo_update' organ.pk photo.pk %}" hx-target="#modal-content" data-open-modal="true" data-bs-toggle="tooltip" data-bs-title="Редактировать" aria-label="Редактировать фотографию"><i class="bi bi-pencil"></i></button>
         <button class="btn btn-sm btn-outline-danger" hx-get="{% url 'photo_delete' organ.pk photo.pk %}" hx-target="#modal-content" data-open-modal="true" data-bs-toggle="tooltip" data-bs-title="Удалить" aria-label="Удалить фотографию"><i class="bi bi-trash"></i></button>

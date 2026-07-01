@@ -1,6 +1,9 @@
 :root {
   --navy: #0b2f5b;
   --blue: #1769aa;
+  --green: #1f8a4c;
+  --green-dark: #166b3a;
+  --green-soft: #e8f7ee;
   --sky: #dff2ff;
   --line: #d7e4ef;
   --ink: #172033;
@@ -113,6 +116,47 @@ textarea {
 }
 @keyframes progress-slide {
   to { transform: translateX(230%); }
+}
+[data-download-preparing].is-preparing {
+  cursor: wait;
+  pointer-events: none;
+  opacity: .82;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .45rem;
+  white-space: nowrap;
+}
+.dropdown-item[data-download-preparing].is-preparing {
+  justify-content: flex-start;
+}
+.btn-icon.is-preparing,
+.btn-sm.is-preparing-icon {
+  width: var(--btn-icon-size, 2rem);
+  min-width: var(--btn-icon-size, 2rem);
+  max-width: var(--btn-icon-size, 2rem);
+  padding-left: 0;
+  padding-right: 0;
+}
+.download-preparing-notice {
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+  border-color: #b8ddf6;
+  background: #eef8ff;
+  color: #123a5d;
+}
+.download-preparing-text {
+  display: grid;
+  gap: .08rem;
+  line-height: 1.2;
+}
+.download-preparing-text strong {
+  font-weight: 600;
+}
+.download-preparing-text span {
+  font-size: .82rem;
+  color: var(--muted);
 }
 .app-header {
   position: static;
@@ -943,6 +987,23 @@ textarea {
   --summary-bg: #eef7ff;
   --summary-border: #c9e2f4;
 }
+.tmc-drilldown-link {
+  border: 0;
+  background: transparent;
+  color: var(--primary);
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  padding: 0;
+  text-decoration: none;
+  cursor: pointer;
+}
+.tmc-drilldown-link:hover,
+.tmc-drilldown-link:focus-visible {
+  color: var(--primary-dark);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 .dropdown-menu .dropdown-item {
   display: flex;
   align-items: center;
@@ -989,6 +1050,21 @@ textarea {
   white-space: nowrap;
 }
 .data-table tbody tr:last-child > td {
+  border-bottom: 0;
+}
+.data-table:not(.table-tmc-requests) th,
+.data-table:not(.table-tmc-requests) td {
+  border-right: 2px solid #7faed0;
+  border-bottom: 2px solid #7faed0;
+}
+.data-table:not(.table-tmc-requests) th:last-child,
+.data-table:not(.table-tmc-requests) td:last-child {
+  border-right: 0;
+}
+.data-table:not(.table-tmc-requests) thead th {
+  border-bottom: 2px solid #7faed0;
+}
+.data-table:not(.table-tmc-requests) tbody tr:last-child > td {
   border-bottom: 0;
 }
 .data-table:not(.table-tmc-requests) tbody tr.data-row:not(:last-child) > td {
@@ -1498,6 +1574,27 @@ textarea {
   border-color: #b42318;
   box-shadow: 0 4px 10px rgba(180, 35, 24, .18);
 }
+.btn-download {
+  color: var(--green);
+  border-color: var(--green);
+  background: #fff;
+}
+.btn-download:hover,
+.btn-download:focus-visible {
+  color: #fff;
+  background: var(--green);
+  border-color: var(--green);
+  box-shadow: 0 4px 10px rgba(31, 138, 76, .18);
+}
+.btn-download.btn-icon {
+  color: var(--green);
+}
+.btn-download.btn-icon:hover,
+.btn-download.btn-icon:focus-visible {
+  color: #fff;
+  background: var(--green);
+  border-color: var(--green);
+}
 .empty-state {
   padding: 1.4rem;
   text-align: center;
@@ -1653,10 +1750,20 @@ textarea {
 }
 .narrow { max-width: 680px; margin: 0 auto; }
 .photo-browser {
+  --photo-card-gap: 10px;
+  display: flex;
+  flex-direction: column;
   min-height: 240px;
   padding-top: 12px;
   border-radius: 8px;
 }
+.photo-browser > .active-filter-bar { order: 1; }
+.photo-browser > .photo-breadcrumb { order: 2; }
+.photo-browser > .folder-grid { order: 3; }
+.photo-browser > .photo-file-grid { order: 4; }
+.photo-browser > .photo-pagination { order: 5; }
+.photo-order-photos > .photo-file-grid { order: 3; }
+.photo-order-photos > .folder-grid { order: 4; }
 .photo-browser.is-dragover {
   outline: 2px dashed var(--blue);
   outline-offset: -4px;
@@ -1665,7 +1772,7 @@ textarea {
 .photo-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
-  gap: 10px;
+  gap: var(--photo-card-gap);
 }
 .photo-summary {
   display: flex;
@@ -1742,7 +1849,11 @@ textarea {
   font-size: .82rem;
 }
 .folder-grid {
-  margin-bottom: 10px;
+  margin-bottom: var(--photo-card-gap);
+}
+.photo-order-photos > .folder-grid {
+  margin-top: var(--photo-card-gap);
+  margin-bottom: 0;
 }
 .folder-card {
   min-width: 0;
@@ -1753,8 +1864,9 @@ textarea {
   color: var(--ink);
   padding: 10px;
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
   text-align: left;
   cursor: pointer;
   transition: border-color .15s, box-shadow .15s, transform .15s;
@@ -1773,8 +1885,8 @@ textarea {
 }
 .folder-card-open {
   min-width: 0;
+  width: 100%;
   flex: 1 1 auto;
-  align-self: stretch;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -1789,16 +1901,22 @@ textarea {
   outline-offset: 3px;
   border-radius: 6px;
 }
+.folder-card-footer {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
 .folder-card-actions {
   flex: 0 0 auto;
-  align-self: flex-end;
   display: flex;
   align-items: center;
   gap: 4px;
 }
 .folder-card-actions .btn {
   width: 32px;
-  height: 32px;
+  height: 30px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1827,9 +1945,26 @@ textarea {
   overflow-wrap: anywhere;
   color: var(--navy);
 }
-.folder-card-body span {
+.folder-card-body > span {
   color: var(--muted);
   font-size: .82rem;
+}
+.folder-card-counts {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: .18rem;
+  color: var(--muted);
+  font-size: .82rem;
+  font-weight: 700;
+}
+.folder-card-counts span {
+  display: inline-flex;
+  align-items: center;
+  gap: .22rem;
+}
+.folder-card-counts i {
+  color: var(--blue);
 }
 .photo-folder {
   display: inline-flex;
@@ -1996,6 +2131,13 @@ textarea {
   background: var(--blue);
   border-color: var(--blue);
   box-shadow: 0 6px 14px rgba(23, 105, 170, .22);
+}
+.photo-lightbox-toolbar .btn-download:hover,
+.photo-lightbox-toolbar .btn-download:focus-visible {
+  color: #fff;
+  background: var(--green);
+  border-color: var(--green);
+  box-shadow: 0 6px 14px rgba(31, 138, 76, .22);
 }
 .photo-lightbox-toolbar .btn-icon.danger:hover,
 .photo-lightbox-toolbar .btn-icon.danger:focus-visible {

@@ -90,12 +90,12 @@
       </div>
     {% endif %}
     <div class="dropdown">
-      <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+      <button class="btn btn-sm btn-download" type="button" data-bs-toggle="dropdown" aria-expanded="false">
         <i class="bi bi-download"></i> Экспорт
       </button>
       <div class="dropdown-menu dropdown-menu-end">
-        <a class="dropdown-item" href="{% url 'export_table' organ.pk table.key 'csv' %}{% if table_querystring %}?{{ table_querystring }}{% endif %}"><i class="bi bi-filetype-csv"></i> Экспорт в CSV</a>
-        <a class="dropdown-item" href="{% url 'export_table' organ.pk table.key 'xlsx' %}{% if table_querystring %}?{{ table_querystring }}{% endif %}"><i class="bi bi-file-earmark-spreadsheet"></i> Экспорт в Excel</a>
+        <a class="dropdown-item" href="{% url 'export_table' organ.pk table.key 'csv' %}{% if table_querystring %}?{{ table_querystring }}{% endif %}" data-download-preparing="Подготовка экспорта..."><i class="bi bi-filetype-csv"></i> Экспорт в CSV</a>
+        <a class="dropdown-item" href="{% url 'export_table' organ.pk table.key 'xlsx' %}{% if table_querystring %}?{{ table_querystring }}{% endif %}" data-download-preparing="Подготовка экспорта..."><i class="bi bi-file-earmark-spreadsheet"></i> Экспорт в Excel</a>
       </div>
     </div>
     {% if can_add %}
@@ -146,7 +146,11 @@
     <tbody>
       {% for row in page.object_list %}
       <tr class="data-row">
-        <td>{{ row.product__name|default:row.name }}</td>
+        <td>
+          <button class="tmc-drilldown-link" type="button" hx-get="{% url 'table_data' organ.pk table.key %}{% if row.drilldown_querystring %}?{{ row.drilldown_querystring }}{% endif %}" hx-target="#table-area" hx-swap="innerHTML">
+            {{ row.product__name|default:row.name }}
+          </button>
+        </td>
         <td class="text-center">{{ row.request_count }}</td>
         {% if is_multi_organ %}<td class="text-center">{{ row.organ_count }}</td>{% endif %}
         <td class="text-center">{{ row.total_quantity }}</td>

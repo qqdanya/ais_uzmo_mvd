@@ -19,7 +19,7 @@
         </div>
         <div class="request-photo-summary-actions">
           {% if attached_photo_count %}
-            <a class="btn btn-sm btn-outline-secondary" href="{% url 'request_photos_download' organ.pk table_key object.pk %}">
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'request_photos_download' organ.pk table_key object.pk %}" data-download-preparing="Подготовка архива...">
               <i class="bi bi-file-earmark-zip"></i> Скачать все
             </a>
           {% endif %}
@@ -43,7 +43,7 @@
               <span>{{ photo.created_at|date:"d.m.Y H:i" }} · {{ photo.created_by|default:"-" }}</span>
               {% if photo.description %}<p>{{ photo.description }}</p>{% endif %}
               <div class="request-linked-photo-actions">
-                <a class="btn btn-sm btn-outline-secondary" href="{% url 'photo_download' organ.pk photo.pk %}"><i class="bi bi-download"></i> Скачать</a>
+                <a class="btn btn-sm btn-download" href="{% url 'photo_download' organ.pk photo.pk %}"><i class="bi bi-download"></i> Скачать</a>
                 {% if can_write %}
                   <button class="btn btn-sm btn-outline-danger" type="button" data-detach-request-photo="{{ photo.pk }}"><i class="bi bi-link-45deg"></i> Открепить</button>
                 {% endif %}
