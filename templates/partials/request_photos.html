@@ -58,10 +58,10 @@
 
       {% if can_write %}
         <div class="request-photo-picker" data-request-photo-panel hidden>
-          <div id="request-photo-filters" class="request-photo-filters" hx-get="{% url 'request_photo_picker' organ.pk %}" hx-target="#request-photo-results" hx-swap="innerHTML" hx-include="#request-photo-selected, #request-photo-filters" hx-trigger="input changed delay:500ms, change">
+          <div id="request-photo-filters" class="request-photo-filters" hx-get="{% url 'request_photo_picker' organ.pk %}" hx-target="#request-photo-results" hx-swap="innerHTML" hx-include="#request-photo-selected, #request-photo-filters" hx-trigger="input delay:500ms from:#request-photo-search-input, change">
             <div class="search-box request-photo-search">
               <i class="bi bi-search"></i>
-              <input class="form-control form-control-sm" name="photo_q" value="{{ photo_picker_query }}" placeholder="Поиск по имени файла и описанию">
+              <input id="request-photo-search-input" class="form-control form-control-sm" name="photo_q" value="{{ photo_picker_query }}" placeholder="Поиск по имени файла и описанию">
             </div>
             <select class="form-select form-select-sm" name="photo_folder" aria-label="Папка фотографии">
               <option value="" {% if not photo_picker_folder %}selected{% endif %}>Все папки</option>

@@ -1706,6 +1706,8 @@ class AppFlowTests(TestCase):
         self.assertContains(response, "всего фотографий")
         self.assertContains(response, "всего папок")
         self.assertContains(response, "В корне: 1 фотографий, 1 папок")
+        self.assertContains(response, 'id="photo-search-input"')
+        self.assertContains(response, "input delay:500ms from:#photo-search-input")
         self.assertContains(response, '<strong>2</strong>', count=2, html=True)
 
     def test_photos_filter_by_folder(self):
@@ -1723,6 +1725,15 @@ class AppFlowTests(TestCase):
 
         self.assertContains(response, "Inside folder")
         self.assertNotContains(response, "Without folder")
+        self.assertNotContains(response, "active-filter-bar")
+
+        response = self.client.get(reverse("photos", args=[self.organ.pk]), {"folder": folder.pk, "q": "inside", "sort": "oldest"})
+
+        reset_url = f'{reverse("photos", args=[self.organ.pk])}?folder={folder.pk}'
+        self.assertContains(response, "active-filter-bar")
+        self.assertContains(response, "inside")
+        self.assertContains(response, "oldest")
+        self.assertContains(response, f'hx-get="{reset_url}"')
 
     def test_photos_search_includes_folder_names(self):
         TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Assembly hall")
