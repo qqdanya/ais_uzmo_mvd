@@ -55,6 +55,11 @@ function removeStoredValue(key) {
   }
 }
 
+function formatLocalDateTime(date) {
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 function rememberSelectedOrgan(organId) {
   window.selectedOrgan = Number(organId);
   storeValue(ORGAN_STORAGE_KEY, String(window.selectedOrgan));
@@ -837,6 +842,37 @@ function setBulkPhotoFormBusy(form, isBusy) {
   }
 }
 
+function updateSingleFilePicker(input) {
+  const picker = input.closest("[data-single-file-picker]");
+  const file = input.files?.[0];
+  const name = picker?.querySelector("[data-single-file-name]");
+  if (name) name.textContent = file?.name || "Изображение не выбрано";
+  if (!picker || !file) return;
+
+  const uploadedAt = formatLocalDateTime(new Date());
+  const uploadDate = document.querySelector("[data-single-file-uploaded-at]");
+  if (uploadDate) uploadDate.textContent = uploadedAt;
+  const meta = picker.querySelector("[data-single-file-meta]");
+  if (meta) meta.textContent = `${uploadedAt} · ${meta.dataset.singleFileOwner || "-"}`;
+
+  const preview = picker.querySelector("[data-single-file-preview]");
+  if (!preview) return;
+  if (preview.dataset.objectUrl) {
+    URL.revokeObjectURL(preview.dataset.objectUrl);
+  }
+  const objectUrl = URL.createObjectURL(file);
+  preview.dataset.objectUrl = objectUrl;
+  preview.src = objectUrl;
+  preview.alt = file.name;
+
+  const lightboxButton = picker.querySelector("[data-lightbox-photo]");
+  if (lightboxButton) {
+    lightboxButton.dataset.src = objectUrl;
+    lightboxButton.dataset.description = file.name;
+    lightboxButton.dataset.meta = meta?.textContent || uploadedAt;
+  }
+}
+
 async function postBulkPhotoBatch(form, files, descriptions, startIndex) {
   const formData = new FormData();
   formData.append("csrfmiddlewaretoken", csrfToken(form));
@@ -1256,9 +1292,7 @@ document.addEventListener("change", (event) => {
     return;
   }
   if (event.target.matches("[data-single-file-picker] input[type='file']")) {
-    const picker = event.target.closest("[data-single-file-picker]");
-    const name = picker?.querySelector("[data-single-file-name]");
-    if (name) name.textContent = event.target.files?.[0]?.name || "Изображение не выбрано";
+    updateSingleFilePicker(event.target);
     return;
   }
   if (!event.target.matches("[data-bulk-photo-input]")) return;

@@ -145,6 +145,8 @@ class AppFlowTests(TestCase):
 
         response = self.client.get(reverse("record_create", args=[self.organ.pk, "tmc-requests"]), HTTP_HX_REQUEST="true")
 
+        self.assertContains(response, 'hx-target="#table-area"')
+        self.assertContains(response, "novalidate")
         self.assertContains(response, 'name="status"')
         self.assertContains(response, 'value="in_work"')
         self.assertNotContains(response, 'value="new"')
@@ -552,7 +554,7 @@ class AppFlowTests(TestCase):
         self.assertContains(response, "позиций")
         self.assertContains(response, "Применены фильтры:")
         self.assertContains(response, "выборочно: 2 органов")
-        self.assertContains(response, "режим: По ТМЦ")
+        self.assertContains(response, "группировка: По ТМЦ")
         self.assertContains(response, "Сбросить все")
         self.assertContains(response, "data-reset-table-state")
         self.assertContains(response, "Позиций найдено")
@@ -741,7 +743,57 @@ class AppFlowTests(TestCase):
 
         response = self.client.get(reverse("record_create", args=[self.organ.pk, "citsizi-equipment"]), HTTP_HX_REQUEST="true")
 
+        self.assertContains(response, 'hx-target="#table-area"')
+        self.assertContains(response, "novalidate")
+        self.assertEqual(response.content.decode().count("<form"), 1)
+        self.assertNotContains(response, '<form class="pagination-jump"', html=False)
+        self.assertContains(response, "Выберите тип техники")
+        self.assertNotContains(response, "---------")
         self.assertContains(response, f'value="{EquipmentType.SOUND_ALERT}"')
+
+    def test_citsizi_equipment_type_is_required(self):
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.post(
+            reverse("record_create", args=[self.organ.pk, "citsizi-equipment"]),
+            {
+                "request_number": "C-empty",
+                "request_date": "2026-06-20",
+                "quantity": "1",
+                "status": "in_work",
+                "equipment_type": "",
+                "comment": "",
+            },
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Выберите тип техники")
+        self.assertContains(response, 'hx-target="#table-area"')
+        self.assertEqual(response["HX-Retarget"], "#modal-content")
+        self.assertIn("equipment_type", response.context["form"].errors)
+        self.assertFalse(CitsiziEquipment.objects.filter(request_number="C-empty").exists())
+
+    def test_citsizi_valid_create_retargets_table_area(self):
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.post(
+            reverse("record_create", args=[self.organ.pk, "citsizi-equipment"]),
+            {
+                "request_number": "C-valid",
+                "request_date": "2026-06-20",
+                "quantity": "1",
+                "status": "in_work",
+                "equipment_type": EquipmentType.COMMUNICATION,
+                "comment": "",
+            },
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("HX-Retarget", response)
+        self.assertTrue(CitsiziEquipment.objects.filter(request_number="C-valid").exists())
+        self.assertContains(response, "C-valid")
 
     def test_citsizi_request_table_history_filters_and_styled_export(self):
         included = CitsiziEquipment.objects.create(territorial_organ=self.organ, request_number="C-10", request_date="2026-06-20", equipment_type="communication", quantity=3, status="in_work", comment="Install radio")
@@ -1332,11 +1384,33 @@ class AppFlowTests(TestCase):
         self.assertContains(response, "edit-preview.png")
         self.assertContains(response, "Preview description")
         self.assertContains(response, "photo-edit-replace")
+        self.assertContains(response, "data-single-file-preview")
         self.assertContains(response, "Выбрать изображение")
+        self.assertContains(response, '<i class="bi bi-image" aria-hidden="true"></i> Выбрать изображение', html=True)
         self.assertContains(response, "Parent / Folder")
         self.assertContains(response, "custom-select-field")
         self.assertContains(response, "custom-select")
         self.assertContains(response, "custom-select-native", count=0)
+
+    def test_photo_replace_updates_upload_date(self):
+        photo = self.create_photo("old-photo.png")
+        old_created_at = timezone.now() - timedelta(days=3)
+        TerritorialOrganPhoto.objects.filter(pk=photo.pk).update(created_at=old_created_at)
+        buffer = BytesIO()
+        Image.new("RGB", (2, 2), "blue").save(buffer, format="PNG")
+        image = SimpleUploadedFile("new-photo.png", buffer.getvalue(), content_type="image/png")
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.post(
+            reverse("photo_update", args=[self.organ.pk, photo.pk]),
+            {"image": image, "description": "Updated photo"},
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        photo.refresh_from_db()
+        self.assertGreater(photo.created_at, old_created_at)
+        self.assertEqual(photo.original_filename, "new-photo.png")
 
     def create_photo(self, filename="photo.png"):
         buffer = BytesIO()
@@ -1509,6 +1583,34 @@ class AppFlowTests(TestCase):
         self.assertNotContains(response, "Old name")
         self.assertTrue(AuditLog.objects.filter(action=AuditLog.Action.UPDATE, model_name="TerritorialOrganPhotoFolder").exists())
 
+    def test_photo_folder_can_be_moved_to_another_folder(self):
+        parent = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Parent")
+        target = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Target")
+        child = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, parent=parent, name="Child")
+        folder = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, parent=parent, name="Moved")
+        nested = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, parent=folder, name="Nested")
+        self.client.login(username="operator", password="pass12345")
+
+        form_response = self.client.get(reverse("photo_folder_update", args=[self.organ.pk, folder.pk]), HTTP_HX_REQUEST="true")
+        self.assertContains(form_response, "Расположение")
+        self.assertContains(form_response, "photo-folder-form")
+        self.assertContains(form_response, "Parent / Child")
+        self.assertContains(form_response, "Target")
+        self.assertNotContains(form_response, "Moved / Nested")
+
+        response = self.client.post(
+            reverse("photo_folder_update", args=[self.organ.pk, folder.pk]),
+            {"name": "Moved", "parent": target.pk},
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        folder.refresh_from_db()
+        nested.refresh_from_db()
+        self.assertEqual(folder.parent, target)
+        self.assertEqual(nested.parent, folder)
+        self.assertEqual(response.context["selected_folder"], target)
+
     def test_photo_folder_delete_soft_deletes_content(self):
         parent = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Parent")
         folder = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, parent=parent, name="Delete me")
@@ -1596,6 +1698,7 @@ class AppFlowTests(TestCase):
         self.assertContains(response, "Folder")
         self.assertContains(response, '<article class="folder-card" hx-get=', html=False)
         self.assertContains(response, "hx-trigger=\"click[!event.target.closest('[data-folder-card-action]')]\"")
+        self.assertContains(response, "Редактировать папку")
         self.assertNotContains(response, "Inside folder")
         self.assertContains(response, '<strong>2</strong>', html=True)
 

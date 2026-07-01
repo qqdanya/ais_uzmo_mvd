@@ -64,7 +64,7 @@
       </button>
       {% if can_write %}
         <div class="folder-card-actions">
-          <button class="btn btn-sm btn-outline-primary" type="button" data-folder-card-action hx-get="{% url 'photo_folder_update' organ.pk folder.pk %}" hx-target="#modal-content" data-open-modal="true" data-bs-toggle="tooltip" data-bs-title="Переименовать папку" aria-label="Переименовать папку"><i class="bi bi-pencil"></i></button>
+          <button class="btn btn-sm btn-outline-primary" type="button" data-folder-card-action hx-get="{% url 'photo_folder_update' organ.pk folder.pk %}" hx-target="#modal-content" data-open-modal="true" data-bs-toggle="tooltip" data-bs-title="Редактировать папку" aria-label="Редактировать папку"><i class="bi bi-pencil"></i></button>
           <button class="btn btn-sm btn-outline-danger" type="button" data-folder-card-action hx-get="{% url 'photo_folder_delete' organ.pk folder.pk %}" hx-target="#modal-content" data-open-modal="true" data-bs-toggle="tooltip" data-bs-title="Удалить папку" aria-label="Удалить папку"><i class="bi bi-trash"></i></button>
         </div>
       {% endif %}

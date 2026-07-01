@@ -1,6 +1,7 @@
-<form method="post" hx-post="{{ request.path }}" hx-target="#workspace">
+{% load request_tags %}
+<form class="photo-folder-form" method="post" hx-post="{{ request.path }}" hx-target="#workspace">
   <div class="modal-header">
-    <h5 class="modal-title">{% if folder %}Переименование папки{% else %}Новая папка фотографий{% endif %}</h5>
+    <h5 class="modal-title">{% if folder %}Редактирование папки{% else %}Новая папка фотографий{% endif %}</h5>
     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
   </div>
   <div class="modal-body">
@@ -16,9 +17,13 @@
       {% endif %}
     {% endif %}
     {% for field in form %}
-      <div class="form-field wide">
+      <div class="form-field wide {% if field|is_select_field %}custom-select-field{% endif %}">
         <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-        {{ field }}
+        {% if field|is_select_field %}
+          {% include "partials/custom_select_field.html" %}
+        {% else %}
+          {{ field }}
+        {% endif %}
         {% for error in field.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
       </div>
     {% endfor %}

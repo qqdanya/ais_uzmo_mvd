@@ -14,6 +14,11 @@ class BootstrapModelForm(forms.ModelForm):
             self.fields["status"].choices = ACTIVE_NEED_STATUS_CHOICES
             if not self.is_bound and not self.instance.pk:
                 self.fields["status"].initial = ACTIVE_NEED_STATUS_CHOICES[0][0]
+        if "equipment_type" in self.fields:
+            self.fields["equipment_type"].empty_label = "Выберите тип техники"
+            choices = list(self.fields["equipment_type"].choices)
+            if choices and choices[0][0] == "":
+                self.fields["equipment_type"].choices = [("", "Выберите тип техники"), *choices[1:]]
         for field in self.fields.values():
             css = "form-select" if isinstance(field.widget, forms.Select) else "form-control"
             if isinstance(field.widget, (forms.CheckboxInput, forms.ClearableFileInput)):

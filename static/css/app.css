@@ -1334,7 +1334,21 @@ textarea {
   overflow-wrap: anywhere;
 }
 .photo-edit-replace {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .35rem;
   justify-self: start;
+  white-space: nowrap;
+}
+.photo-edit-replace i {
+  width: 1em;
+  min-width: 1em;
+  height: 1em;
+  display: inline-block;
+  font-size: 1em;
+  line-height: 1;
+  flex: 0 0 auto;
 }
 .status-badge {
   display: inline-flex;
@@ -2161,6 +2175,9 @@ textarea {
   max-height: calc(100vh - 3.5rem);
   min-height: 0;
 }
+.modal-content > form.photo-folder-form {
+  min-height: min(480px, calc(100vh - 3.5rem));
+}
 .modal-header {
   background: #f4f9fd;
   border-bottom: 1px solid var(--line);
@@ -2174,6 +2191,9 @@ textarea {
   background: #fbfdff;
   overflow: auto;
   min-height: 0;
+}
+.photo-folder-form .modal-body {
+  flex: 1 1 auto;
 }
 .modal-footer {
   background: #fff;

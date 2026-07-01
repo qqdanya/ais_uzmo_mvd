@@ -1,5 +1,5 @@
 {% load request_tags %}
-<form method="post" hx-post="{{ request.path }}" hx-target="#table-area" data-tmc-request-form>
+<form method="post" hx-post="{{ request.path }}" hx-target="#table-area" data-tmc-request-form novalidate>
   <div class="modal-header">
     <h5 class="modal-title">{% if instance %}Редактирование{% else %}Новая запись{% endif %}: {{ table.title }}</h5>
     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>

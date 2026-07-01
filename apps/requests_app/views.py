@@ -244,7 +244,7 @@ def active_table_conditions(request, table_key, selected_organs, is_tmc_grouped)
     if len(selected_organs) > 1:
         conditions.append(f"выборочно: {len(selected_organs)} органов")
     if is_tmc_grouped:
-        conditions.append("режим: По ТМЦ")
+        conditions.append("группировка: По ТМЦ")
     query = request.GET.get("q", "").strip()
     if query:
         conditions.append(f"поиск: {query}")
@@ -869,7 +869,10 @@ def tmc_record_form(request, organ, table, instance=None):
             return response
     context = {"form": form, "organ": organ, "table": table, "instance": instance, "item_rows": item_rows, "item_errors": item_errors, "show_request_photo_picker": True}
     context.update(request_photo_form_context(request, organ, selected_photo_ids))
-    return render(request, "partials/tmc_request_form.html", context)
+    response = render(request, "partials/tmc_request_form.html", context)
+    if request.method == "POST":
+        response["HX-Retarget"] = "#modal-content"
+    return response
 
 
 @login_required
@@ -1257,7 +1260,10 @@ def record_form(request, organ_id, table_key, pk=None):
     context = {"form": form, "organ": organ, "table": table, "instance": instance, "show_request_photo_picker": table_key in REQUEST_PHOTO_TABLES}
     if table_key in REQUEST_PHOTO_TABLES:
         context.update(request_photo_form_context(request, organ, selected_photo_ids))
-    return render(request, "partials/record_form.html", context)
+    response = render(request, "partials/record_form.html", context)
+    if request.method == "POST":
+        response["HX-Retarget"] = "#modal-content"
+    return response
 
 
 @login_required
@@ -1489,6 +1495,8 @@ def photo_form(request, organ_id, pk=None):
     if request.method == "POST" and form.is_valid():
         obj = form.save(commit=False)
         obj.territorial_organ = organ
+        if photo and request.FILES.get("image"):
+            obj.created_at = timezone.now()
         if not obj.pk:
             obj.created_by = request.user
         obj.updated_by = request.user
@@ -1516,7 +1524,10 @@ def photo_folder_form(request, organ_id, pk=None):
     if request.method == "POST" and form.is_valid():
         obj = form.save(commit=False)
         obj.territorial_organ = organ
-        obj.parent = current_folder
+        if not folder:
+            obj.parent = current_folder
+        elif "parent" not in request.POST:
+            obj.parent = current_folder
         obj.save()
         write_audit(AuditLog.Action.UPDATE if folder else AuditLog.Action.CREATE, obj, old_values=old_values, new_values=serialize_instance(obj), request=request)
         response = render_photos(request, organ, obj.parent_id or "")

@@ -34,11 +34,11 @@
     {% if photo_picker_page.has_next %}
       <button class="photo-page-number pagination-arrow" type="button" hx-get="{% url 'request_photo_picker' organ.pk %}?photo_page={{ photo_picker_page.next_page_number }}" hx-target="#request-photo-results" hx-swap="innerHTML" hx-include="#request-photo-selected, #request-photo-filters" aria-label="Следующая страница"><i class="bi bi-chevron-right"></i></button>
     {% endif %}
-    <form class="pagination-jump" hx-get="{% url 'request_photo_picker' organ.pk %}" hx-target="#request-photo-results" hx-swap="innerHTML" hx-include="#request-photo-selected, #request-photo-filters" aria-label="Перейти к странице фотографий">
+    <div class="pagination-jump" aria-label="Перейти к странице фотографий">
       <span>Стр.</span>
-      <input class="form-control form-control-sm" type="number" min="1" max="{{ photo_picker_page.paginator.num_pages }}" value="{{ photo_picker_page.number }}" name="photo_page">
+      <input class="form-control form-control-sm" type="number" min="1" max="{{ photo_picker_page.paginator.num_pages }}" value="{{ photo_picker_page.number }}" name="photo_page" hx-get="{% url 'request_photo_picker' organ.pk %}" hx-target="#request-photo-results" hx-swap="innerHTML" hx-include="#request-photo-selected, #request-photo-filters" hx-trigger="change, keyup[key=='Enter']">
       <span>/ {{ photo_picker_page.paginator.num_pages }}</span>
-    </form>
+    </div>
   </div>
 </nav>
 {% endif %}
