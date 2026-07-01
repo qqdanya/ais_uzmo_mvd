@@ -1,16 +1,145 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="container-fluid py-3">
-  <div class="panel">
-    <h1 class="h4 mb-3">Журнал действий</h1>
-    <form class="row g-2 mb-3">
-      <div class="col"><input class="form-control" name="user" placeholder="Пользователь" value="{{ request.GET.user }}"></div>
-      <div class="col"><select class="form-select" name="action"><option value="">Действие</option>{% for value,label in actions %}<option value="{{ value }}" {% if request.GET.action == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
-      <div class="col"><input class="form-control" type="date" name="date_from" value="{{ request.GET.date_from }}"></div>
-      <div class="col"><input class="form-control" type="date" name="date_to" value="{{ request.GET.date_to }}"></div>
-      <div class="col-auto"><button class="btn btn-primary">Фильтр</button></div>
+<div class="container-fluid py-3 audit-page">
+  <section class="panel audit-panel">
+    <div class="workspace-head audit-head">
+      <div>
+        <div class="small text-secondary">Администрирование</div>
+        <h1>Журнал действий</h1>
+      </div>
+      <a class="btn btn-outline-primary" href="{% url 'dashboard' %}"><i class="bi bi-arrow-left"></i> На главную</a>
+    </div>
+
+    <form class="audit-filters">
+      <div class="search-box audit-search">
+        <i class="bi bi-search"></i>
+        <input class="form-control form-control-sm" name="q" value="{{ request.GET.q }}" placeholder="Поиск в журнале событий">
+      </div>
+      <input class="form-control form-control-sm" name="user" value="{{ request.GET.user }}" list="audit-users" placeholder="Пользователь">
+      <datalist id="audit-users">
+        {% for account in users %}<option value="{{ account.username }}"></option>{% endfor %}
+      </datalist>
+      <select class="form-select form-select-sm" name="action" aria-label="Действие">
+        <option value="">Все действия</option>
+        {% for value,label in actions %}<option value="{{ value }}" {% if request.GET.action == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+      <select class="form-select form-select-sm" name="model" aria-label="Тип объекта">
+        <option value="">Все объекты</option>
+        {% for value,label in model_names %}<option value="{{ value }}" {% if request.GET.model == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+      <select class="form-select form-select-sm" name="organ" aria-label="Территориальный орган">
+        <option value="">Все территориальные органы</option>
+        {% for organ in organs %}<option value="{{ organ.pk }}" {% if request.GET.organ == organ.pk|stringformat:"s" %}selected{% endif %}>{{ organ.name }}</option>{% endfor %}
+      </select>
+      <div class="date-range audit-date-range">
+        <input class="form-control form-control-sm" type="date" name="date_from" value="{{ date_from }}" aria-label="Дата с">
+        <span>-</span>
+        <input class="form-control form-control-sm" type="date" name="date_to" value="{{ date_to }}" aria-label="Дата по">
+      </div>
+      <div class="audit-filter-actions">
+        <button class="btn btn-sm btn-primary"><i class="bi bi-funnel"></i> Применить</button>
+        {% if has_filters %}
+          <a class="btn btn-sm btn-outline-secondary" href="{% url 'audit_log' %}"><i class="bi bi-x-lg"></i> Сбросить</a>
+        {% endif %}
+      </div>
     </form>
-    <div class="table-wrap"><table class="table table-sm data-table"><thead><tr><th>Дата</th><th>Пользователь</th><th>Действие</th><th>Объект</th><th>IP</th></tr></thead><tbody>{% for log in logs %}<tr><td>{{ log.created_at|date:"d.m.Y H:i" }}</td><td>{{ log.user|default:"-" }}</td><td>{{ log.get_action_display }}</td><td>{{ log.object_repr|default:log.get_action_display }}</td><td>{{ log.ip_address|default:"-" }}</td></tr>{% empty %}<tr><td colspan="5"><div class="empty-state">Записей пока нет</div></td></tr>{% endfor %}</tbody></table></div>
-  </div>
+
+    <div class="audit-toolbar">
+      <span class="metric-card metric-card-horizontal audit-count-card">
+        <strong>{{ total_count }}</strong>
+        <span>записей найдено</span>
+      </span>
+    </div>
+
+    {% if page.has_other_pages %}
+      <nav class="table-pagination audit-pagination-top" aria-label="Страницы журнала действий">
+        <div class="photo-pagination-group">
+          {% if page.has_previous %}
+            <a class="photo-page-number pagination-arrow" href="{% url 'audit_log' %}?{% if querystring %}{{ querystring }}&{% endif %}page={{ page.previous_page_number }}" aria-label="Предыдущая страница"><i class="bi bi-chevron-left"></i></a>
+          {% endif %}
+          <div class="photo-page-numbers" aria-label="Выбор страницы">
+            {% for page_number in page_links %}
+              {% if page_number == page.paginator.ELLIPSIS %}
+                <span class="photo-page-ellipsis">{{ page_number }}</span>
+              {% elif page_number == page.number %}
+                <span class="photo-page-number is-active" aria-current="page">{{ page_number }}</span>
+              {% else %}
+                <a class="photo-page-number" href="{% url 'audit_log' %}?{% if querystring %}{{ querystring }}&{% endif %}page={{ page_number }}">{{ page_number }}</a>
+              {% endif %}
+            {% endfor %}
+          </div>
+          {% if page.has_next %}
+            <a class="photo-page-number pagination-arrow" href="{% url 'audit_log' %}?{% if querystring %}{{ querystring }}&{% endif %}page={{ page.next_page_number }}" aria-label="Следующая страница"><i class="bi bi-chevron-right"></i></a>
+          {% endif %}
+          <form class="pagination-jump" method="get" action="{% url 'audit_log' %}" aria-label="Перейти к странице журнала">
+            <input type="hidden" name="q" value="{{ request.GET.q }}">
+            <input type="hidden" name="user" value="{{ request.GET.user }}">
+            <input type="hidden" name="action" value="{{ request.GET.action }}">
+            <input type="hidden" name="model" value="{{ request.GET.model }}">
+            <input type="hidden" name="organ" value="{{ request.GET.organ }}">
+            <input type="hidden" name="date_from" value="{{ date_from }}">
+            <input type="hidden" name="date_to" value="{{ date_to }}">
+            <span>Стр.</span>
+            <input class="form-control form-control-sm" type="number" min="1" max="{{ page.paginator.num_pages }}" value="{{ page.number }}" name="page">
+            <span>/ {{ page.paginator.num_pages }}</span>
+          </form>
+        </div>
+      </nav>
+    {% endif %}
+
+    <div class="table-wrap audit-table-wrap">
+      <table class="table table-sm data-table audit-table">
+        <thead>
+          <tr>
+            <th>Дата и время</th>
+            <th>Пользователь</th>
+            <th>Действие</th>
+            <th>Событие</th>
+            <th>Платформа</th>
+            <th>Подробности</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for log in logs %}
+            <tr class="data-row">
+              <td class="audit-time audit-center-cell">{{ log.created_at|date:"d.m.Y H:i:s" }}</td>
+              <td class="audit-user-cell audit-center-cell">
+                <strong>{{ log.user|default:"Система" }}</strong>
+              </td>
+              <td class="audit-action-cell"><span class="audit-action {{ log.action_badge }}">{{ log.action_display }}</span></td>
+              <td class="audit-event">
+                <strong>{{ log.summary }}</strong>
+                {% if log.display_object_repr %}<span class="audit-muted">{{ log.display_object_repr }}</span>{% endif %}
+                {% if log.location_parts %}
+                  <div class="audit-location-list">
+                    {% for label,value in log.location_parts %}
+                      <span><b>{{ label }}:</b> {{ value }}</span>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+              </td>
+              <td class="audit-center-cell">
+                <strong>{{ log.ip_address|default:"IP не указан" }}</strong>
+                <span class="audit-muted">{{ log.browser_summary }}</span>
+              </td>
+              <td class="actions-cell">
+                <button class="btn btn-sm btn-outline-primary audit-detail-button" type="button" hx-get="{% url 'audit_detail' log.pk %}" hx-target="#modal-content" data-open-modal="true"><i class="bi bi-list-ul"></i> Смотреть</button>
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="6">
+                <div class="empty-state audit-empty">
+                  <i class="bi bi-activity"></i>
+                  <strong>Записи журнала не найдены</strong>
+                  <span>Измените фильтры или дождитесь появления действий пользователей.</span>
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
 </div>
 {% endblock %}

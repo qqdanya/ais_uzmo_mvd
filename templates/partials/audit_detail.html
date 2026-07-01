@@ -1,0 +1,111 @@
+<div class="modal-header">
+  <h2 class="modal-title">Подробности действия</h2>
+  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+</div>
+<div class="modal-body">
+  <div class="audit-detail-grid">
+    <div class="audit-detail-card">
+      <span>Дата и время</span>
+      <strong>{{ log.created_at|date:"d.m.Y H:i:s" }}</strong>
+    </div>
+    <div class="audit-detail-card">
+      <span>Пользователь</span>
+      <strong>{{ log.user|default:"Система" }}</strong>
+    </div>
+    <div class="audit-detail-card">
+      <span>Действие</span>
+      <strong>{% if log.is_object_action %}{{ log.action_display }}{% else %}{{ log.summary }}{% endif %}</strong>
+    </div>
+    {% for label,value in log.location_parts %}
+      <div class="audit-detail-card">
+        <span>{{ label }}</span>
+        <strong>{{ value }}</strong>
+      </div>
+    {% endfor %}
+  </div>
+
+  {% if log.is_object_action %}
+    <div class="audit-detail-section">
+      <h3>Объект</h3>
+      <div class="audit-object-box">
+        <span class="audit-action {{ log.action_badge }}">{{ log.model_title }}</span>
+        <strong>{{ log.display_object_repr|default:log.action_display }}</strong>
+      </div>
+    </div>
+  {% endif %}
+
+  {% if log.is_object_action and log.change_rows %}
+    <div class="audit-detail-section">
+      <h3>{% if log.action == "update" %}Измененные поля{% elif log.action == "delete" %}Данные до удаления{% else %}Заполненные параметры{% endif %}</h3>
+      <div class="audit-change-list">
+        {% for row in log.change_rows %}
+          <div class="audit-change-row">
+            <div class="audit-change-field">{{ row.label }}</div>
+            {% if log.action == "update" %}
+              <div class="audit-change-values">
+                <span>{{ row.old }}</span>
+                <i class="bi bi-arrow-right"></i>
+                <strong>{{ row.new }}</strong>
+              </div>
+            {% elif log.action == "delete" %}
+              <div class="audit-change-values"><span>{{ row.old }}</span></div>
+            {% else %}
+              <div class="audit-change-values"><strong>{{ row.new }}</strong></div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  {% endif %}
+
+  {% if log.status_history %}
+    <div class="audit-detail-section">
+      <h3>История изменений заявки</h3>
+      <div class="status-history-list audit-status-history-list">
+        {% for entry in log.status_history %}
+          <div class="status-history-item">
+            <div class="status-history-time">{{ entry.changed_at|date:"d.m.Y H:i" }}</div>
+            <div class="status-history-body">
+              <div class="status-history-change">
+                {% if entry.old_status %}
+                  <span>{{ entry.get_old_status_display }}</span>
+                  <i class="bi bi-arrow-right"></i>
+                {% else %}
+                  <span>Создана</span>
+                  <i class="bi bi-arrow-right"></i>
+                {% endif %}
+                <strong>{{ entry.get_new_status_display }}</strong>
+              </div>
+              <div class="status-history-meta">
+                {{ entry.changed_by|default:"Пользователь не указан" }}
+                {% if entry.completed_at %}<span>Дата исполнения: {{ entry.completed_at|date:"d.m.Y" }}</span>{% endif %}
+                {% if entry.note %}<span>{{ entry.note }}</span>{% endif %}
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  {% endif %}
+
+  <div class="audit-detail-section">
+    <h3>Платформа и адрес</h3>
+    <div class="audit-source-grid">
+      <div class="audit-detail-card">
+        <span>IP-адрес</span>
+        <strong>{{ log.ip_address|default:"Не указан" }}</strong>
+      </div>
+      <div class="audit-detail-card">
+        <span>Браузер / ОС</span>
+        <strong>{{ log.browser_summary }}</strong>
+      </div>
+    </div>
+    <div class="audit-user-agent">
+      <span>User-Agent</span>
+      <code>{{ log.user_agent|default:"Не указан" }}</code>
+    </div>
+  </div>
+</div>
+<div class="modal-footer">
+  <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Закрыть</button>
+</div>

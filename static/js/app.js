@@ -1879,6 +1879,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if (isMultiOrganMode()) {
       ensureMultiSelection();
       renderMultiOrganInfo();
+    } else {
+      loadOrganInfo(window.selectedOrgan);
     }
     syncOrganModeButtons();
     const department = preferredDepartmentForOrgan(window.selectedOrgan);

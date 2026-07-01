@@ -28,8 +28,8 @@ def object_message(action, instance):
     action_word = action_words.get(action, "Изменена")
     if instance.__class__.__name__ == "TerritorialOrganPhoto":
         filename = Path(instance.image.name).name if getattr(instance, "image", None) else "фотография"
-        return f'{action_word} фотография "{filename}"'
-    return f'{action_word} запись "{str(instance)}"'
+        return f"{action_word} фотография «{filename}»"
+    return f"{action_word} запись «{str(instance)}»"
 
 
 def write_audit(action, instance=None, user=None, old_values=None, new_values=None, request=None):
