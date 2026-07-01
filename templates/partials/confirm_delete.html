@@ -1,14 +1,26 @@
 <form method="post" hx-post="{{ request.path }}" hx-target="{% if photo_delete or folder_delete %}#workspace{% else %}#table-area{% endif %}">
-  <div class="modal-header"><h5 class="modal-title">Подтвердите удаление</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-header">
+    <h5 class="modal-title">Подтверждение удаления</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+  </div>
   <div class="modal-body">
     {% csrf_token %}
-    {% if folder_delete %}
-      <p>Удалить папку <strong>{{ object }}</strong>?</p>
-      <p class="text-secondary">Папка, вложенные папки и фотографии будут скрыты из раздела. Файлы останутся на сервере.</p>
-    {% else %}
-      <p>Удалить запись <strong>{{ object }}</strong>?</p>
-      <p class="text-secondary">{% if photo_delete %}Фотография будет скрыта из раздела фотографий.{% else %}Запись будет скрыта из рабочих таблиц.{% endif %}</p>
-    {% endif %}
+    <div class="delete-confirmation">
+      <div class="delete-confirmation-icon"><i class="bi bi-exclamation-triangle"></i></div>
+      <div class="delete-confirmation-body">
+        {% if folder_delete %}
+          <h6>Удалить папку?</h6>
+          <p>Папка <strong>{{ object }}</strong>, вложенные папки и фотографии будут скрыты из раздела. Файлы останутся на сервере.</p>
+        {% else %}
+          <h6>{% if photo_delete %}Удалить фотографию?{% else %}Удалить запись?{% endif %}</h6>
+          <p><strong>{{ object }}</strong></p>
+          <p>{% if photo_delete %}Фотография будет скрыта из раздела фотографий. Файл останется на сервере.{% else %}Запись будет скрыта из рабочих таблиц и останется доступной только в служебных данных.{% endif %}</p>
+        {% endif %}
+      </div>
+    </div>
   </div>
-  <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button><button class="btn btn-danger">Удалить</button></div>
+  <div class="modal-footer">
+    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+    <button class="btn btn-danger"><i class="bi bi-x-lg"></i> Удалить</button>
+  </div>
 </form>

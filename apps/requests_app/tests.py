@@ -1352,6 +1352,39 @@ class AppFlowTests(TestCase):
         self.assertTrue(item.is_deleted)
         self.assertNotContains(response, "Deleted item")
 
+    def test_delete_confirmation_uses_common_modal_style(self):
+        item = TmcRequest.objects.create(territorial_organ=self.organ, request_number="18/TMC", request_date="2026-06-27", status="in_work")
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("record_delete", args=[self.organ.pk, "tmc-requests", item.pk]), HTTP_HX_REQUEST="true")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "delete-confirmation")
+        self.assertContains(response, "Подтверждение удаления")
+        self.assertContains(response, "bi-exclamation-triangle")
+
+    def test_tmc_item_errors_use_common_modal_style(self):
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.post(
+            reverse("record_create", args=[self.organ.pk, "tmc-requests"]),
+            {
+                "request_number": "19/TMC",
+                "request_date": "2026-06-27",
+                "status": "in_work",
+                "comment": "",
+                "item_name": [""],
+                "item_quantity": [""],
+                "item_unit": ["шт."],
+            },
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "modal-error-list")
+        self.assertContains(response, "Добавьте хотя бы одну позицию заявки.")
+        self.assertFalse(TmcRequest.objects.filter(request_number="19/TMC").exists())
+
     def test_department_tabs_are_separate_tables(self):
         self.assertEqual(TABLES["tmc"][0]["title"], "Заявка")
         self.assertEqual(TABLES["antiterror"][0]["title"], "Заявка (акт обследования)")

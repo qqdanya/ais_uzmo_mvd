@@ -12,7 +12,12 @@
   <form method="post" class="auth-card">
     {% csrf_token %}
     <h1>Вход в систему</h1>
-    {% if form.errors %}<div class="alert alert-danger">Неверный логин или пароль.</div>{% endif %}
+    {% if form.errors %}
+      <div class="auth-message auth-message-danger" role="alert">
+        <i class="bi bi-exclamation-circle"></i>
+        <span>Неверный логин или пароль.</span>
+      </div>
+    {% endif %}
     <label class="form-label">Логин</label>
     <input class="form-control auth-ascii-input" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" autofocus required>
     <label class="form-label mt-3">Пароль</label>

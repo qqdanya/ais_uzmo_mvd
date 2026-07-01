@@ -1657,6 +1657,25 @@ textarea {
   box-shadow: 0 18px 40px rgba(23,105,170,.14);
 }
 .auth-card h1 { font-size: 1.35rem; color: var(--navy); margin-bottom: 1rem; }
+.auth-message {
+  display: flex;
+  align-items: flex-start;
+  gap: .55rem;
+  padding: .7rem .8rem;
+  margin-bottom: 1rem;
+  border-radius: 8px;
+  font-size: .86rem;
+  line-height: 1.3;
+}
+.auth-message i {
+  flex: 0 0 auto;
+  margin-top: .05rem;
+}
+.auth-message-danger {
+  color: #7a1d1d;
+  background: #fff1f1;
+  border: 1px solid #f2c7c7;
+}
 .account-card {
   width: 100%;
   background: white;
@@ -1664,6 +1683,9 @@ textarea {
   border-radius: 8px;
   padding: 22px;
   box-shadow: 0 14px 34px rgba(23,105,170,.12);
+}
+.account-card-narrow {
+  max-width: 520px;
 }
 .account-card-head {
   display: flex;
@@ -2377,6 +2399,66 @@ textarea {
   background: #fff;
   border-top: 1px solid var(--line);
   flex-shrink: 0;
+}
+.delete-confirmation,
+.modal-error-list {
+  display: flex;
+  gap: .85rem;
+  border-radius: 8px;
+  padding: 14px;
+}
+.delete-confirmation {
+  align-items: flex-start;
+  background: #fff7ed;
+  border: 1px solid #ffd7ad;
+}
+.delete-confirmation-icon {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: #b45309;
+  background: #ffedd5;
+  font-size: 1.15rem;
+}
+.delete-confirmation-body {
+  min-width: 0;
+  display: grid;
+  gap: .35rem;
+}
+.delete-confirmation-body h6 {
+  margin: 0;
+  color: #7c2d12;
+  font-size: .98rem;
+  font-weight: 800;
+}
+.delete-confirmation-body p {
+  margin: 0;
+  color: #6f3f1d;
+  font-size: .88rem;
+  line-height: 1.38;
+}
+.modal-error-list {
+  align-items: flex-start;
+  margin-top: 14px;
+  color: #7a1d1d;
+  background: #fff1f1;
+  border: 1px solid #f2c7c7;
+}
+.modal-error-list > i {
+  flex: 0 0 auto;
+  margin-top: .08rem;
+  color: #c83232;
+}
+.modal-error-list ul,
+.modal-error-list .errorlist {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+.modal-error-list div {
+  min-width: 0;
 }
 .form-grid {
   display: grid;
