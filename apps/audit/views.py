@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.contenttypes.models import ContentType
 from django.core.paginator import Paginator
-from django.db.models import Min
+from django.db.models import Min, Q
 from django.shortcuts import get_object_or_404, render
 from django.http import Http404
 from django.urls import reverse
@@ -82,6 +82,97 @@ def audit_department_options():
 
 def is_admin(user):
     return user.is_superuser or getattr(getattr(user, "profile", None), "role", "") == "admin"
+
+
+def profile_department_ids(user):
+    profile = getattr(user, "profile", None)
+    if not profile:
+        return []
+    return list(profile.allowed_departments.values_list("pk", flat=True))
+
+
+def profile_department_slugs(user):
+    profile = getattr(user, "profile", None)
+    if not profile:
+        return []
+    return list(profile.allowed_departments.values_list("slug", flat=True))
+
+
+def profile_organ_ids(user):
+    profile = getattr(user, "profile", None)
+    if not profile:
+        return []
+    return list(profile.allowed_organs.values_list("pk", flat=True))
+
+
+def scoped_user_queryset(user):
+    User = get_user_model()
+    if is_admin(user):
+        return User.objects.filter(is_active=True).select_related("profile").order_by("last_name", "first_name", "username")
+    department_ids = profile_department_ids(user)
+    if not department_ids:
+        return User.objects.filter(pk=user.pk).select_related("profile")
+    return (
+        User.objects.filter(is_active=True, profile__allowed_departments__in=department_ids)
+        .select_related("profile")
+        .distinct()
+        .order_by("last_name", "first_name", "username")
+    )
+
+
+def scoped_department_options(user):
+    departments = Department.objects.filter(is_active=True).order_by("order_number", "name")
+    if is_admin(user):
+        return [(department.slug, department.name) for department in departments]
+    slugs = profile_department_slugs(user)
+    if not slugs:
+        return []
+    return [(department.slug, department.name) for department in departments.filter(slug__in=slugs)]
+
+
+def scoped_organ_queryset(user):
+    organs = TerritorialOrgan.objects.filter(is_active=True, parent__isnull=True).order_by("order_number", "name")
+    if is_admin(user):
+        return organs
+    organ_ids = profile_organ_ids(user)
+    if not organ_ids:
+        return organs
+    return organs.filter(pk__in=organ_ids)
+
+
+def audit_department_q(department_slugs):
+    model_names = filtered_model_names(department_slugs, [])
+    department_ids = list(Department.objects.filter(slug__in=department_slugs).values_list("pk", flat=True))
+    department_values = [str(value) for value in department_ids]
+    query = Q()
+    if model_names is not None:
+        query |= Q(model_name__in=model_names)
+    if department_values:
+        query |= Q(model_name__in=PHOTO_OBJECT_MODELS | FOLDER_OBJECT_MODELS, new_values__created_department__in=department_values)
+        query |= Q(model_name__in=PHOTO_OBJECT_MODELS | FOLDER_OBJECT_MODELS, old_values__created_department__in=department_values)
+    return query
+
+
+def scope_logs_for_user(logs, user):
+    if is_admin(user):
+        return logs
+    scoped_users = scoped_user_queryset(user)
+    department_slugs = profile_department_slugs(user)
+    organ_ids = profile_organ_ids(user)
+    logs = logs.filter(user__in=scoped_users)
+    if department_slugs:
+        logs = logs.filter(Q(model_name="") | audit_department_q(department_slugs))
+    else:
+        logs = logs.filter(user=user)
+    if organ_ids:
+        logs = logs.filter(Q(territorial_organ__isnull=True) | Q(territorial_organ_id__in=organ_ids))
+    return logs
+
+
+def user_can_view_log(user, log):
+    if is_admin(user):
+        return True
+    return scope_logs_for_user(AuditLog.objects.filter(pk=log.pk), user).exists()
 
 
 def model_class(model_name):
@@ -395,7 +486,6 @@ def render_audit_page(request, logs, title, subtitle, reset_url_name, pagination
     selected_departments = audit_filter_values(request, "department") if show_department_filter else []
     selected_objects = audit_filter_values(request, "object")
     selected_organs = audit_filter_values(request, "organ")
-    User = get_user_model()
     return render(
         request,
         "audit_log.html",
@@ -405,10 +495,10 @@ def render_audit_page(request, logs, title, subtitle, reset_url_name, pagination
             "page": page,
             "logs": page.object_list,
             "actions": [(value, ACTION_DISPLAY_LABELS.get(value, label)) for value, label in AuditLog.Action.choices],
-            "organs": TerritorialOrgan.objects.filter(is_active=True, parent__isnull=True).order_by("order_number", "name"),
-            "department_filters": audit_department_options(),
+            "organs": scoped_organ_queryset(request.user),
+            "department_filters": scoped_department_options(request.user),
             "object_filters": [(key, label) for key, label, _ in OBJECT_FILTERS],
-            "users": User.objects.filter(is_active=True).select_related("profile").order_by("last_name", "first_name", "username"),
+            "users": scoped_user_queryset(request.user),
             "show_user_filter": show_user_filter,
             "show_department_filter": show_department_filter,
             "show_user_column": show_user_column,
@@ -453,26 +543,26 @@ def audit_log(request):
 def my_audit_log(request):
     logs = filtered_logs(
         request,
-        logs=AuditLog.objects.select_related("user", "territorial_organ").filter(user=request.user),
-        show_user_filter=False,
-        show_department_filter=False,
+        logs=scope_logs_for_user(AuditLog.objects.select_related("user", "territorial_organ").all(), request.user),
+        show_user_filter=True,
+        show_department_filter=True,
     )
     return render_audit_page(
         request,
         logs,
-        title="Мои действия",
-        subtitle="Личная история действий",
+        title="Журнал действий",
+        subtitle="Действия пользователей доступных отделов",
         reset_url_name="my_audit_log",
         pagination_url_name="my_audit_log",
-        show_user_filter=False,
-        show_department_filter=False,
-        show_user_column=False,
+        show_user_filter=True,
+        show_department_filter=True,
+        show_user_column=True,
     )
 
 
 @login_required
 def audit_detail(request, pk):
     log = prepare_log(get_object_or_404(AuditLog.objects.select_related("user", "territorial_organ"), pk=pk))
-    if not is_admin(request.user) and log.user_id != request.user.id:
+    if not user_can_view_log(request.user, log):
         raise Http404
     return render(request, "partials/audit_detail.html", {"log": log})

@@ -14,6 +14,7 @@ class AccountFoundationTests(TestCase):
         profile = UserProfile.objects.create(user=user, role=UserProfile.Role.OPERATOR, middle_name="Сергеевич")
 
         self.assertEqual(profile.display_name, "Петров А.С.")
+        self.assertEqual(profile.full_display_name, "Петров Алексей Сергеевич")
 
     def test_activation_sets_password_and_clears_activation_code(self):
         User = get_user_model()

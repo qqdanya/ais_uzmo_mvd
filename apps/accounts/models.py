@@ -45,6 +45,16 @@ class UserProfile(models.Model):
         return full_name or self.user.username
 
     @property
+    def full_display_name(self):
+        parts = [
+            (self.user.last_name or "").strip(),
+            (self.user.first_name or "").strip(),
+            (self.middle_name or "").strip(),
+        ]
+        full_name = " ".join(part for part in parts if part)
+        return full_name or self.display_name
+
+    @property
     def is_online(self):
         if not self.last_seen_at:
             return False

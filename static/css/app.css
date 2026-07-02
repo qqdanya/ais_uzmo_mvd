@@ -277,9 +277,9 @@ body.modal-open .toast-stack {
 .user-menu .dropdown-header {
   color: var(--muted);
   max-width: 260px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
 }
 @keyframes menu-slide-in {
   from {

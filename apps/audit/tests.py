@@ -17,9 +17,11 @@ class AuditLogTests(TestCase):
         self.admin = User.objects.create_user("admin", password="pass12345")
         UserProfile.objects.create(user=self.admin, role=UserProfile.Role.ADMIN)
         self.operator = User.objects.create_user("operator", password="pass12345")
-        UserProfile.objects.create(user=self.operator, role=UserProfile.Role.OPERATOR)
+        self.operator_profile = UserProfile.objects.create(user=self.operator, role=UserProfile.Role.OPERATOR)
         self.organ = TerritorialOrgan.objects.create(name="Test organ", order_number=1)
-        Department.objects.create(name="Обеспечение товарно-материальными ценностями", slug="tmc", order_number=1)
+        self.department = Department.objects.create(name="Обеспечение товарно-материальными ценностями", slug="tmc", order_number=1)
+        self.operator_profile.allowed_departments.add(self.department)
+        self.operator_profile.allowed_organs.add(self.organ)
 
     def create_log(self, **kwargs):
         defaults = {
@@ -215,20 +217,42 @@ class AuditLogTests(TestCase):
         self.assertContains(response, "Папка фотографий переименована")
         self.assertContains(response, "Изменен статус заявки")
 
-    def test_my_audit_log_shows_only_current_user_without_user_and_department_filters(self):
+    def test_user_audit_log_shows_available_department_actions_with_filters(self):
+        User = get_user_model()
+        colleague = User.objects.create_user("colleague", password="pass12345", first_name="Иван", last_name="Иванов")
+        UserProfile.objects.create(user=colleague, role=UserProfile.Role.OPERATOR).allowed_departments.add(self.department)
         self.create_log(user=self.operator, object_repr="Operator action")
+        self.create_log(user=colleague, object_repr="Colleague action")
         self.create_log(user=self.admin, object_repr="Admin action")
         self.client.login(username="operator", password="pass12345")
 
         response = self.client.get(reverse("my_audit_log"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Мои действия")
+        self.assertContains(response, "Журнал действий")
         self.assertContains(response, "Operator action")
+        self.assertContains(response, "Colleague action")
         self.assertNotContains(response, "Admin action")
-        self.assertNotContains(response, "Все пользователи")
-        self.assertNotContains(response, "Все отделы")
-        self.assertNotContains(response, "<th>Пользователь</th>", html=True)
+        self.assertContains(response, "Все пользователи")
+        self.assertContains(response, "Все отделы")
+        self.assertContains(response, "<th>Пользователь</th>", html=True)
+
+    def test_user_audit_log_hides_unavailable_department_actions_and_detail(self):
+        User = get_user_model()
+        other_department = Department.objects.create(name="Другой отдел", slug="other", order_number=2)
+        other_user = User.objects.create_user("other", password="pass12345")
+        UserProfile.objects.create(user=other_user, role=UserProfile.Role.OPERATOR).allowed_departments.add(other_department)
+        visible_log = self.create_log(user=self.operator, object_repr="Visible action")
+        hidden_log = self.create_log(user=other_user, object_repr="Hidden action")
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("my_audit_log"))
+        detail_response = self.client.get(reverse("audit_detail", args=[hidden_log.pk]), HTTP_HX_REQUEST="true")
+
+        self.assertContains(response, "Visible action")
+        self.assertNotContains(response, "Hidden action")
+        self.assertEqual(detail_response.status_code, 404)
+        self.assertEqual(self.client.get(reverse("audit_detail", args=[visible_log.pk]), HTTP_HX_REQUEST="true").status_code, 200)
 
     def test_audit_log_filters_by_date_and_action(self):
         old_log = self.create_log(action=AuditLog.Action.CREATE, object_repr="Old")

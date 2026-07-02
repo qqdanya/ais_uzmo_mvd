@@ -13,3 +13,14 @@ def display_name(user):
         return profile.display_name
     full_name = user.get_full_name().strip()
     return full_name or user.get_username()
+
+
+@register.filter
+def full_display_name(user):
+    if not user:
+        return "Система"
+    profile = getattr(user, "profile", None)
+    if profile:
+        return profile.full_display_name
+    full_name = user.get_full_name().strip()
+    return full_name or user.get_username()
