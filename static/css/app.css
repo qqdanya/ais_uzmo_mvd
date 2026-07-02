@@ -90,14 +90,26 @@ textarea {
   height: 8px;
 }
 html.app-modal-scroll-locked {
-  overflow-y: scroll;
+  overflow-y: auto;
+  overscroll-behavior: none;
 }
-body.modal-open .organ-panel,
-body.modal-open .department-panel,
-body.modal-open .workspace-panel,
-body.modal-open .table-wrap,
-body.modal-open .photo-browser {
+body.modal-open {
+  overflow: visible !important;
+  padding-right: 0 !important;
+}
+#modal-root {
   overflow: hidden !important;
+  overscroll-behavior: contain;
+}
+body.modal-open .app-header,
+body.modal-open .app-main,
+body.modal-open .app-footer {
+  pointer-events: none;
+}
+body.modal-open #modal-root,
+body.modal-open .modal-backdrop,
+body.modal-open .toast-stack {
+  pointer-events: auto;
 }
 .htmx-progress {
   position: fixed;
@@ -2435,6 +2447,7 @@ body.modal-open .photo-browser {
   background: #fbfdff;
   overflow: auto;
   min-height: 0;
+  overscroll-behavior: contain;
 }
 .photo-folder-form .modal-body {
   flex: 1 1 auto;

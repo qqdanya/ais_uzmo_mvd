@@ -1376,10 +1376,45 @@ function unlockDocumentScrollForModal() {
   document.documentElement.classList.remove("app-modal-scroll-locked");
 }
 
+function isScrollableY(element) {
+  const style = window.getComputedStyle(element);
+  return ["auto", "scroll"].includes(style.overflowY) && element.scrollHeight > element.clientHeight;
+}
+
+function closestScrollableModalElement(target, dialog) {
+  let element = target instanceof Element ? target : null;
+  while (element && element !== dialog.parentElement) {
+    if (dialog.contains(element) && isScrollableY(element)) return element;
+    if (element === dialog) break;
+    element = element.parentElement;
+  }
+  const modalBody = dialog.querySelector(".modal-body");
+  return modalBody && isScrollableY(modalBody) ? modalBody : null;
+}
+
 function preventBackgroundModalScroll(event) {
   if (!isAppModalOpen()) return;
-  if (event.target?.closest?.("#modal-root")) return;
+  const dialog = event.target?.closest?.("#modal-root .modal-dialog");
+  if (!dialog) {
+    event.preventDefault();
+    return;
+  }
+  const scrollElement = closestScrollableModalElement(event.target, dialog);
+  if (!scrollElement) {
+    event.preventDefault();
+    return;
+  }
+  const deltaY = event.deltaY || 0;
+  if (!deltaY) return;
+  const scrollTop = scrollElement.scrollTop;
+  const maxScrollTop = scrollElement.scrollHeight - scrollElement.clientHeight;
+  const canScrollDown = deltaY > 0 && scrollTop < maxScrollTop;
+  const canScrollUp = deltaY < 0 && scrollTop > 0;
+  if (event.target?.closest?.(".modal-body") && (canScrollDown || canScrollUp)) return;
   event.preventDefault();
+  if (canScrollDown || canScrollUp) {
+    scrollElement.scrollTop += deltaY;
+  }
 }
 
 document.addEventListener("wheel", preventBackgroundModalScroll, { passive: false });
