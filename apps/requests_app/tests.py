@@ -604,6 +604,23 @@ class AppFlowTests(TestCase):
         self.assertContains(response, reverse("record_delete", args=[other_organ.pk, "tmc-requests", second.pk]))
         self.assertNotContains(response, reverse("record_create", args=[self.organ.pk, "tmc-requests"]))
 
+    def test_operator_can_write_only_assigned_departments(self):
+        transport = Department.objects.create(name="Transport", slug="transport", order_number=2)
+        self.user.profile.allowed_departments.add(transport)
+        request_obj = TmcRequest.objects.create(territorial_organ=self.organ, request_number="43/TMC", request_date="2026-06-20", status="in_work")
+        TmcRequestItem.objects.create(request=request_obj, name="Paper", quantity=5, unit="pcs")
+        self.client.login(username="operator", password="pass12345")
+
+        table_response = self.client.get(reverse("table_data", args=[self.organ.pk, "tmc-requests"]))
+        create_response = self.client.get(reverse("record_create", args=[self.organ.pk, "tmc-requests"]), HTTP_HX_REQUEST="true")
+        update_response = self.client.get(reverse("record_update", args=[self.organ.pk, "tmc-requests", request_obj.pk]), HTTP_HX_REQUEST="true")
+
+        self.assertContains(table_response, "43/TMC")
+        self.assertNotContains(table_response, reverse("record_create", args=[self.organ.pk, "tmc-requests"]))
+        self.assertNotContains(table_response, reverse("record_update", args=[self.organ.pk, "tmc-requests", request_obj.pk]))
+        self.assertEqual(create_response.status_code, 404)
+        self.assertEqual(update_response.status_code, 404)
+
     def test_tmc_table_can_group_products_across_selected_organs(self):
         other_organ = TerritorialOrgan.objects.create(name="Other territorial organ", order_number=2)
         first = TmcRequest.objects.create(territorial_organ=self.organ, request_number="44/TMC", request_date="2026-06-20", status="in_work")
@@ -1567,6 +1584,143 @@ class AppFlowTests(TestCase):
         Image.new("RGB", (2, 2), "white").save(buffer, format="PNG")
         image = SimpleUploadedFile(filename, buffer.getvalue(), content_type="image/png")
         return TerritorialOrganPhoto.objects.create(territorial_organ=self.organ, image=image, created_by=self.user, updated_by=self.user)
+
+    def test_photo_assets_can_be_managed_only_by_author_department(self):
+        User = get_user_model()
+        fire_department = Department.objects.create(name="Fire", slug="fire", order_number=2)
+        transport_department = Department.objects.create(name="Transport", slug="transport", order_number=3)
+        fire_user = User.objects.create_user("fire-photo", password="pass12345")
+        transport_user = User.objects.create_user("transport-photo", password="pass12345")
+        fire_profile = UserProfile.objects.create(user=fire_user, role=UserProfile.Role.OPERATOR)
+        transport_profile = UserProfile.objects.create(user=transport_user, role=UserProfile.Role.OPERATOR)
+        fire_profile.allowed_departments.set([fire_department])
+        transport_profile.allowed_departments.set([transport_department])
+        folder = TerritorialOrganPhotoFolder.objects.create(
+            territorial_organ=self.organ,
+            name="Fire folder",
+            created_by=fire_user,
+            updated_by=fire_user,
+            created_department=fire_department,
+        )
+        buffer = BytesIO()
+        Image.new("RGB", (2, 2), "white").save(buffer, format="PNG")
+        image = SimpleUploadedFile("fire-photo.png", buffer.getvalue(), content_type="image/png")
+        photo = TerritorialOrganPhoto.objects.create(
+            territorial_organ=self.organ,
+            folder=folder,
+            image=image,
+            created_by=fire_user,
+            updated_by=fire_user,
+            created_department=fire_department,
+        )
+
+        self.client.login(username="transport-photo", password="pass12345")
+
+        response = self.client.get(reverse("photo_update", args=[self.organ.pk, photo.pk]), HTTP_HX_REQUEST="true")
+        self.assertEqual(response.status_code, 404)
+        response = self.client.post(reverse("photo_delete", args=[self.organ.pk, photo.pk]), HTTP_HX_REQUEST="true")
+        self.assertEqual(response.status_code, 404)
+        response = self.client.get(reverse("photo_folder_update", args=[self.organ.pk, folder.pk]), HTTP_HX_REQUEST="true")
+        self.assertEqual(response.status_code, 404)
+        response = self.client.post(reverse("photo_folder_delete", args=[self.organ.pk, folder.pk]), HTTP_HX_REQUEST="true")
+        self.assertEqual(response.status_code, 404)
+
+        response = self.client.get(reverse("photos", args=[self.organ.pk]), {"folder": folder.pk})
+        self.assertContains(response, "fire-photo.png")
+        self.assertNotContains(response, reverse("photo_update", args=[self.organ.pk, photo.pk]))
+        self.assertNotContains(response, reverse("photo_folder_update", args=[self.organ.pk, folder.pk]))
+
+        self.client.logout()
+        self.client.login(username="fire-photo", password="pass12345")
+        response = self.client.get(reverse("photo_update", args=[self.organ.pk, photo.pk]), HTTP_HX_REQUEST="true")
+        self.assertEqual(response.status_code, 200)
+        response = self.client.get(reverse("photo_folder_update", args=[self.organ.pk, folder.pk]), HTTP_HX_REQUEST="true")
+        self.assertEqual(response.status_code, 200)
+
+    def test_photo_upload_stores_author_department(self):
+        fire_department = Department.objects.create(name="Fire", slug="fire", order_number=2)
+        self.user.profile.allowed_departments.set([fire_department])
+        self.client.login(username="operator", password="pass12345")
+        buffer = BytesIO()
+        Image.new("RGB", (2, 2), "white").save(buffer, format="PNG")
+        image = SimpleUploadedFile("department-photo.png", buffer.getvalue(), content_type="image/png")
+
+        response = self.client.post(reverse("photo_create", args=[self.organ.pk]), {"image": image, "description": "Department photo"}, HTTP_HX_REQUEST="true")
+
+        self.assertEqual(response.status_code, 200)
+        photo = TerritorialOrganPhoto.objects.get(original_filename="department-photo.png")
+        self.assertEqual(photo.created_by, self.user)
+        self.assertEqual(photo.created_department, fire_department)
+
+    def test_photo_upload_and_nested_folder_creation_are_denied_in_foreign_folder(self):
+        User = get_user_model()
+        fire_department = Department.objects.create(name="Fire", slug="fire", order_number=2)
+        transport_department = Department.objects.create(name="Transport", slug="transport", order_number=3)
+        fire_user = User.objects.create_user("fire-folder-owner", password="pass12345")
+        fire_profile = UserProfile.objects.create(user=fire_user, role=UserProfile.Role.OPERATOR)
+        self.user.profile.allowed_departments.set([transport_department])
+        fire_profile.allowed_departments.set([fire_department])
+        foreign_folder = TerritorialOrganPhotoFolder.objects.create(
+            territorial_organ=self.organ,
+            name="Foreign folder",
+            created_by=fire_user,
+            updated_by=fire_user,
+            created_department=fire_department,
+        )
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("photo_bulk_upload", args=[self.organ.pk]), {"folder": foreign_folder.pk}, HTTP_HX_REQUEST="true")
+        self.assertEqual(response.status_code, 404)
+
+        buffer = BytesIO()
+        Image.new("RGB", (2, 2), "white").save(buffer, format="PNG")
+        image = SimpleUploadedFile("foreign-folder-upload.png", buffer.getvalue(), content_type="image/png")
+        response = self.client.post(
+            reverse("photo_bulk_upload", args=[self.organ.pk]),
+            {"images": [image], "folder": foreign_folder.pk},
+            HTTP_HX_REQUEST="true",
+        )
+        self.assertEqual(response.status_code, 404)
+        self.assertFalse(TerritorialOrganPhoto.objects.filter(original_filename="foreign-folder-upload.png").exists())
+
+        response = self.client.post(
+            reverse("photo_folder_create", args=[self.organ.pk]),
+            {"name": "Nested denied", "parent": foreign_folder.pk},
+            HTTP_HX_REQUEST="true",
+        )
+        self.assertEqual(response.status_code, 404)
+        self.assertFalse(TerritorialOrganPhotoFolder.objects.filter(name="Nested denied").exists())
+
+    def test_photo_cannot_be_moved_to_foreign_folder(self):
+        User = get_user_model()
+        fire_department = Department.objects.create(name="Fire", slug="fire", order_number=2)
+        transport_department = Department.objects.create(name="Transport", slug="transport", order_number=3)
+        fire_user = User.objects.create_user("fire-move-owner", password="pass12345")
+        UserProfile.objects.create(user=fire_user, role=UserProfile.Role.OPERATOR).allowed_departments.set([fire_department])
+        self.user.profile.allowed_departments.set([transport_department])
+        foreign_folder = TerritorialOrganPhotoFolder.objects.create(
+            territorial_organ=self.organ,
+            name="Foreign move target",
+            created_by=fire_user,
+            updated_by=fire_user,
+            created_department=fire_department,
+        )
+        photo = self.create_photo("own-photo.png")
+        photo.created_department = transport_department
+        photo.save(update_fields=["created_department"])
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.post(
+            reverse("photo_update", args=[self.organ.pk, photo.pk]),
+            {"folder": foreign_folder.pk, "description": "Move attempt"},
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        photo.refresh_from_db()
+        self.assertIsNone(photo.folder)
+        self.assertNotEqual(photo.description, "Move attempt")
+        self.assertContains(response, "Выберите корректный вариант")
 
     def test_photo_download_single_and_zip(self):
         photo = self.create_photo()

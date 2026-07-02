@@ -44,7 +44,7 @@ from .models import (
     normalize_product_name,
     ACTIVE_NEED_STATUS_CHOICES,
 )
-from .permissions import can_view, can_write
+from .permissions import can_manage_photo_asset, can_view, can_write, user_primary_department
 from .registry import TABLES, TABLE_BY_KEY
 
 
@@ -783,7 +783,7 @@ def table_data(request, organ_id, table_key):
     grouped_querystring["group"] = "products"
     if is_tmc_grouped:
         page.object_list = attach_tmc_drilldown_querystrings(list(page.object_list), list_querystring)
-    writable_organ_ids = [selected_organ.pk for selected_organ in selected_organs if can_write(request.user, selected_organ)]
+    writable_organ_ids = [selected_organ.pk for selected_organ in selected_organs if can_write(request.user, selected_organ, table["department"])]
     return render(
         request,
         "partials/table_data.html",
@@ -793,7 +793,7 @@ def table_data(request, organ_id, table_key):
             "fields": display_fields(table),
             "page": page,
             "table_page_links": page.paginator.get_elided_page_range(page.number, on_each_side=1, on_ends=1),
-            "can_add": can_write(request.user, organ) and not is_multi_organ,
+            "can_add": can_write(request.user, organ, table["department"]) and not is_multi_organ,
             "writable_organ_ids": writable_organ_ids,
             "table_querystring": querystring.urlencode(),
             "list_querystring": list_querystring.urlencode(),
@@ -1019,6 +1019,8 @@ def tmc_snapshot(instance):
 
 
 def tmc_record_form(request, organ, table, instance=None):
+    if not can_write(request.user, organ, table["department"]):
+        raise Http404
     old_values = tmc_snapshot(instance) if instance else None
     old_status = instance.status if instance else None
     old_item_rows = tmc_item_audit_rows(instance) if instance else []
@@ -1122,8 +1124,9 @@ def request_photos(request, organ_id, table_key, pk):
     obj = get_object_or_404(model, pk=pk, territorial_organ=organ, is_deleted=False)
     if not can_view(request.user, organ):
         raise Http404
+    department_slug = TABLE_BY_KEY[table_key]["department"]
     if request.method == "POST":
-        if not can_write(request.user, organ):
+        if not can_write(request.user, organ, department_slug):
             raise Http404
         photo_changes = sync_request_photos(obj, request.POST.getlist("attached_photos"), request.user)
         write_request_photo_audit_events(obj, photo_changes, request)
@@ -1140,7 +1143,7 @@ def request_photos(request, organ_id, table_key, pk):
         "object": obj,
         "table_key": table_key,
         "links": links,
-        "can_write": can_write(request.user, organ),
+        "can_write": can_write(request.user, organ, department_slug),
     }
     context.update(request_photo_form_context(request, organ, selected_ids))
     response = render(request, "partials/request_photos.html", context)
@@ -1406,7 +1409,7 @@ def styled_xlsx_response(qs, table, fields, filename, widths=None, center_column
 def record_form(request, organ_id, table_key, pk=None):
     table = TABLE_BY_KEY[table_key]
     organ = get_object_or_404(TerritorialOrgan, pk=organ_id, is_active=True)
-    if not can_write(request.user, organ):
+    if not can_write(request.user, organ, table["department"]):
         raise Http404
     instance = get_object_or_404(table["model"], pk=pk, territorial_organ=organ) if pk else None
     if table_key == "tmc-requests":
@@ -1463,7 +1466,7 @@ def record_delete(request, organ_id, table_key, pk):
     table = TABLE_BY_KEY[table_key]
     organ = get_object_or_404(TerritorialOrgan, pk=organ_id, is_active=True)
     obj = get_object_or_404(table["model"], pk=pk, territorial_organ=organ)
-    if not can_write(request.user, organ):
+    if not can_write(request.user, organ, table["department"]):
         raise Http404
     if request.method == "POST":
         old_values = serialize_instance(obj)
@@ -1567,6 +1570,36 @@ def add_folder_content_counts(organ, path):
     return path
 
 
+def add_photo_asset_permissions(user, organ, folders, photos):
+    for folder in folders:
+        folder.can_manage = can_manage_photo_asset(user, organ, folder)
+    for photo in photos:
+        photo.can_manage = can_manage_photo_asset(user, organ, photo)
+
+
+def manageable_photo_folders_queryset(user, organ):
+    folders = list(organ.photo_folders.select_related("parent", "created_by", "created_department").filter(is_deleted=False))
+    folder_ids = [folder.pk for folder in folders if can_manage_photo_asset(user, organ, folder)]
+    return organ.photo_folders.select_related("parent").filter(pk__in=folder_ids, is_deleted=False)
+
+
+def can_upload_to_photo_folder(user, organ, folder):
+    return can_write(user, organ) and (folder is None or can_manage_photo_asset(user, organ, folder))
+
+
+def assign_photo_asset_author(obj, user):
+    obj.created_by = user
+    obj.updated_by = user
+    obj.created_department = user_primary_department(user)
+
+
+def folder_tree_is_manageable(user, organ, folder):
+    folder_ids = photo_folder_descendant_ids(folder)
+    folders = organ.photo_folders.filter(pk__in=folder_ids, is_deleted=False)
+    photos = organ.photos.filter(folder_id__in=folder_ids, is_deleted=False)
+    return all(can_manage_photo_asset(user, organ, item) for item in folders) and all(can_manage_photo_asset(user, organ, item) for item in photos)
+
+
 def render_photos(request, organ, folder_id_override=None):
     query = request.GET.get("q", "").strip()
     sort = request.GET.get("sort", "newest")
@@ -1575,7 +1608,7 @@ def render_photos(request, organ, folder_id_override=None):
     selected_folder = None
     if folder_id:
         selected_folder = get_object_or_404(TerritorialOrganPhotoFolder, pk=folder_id, territorial_organ=organ, is_deleted=False)
-    folders = organ.photo_folders.filter(parent=selected_folder, is_deleted=False).annotate(
+    folders = organ.photo_folders.select_related("created_by", "created_department").filter(parent=selected_folder, is_deleted=False).annotate(
         photo_count=Count("photos", filter=Q(photos__is_deleted=False)),
         child_count=Count("children", filter=Q(children__is_deleted=False), distinct=True),
     )
@@ -1583,7 +1616,7 @@ def render_photos(request, organ, folder_id_override=None):
     if query:
         query_normalized = query.casefold()
         folders = [folder for folder in folders if query_normalized in folder.name.casefold()]
-    qs = organ.photos.select_related("created_by", "folder").filter(is_deleted=False).filter(Q(folder__isnull=True) | Q(folder__is_deleted=False))
+    qs = organ.photos.select_related("created_by", "created_department", "folder").filter(is_deleted=False).filter(Q(folder__isnull=True) | Q(folder__is_deleted=False))
     if folder_id:
         qs = qs.filter(folder_id=folder_id)
     else:
@@ -1599,6 +1632,7 @@ def render_photos(request, organ, folder_id_override=None):
     folders_by_id = {folder.pk: folder for folder in organ.photo_folders.filter(is_deleted=False)}
     for photo in page.object_list:
         photo.folder_path = folder_path_from_map(photo.folder, folders_by_id) if photo.folder else []
+    add_photo_asset_permissions(request.user, organ, folders, page.object_list)
     querystring = request.GET.copy()
     querystring.pop("page", None)
     folder_path_items = add_folder_content_counts(organ, folder_path(selected_folder))
@@ -1606,6 +1640,7 @@ def render_photos(request, organ, folder_id_override=None):
     root_folder_count = organ.photo_folders.filter(is_deleted=False, parent__isnull=True).count()
     total_photo_count = organ.photos.filter(is_deleted=False).filter(Q(folder__isnull=True) | Q(folder__is_deleted=False)).count()
     total_folder_count = len(folders_by_id)
+    can_upload_photos = can_upload_to_photo_folder(request.user, organ, selected_folder)
     return render(
         request,
         "partials/photos.html",
@@ -1627,6 +1662,7 @@ def render_photos(request, organ, folder_id_override=None):
             "folder_path": folder_path_items,
             "photo_folder": folder_id,
             "can_write": can_write(request.user, organ),
+            "can_upload_photos": can_upload_photos,
             "photo_query": query,
             "photo_sort": sort,
             "photo_item_order": item_order,
@@ -1755,16 +1791,20 @@ def photo_form(request, organ_id, pk=None):
     if not can_write(request.user, organ):
         raise Http404
     photo = get_object_or_404(TerritorialOrganPhoto, pk=pk, territorial_organ=organ) if pk else None
+    if photo and not can_manage_photo_asset(request.user, organ, photo):
+        raise Http404
     old_values = serialize_instance(photo) if photo else None
-    form = TerritorialOrganPhotoForm(request.POST or None, request.FILES or None, instance=photo, organ=organ)
+    folder_queryset = manageable_photo_folders_queryset(request.user, organ)
+    form = TerritorialOrganPhotoForm(request.POST or None, request.FILES or None, instance=photo, organ=organ, folder_queryset=folder_queryset)
     if request.method == "POST" and form.is_valid():
         obj = form.save(commit=False)
         obj.territorial_organ = organ
         if photo and request.FILES.get("image"):
             obj.created_at = timezone.now()
         if not obj.pk:
-            obj.created_by = request.user
-        obj.updated_by = request.user
+            assign_photo_asset_author(obj, request.user)
+        else:
+            obj.updated_by = request.user
         obj.save()
         write_audit(AuditLog.Action.UPDATE if photo else AuditLog.Action.CREATE, obj, old_values=old_values, new_values=serialize_instance(obj), request=request)
         response = render_photos(request, organ, obj.folder_id or "")
@@ -1780,19 +1820,28 @@ def photo_folder_form(request, organ_id, pk=None):
     if not can_write(request.user, organ):
         raise Http404
     folder = get_object_or_404(TerritorialOrganPhotoFolder, pk=pk, territorial_organ=organ, is_deleted=False) if pk else None
+    if folder and not can_manage_photo_asset(request.user, organ, folder):
+        raise Http404
     old_values = serialize_instance(folder) if folder else None
     parent_id = request.POST.get("parent") if request.method == "POST" else request.GET.get("folder")
     current_folder = folder.parent if folder else None
     if parent_id and not folder:
         current_folder = get_object_or_404(TerritorialOrganPhotoFolder, pk=parent_id, territorial_organ=organ, is_deleted=False)
-    form = TerritorialOrganPhotoFolderForm(request.POST or None, instance=folder, organ=organ, parent=current_folder)
+    if not can_upload_to_photo_folder(request.user, organ, current_folder):
+        raise Http404
+    folder_queryset = manageable_photo_folders_queryset(request.user, organ)
+    form = TerritorialOrganPhotoFolderForm(request.POST or None, instance=folder, organ=organ, parent=current_folder, folder_queryset=folder_queryset)
     if request.method == "POST" and form.is_valid():
         obj = form.save(commit=False)
         obj.territorial_organ = organ
         if not folder:
             obj.parent = current_folder
+            assign_photo_asset_author(obj, request.user)
         elif "parent" not in request.POST:
             obj.parent = current_folder
+            obj.updated_by = request.user
+        else:
+            obj.updated_by = request.user
         obj.save()
         write_audit(AuditLog.Action.UPDATE if folder else AuditLog.Action.CREATE, obj, old_values=old_values, new_values=serialize_instance(obj), request=request)
         response = render_photos(request, organ, obj.parent_id or "")
@@ -1816,7 +1865,7 @@ def photo_folder_descendant_ids(folder):
 def photo_folder_delete(request, organ_id, pk):
     organ = get_object_or_404(TerritorialOrgan, pk=organ_id, is_active=True)
     folder = get_object_or_404(TerritorialOrganPhotoFolder, pk=pk, territorial_organ=organ, is_deleted=False)
-    if not can_write(request.user, organ):
+    if not can_manage_photo_asset(request.user, organ, folder) or not folder_tree_is_manageable(request.user, organ, folder):
         raise Http404
     parent = folder.parent
     if request.method == "POST":
@@ -1828,7 +1877,7 @@ def photo_folder_delete(request, organ_id, pk):
                 updated_by=request.user,
                 updated_at=timezone.now(),
             )
-            TerritorialOrganPhotoFolder.objects.filter(territorial_organ=organ, pk__in=folder_ids).update(is_deleted=True)
+            TerritorialOrganPhotoFolder.objects.filter(territorial_organ=organ, pk__in=folder_ids).update(is_deleted=True, updated_by=request.user, updated_at=timezone.now())
             write_audit(AuditLog.Action.DELETE, folder, old_values=old_values, new_values=None, request=request)
         response = render_photos(request, organ, parent.pk if parent else "")
         response["HX-Trigger"] = htmx_triggers("Папка удалена.")
@@ -1845,6 +1894,8 @@ def photo_bulk_upload(request, organ_id):
     current_folder = None
     if request.GET.get("folder"):
         current_folder = get_object_or_404(TerritorialOrganPhotoFolder, pk=request.GET["folder"], territorial_organ=organ, is_deleted=False)
+    if not can_upload_to_photo_folder(request.user, organ, current_folder):
+        raise Http404
     if request.method == "POST":
         files = request.FILES.getlist("images")
         descriptions = request.POST.getlist("descriptions")
@@ -1852,11 +1903,17 @@ def photo_bulk_upload(request, organ_id):
         folder_id = request.POST.get("folder")
         if folder_id and current_folder is None:
             current_folder = get_object_or_404(TerritorialOrganPhotoFolder, pk=folder_id, territorial_organ=organ, is_deleted=False)
+        if not can_upload_to_photo_folder(request.user, organ, current_folder):
+            raise Http404
         new_folder_name = request.POST.get("new_folder", "").strip()
         if new_folder_name:
             folder = TerritorialOrganPhotoFolder.objects.filter(territorial_organ=organ, parent=current_folder, name=new_folder_name, is_deleted=False).first()
+            if folder and not can_manage_photo_asset(request.user, organ, folder):
+                raise Http404
             if folder is None:
-                folder = TerritorialOrganPhotoFolder.objects.create(territorial_organ=organ, parent=current_folder, name=new_folder_name)
+                folder = TerritorialOrganPhotoFolder(territorial_organ=organ, parent=current_folder, name=new_folder_name)
+                assign_photo_asset_author(folder, request.user)
+                folder.save()
         elif folder_id:
             folder = current_folder
         errors = []
@@ -1865,12 +1922,11 @@ def photo_bulk_upload(request, organ_id):
             data = {"description": descriptions[index] if index < len(descriptions) else ""}
             if folder:
                 data["folder"] = folder.pk
-            form = TerritorialOrganPhotoForm(data, {"image": image}, organ=organ)
+            form = TerritorialOrganPhotoForm(data, {"image": image}, organ=organ, folder_queryset=manageable_photo_folders_queryset(request.user, organ))
             if form.is_valid():
                 obj = form.save(commit=False)
                 obj.territorial_organ = organ
-                obj.created_by = request.user
-                obj.updated_by = request.user
+                assign_photo_asset_author(obj, request.user)
                 obj.save()
                 write_audit(AuditLog.Action.CREATE, obj, old_values=None, new_values=serialize_instance(obj), request=request)
                 created += 1
@@ -1899,7 +1955,7 @@ def photo_bulk_upload(request, organ_id):
 def photo_delete(request, organ_id, pk):
     organ = get_object_or_404(TerritorialOrgan, pk=organ_id, is_active=True)
     photo = get_object_or_404(TerritorialOrganPhoto, pk=pk, territorial_organ=organ)
-    if not can_write(request.user, organ):
+    if not can_manage_photo_asset(request.user, organ, photo):
         raise Http404
     if request.method == "POST":
         old_values = serialize_instance(photo)

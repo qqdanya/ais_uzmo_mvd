@@ -15,8 +15,11 @@ def photo_folder_path_label(folder):
 class TerritorialOrganPhotoForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         organ = kwargs.pop("organ", None)
+        folder_queryset = kwargs.pop("folder_queryset", None)
         super().__init__(*args, **kwargs)
-        if organ:
+        if folder_queryset is not None:
+            self.fields["folder"].queryset = folder_queryset
+        elif organ:
             self.fields["folder"].queryset = organ.photo_folders.select_related("parent").filter(is_deleted=False)
         self.fields["folder"].empty_label = "Без папки"
         self.fields["folder"].label_from_instance = photo_folder_path_label
@@ -36,17 +39,21 @@ class TerritorialOrganPhotoFolderForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         self.organ = kwargs.pop("organ", None)
         self.parent = kwargs.pop("parent", None)
+        folder_queryset = kwargs.pop("folder_queryset", None)
         super().__init__(*args, **kwargs)
         self.fields["name"].widget.attrs.setdefault("class", "form-control")
         if self.instance.pk:
             excluded_ids = self.descendant_ids(self.instance)
             self.fields["parent"].label = "Расположение"
             self.fields["parent"].empty_label = "Корень"
-            self.fields["parent"].queryset = (
-                self.organ.photo_folders.select_related("parent").filter(is_deleted=False).exclude(pk__in=excluded_ids)
-                if self.organ
-                else TerritorialOrganPhotoFolder.objects.none()
-            )
+            if folder_queryset is not None:
+                self.fields["parent"].queryset = folder_queryset.exclude(pk__in=excluded_ids)
+            else:
+                self.fields["parent"].queryset = (
+                    self.organ.photo_folders.select_related("parent").filter(is_deleted=False).exclude(pk__in=excluded_ids)
+                    if self.organ
+                    else TerritorialOrganPhotoFolder.objects.none()
+                )
             self.fields["parent"].label_from_instance = photo_folder_path_label
             self.fields["parent"].widget.attrs.setdefault("class", "form-select")
         else:

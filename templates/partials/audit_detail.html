@@ -1,3 +1,4 @@
+{% load account_tags %}
 <div class="modal-header">
   <h2 class="modal-title">Подробности действия</h2>
   <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
@@ -10,7 +11,7 @@
     </div>
     <div class="audit-detail-card">
       <span>Пользователь</span>
-      <strong>{{ log.user|default:"Система" }}</strong>
+      <strong>{{ log.user|display_name }}</strong>
     </div>
     <div class="audit-detail-card">
       <span>Действие</span>
@@ -77,7 +78,7 @@
                 <strong>{{ entry.get_new_status_display }}</strong>
               </div>
               <div class="status-history-meta">
-                {{ entry.changed_by|default:"Пользователь не указан" }}
+                {{ entry.changed_by|display_name }}
                 {% if entry.completed_at %}<span>Дата исполнения: {{ entry.completed_at|date:"d.m.Y" }}</span>{% endif %}
                 {% if entry.note %}<span>{{ entry.note }}</span>{% endif %}
               </div>

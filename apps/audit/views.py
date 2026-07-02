@@ -408,7 +408,7 @@ def render_audit_page(request, logs, title, subtitle, reset_url_name, pagination
             "organs": TerritorialOrgan.objects.filter(is_active=True, parent__isnull=True).order_by("order_number", "name"),
             "department_filters": audit_department_options(),
             "object_filters": [(key, label) for key, label, _ in OBJECT_FILTERS],
-            "users": User.objects.filter(is_active=True).order_by("username"),
+            "users": User.objects.filter(is_active=True).select_related("profile").order_by("last_name", "first_name", "username"),
             "show_user_filter": show_user_filter,
             "show_department_filter": show_department_filter,
             "show_user_column": show_user_column,

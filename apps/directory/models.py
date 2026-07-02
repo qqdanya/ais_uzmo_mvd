@@ -50,7 +50,11 @@ class TerritorialOrganPhotoFolder(models.Model):
     territorial_organ = models.ForeignKey(TerritorialOrgan, verbose_name="территориальный орган", on_delete=models.CASCADE, related_name="photo_folders")
     parent = models.ForeignKey("self", verbose_name="родительская папка", null=True, blank=True, on_delete=models.CASCADE, related_name="children")
     name = models.CharField("наименование", max_length=120)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name="создал", null=True, blank=True, on_delete=models.SET_NULL, related_name="created_photo_folders")
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name="обновил", null=True, blank=True, on_delete=models.SET_NULL, related_name="updated_photo_folders")
+    created_department = models.ForeignKey("directory.Department", verbose_name="отдел автора", null=True, blank=True, on_delete=models.SET_NULL, related_name="created_photo_folders")
     created_at = models.DateTimeField("создано", auto_now_add=True)
+    updated_at = models.DateTimeField("обновлено", auto_now=True)
     is_deleted = models.BooleanField("удалено", default=False, db_index=True)
 
     class Meta:
@@ -93,6 +97,7 @@ class TerritorialOrganPhoto(models.Model):
     description = models.TextField("описание", blank=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name="создал", null=True, blank=True, on_delete=models.SET_NULL, related_name="created_photos")
     updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name="обновил", null=True, blank=True, on_delete=models.SET_NULL, related_name="updated_photos")
+    created_department = models.ForeignKey("directory.Department", verbose_name="отдел автора", null=True, blank=True, on_delete=models.SET_NULL, related_name="created_photos")
     created_at = models.DateTimeField("создано", auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField("обновлено", auto_now=True)
     is_deleted = models.BooleanField("удалено", default=False, db_index=True)

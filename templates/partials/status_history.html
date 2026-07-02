@@ -1,3 +1,4 @@
+{% load account_tags %}
 <div class="modal-header">
   <h2 class="modal-title">История изменений статуса заявки {{ object.request_number }}</h2>
   <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
@@ -29,7 +30,7 @@
             <strong>{{ entry.get_new_status_display }}</strong>
           </div>
           <div class="status-history-meta">
-            {{ entry.changed_by|default:"Пользователь не указан" }}
+            {{ entry.changed_by|display_name }}
             {% if entry.completed_at %}<span>{{ completed_label }}: {{ entry.completed_at|date:"d.m.Y" }}</span>{% endif %}
             {% if entry.note %}<span>{{ entry.note }}</span>{% endif %}
           </div>

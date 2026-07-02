@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="auth-wrap">
+  <div class="auth-shell">
+    <div class="auth-system-title">
+      <div class="auth-system-mark"><i class="bi bi-shield-check"></i></div>
+      <div>
+        <div class="auth-system-name">АИС УЗМО</div>
+        <div class="auth-system-subtitle">Активация учетной записи сотрудника</div>
+      </div>
+    </div>
+    <form method="post" class="auth-card">
+      {% csrf_token %}
+      <h1>Активация профиля</h1>
+      {% if form.non_field_errors %}
+        <div class="auth-message auth-message-danger" role="alert">
+          <i class="bi bi-exclamation-circle"></i>
+          <span>{{ form.non_field_errors|striptags }}</span>
+        </div>
+      {% endif %}
+      <label class="form-label" for="{{ form.username.id_for_label }}">Логин, выданный администратором</label>
+      {{ form.username }}
+      {% for error in form.username.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+
+      <label class="form-label mt-3" for="{{ form.activation_code.id_for_label }}">Код активации</label>
+      {{ form.activation_code }}
+      {% for error in form.activation_code.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+
+      <label class="form-label mt-3" for="{{ form.password1.id_for_label }}">Пароль</label>
+      <div class="password-field">
+        {{ form.password1 }}
+        <button class="password-toggle" type="button" aria-label="Показать пароль" aria-controls="{{ form.password1.id_for_label }}" data-password-toggle>
+          <i class="bi bi-eye"></i>
+        </button>
+      </div>
+      {% for error in form.password1.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+
+      <label class="form-label mt-3" for="{{ form.password2.id_for_label }}">Повторите пароль</label>
+      <div class="password-field">
+        {{ form.password2 }}
+        <button class="password-toggle" type="button" aria-label="Показать пароль" aria-controls="{{ form.password2.id_for_label }}" data-password-toggle>
+          <i class="bi bi-eye"></i>
+        </button>
+      </div>
+      {% for error in form.password2.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+
+      <button class="btn btn-primary w-100 mt-4">Активировать учетную запись</button>
+      <a class="btn btn-outline-secondary w-100 mt-2" href="{% url 'login' %}">Вернуться ко входу</a>
+    </form>
+  </div>
+</div>
+{% endblock %}

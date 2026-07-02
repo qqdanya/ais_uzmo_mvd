@@ -22,9 +22,9 @@ class DepartmentAdmin(admin.ModelAdmin):
 
 @admin.register(TerritorialOrganPhoto)
 class TerritorialOrganPhotoAdmin(admin.ModelAdmin):
-    list_display = ("preview", "territorial_organ", "folder", "created_at", "created_by", "is_deleted")
-    list_filter = ("territorial_organ", "folder", "created_by", "is_deleted")
-    search_fields = ("description", "original_filename", "territorial_organ__name", "folder__name")
+    list_display = ("preview", "territorial_organ", "folder", "created_at", "created_by", "created_department", "is_deleted")
+    list_filter = ("territorial_organ", "folder", "created_department", "created_by", "is_deleted")
+    search_fields = ("description", "original_filename", "territorial_organ__name", "folder__name", "created_by__username", "created_by__last_name")
     readonly_fields = ("preview", "created_at", "updated_at")
 
     class Media:
@@ -40,6 +40,7 @@ class TerritorialOrganPhotoAdmin(admin.ModelAdmin):
 
 @admin.register(TerritorialOrganPhotoFolder)
 class TerritorialOrganPhotoFolderAdmin(admin.ModelAdmin):
-    list_display = ("name", "parent", "territorial_organ", "created_at", "is_deleted")
-    list_filter = ("territorial_organ", "parent", "is_deleted")
-    search_fields = ("name", "parent__name", "territorial_organ__name")
+    list_display = ("name", "parent", "territorial_organ", "created_at", "created_by", "created_department", "is_deleted")
+    list_filter = ("territorial_organ", "parent", "created_department", "created_by", "is_deleted")
+    search_fields = ("name", "parent__name", "territorial_organ__name", "created_by__username", "created_by__last_name")
+    readonly_fields = ("created_at", "updated_at")

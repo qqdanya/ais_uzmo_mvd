@@ -1723,6 +1723,19 @@ body.modal-open .toast-stack {
   background: #fff1f1;
   border: 1px solid #f2c7c7;
 }
+.auth-link-row {
+  margin-top: .75rem;
+  text-align: center;
+}
+.auth-link-row a {
+  color: var(--blue);
+  font-size: .86rem;
+  text-decoration: none;
+}
+.auth-link-row a:hover {
+  color: var(--navy);
+  text-decoration: underline;
+}
 .account-card {
   width: 100%;
   background: white;
