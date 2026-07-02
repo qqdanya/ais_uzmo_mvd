@@ -2618,13 +2618,17 @@ textarea {
 .audit-table-wrap {
   min-height: 0;
   max-height: none;
-  overflow: auto;
+  overflow: visible;
 }
 .audit-table th,
 .audit-table td {
   vertical-align: top;
 }
 .audit-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  background: #e5f1fa;
   text-align: center;
 }
 .audit-action-cell {

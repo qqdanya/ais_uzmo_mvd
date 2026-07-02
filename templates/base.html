@@ -31,9 +31,9 @@
         <div class="dropdown-menu dropdown-menu-end user-menu">
           <div class="dropdown-header">{{ user.get_username }}</div>
           {% if user.is_superuser or user.profile.role == "admin" %}
-            <a class="dropdown-item" href="{% url 'audit_log' %}"><i class="bi bi-activity"></i> Журнал действий</a>
             <a class="dropdown-item" href="{% url 'admin:index' %}"><i class="bi bi-gear"></i> Панель администратора</a>
           {% endif %}
+          <a class="dropdown-item" href="{% url 'my_audit_log' %}"><i class="bi bi-activity"></i> Мои действия</a>
           <a class="dropdown-item" href="{% url 'password_change' %}"><i class="bi bi-key"></i> Сменить пароль</a>
           <div class="dropdown-divider"></div>
           <form method="post" action="{% url 'logout' %}" class="m-0">

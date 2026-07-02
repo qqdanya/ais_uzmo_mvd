@@ -42,15 +42,16 @@ class AuditLogTests(TestCase):
             self.create_log(object_id=str(index), object_repr=f"Запись {index}")
         self.client.login(username="admin", password="pass12345")
 
-        response = self.client.get(reverse("audit_log"), {"q": "Запись"})
+        response = self.client.get(reverse("audit_log"), {"action": AuditLog.Action.UPDATE})
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Журнал действий")
         self.assertContains(response, "audit-filters")
         self.assertContains(response, "audit-table")
+        self.assertNotContains(response, "Поиск в журнале событий")
         self.assertContains(response, "записей найдено")
         self.assertContains(response, "Google Chrome / Windows")
-        self.assertContains(response, "Смотреть")
+        self.assertContains(response, "Открыть")
         self.assertContains(response, "Событие")
         self.assertContains(response, "Платформа")
         self.assertContains(response, "Подробности")
@@ -62,6 +63,18 @@ class AuditLogTests(TestCase):
         self.assertContains(response, "Сбросить")
         self.assertContains(response, "Запись отредактирована")
         self.assertEqual(len(response.context["logs"]), 25)
+
+    def test_admin_index_links_to_full_audit_log(self):
+        User = get_user_model()
+        staff = User.objects.create_superuser("staff", password="pass12345")
+        UserProfile.objects.create(user=staff, role=UserProfile.Role.ADMIN)
+        self.client.login(username="staff", password="pass12345")
+
+        response = self.client.get(reverse("admin:index"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Журнал действий")
+        self.assertContains(response, reverse("audit_log"))
 
     def test_audit_log_hides_reset_without_filters_and_uses_oldest_default_date(self):
         old_log = self.create_log(object_repr="Old")
@@ -160,7 +173,7 @@ class AuditLogTests(TestCase):
         self.create_log(object_repr="Visible")
         self.client.login(username="admin", password="pass12345")
 
-        response = self.client.get(reverse("audit_log"), {"q": "missing-value"})
+        response = self.client.get(reverse("audit_log"), {"action": AuditLog.Action.DELETE})
 
         self.assertContains(response, "Записи журнала не найдены")
         self.assertContains(response, "audit-panel")
@@ -174,10 +187,46 @@ class AuditLogTests(TestCase):
         )
         self.client.login(username="admin", password="pass12345")
 
-        response = self.client.get(reverse("audit_log"), {"q": "building"})
+        response = self.client.get(reverse("audit_log"))
 
         self.assertContains(response, "Добавлено описание фотографии")
         self.assertContains(response, "Изменена фотография «building.jpg»")
+
+    def test_audit_event_summaries_use_clear_names(self):
+        self.create_log(action=AuditLog.Action.DELETE, object_repr="Deleted request")
+        self.create_log(
+            model_name="TerritorialOrganPhotoFolder",
+            object_repr='Изменена запись "Folder"',
+            old_values={"name": "Old"},
+            new_values={"name": "New"},
+        )
+        self.create_log(
+            object_repr="Status request",
+            old_values={"status": "in_work"},
+            new_values={"audit_event": "request_status_changed", "status": "done"},
+        )
+        self.client.login(username="admin", password="pass12345")
+
+        response = self.client.get(reverse("audit_log"))
+
+        self.assertContains(response, "Запись удалена")
+        self.assertContains(response, "Папка фотографий переименована")
+        self.assertContains(response, "Изменен статус заявки")
+
+    def test_my_audit_log_shows_only_current_user_without_user_and_department_filters(self):
+        self.create_log(user=self.operator, object_repr="Operator action")
+        self.create_log(user=self.admin, object_repr="Admin action")
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("my_audit_log"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Мои действия")
+        self.assertContains(response, "Operator action")
+        self.assertNotContains(response, "Admin action")
+        self.assertNotContains(response, "Все пользователи")
+        self.assertNotContains(response, "Все отделы")
+        self.assertNotContains(response, "<th>Пользователь</th>", html=True)
 
     def test_audit_log_filters_by_date_and_action(self):
         old_log = self.create_log(action=AuditLog.Action.CREATE, object_repr="Old")

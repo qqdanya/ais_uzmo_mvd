@@ -514,8 +514,10 @@ def sync_request_photos(obj, photo_ids, user):
     content_type = request_content_type_for_object(obj)
     valid_photo_ids = set(available_request_photos(obj.territorial_organ).filter(pk__in=selected_ids).values_list("pk", flat=True))
     links = RequestPhotoLink.objects.filter(territorial_organ=obj.territorial_organ, content_type=content_type, object_id=obj.pk)
-    links.exclude(photo_id__in=valid_photo_ids).delete()
     existing_ids = set(links.values_list("photo_id", flat=True))
+    removed_ids = existing_ids - valid_photo_ids
+    links.exclude(photo_id__in=valid_photo_ids).delete()
+    added_ids = valid_photo_ids - existing_ids
     RequestPhotoLink.objects.bulk_create(
         [
             RequestPhotoLink(
@@ -525,9 +527,52 @@ def sync_request_photos(obj, photo_ids, user):
                 object_id=obj.pk,
                 created_by=user,
             )
-            for photo_id in valid_photo_ids - existing_ids
+            for photo_id in added_ids
         ],
         ignore_conflicts=True,
+    )
+    return {"added": added_ids, "removed": removed_ids}
+
+
+def photo_names_for_audit(photo_ids):
+    if not photo_ids:
+        return ""
+    names = list(
+        TerritorialOrganPhoto.objects.filter(pk__in=photo_ids)
+        .order_by("original_filename", "pk")
+        .values_list("original_filename", flat=True)
+    )
+    return ", ".join(name or "фотография" for name in names)
+
+
+def write_request_photo_audit_events(obj, changes, request):
+    added = changes.get("added") or set()
+    removed = changes.get("removed") or set()
+    if added:
+        write_audit(
+            AuditLog.Action.UPDATE,
+            obj,
+            old_values={"photos": ""},
+            new_values={"audit_event": "request_photos_attached", "photos": photo_names_for_audit(added)},
+            request=request,
+        )
+    if removed:
+        write_audit(
+            AuditLog.Action.UPDATE,
+            obj,
+            old_values={"photos": photo_names_for_audit(removed)},
+            new_values={"audit_event": "request_photos_detached", "photos": ""},
+            request=request,
+        )
+
+
+def write_status_change_audit_event(obj, old_status, new_status, request):
+    write_audit(
+        AuditLog.Action.UPDATE,
+        obj,
+        old_values={"status": old_status},
+        new_values={"audit_event": "request_status_changed", "status": new_status},
+        request=request,
     )
 
 
@@ -869,12 +914,12 @@ def get_or_create_tmc_product(name, unit, product_id=None):
     if product_id and str(product_id).isdigit():
         product = TmcProduct.objects.filter(pk=product_id, is_active=True).first()
         if product:
-            return product
+            return product, False
     normalized_name = normalize_product_name(name)
     product = TmcProduct.objects.filter(normalized_name=normalized_name).first()
     if product:
-        return product
-    return TmcProduct.objects.create(name=name, unit=unit)
+        return product, False
+    return TmcProduct.objects.create(name=name, unit=unit), True
 
 
 def tmc_item_rows_from_request(request):
@@ -918,6 +963,54 @@ def tmc_item_rows_from_instance(instance):
     return [{"product_id": item.product_id or "", "name": item.name, "quantity": item.quantity, "unit": item.unit} for item in instance.items.all()] or [tmc_blank_item_row()]
 
 
+def tmc_item_audit_rows(instance):
+    if not instance:
+        return []
+    return [
+        {"name": item.name, "quantity": item.quantity, "unit": item.unit}
+        for item in instance.items.all()
+    ]
+
+
+def tmc_item_audit_text(rows):
+    return "; ".join(f"{row['name']} - {row['quantity']} {row['unit']}" for row in rows)
+
+
+def tmc_item_change_events(old_rows, new_rows):
+    old_map = {(row["name"].casefold(), row["unit"].casefold()): row for row in old_rows}
+    new_map = {(row["name"].casefold(), row["unit"].casefold()): row for row in new_rows}
+    events = []
+    added = [new_map[key] for key in new_map.keys() - old_map.keys()]
+    removed = [old_map[key] for key in old_map.keys() - new_map.keys()]
+    quantity_changed = [
+        {"old": old_map[key], "new": new_map[key]}
+        for key in old_map.keys() & new_map.keys()
+        if old_map[key]["quantity"] != new_map[key]["quantity"]
+    ]
+    if added:
+        events.append(("tmc_item_added", "", tmc_item_audit_text(added)))
+    if removed:
+        events.append(("tmc_item_removed", tmc_item_audit_text(removed), ""))
+    if quantity_changed:
+        events.append((
+            "tmc_item_quantity_changed",
+            tmc_item_audit_text([item["old"] for item in quantity_changed]),
+            tmc_item_audit_text([item["new"] for item in quantity_changed]),
+        ))
+    return events
+
+
+def write_tmc_item_audit_events(obj, old_rows, new_rows, request):
+    for event, old_value, new_value in tmc_item_change_events(old_rows, new_rows):
+        write_audit(
+            AuditLog.Action.UPDATE,
+            obj,
+            old_values={"items": old_value},
+            new_values={"audit_event": event, "items": new_value},
+            request=request,
+        )
+
+
 def tmc_snapshot(instance):
     data = serialize_instance(instance)
     data["items"] = "; ".join(str(item) for item in instance.items.all())
@@ -927,6 +1020,7 @@ def tmc_snapshot(instance):
 def tmc_record_form(request, organ, table, instance=None):
     old_values = tmc_snapshot(instance) if instance else None
     old_status = instance.status if instance else None
+    old_item_rows = tmc_item_audit_rows(instance) if instance else []
     form = TmcRequestForm(request.POST or None, instance=instance)
     item_rows = tmc_item_rows_from_instance(instance)
     item_errors = []
@@ -943,10 +1037,20 @@ def tmc_record_form(request, organ, table, instance=None):
                 obj.updated_by = request.user
                 obj.save()
                 obj.items.all().delete()
+                new_item_rows = []
                 for row in item_rows:
-                    product = get_or_create_tmc_product(row["name"], row["unit"], row.get("product_id"))
+                    product, product_created = get_or_create_tmc_product(row["name"], row["unit"], row.get("product_id"))
+                    if product_created:
+                        write_audit(
+                            AuditLog.Action.CREATE,
+                            product,
+                            old_values=None,
+                            new_values={"audit_event": "tmc_product_created", **serialize_instance(product)},
+                            request=request,
+                        )
                     obj.items.create(product=product, name=product.name, quantity=row["quantity"], unit=row["unit"])
-                sync_request_photos(obj, selected_photo_ids, request.user)
+                    new_item_rows.append({"name": product.name, "quantity": row["quantity"], "unit": row["unit"]})
+                photo_changes = sync_request_photos(obj, selected_photo_ids, request.user)
                 if is_create or old_status != obj.status:
                     create_status_history(
                         obj=obj,
@@ -956,6 +1060,11 @@ def tmc_record_form(request, organ, table, instance=None):
                         changed_by=request.user,
                         note="Создание заявки" if is_create else "Изменение статуса",
                     )
+                if not is_create and old_status != obj.status:
+                    write_status_change_audit_event(obj, old_status, obj.status, request)
+                if not is_create:
+                    write_tmc_item_audit_events(obj, old_item_rows, new_item_rows, request)
+                write_request_photo_audit_events(obj, photo_changes, request)
             write_audit(AuditLog.Action.UPDATE if instance else AuditLog.Action.CREATE, obj, old_values=old_values, new_values=tmc_snapshot(obj), request=request)
             response = table_data(request, organ.pk, table["key"])
             response["HX-Trigger"] = htmx_triggers("Заявка сохранена.")
@@ -1015,7 +1124,8 @@ def request_photos(request, organ_id, table_key, pk):
     if request.method == "POST":
         if not can_write(request.user, organ):
             raise Http404
-        sync_request_photos(obj, request.POST.getlist("attached_photos"), request.user)
+        photo_changes = sync_request_photos(obj, request.POST.getlist("attached_photos"), request.user)
+        write_request_photo_audit_events(obj, photo_changes, request)
     content_type = request_content_type_for_object(obj)
     links = (
         RequestPhotoLink.objects.select_related("photo", "photo__folder", "photo__created_by")
@@ -1303,8 +1413,9 @@ def record_form(request, organ_id, table_key, pk=None):
                 obj.created_by = request.user
             obj.updated_by = request.user
             obj.save()
+            photo_changes = {"added": set(), "removed": set()}
             if table_key in REQUEST_PHOTO_TABLES:
-                sync_request_photos(obj, selected_photo_ids, request.user)
+                photo_changes = sync_request_photos(obj, selected_photo_ids, request.user)
             if table_key in STATUS_HISTORY_TABLES and (is_create or old_status != obj.status):
                 create_status_history(
                     obj=obj,
@@ -1314,6 +1425,10 @@ def record_form(request, organ_id, table_key, pk=None):
                     changed_by=request.user,
                     note="Создание заявки" if is_create else "Изменение статуса",
                 )
+            if table_key in STATUS_HISTORY_TABLES and not is_create and old_status != obj.status:
+                write_status_change_audit_event(obj, old_status, obj.status, request)
+            if table_key in REQUEST_PHOTO_TABLES:
+                write_request_photo_audit_events(obj, photo_changes, request)
         write_audit(AuditLog.Action.UPDATE if instance else AuditLog.Action.CREATE, obj, old_values=old_values, new_values=serialize_instance(obj), request=request)
         response = table_data(request, organ.pk, table_key)
         response["HX-Trigger"] = htmx_triggers("Запись сохранена.")

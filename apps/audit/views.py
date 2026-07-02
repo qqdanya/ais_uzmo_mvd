@@ -3,8 +3,10 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.contenttypes.models import ContentType
 from django.core.paginator import Paginator
-from django.db.models import Min, Q
+from django.db.models import Min
 from django.shortcuts import get_object_or_404, render
+from django.http import Http404
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_date, parse_datetime
 
@@ -15,7 +17,7 @@ from apps.requests_app.registry import TABLE_BY_KEY
 from .models import AuditLog
 
 
-SYSTEM_FIELD_NAMES = {"id", "created_at", "updated_at", "created_by", "updated_by", "is_deleted"}
+SYSTEM_FIELD_NAMES = {"id", "created_at", "updated_at", "created_by", "updated_by", "is_deleted", "audit_event"}
 ACTION_DISPLAY_LABELS = {
     AuditLog.Action.CREATE: "Создание",
     AuditLog.Action.UPDATE: "Редактирование",
@@ -40,6 +42,15 @@ OBJECT_FILTERS = (
     ("folder", "Папка", FOLDER_OBJECT_MODELS),
 )
 OBJECT_MODEL_NAMES = {key: set(models) for key, _, models in OBJECT_FILTERS}
+AUDIT_EVENT_SUMMARIES = {
+    "request_status_changed": "Изменен статус заявки",
+    "request_photos_attached": "Прикреплены фотографии к заявке",
+    "request_photos_detached": "Откреплены фотографии от заявки",
+    "tmc_item_added": "Добавлена позиция ТМЦ",
+    "tmc_item_removed": "Удалена позиция ТМЦ",
+    "tmc_item_quantity_changed": "Изменено количество ТМЦ",
+    "tmc_product_created": "Создан товар в справочнике ТМЦ",
+}
 
 
 def department_model_names():
@@ -192,6 +203,9 @@ def audit_summary(log):
         return "Вход в систему"
     if log.action == AuditLog.Action.LOGOUT:
         return "Выход из системы"
+    audit_event = (log.new_values or {}).get("audit_event")
+    if audit_event in AUDIT_EVENT_SUMMARIES:
+        return AUDIT_EVENT_SUMMARIES[audit_event]
     changes = audit_changes(log)
     changed_fields = {row["field"]: row for row in changes}
     if log.model_name == "TerritorialOrganPhoto":
@@ -215,19 +229,19 @@ def audit_summary(log):
             return "Фотография отредактирована"
     if log.model_name == "TerritorialOrganPhotoFolder":
         if log.action == AuditLog.Action.CREATE:
-            return "Папка с фотографиями создана"
+            return "Папка фотографий создана"
         if log.action == AuditLog.Action.DELETE:
-            return "Папка с фотографиями удалена"
+            return "Папка фотографий удалена"
         if "name" in changed_fields:
-            return "Папка с фотографиями переименована"
+            return "Папка фотографий переименована"
         if "parent" in changed_fields:
-            return "Папка с фотографиями перемещена"
+            return "Папка фотографий перемещена"
         if changes:
-            return "Папка с фотографиями отредактирована"
+            return "Папка фотографий отредактирована"
     if log.action == AuditLog.Action.CREATE:
         return "Запись добавлена"
     if log.action == AuditLog.Action.DELETE:
-        return "Удаленная запись скрыта из рабочих разделов"
+        return "Запись удалена"
     if changes:
         labels = ", ".join(row["label"] for row in changes[:3])
         if len(changes) > 3:
@@ -304,13 +318,17 @@ def audit_filter_values(request, name):
     return [value for value in request.GET.getlist(name) if value]
 
 
-def audit_pagination_fields(request, date_from, date_to):
+def audit_pagination_fields(request, date_from, date_to, show_user_filter=True, show_department_filter=True):
     fields = [
-        {"name": "q", "value": request.GET.get("q", "")},
         {"name": "date_from", "value": date_from},
         {"name": "date_to", "value": date_to},
     ]
-    for name in ("user", "action", "department", "object", "organ"):
+    names = ["action", "object", "organ"]
+    if show_user_filter:
+        names.insert(0, "user")
+    if show_department_filter:
+        names.insert(2 if show_user_filter else 1, "department")
+    for name in names:
         fields.extend({"name": name, "value": value} for value in audit_filter_values(request, name))
     return fields
 
@@ -320,11 +338,13 @@ def audit_multiselect_label(selected_values, empty_label):
     return f"Выбрано: {count}" if count else empty_label
 
 
-def audit_has_filters(request, date_from, date_to):
-    meaningful = {"q", "user", "action", "department", "object", "organ"}
-    if request.GET.get("q"):
-        return True
-    if any(audit_filter_values(request, name) for name in meaningful - {"q"}):
+def audit_has_filters(request, date_from, date_to, show_user_filter=True, show_department_filter=True):
+    meaningful = {"action", "object", "organ"}
+    if show_user_filter:
+        meaningful.add("user")
+    if show_department_filter:
+        meaningful.add("department")
+    if any(audit_filter_values(request, name) for name in meaningful):
         return True
     if "date_from" in request.GET and request.GET.get("date_from", "").strip() != audit_default_date_from():
         return True
@@ -333,21 +353,13 @@ def audit_has_filters(request, date_from, date_to):
     return False
 
 
-def filtered_logs(request):
-    logs = AuditLog.objects.select_related("user", "territorial_organ").all()
-    query = request.GET.get("q", "").strip()
-    if query:
-        logs = logs.filter(
-            Q(object_repr__icontains=query)
-            | Q(model_name__icontains=query)
-            | Q(user__username__icontains=query)
-            | Q(ip_address__icontains=query)
-            | Q(user_agent__icontains=query)
-        )
-    users = audit_filter_values(request, "user")
+def filtered_logs(request, logs=None, show_user_filter=True, show_department_filter=True):
+    if logs is None:
+        logs = AuditLog.objects.select_related("user", "territorial_organ").all()
+    users = audit_filter_values(request, "user") if show_user_filter else []
     actions = audit_filter_values(request, "action")
     organs = audit_filter_values(request, "organ")
-    departments = audit_filter_values(request, "department")
+    departments = audit_filter_values(request, "department") if show_department_filter else []
     objects = audit_filter_values(request, "object")
     models = filtered_model_names(departments, objects)
     if users:
@@ -367,28 +379,28 @@ def filtered_logs(request):
     return logs
 
 
-@login_required
-@user_passes_test(is_admin)
-def audit_log(request):
-    logs = filtered_logs(request)
+def render_audit_page(request, logs, title, subtitle, reset_url_name, pagination_url_name, show_user_filter=True, show_department_filter=True, show_user_column=True):
     paginator = Paginator(logs, 25)
     page = paginator.get_page(request.GET.get("page"))
     for log in page.object_list:
         prepare_log(log)
     querystring = request.GET.copy()
     querystring.pop("page", None)
-    User = get_user_model()
+    querystring.pop("q", None)
     date_from = audit_date_value(request, "date_from")
     date_to = audit_date_value(request, "date_to")
-    selected_users = audit_filter_values(request, "user")
+    selected_users = audit_filter_values(request, "user") if show_user_filter else []
     selected_actions = audit_filter_values(request, "action")
-    selected_departments = audit_filter_values(request, "department")
+    selected_departments = audit_filter_values(request, "department") if show_department_filter else []
     selected_objects = audit_filter_values(request, "object")
     selected_organs = audit_filter_values(request, "organ")
+    User = get_user_model()
     return render(
         request,
         "audit_log.html",
         {
+            "title": title,
+            "subtitle": subtitle,
             "page": page,
             "logs": page.object_list,
             "actions": [(value, ACTION_DISPLAY_LABELS.get(value, label)) for value, label in AuditLog.Action.choices],
@@ -396,6 +408,9 @@ def audit_log(request):
             "department_filters": audit_department_options(),
             "object_filters": [(key, label) for key, label, _ in OBJECT_FILTERS],
             "users": User.objects.filter(is_active=True).order_by("username"),
+            "show_user_filter": show_user_filter,
+            "show_department_filter": show_department_filter,
+            "show_user_column": show_user_column,
             "date_from": date_from,
             "date_to": date_to,
             "selected_users": selected_users,
@@ -408,17 +423,55 @@ def audit_log(request):
             "department_filter_label": audit_multiselect_label(selected_departments, "Все отделы"),
             "object_filter_label": audit_multiselect_label(selected_objects, "Все объекты"),
             "organ_filter_label": audit_multiselect_label(selected_organs, "Все территориальные органы"),
-            "has_filters": audit_has_filters(request, date_from, date_to),
+            "has_filters": audit_has_filters(request, date_from, date_to, show_user_filter, show_department_filter),
+            "reset_url": reverse(reset_url_name),
             "querystring": querystring.urlencode(),
             "total_count": logs.count(),
             "page_links": paginator.get_elided_page_range(page.number, on_each_side=1, on_ends=1),
-            "pagination_fields": audit_pagination_fields(request, date_from, date_to),
+            "pagination_url": reverse(pagination_url_name),
+            "pagination_fields": audit_pagination_fields(request, date_from, date_to, show_user_filter, show_department_filter),
         },
     )
 
 
 @login_required
 @user_passes_test(is_admin)
+def audit_log(request):
+    logs = filtered_logs(request)
+    return render_audit_page(
+        request,
+        logs,
+        title="Журнал действий",
+        subtitle="Администрирование",
+        reset_url_name="audit_log",
+        pagination_url_name="audit_log",
+    )
+
+
+@login_required
+def my_audit_log(request):
+    logs = filtered_logs(
+        request,
+        logs=AuditLog.objects.select_related("user", "territorial_organ").filter(user=request.user),
+        show_user_filter=False,
+        show_department_filter=False,
+    )
+    return render_audit_page(
+        request,
+        logs,
+        title="Мои действия",
+        subtitle="Личная история действий",
+        reset_url_name="my_audit_log",
+        pagination_url_name="my_audit_log",
+        show_user_filter=False,
+        show_department_filter=False,
+        show_user_column=False,
+    )
+
+
+@login_required
 def audit_detail(request, pk):
     log = prepare_log(get_object_or_404(AuditLog.objects.select_related("user", "territorial_organ"), pk=pk))
+    if not is_admin(request.user) and log.user_id != request.user.id:
+        raise Http404
     return render(request, "partials/audit_detail.html", {"log": log})
