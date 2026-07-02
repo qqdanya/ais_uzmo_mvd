@@ -114,7 +114,6 @@
           <tr>
             <th>Дата и время</th>
             {% if show_user_column %}<th>Пользователь</th>{% endif %}
-            <th>Действие</th>
             <th>Событие</th>
             <th>Платформа</th>
             <th>Подробности</th>
@@ -129,10 +128,9 @@
                   <strong>{{ log.user|default:"Система" }}</strong>
                 </td>
               {% endif %}
-              <td class="audit-action-cell"><span class="audit-action {{ log.action_badge }}">{{ log.action_display }}</span></td>
               <td class="audit-event">
-                <strong>{{ log.summary }}</strong>
-                {% if log.display_object_repr %}<span class="audit-muted">{{ log.display_object_repr }}</span>{% endif %}
+                <strong class="audit-event-title {{ log.action_badge }}">{{ log.summary }}</strong>
+                {% if log.display_object_repr %}<span class="audit-muted audit-event-object">{{ log.display_object_repr }}</span>{% endif %}
                 {% if log.location_parts %}
                   <div class="audit-location-list">
                     {% for label,value in log.location_parts %}
@@ -143,7 +141,7 @@
               </td>
               <td class="audit-center-cell">
                 <strong>{{ log.ip_address|default:"IP не указан" }}</strong>
-                <span class="audit-muted">{{ log.browser_summary }}</span>
+                <span class="audit-muted audit-platform">{{ log.browser_summary }}</span>
               </td>
               <td class="actions-cell">
                 <button class="btn btn-sm btn-outline-primary audit-detail-button" type="button" hx-get="{% url 'audit_detail' log.pk %}" hx-target="#modal-content" data-open-modal="true"><i class="bi bi-list-ul"></i> Открыть</button>
@@ -151,7 +149,7 @@
             </tr>
           {% empty %}
             <tr>
-              <td colspan="{% if show_user_column %}6{% else %}5{% endif %}">
+              <td colspan="{% if show_user_column %}5{% else %}4{% endif %}">
                 <div class="empty-state audit-empty">
                   <i class="bi bi-activity"></i>
                   <strong>Записи журнала не найдены</strong>

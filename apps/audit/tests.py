@@ -55,6 +55,7 @@ class AuditLogTests(TestCase):
         self.assertContains(response, "Событие")
         self.assertContains(response, "Платформа")
         self.assertContains(response, "Подробности")
+        self.assertNotContains(response, "<th>Действие</th>", html=True)
         self.assertContains(response, "Все территориальные органы")
         self.assertContains(response, "Редактирование")
         self.assertContains(response, 'class="pagination-jump"')
