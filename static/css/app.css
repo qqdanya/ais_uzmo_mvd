@@ -2491,6 +2491,93 @@ textarea {
 .audit-search .form-control {
   padding-left: 2rem;
 }
+.audit-multiselect {
+  min-width: 0;
+}
+.audit-multiselect-trigger {
+  width: 100%;
+  min-height: 31px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .55rem;
+  padding: .34rem .55rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: linear-gradient(180deg, #fff 0%, #f8fbff 100%);
+  color: var(--ink);
+  font-size: .84rem;
+  line-height: 1.2;
+  text-align: left;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.75), 0 1px 0 rgba(11, 47, 91, .03);
+  transition: border-color .18s var(--motion-smooth), box-shadow .18s var(--motion-smooth), background-color .18s var(--motion-smooth);
+}
+.audit-multiselect-trigger:hover,
+.audit-multiselect-trigger.show {
+  border-color: #9fc8df;
+  background: #fbfdff;
+}
+.audit-multiselect-trigger:focus-visible {
+  border-color: #7ebbe0;
+  outline: 0;
+  box-shadow: 0 0 0 .18rem rgba(23, 105, 170, .14), 0 8px 18px rgba(23, 105, 170, .08);
+}
+.audit-multiselect-trigger span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.audit-multiselect-trigger i {
+  flex: 0 0 auto;
+  color: var(--blue);
+  font-size: .8rem;
+  transition: transform .18s var(--motion-smooth);
+}
+.audit-multiselect-trigger.show i {
+  transform: rotate(180deg);
+}
+.audit-multiselect-menu {
+  width: min(340px, calc(100vw - 24px));
+  max-height: min(310px, 52vh);
+  overflow: auto;
+  padding: 5px;
+  border: 1px solid #c9dceb;
+  border-radius: 8px;
+  box-shadow: 0 16px 34px rgba(11, 47, 91, .16);
+}
+.audit-multiselect-menu.show {
+  animation: menu-slide-in .16s ease-out both;
+}
+.audit-multiselect-option {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  min-height: 30px;
+  margin: 0;
+  padding: .38rem .5rem;
+  border-radius: 7px;
+  color: var(--ink);
+  font-size: .84rem;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: background-color .16s var(--motion-smooth), color .16s var(--motion-smooth);
+}
+.audit-multiselect-option:hover {
+  background: #eef7ff;
+  color: var(--navy);
+}
+.audit-multiselect-option input {
+  flex: 0 0 auto;
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: var(--blue);
+}
+.audit-multiselect-option span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .audit-date-range {
   display: grid;
   grid-template-columns: minmax(8.75rem, 1fr) auto minmax(8.75rem, 1fr);

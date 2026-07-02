@@ -265,9 +265,31 @@ def audit_date_value(request, name):
     return audit_default_date_from() if name == "date_from" else audit_default_date_to()
 
 
+def audit_filter_values(request, name):
+    return [value for value in request.GET.getlist(name) if value]
+
+
+def audit_pagination_fields(request, date_from, date_to):
+    fields = [
+        {"name": "q", "value": request.GET.get("q", "")},
+        {"name": "date_from", "value": date_from},
+        {"name": "date_to", "value": date_to},
+    ]
+    for name in ("user", "action", "model", "organ"):
+        fields.extend({"name": name, "value": value} for value in audit_filter_values(request, name))
+    return fields
+
+
+def audit_multiselect_label(selected_values, empty_label):
+    count = len(selected_values)
+    return f"Выбрано: {count}" if count else empty_label
+
+
 def audit_has_filters(request, date_from, date_to):
     meaningful = {"q", "user", "action", "model", "organ"}
-    if any(request.GET.get(name) for name in meaningful):
+    if request.GET.get("q"):
+        return True
+    if any(audit_filter_values(request, name) for name in meaningful - {"q"}):
         return True
     if "date_from" in request.GET and request.GET.get("date_from", "").strip() != audit_default_date_from():
         return True
@@ -287,14 +309,18 @@ def filtered_logs(request):
             | Q(ip_address__icontains=query)
             | Q(user_agent__icontains=query)
         )
-    if request.GET.get("user"):
-        logs = logs.filter(user__username__icontains=request.GET["user"])
-    if request.GET.get("action"):
-        logs = logs.filter(action=request.GET["action"])
-    if request.GET.get("organ"):
-        logs = logs.filter(territorial_organ_id=request.GET["organ"])
-    if request.GET.get("model"):
-        logs = logs.filter(model_name=request.GET["model"])
+    users = audit_filter_values(request, "user")
+    actions = audit_filter_values(request, "action")
+    organs = audit_filter_values(request, "organ")
+    models = audit_filter_values(request, "model")
+    if users:
+        logs = logs.filter(user__username__in=users)
+    if actions:
+        logs = logs.filter(action__in=actions)
+    if organs:
+        logs = logs.filter(territorial_organ_id__in=organs)
+    if models:
+        logs = logs.filter(model_name__in=models)
     date_from = audit_date_value(request, "date_from")
     date_to = audit_date_value(request, "date_to")
     if date_from:
@@ -318,15 +344,10 @@ def audit_log(request):
     User = get_user_model()
     date_from = audit_date_value(request, "date_from")
     date_to = audit_date_value(request, "date_to")
-    pagination_fields = [
-        {"name": "q", "value": request.GET.get("q", "")},
-        {"name": "user", "value": request.GET.get("user", "")},
-        {"name": "action", "value": request.GET.get("action", "")},
-        {"name": "model", "value": request.GET.get("model", "")},
-        {"name": "organ", "value": request.GET.get("organ", "")},
-        {"name": "date_from", "value": date_from},
-        {"name": "date_to", "value": date_to},
-    ]
+    selected_users = audit_filter_values(request, "user")
+    selected_actions = audit_filter_values(request, "action")
+    selected_models = audit_filter_values(request, "model")
+    selected_organs = audit_filter_values(request, "organ")
     return render(
         request,
         "audit_log.html",
@@ -339,11 +360,19 @@ def audit_log(request):
             "users": User.objects.filter(is_active=True).order_by("username"),
             "date_from": date_from,
             "date_to": date_to,
+            "selected_users": selected_users,
+            "selected_actions": selected_actions,
+            "selected_models": selected_models,
+            "selected_organs": selected_organs,
+            "user_filter_label": audit_multiselect_label(selected_users, "Все пользователи"),
+            "action_filter_label": audit_multiselect_label(selected_actions, "Все действия"),
+            "model_filter_label": audit_multiselect_label(selected_models, "Все объекты"),
+            "organ_filter_label": audit_multiselect_label(selected_organs, "Все территориальные органы"),
             "has_filters": audit_has_filters(request, date_from, date_to),
             "querystring": querystring.urlencode(),
             "total_count": logs.count(),
             "page_links": paginator.get_elided_page_range(page.number, on_each_side=1, on_ends=1),
-            "pagination_fields": pagination_fields,
+            "pagination_fields": audit_pagination_fields(request, date_from, date_to),
         },
     )
 

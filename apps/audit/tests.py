@@ -188,3 +188,20 @@ class AuditLogTests(TestCase):
 
         self.assertContains(response, "Fresh")
         self.assertNotContains(response, "Old")
+
+    def test_audit_log_filters_accept_multiple_checkbox_values(self):
+        self.create_log(action=AuditLog.Action.CREATE, object_repr="Created")
+        self.create_log(action=AuditLog.Action.UPDATE, object_repr="Updated")
+        self.create_log(action=AuditLog.Action.DELETE, object_repr="Deleted")
+        self.client.login(username="admin", password="pass12345")
+
+        response = self.client.get(
+            reverse("audit_log"),
+            {"action": [AuditLog.Action.CREATE, AuditLog.Action.UPDATE]},
+        )
+
+        self.assertContains(response, "Created")
+        self.assertContains(response, "Updated")
+        self.assertNotContains(response, "Deleted")
+        self.assertContains(response, 'name="action" value="create" checked')
+        self.assertContains(response, 'name="action" value="update" checked')
