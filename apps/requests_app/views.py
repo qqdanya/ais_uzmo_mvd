@@ -659,6 +659,18 @@ def status_history_queryset(obj):
     return RequestStatusHistory.objects.select_related("changed_by").filter(content_type=status_history_content_type(obj), object_id=obj.pk)
 
 
+def attach_status_history_flags(objects, model):
+    object_ids = [obj.pk for obj in objects]
+    if not object_ids:
+        return
+    content_type = ContentType.objects.get_for_model(model, for_concrete_model=False)
+    history_ids = set(
+        RequestStatusHistory.objects.filter(content_type=content_type, object_id__in=object_ids).values_list("object_id", flat=True)
+    )
+    for obj in objects:
+        obj.has_status_history_entries = obj.pk in history_ids
+
+
 def create_status_history(obj, old_status, new_status, completed_at, changed_by, note):
     return RequestStatusHistory.objects.create(
         content_type=status_history_content_type(obj),
@@ -715,6 +727,8 @@ def table_data(request, organ_id, table_key):
     page = paginator.get_page(request.GET.get("page"))
     if table_key in REQUEST_PHOTO_TABLES and not is_tmc_grouped:
         attach_request_photo_counts(page.object_list, table["model"], selected_organs)
+    if table_key in STATUS_HISTORY_TABLES and not is_tmc_grouped:
+        attach_status_history_flags(page.object_list, table["model"])
     querystring = request.GET.copy()
     querystring.pop("page", None)
     list_querystring = querystring.copy()
@@ -890,13 +904,18 @@ def tmc_item_rows_from_request(request):
         rows.append(row)
     if not rows:
         errors.append("Добавьте хотя бы одну позицию заявки.")
+        rows.append(tmc_blank_item_row())
     return rows, errors
+
+
+def tmc_blank_item_row():
+    return {"product_id": "", "name": "", "quantity": "", "unit": "шт."}
 
 
 def tmc_item_rows_from_instance(instance):
     if not instance:
-        return [{"product_id": "", "name": "", "quantity": "", "unit": "шт."}]
-    return [{"product_id": item.product_id or "", "name": item.name, "quantity": item.quantity, "unit": item.unit} for item in instance.items.all()] or [{"product_id": "", "name": "", "quantity": "", "unit": "шт."}]
+        return [tmc_blank_item_row()]
+    return [{"product_id": item.product_id or "", "name": item.name, "quantity": item.quantity, "unit": item.unit} for item in instance.items.all()] or [tmc_blank_item_row()]
 
 
 def tmc_snapshot(instance):

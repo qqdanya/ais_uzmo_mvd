@@ -1447,11 +1447,6 @@ textarea {
   line-height: 1.15;
   white-space: nowrap;
 }
-.status-new {
-  color: #0b5f8a;
-  background: #dff2ff;
-  border-color: #8bc7ea;
-}
 .status-in_work {
   color: #6f5b00;
   background: #fff8c9;
@@ -3226,6 +3221,9 @@ textarea.form-control {
   justify-content: space-between;
   gap: 8px;
   margin: 16px 0 8px;
+}
+.tmc-item-errors {
+  margin: 0 0 10px;
 }
 .tmc-items-head h3 {
   margin: 0;

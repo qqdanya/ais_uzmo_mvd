@@ -25,6 +25,14 @@
       <div class="form-label mb-0">Позиции заявки</div>
       <button class="btn btn-sm btn-outline-primary" type="button" data-add-tmc-item><i class="bi bi-plus-lg"></i> Позиция</button>
     </div>
+    {% if item_errors %}
+      <div class="modal-error-list tmc-item-errors" role="alert">
+        <i class="bi bi-exclamation-circle"></i>
+        <div>
+          {% for error in item_errors %}<div>{{ error }}</div>{% endfor %}
+        </div>
+      </div>
+    {% endif %}
     <div class="tmc-items" data-tmc-items>
       {% for item in item_rows %}
       <div class="tmc-item-row" data-tmc-item-row>
@@ -32,30 +40,22 @@
           <label class="form-label">Наименование</label>
           <div class="tmc-product-field" data-tmc-product-field>
             <input type="hidden" name="item_product" value="{{ item.product_id|default:'' }}" data-tmc-product-id>
-            <input class="form-control" name="item_name" value="{{ item.name }}" placeholder="Стол компьютерный" autocomplete="off" data-tmc-product-input data-suggest-url="{% url 'tmc_product_suggest' %}">
+            <input class="form-control" name="item_name" value="{{ item.name }}" autocomplete="off" data-tmc-product-input data-suggest-url="{% url 'tmc_product_suggest' %}">
             <div class="tmc-product-suggestions" data-tmc-product-suggestions hidden></div>
           </div>
         </div>
         <div>
           <label class="form-label">Количество</label>
-          <input class="form-control" name="item_quantity" type="number" min="1" value="{{ item.quantity }}" placeholder="5">
+          <input class="form-control" name="item_quantity" type="number" min="1" value="{{ item.quantity }}">
         </div>
         <div>
           <label class="form-label">Ед. изм.</label>
-          <input class="form-control" name="item_unit" value="{{ item.unit|default:'шт.' }}" placeholder="шт.">
+          <input class="form-control" name="item_unit" value="{{ item.unit|default:'шт.' }}">
         </div>
         <button class="btn btn-icon danger tmc-item-remove" type="button" data-remove-tmc-item aria-label="Удалить позицию"><i class="bi bi-trash"></i></button>
       </div>
       {% endfor %}
     </div>
-    {% if item_errors %}
-      <div class="modal-error-list" role="alert">
-        <i class="bi bi-exclamation-circle"></i>
-        <div>
-          {% for error in item_errors %}<div>{{ error }}</div>{% endfor %}
-        </div>
-      </div>
-    {% endif %}
     {% include "partials/request_photo_picker.html" %}
     {% if form.non_field_errors %}
       <div class="modal-error-list" role="alert">

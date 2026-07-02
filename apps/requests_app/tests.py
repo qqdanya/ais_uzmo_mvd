@@ -18,6 +18,7 @@ from apps.accounts.models import UserProfile
 from apps.audit.models import AuditLog
 from apps.directory.models import Department, TerritorialOrgan, TerritorialOrganPhoto, TerritorialOrganPhotoFolder
 from apps.requests_app.models import (
+    ACTIVE_NEED_STATUS_CHOICES,
     AntiTerrorMeasure,
     CitsiziEquipment,
     EquipmentType,
@@ -50,6 +51,15 @@ class AppFlowTests(TestCase):
     def status_history(self, obj):
         content_type = ContentType.objects.get_for_model(obj, for_concrete_model=False)
         return RequestStatusHistory.objects.filter(content_type=content_type, object_id=obj.pk)
+
+    def create_status_history_entry(self, obj, old_status=None, new_status="in_work"):
+        return RequestStatusHistory.objects.create(
+            content_type=ContentType.objects.get_for_model(obj, for_concrete_model=False),
+            object_id=obj.pk,
+            old_status=old_status,
+            new_status=new_status,
+            changed_by=self.user,
+        )
 
     def response_bytes(self, response):
         if getattr(response, "streaming", False):
@@ -159,6 +169,8 @@ class AppFlowTests(TestCase):
         self.assertContains(response, 'name="status"')
         self.assertContains(response, 'value="in_work"')
         self.assertNotContains(response, 'value="new"')
+        self.assertNotIn(("new", "Новая"), TmcRequest._meta.get_field("status").choices)
+        self.assertNotIn(("new", "Новая"), ACTIVE_NEED_STATUS_CHOICES)
 
     def test_tmc_product_suggest_finds_words_in_any_order(self):
         TmcProduct.objects.create(name="Стол компьютерный", unit="шт.")
@@ -241,7 +253,7 @@ class AppFlowTests(TestCase):
             updated_by=self.user,
             request_number="15-Replace/TMC",
             request_date="2026-06-27",
-            status="new",
+            status="in_work",
         )
         TmcRequestItem.objects.create(request=request_obj, name="Desk", quantity=1, unit="шт.")
         self.client.login(username="operator", password="pass12345")
@@ -306,7 +318,7 @@ class AppFlowTests(TestCase):
             updated_by=self.user,
             request_number="18/TMC",
             request_date="2026-06-27",
-            status="new",
+            status="in_work",
         )
         TmcRequestItem.objects.create(request=request_obj, name="Chair", quantity=1, unit="pcs")
         self.client.login(username="operator", password="pass12345")
@@ -316,7 +328,8 @@ class AppFlowTests(TestCase):
             {
                 "request_number": "18/TMC",
                 "request_date": "2026-06-27",
-                "status": "in_work",
+                "status": "done",
+                "due_date": "2026-06-29",
                 "comment": "",
                 "item_name": ["Chair"],
                 "item_quantity": ["1"],
@@ -326,7 +339,7 @@ class AppFlowTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertTrue(self.status_history(request_obj).filter(old_status="new", new_status="in_work", changed_by=self.user).exists())
+        self.assertTrue(self.status_history(request_obj).filter(old_status="in_work", new_status="done", changed_by=self.user).exists())
 
     def test_tmc_edit_form_keeps_request_dates(self):
         request_obj = TmcRequest.objects.create(
@@ -410,11 +423,38 @@ class AppFlowTests(TestCase):
         self.assertContains(response, request_obj.get_status_display())
         self.assertContains(response, "Finished")
 
+    def test_status_history_button_is_hidden_without_history(self):
+        request_without_history = TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            request_number="18/TMC",
+            request_date="2026-06-26",
+            status="in_work",
+        )
+        request_with_history = TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            request_number="19/TMC",
+            request_date="2026-06-27",
+            status="done",
+        )
+        RequestStatusHistory.objects.create(
+            content_type=ContentType.objects.get_for_model(request_with_history, for_concrete_model=False),
+            object_id=request_with_history.pk,
+            old_status="in_work",
+            new_status="done",
+            changed_by=self.user,
+        )
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("table_data", args=[self.organ.pk, "tmc-requests"]))
+
+        self.assertNotContains(response, reverse("tmc_status_history", args=[self.organ.pk, request_without_history.pk]))
+        self.assertContains(response, reverse("tmc_status_history", args=[self.organ.pk, request_with_history.pk]))
+
     def test_tmc_xlsx_export_has_grouped_document_layout(self):
         first = TmcRequest.objects.create(territorial_organ=self.organ, request_number="20/TMC", request_date="2026-06-27", status="in_work", comment="First comment")
         TmcRequestItem.objects.create(request=first, name="Desk", quantity=5, unit="pcs")
         TmcRequestItem.objects.create(request=first, name="Chair", quantity=5, unit="pcs")
-        second = TmcRequest.objects.create(territorial_organ=self.organ, request_number="21/TMC", request_date="2026-06-26", status="new", comment="Second comment")
+        second = TmcRequest.objects.create(territorial_organ=self.organ, request_number="21/TMC", request_date="2026-06-26", status="in_work", comment="Second comment")
         TmcRequestItem.objects.create(request=second, name="Keyboard", quantity=3, unit="pcs")
         self.client.login(username="operator", password="pass12345")
 
@@ -471,9 +511,18 @@ class AppFlowTests(TestCase):
         self.assertContains(response, "Отклонено")
         self.assertContains(response, "<strong>1</strong>", html=True)
 
+    def test_zero_status_summary_pills_are_muted_consistently(self):
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("table_data", args=[self.organ.pk, "tmc-requests"]))
+
+        self.assertContains(response, "summary-pill-in-work is-zero")
+        self.assertContains(response, "summary-pill-done is-zero")
+        self.assertContains(response, "summary-pill-rejected is-zero")
+
     def test_tmc_table_supports_multi_organ_summary_mode(self):
         other_organ = TerritorialOrgan.objects.create(name="Other territorial organ", order_number=2)
-        first = TmcRequest.objects.create(territorial_organ=self.organ, request_number="40/TMC", request_date="2026-06-20", status="new", comment="Office")
+        first = TmcRequest.objects.create(territorial_organ=self.organ, request_number="40/TMC", request_date="2026-06-20", status="in_work", comment="Office")
         second = TmcRequest.objects.create(territorial_organ=other_organ, request_number="41/TMC", request_date="2026-06-21", status="in_work", comment="Office")
         TmcRequestItem.objects.create(request=first, name="Бумага А4", quantity=5, unit="пач.")
         TmcRequestItem.objects.create(request=second, name="Бумага А4", quantity=7, unit="пач.")
@@ -522,7 +571,7 @@ class AppFlowTests(TestCase):
 
     def test_multi_organ_summary_keeps_row_actions_for_writable_organs(self):
         other_organ = TerritorialOrgan.objects.create(name="Other territorial organ", order_number=2)
-        first = TmcRequest.objects.create(territorial_organ=self.organ, request_number="42/TMC", request_date="2026-06-20", status="new")
+        first = TmcRequest.objects.create(territorial_organ=self.organ, request_number="42/TMC", request_date="2026-06-20", status="in_work")
         second = TmcRequest.objects.create(territorial_organ=other_organ, request_number="43/TMC", request_date="2026-06-21", status="in_work")
         TmcRequestItem.objects.create(request=first, name="Paper", quantity=5, unit="pcs")
         TmcRequestItem.objects.create(request=second, name="Paper", quantity=7, unit="pcs")
@@ -541,7 +590,7 @@ class AppFlowTests(TestCase):
 
     def test_tmc_table_can_group_products_across_selected_organs(self):
         other_organ = TerritorialOrgan.objects.create(name="Other territorial organ", order_number=2)
-        first = TmcRequest.objects.create(territorial_organ=self.organ, request_number="44/TMC", request_date="2026-06-20", status="new")
+        first = TmcRequest.objects.create(territorial_organ=self.organ, request_number="44/TMC", request_date="2026-06-20", status="in_work")
         second = TmcRequest.objects.create(territorial_organ=other_organ, request_number="45/TMC", request_date="2026-06-21", status="in_work")
         third = TmcRequest.objects.create(territorial_organ=other_organ, request_number="46/TMC", request_date="2026-06-22", status="done")
         TmcRequestItem.objects.create(request=first, name="Бумага А4", quantity=5, unit="пач.")
@@ -621,9 +670,9 @@ class AppFlowTests(TestCase):
         self.assertNotContains(response, "from:input")
 
     def test_tmc_search_is_case_insensitive_for_cyrillic(self):
-        matching = TmcRequest.objects.create(territorial_organ=self.organ, request_number="32/TMC", request_date="2026-06-20", status="new", comment="Склад")
+        matching = TmcRequest.objects.create(territorial_organ=self.organ, request_number="32/TMC", request_date="2026-06-20", status="in_work", comment="Склад")
         TmcRequestItem.objects.create(request=matching, name="Стол письменный", quantity=2, unit="шт.")
-        other = TmcRequest.objects.create(territorial_organ=self.organ, request_number="33/TMC", request_date="2026-06-20", status="new", comment="Кабинет")
+        other = TmcRequest.objects.create(territorial_organ=self.organ, request_number="33/TMC", request_date="2026-06-20", status="in_work", comment="Кабинет")
         TmcRequestItem.objects.create(request=other, name="Кресло офисное", quantity=1, unit="шт.")
         self.client.login(username="operator", password="pass12345")
 
@@ -654,9 +703,9 @@ class AppFlowTests(TestCase):
     def test_tmc_date_filters_have_default_range(self):
         today = timezone.localdate()
         oldest_date = today - timedelta(days=10)
-        oldest = TmcRequest.objects.create(territorial_organ=self.organ, request_number="30/TMC", request_date=oldest_date, status="new")
+        oldest = TmcRequest.objects.create(territorial_organ=self.organ, request_number="30/TMC", request_date=oldest_date, status="in_work")
         TmcRequestItem.objects.create(request=oldest, name="Archive box", quantity=1, unit="pcs")
-        future = TmcRequest.objects.create(territorial_organ=self.organ, request_number="31/TMC", request_date=today + timedelta(days=1), status="new")
+        future = TmcRequest.objects.create(territorial_organ=self.organ, request_number="31/TMC", request_date=today + timedelta(days=1), status="in_work")
         TmcRequestItem.objects.create(request=future, name="Future item", quantity=1, unit="pcs")
         self.client.login(username="operator", password="pass12345")
 
@@ -675,7 +724,7 @@ class AppFlowTests(TestCase):
                 territorial_organ=self.organ,
                 request_number=f"PAGE-{index:02d}",
                 request_date="2026-06-20",
-                status="new",
+                status="in_work",
             )
             TmcRequestItem.objects.create(request=request_obj, name="Paper", quantity=1, unit="pcs")
         self.client.login(username="operator", password="pass12345")
@@ -709,7 +758,7 @@ class AppFlowTests(TestCase):
 
     def test_tmc_grouped_xlsx_export_matches_grouped_table(self):
         other_organ = TerritorialOrgan.objects.create(name="Other territorial organ", order_number=2)
-        first = TmcRequest.objects.create(territorial_organ=self.organ, request_number="48/TMC", request_date="2026-06-20", status="new")
+        first = TmcRequest.objects.create(territorial_organ=self.organ, request_number="48/TMC", request_date="2026-06-20", status="in_work")
         second = TmcRequest.objects.create(territorial_organ=other_organ, request_number="49/TMC", request_date="2026-06-21", status="in_work")
         TmcRequestItem.objects.create(request=first, name="Бумага А4", quantity=5, unit="пач.")
         TmcRequestItem.objects.create(request=second, name="Бумага А4", quantity=7, unit="пач.")
@@ -733,7 +782,7 @@ class AppFlowTests(TestCase):
         self.assertNotIn("49/TMC", values)
 
     def test_tmc_grouped_csv_export_matches_grouped_table(self):
-        request_obj = TmcRequest.objects.create(territorial_organ=self.organ, request_number="50/TMC", request_date="2026-06-20", status="new")
+        request_obj = TmcRequest.objects.create(territorial_organ=self.organ, request_number="50/TMC", request_date="2026-06-20", status="in_work")
         TmcRequestItem.objects.create(request=request_obj, name="Сканер", quantity=2, unit="шт.")
         self.client.login(username="operator", password="pass12345")
 
@@ -813,6 +862,7 @@ class AppFlowTests(TestCase):
     def test_citsizi_request_table_history_filters_and_styled_export(self):
         included = CitsiziEquipment.objects.create(territorial_organ=self.organ, request_number="C-10", request_date="2026-06-20", equipment_type="communication", quantity=3, status="in_work", comment="Install radio")
         excluded = CitsiziEquipment.objects.create(territorial_organ=self.organ, request_number="C-11", request_date="2026-06-20", equipment_type="computing", quantity=2, status="done")
+        self.create_status_history_entry(included)
         self.client.login(username="operator", password="pass12345")
 
         table_response = self.client.get(
@@ -903,13 +953,14 @@ class AppFlowTests(TestCase):
         self.assertEqual(sheet["E2"].border.right.style, "medium")
 
     def test_vehicle_repair_request_shows_comment_column(self):
-        VehicleRepairRequest.objects.create(
+        request_obj = VehicleRepairRequest.objects.create(
             territorial_organ=self.organ,
             request_number="R-1",
             request_date="2026-06-27",
             status="in_work",
             comment="Needs diagnostics",
         )
+        self.create_status_history_entry(request_obj)
         self.client.login(username="operator", password="pass12345")
 
         response = self.client.get(reverse("table_data", args=[self.organ.pk, "vehicle-repair"]))
@@ -948,7 +999,7 @@ class AppFlowTests(TestCase):
             territorial_organ=self.organ,
             request_number="R-2",
             request_date="2026-06-27",
-            status="new",
+            status="in_work",
             comment="Initial",
         )
         self.client.login(username="operator", password="pass12345")
@@ -966,7 +1017,7 @@ class AppFlowTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        history = self.status_history(request_obj).get(old_status="new", new_status="done")
+        history = self.status_history(request_obj).get(old_status="in_work", new_status="done")
         self.assertEqual(history.completed_at.isoformat(), "2026-06-29")
 
         modal = self.client.get(reverse("vehicle_repair_status_history", args=[self.organ.pk, request_obj.pk]), HTTP_HX_REQUEST="true")
@@ -1013,13 +1064,14 @@ class AppFlowTests(TestCase):
         self.assertNotIn(excluded.request_number, values)
 
     def test_vehicle_fuel_request_matches_vehicle_repair_table_behavior(self):
-        VehicleFuelRequest.objects.create(
+        request_obj = VehicleFuelRequest.objects.create(
             territorial_organ=self.organ,
             request_number="GSM-1",
             request_date="2026-06-27",
             status="in_work",
             comment="Fuel cards",
         )
+        self.create_status_history_entry(request_obj)
         self.client.login(username="operator", password="pass12345")
 
         response = self.client.get(reverse("table_data", args=[self.organ.pk, "vehicle-fuel"]))
@@ -1042,7 +1094,7 @@ class AppFlowTests(TestCase):
             territorial_organ=self.organ,
             request_number="GSM-2",
             request_date="2026-06-27",
-            status="new",
+            status="in_work",
             comment="Initial",
         )
         self.client.login(username="operator", password="pass12345")
@@ -1060,7 +1112,7 @@ class AppFlowTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        history = self.status_history(request_obj).get(old_status="new", new_status="done")
+        history = self.status_history(request_obj).get(old_status="in_work", new_status="done")
         self.assertEqual(history.completed_at.isoformat(), "2026-06-29")
 
         modal = self.client.get(reverse("vehicle_fuel_status_history", args=[self.organ.pk, request_obj.pk]), HTTP_HX_REQUEST="true")
@@ -1114,6 +1166,7 @@ class AppFlowTests(TestCase):
     def test_fire_request_has_comment_history_filters_and_styled_export(self):
         included = FireDepartmentRequest.objects.create(territorial_organ=self.organ, request_number="F-1", request_date="2026-06-20", status="in_work", comment="Recharge")
         excluded = FireDepartmentRequest.objects.create(territorial_organ=self.organ, request_number="F-2", request_date="2026-06-20", status="done", comment="Recharge")
+        self.create_status_history_entry(included)
         self.client.login(username="operator", password="pass12345")
 
         table_response = self.client.get(
@@ -1156,6 +1209,7 @@ class AppFlowTests(TestCase):
     def test_anti_terror_request_table_history_filters_and_styled_export(self):
         included = AntiTerrorMeasure.objects.create(territorial_organ=self.organ, request_number="A-1", request_date="2026-06-20", status="in_work", comment="Survey act")
         excluded = AntiTerrorMeasure.objects.create(territorial_organ=self.organ, request_number="A-2", request_date="2026-06-20", status="done", comment="Survey act")
+        self.create_status_history_entry(included)
         self.client.login(username="operator", password="pass12345")
 
         table_response = self.client.get(
@@ -1262,6 +1316,7 @@ class AppFlowTests(TestCase):
     def test_uoto_building_repair_nested_request_history_filters_and_export(self):
         included = BuildingRepairRequest.objects.create(territorial_organ=self.organ, request_number="B-1", request_date="2026-06-20", status="in_work", comment="Roof")
         excluded = BuildingRepairRequest.objects.create(territorial_organ=self.organ, request_number="B-2", request_date="2026-06-20", status="done", comment="Roof")
+        self.create_status_history_entry(included)
         Department.objects.create(name="UOTO", slug="uoto", order_number=2)
         self.client.login(username="operator", password="pass12345")
 
@@ -1341,7 +1396,7 @@ class AppFlowTests(TestCase):
     def test_deleted_record_disappears_from_table_for_admin(self):
         admin = get_user_model().objects.create_superuser("admin2", password="pass12345")
         UserProfile.objects.create(user=admin, role=UserProfile.Role.ADMIN)
-        item = TmcRequest.objects.create(territorial_organ=self.organ, request_number="17/TMC", request_date="2026-06-27", status="new")
+        item = TmcRequest.objects.create(territorial_organ=self.organ, request_number="17/TMC", request_date="2026-06-27", status="in_work")
         TmcRequestItem.objects.create(request=item, name="Deleted item", quantity=1, unit="pcs")
         self.client.login(username="admin2", password="pass12345")
 
@@ -1381,8 +1436,10 @@ class AppFlowTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "modal-error-list")
+        self.assertContains(response, "modal-error-list tmc-item-errors")
         self.assertContains(response, "Добавьте хотя бы одну позицию заявки.")
+        self.assertContains(response, "data-add-tmc-item")
+        self.assertContains(response, "data-tmc-item-row")
         self.assertFalse(TmcRequest.objects.filter(request_number="19/TMC").exists())
 
     def test_department_tabs_are_separate_tables(self):

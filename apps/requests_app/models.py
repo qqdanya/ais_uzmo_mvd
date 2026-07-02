@@ -28,7 +28,6 @@ class TrackableRequest(models.Model):
 
 
 class NeedStatus(models.TextChoices):
-    NEW = "new", "Новая"
     IN_WORK = "in_work", "В работе"
     DONE = "done", "Исполнена"
     REJECTED = "rejected", "Отклонена"

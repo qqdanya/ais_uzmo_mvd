@@ -253,14 +253,21 @@ function restoreCheckedOrgans() {
   document.querySelectorAll("[data-organ-checkbox]").forEach((checkbox) => {
     checkbox.checked = saved.has(checkbox.value);
   });
+  return checkedOrganIds().length;
 }
 
-function ensureMultiSelection() {
-  if (checkedOrganIds().length) return;
-  const active = document.querySelector(".organ-item.active[data-organ-id]") || document.querySelector(".organ-item[data-organ-id]");
-  const checkbox = active?.closest("[data-organ-row]")?.querySelector("[data-organ-checkbox]");
-  if (checkbox) checkbox.checked = true;
-  storeCheckedOrganIds();
+function clearActiveDepartment() {
+  document.querySelectorAll(".department-item").forEach((item) => {
+    item.classList.remove("active");
+    item.removeAttribute("aria-current");
+  });
+}
+
+function renderMultiOrganWorkspaceEmpty() {
+  const workspace = document.getElementById("workspace");
+  if (workspace) {
+    workspace.innerHTML = '<div class="empty-state">Выберите хотя бы один территориальный орган</div>';
+  }
 }
 
 function setOrganMode(mode) {
@@ -271,7 +278,6 @@ function setOrganMode(mode) {
   }
   storeValue(ORGAN_MODE_KEY, nextMode);
   if (isMultiOrganMode()) {
-    ensureMultiSelection();
     clearSingleOrganHighlight();
     renderMultiOrganInfo();
   }
@@ -1575,11 +1581,20 @@ document.addEventListener("click", (event) => {
         setActiveOrgan(organ);
         loadOrganInfo(organ.dataset.organId);
       }
+      const department = preferredDepartmentForOrgan(window.selectedOrgan);
+      if (department) {
+        setActiveDepartment(department);
+        loadDepartment(department);
+      }
+      return;
     }
-    const department = preferredDepartmentForOrgan(window.selectedOrgan);
+    const department = checkedOrganIds().length ? preferredDepartmentForOrgan(window.selectedOrgan) : null;
     if (department) {
       setActiveDepartment(department);
       loadDepartment(department);
+    } else {
+      clearActiveDepartment();
+      renderMultiOrganWorkspaceEmpty();
     }
     return;
   }
@@ -1604,7 +1619,8 @@ document.addEventListener("click", (event) => {
     });
     storeCheckedOrganIds();
     renderMultiOrganInfo();
-    document.getElementById("workspace").innerHTML = '<div class="empty-state">Выберите хотя бы один территориальный орган</div>';
+    clearActiveDepartment();
+    renderMultiOrganWorkspaceEmpty();
     return;
   }
 
@@ -1869,7 +1885,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll(".auth-ascii-input").forEach(normalizeAuthInput);
   autoDismissAlerts();
   applyCollapsedPanels();
-  restoreCheckedOrgans();
+  const restoredOrganCount = restoreCheckedOrgans();
   const savedOrganId = storedValue(ORGAN_STORAGE_KEY);
   const organ = savedOrganId
     ? findOrganById(savedOrganId)
@@ -1877,16 +1893,19 @@ document.addEventListener("DOMContentLoaded", () => {
   if (organ) {
     setActiveOrgan(organ);
     if (isMultiOrganMode()) {
-      ensureMultiSelection();
+      clearSingleOrganHighlight();
       renderMultiOrganInfo();
     } else {
       loadOrganInfo(window.selectedOrgan);
     }
     syncOrganModeButtons();
-    const department = preferredDepartmentForOrgan(window.selectedOrgan);
+    const department = !isMultiOrganMode() || restoredOrganCount ? preferredDepartmentForOrgan(window.selectedOrgan) : null;
     if (department) {
       setActiveDepartment(department);
       loadDepartment(department);
+    } else if (isMultiOrganMode()) {
+      clearActiveDepartment();
+      renderMultiOrganWorkspaceEmpty();
     }
   }
 });

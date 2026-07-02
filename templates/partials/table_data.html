@@ -77,8 +77,8 @@
 <div class="table-actions-row">
   {% if is_request_table and not is_tmc_grouped %}
     <span class="status-summary">
-      <span class="summary-pill summary-pill-in-work"><span>В работе</span><strong>{{ table_stats.in_work_count }}</strong></span>
-      <span class="summary-pill summary-pill-done"><span>Исполнено</span><strong>{{ table_stats.done_count }}</strong></span>
+      <span class="summary-pill summary-pill-in-work {% if not table_stats.in_work_count %}is-zero{% endif %}"><span>В работе</span><strong>{{ table_stats.in_work_count }}</strong></span>
+      <span class="summary-pill summary-pill-done {% if not table_stats.done_count %}is-zero{% endif %}"><span>Исполнено</span><strong>{{ table_stats.done_count }}</strong></span>
       <span class="summary-pill summary-pill-rejected {% if not table_stats.rejected_count %}is-zero{% endif %}"><span>Отклонено</span><strong>{{ table_stats.rejected_count }}</strong></span>
     </span>
   {% endif %}
@@ -198,7 +198,9 @@
               {% if obj.attached_photo_count %}
                 <button class="btn btn-icon request-photo-count" data-bs-toggle="tooltip" data-bs-title="Прикрепленные фотографии ({{ obj.attached_photo_count }} шт.)" hx-get="{% url 'request_photos' obj.territorial_organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Прикрепленные фотографии ({{ obj.attached_photo_count }} шт.)"><i class="bi bi-images"></i></button>
               {% endif %}
-              <button class="btn btn-icon" data-bs-toggle="tooltip" data-bs-title="История изменений" hx-get="{% url 'status_history' obj.territorial_organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="История изменений"><i class="bi bi-clock-history"></i></button>
+              {% if obj.has_status_history_entries %}
+                <button class="btn btn-icon" data-bs-toggle="tooltip" data-bs-title="История изменений" hx-get="{% url 'status_history' obj.territorial_organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="История изменений"><i class="bi bi-clock-history"></i></button>
+              {% endif %}
               {% if obj.territorial_organ_id|in_list:writable_organ_ids %}
                 <button class="btn btn-icon edit" data-bs-toggle="tooltip" data-bs-title="Редактировать" hx-get="{% url 'record_update' obj.territorial_organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Редактировать"><i class="bi bi-pencil"></i></button>
                 <button class="btn btn-icon danger" data-bs-toggle="tooltip" data-bs-title="Удалить" hx-get="{% url 'record_delete' obj.territorial_organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Удалить"><i class="bi bi-trash"></i></button>
@@ -235,7 +237,7 @@
           {% if obj.attached_photo_count %}
             <button class="btn btn-icon request-photo-count" data-bs-toggle="tooltip" data-bs-title="Прикрепленные фотографии ({{ obj.attached_photo_count }} шт.)" hx-get="{% url 'request_photos' obj.territorial_organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Прикрепленные фотографии ({{ obj.attached_photo_count }} шт.)"><i class="bi bi-images"></i></button>
           {% endif %}
-          {% if has_status_history %}
+          {% if has_status_history and obj.has_status_history_entries %}
             <button class="btn btn-icon" data-bs-toggle="tooltip" data-bs-title="История изменений" hx-get="{% url 'status_history' obj.territorial_organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="История изменений"><i class="bi bi-clock-history"></i></button>
           {% endif %}
           {% if obj.territorial_organ_id|in_list:writable_organ_ids %}
