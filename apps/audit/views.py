@@ -31,6 +31,41 @@ ACTION_BADGES = {
     AuditLog.Action.LOGOUT: "audit-action-logout",
 }
 MODEL_TABLES = {config["model"].__name__: config for config in TABLE_BY_KEY.values()}
+PHOTO_OBJECT_MODELS = {"TerritorialOrganPhoto"}
+FOLDER_OBJECT_MODELS = {"TerritorialOrganPhotoFolder"}
+TABLE_OBJECT_MODELS = set(MODEL_TABLES)
+OBJECT_FILTERS = (
+    ("table_record", "Запись в таблице", TABLE_OBJECT_MODELS),
+    ("photo", "Фотография", PHOTO_OBJECT_MODELS),
+    ("folder", "Папка", FOLDER_OBJECT_MODELS),
+)
+OBJECT_MODEL_NAMES = {key: set(models) for key, _, models in OBJECT_FILTERS}
+
+
+def department_model_names():
+    grouped = {}
+    for model_name, config in MODEL_TABLES.items():
+        grouped.setdefault(config["department"], set()).add(model_name)
+    return grouped
+
+
+def filtered_model_names(selected_departments, selected_objects):
+    model_names = None
+    departments = department_model_names()
+    if selected_departments:
+        model_names = set()
+        for department in selected_departments:
+            model_names.update(departments.get(department, set()))
+    if selected_objects:
+        object_models = set()
+        for object_key in selected_objects:
+            object_models.update(OBJECT_MODEL_NAMES.get(object_key, set()))
+        model_names = object_models if model_names is None else model_names & object_models
+    return model_names
+
+
+def audit_department_options():
+    return [(department.slug, department.name) for department in Department.objects.filter(is_active=True).order_by("order_number", "name")]
 
 
 def is_admin(user):
@@ -275,7 +310,7 @@ def audit_pagination_fields(request, date_from, date_to):
         {"name": "date_from", "value": date_from},
         {"name": "date_to", "value": date_to},
     ]
-    for name in ("user", "action", "model", "organ"):
+    for name in ("user", "action", "department", "object", "organ"):
         fields.extend({"name": name, "value": value} for value in audit_filter_values(request, name))
     return fields
 
@@ -286,7 +321,7 @@ def audit_multiselect_label(selected_values, empty_label):
 
 
 def audit_has_filters(request, date_from, date_to):
-    meaningful = {"q", "user", "action", "model", "organ"}
+    meaningful = {"q", "user", "action", "department", "object", "organ"}
     if request.GET.get("q"):
         return True
     if any(audit_filter_values(request, name) for name in meaningful - {"q"}):
@@ -312,14 +347,16 @@ def filtered_logs(request):
     users = audit_filter_values(request, "user")
     actions = audit_filter_values(request, "action")
     organs = audit_filter_values(request, "organ")
-    models = audit_filter_values(request, "model")
+    departments = audit_filter_values(request, "department")
+    objects = audit_filter_values(request, "object")
+    models = filtered_model_names(departments, objects)
     if users:
         logs = logs.filter(user__username__in=users)
     if actions:
         logs = logs.filter(action__in=actions)
     if organs:
         logs = logs.filter(territorial_organ_id__in=organs)
-    if models:
+    if models is not None:
         logs = logs.filter(model_name__in=models)
     date_from = audit_date_value(request, "date_from")
     date_to = audit_date_value(request, "date_to")
@@ -340,13 +377,13 @@ def audit_log(request):
         prepare_log(log)
     querystring = request.GET.copy()
     querystring.pop("page", None)
-    model_names = AuditLog.objects.exclude(model_name="").order_by("model_name").values_list("model_name", flat=True).distinct()
     User = get_user_model()
     date_from = audit_date_value(request, "date_from")
     date_to = audit_date_value(request, "date_to")
     selected_users = audit_filter_values(request, "user")
     selected_actions = audit_filter_values(request, "action")
-    selected_models = audit_filter_values(request, "model")
+    selected_departments = audit_filter_values(request, "department")
+    selected_objects = audit_filter_values(request, "object")
     selected_organs = audit_filter_values(request, "organ")
     return render(
         request,
@@ -356,17 +393,20 @@ def audit_log(request):
             "logs": page.object_list,
             "actions": [(value, ACTION_DISPLAY_LABELS.get(value, label)) for value, label in AuditLog.Action.choices],
             "organs": TerritorialOrgan.objects.filter(is_active=True, parent__isnull=True).order_by("order_number", "name"),
-            "model_names": [(name, model_title(name)) for name in model_names],
+            "department_filters": audit_department_options(),
+            "object_filters": [(key, label) for key, label, _ in OBJECT_FILTERS],
             "users": User.objects.filter(is_active=True).order_by("username"),
             "date_from": date_from,
             "date_to": date_to,
             "selected_users": selected_users,
             "selected_actions": selected_actions,
-            "selected_models": selected_models,
+            "selected_departments": selected_departments,
+            "selected_objects": selected_objects,
             "selected_organs": selected_organs,
             "user_filter_label": audit_multiselect_label(selected_users, "Все пользователи"),
             "action_filter_label": audit_multiselect_label(selected_actions, "Все действия"),
-            "model_filter_label": audit_multiselect_label(selected_models, "Все объекты"),
+            "department_filter_label": audit_multiselect_label(selected_departments, "Все отделы"),
+            "object_filter_label": audit_multiselect_label(selected_objects, "Все объекты"),
             "organ_filter_label": audit_multiselect_label(selected_organs, "Все территориальные органы"),
             "has_filters": audit_has_filters(request, date_from, date_to),
             "querystring": querystring.urlencode(),

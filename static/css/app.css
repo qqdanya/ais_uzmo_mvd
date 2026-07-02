@@ -2492,7 +2492,7 @@ textarea {
 }
 .audit-filters {
   display: grid;
-  grid-template-columns: minmax(220px, 1.4fr) minmax(150px, .7fr) minmax(150px, .7fr) minmax(180px, .9fr) minmax(210px, 1fr) minmax(300px, 1.05fr) auto;
+  grid-template-columns: minmax(220px, 1.2fr) repeat(5, minmax(135px, .72fr)) minmax(300px, 1fr) auto;
   gap: 8px;
   align-items: center;
 }
@@ -2656,7 +2656,6 @@ textarea {
   max-width: 360px;
   color: var(--muted);
   font-size: .78rem;
-  line-height: 1.25;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

@@ -5,7 +5,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from apps.accounts.models import UserProfile
-from apps.directory.models import TerritorialOrgan
+from apps.directory.models import Department, TerritorialOrgan
 from apps.requests_app.models import RequestStatusHistory, TmcRequest
 
 from .models import AuditLog
@@ -19,6 +19,7 @@ class AuditLogTests(TestCase):
         self.operator = User.objects.create_user("operator", password="pass12345")
         UserProfile.objects.create(user=self.operator, role=UserProfile.Role.OPERATOR)
         self.organ = TerritorialOrgan.objects.create(name="Test organ", order_number=1)
+        Department.objects.create(name="Обеспечение товарно-материальными ценностями", slug="tmc", order_number=1)
 
     def create_log(self, **kwargs):
         defaults = {
@@ -205,3 +206,22 @@ class AuditLogTests(TestCase):
         self.assertNotContains(response, "Deleted")
         self.assertContains(response, 'name="action" value="create" checked')
         self.assertContains(response, 'name="action" value="update" checked')
+
+    def test_audit_log_filters_by_department_and_object_type(self):
+        self.create_log(model_name="TmcRequest", object_repr="TMC request")
+        self.create_log(model_name="TerritorialOrganPhoto", object_repr="Photo item")
+        self.create_log(model_name="TerritorialOrganPhotoFolder", object_repr="Folder item")
+        self.client.login(username="admin", password="pass12345")
+
+        department_response = self.client.get(reverse("audit_log"), {"department": "tmc"})
+        self.assertContains(department_response, "TMC request")
+        self.assertNotContains(department_response, "Photo item")
+        self.assertNotContains(department_response, "Folder item")
+        self.assertContains(department_response, 'name="department" value="tmc" checked')
+        self.assertNotContains(department_response, 'name="department" value="photos"')
+
+        object_response = self.client.get(reverse("audit_log"), {"object": "folder"})
+        self.assertContains(object_response, "Folder item")
+        self.assertNotContains(object_response, "TMC request")
+        self.assertNotContains(object_response, "Photo item")
+        self.assertContains(object_response, 'name="object" value="folder" checked')
