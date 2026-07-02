@@ -435,7 +435,7 @@ class AppFlowTests(TestCase):
         self.assertContains(table_response, "bi-clock-history")
 
         response = self.client.get(reverse("tmc_status_history", args=[self.organ.pk, request_obj.pk]), HTTP_HX_REQUEST="true")
-        self.assertContains(response, "История изменений заявки 19/TMC")
+        self.assertContains(response, "История изменений статуса заявки 19/TMC")
         self.assertContains(response, request_obj.get_status_display())
         self.assertContains(response, "Finished")
 
@@ -944,7 +944,7 @@ class AppFlowTests(TestCase):
         self.assertEqual(history.completed_at.isoformat(), "2026-06-29")
 
         modal = self.client.get(reverse("citsizi_status_history", args=[self.organ.pk, included.pk]), HTTP_HX_REQUEST="true")
-        self.assertContains(modal, "История изменений заявки C-10")
+        self.assertContains(modal, "История изменений статуса заявки C-10")
 
         export_response = self.client.get(reverse("export_table", args=[self.organ.pk, "citsizi-equipment", "xlsx"]), {"status": "done", "equipment_type": "communication"})
         workbook = self.response_workbook(export_response)
@@ -1066,7 +1066,7 @@ class AppFlowTests(TestCase):
         self.assertEqual(history.completed_at.isoformat(), "2026-06-29")
 
         modal = self.client.get(reverse("vehicle_repair_status_history", args=[self.organ.pk, request_obj.pk]), HTTP_HX_REQUEST="true")
-        self.assertContains(modal, "История изменений заявки R-2")
+        self.assertContains(modal, "История изменений статуса заявки R-2")
         self.assertContains(modal, "Дата исполнения заявки")
         self.assertContains(modal, "29.06.2026")
 
@@ -1161,7 +1161,7 @@ class AppFlowTests(TestCase):
         self.assertEqual(history.completed_at.isoformat(), "2026-06-29")
 
         modal = self.client.get(reverse("vehicle_fuel_status_history", args=[self.organ.pk, request_obj.pk]), HTTP_HX_REQUEST="true")
-        self.assertContains(modal, "История изменений заявки GSM-2")
+        self.assertContains(modal, "История изменений статуса заявки GSM-2")
         self.assertContains(modal, "Дата исполнения заявки")
         self.assertContains(modal, "29.06.2026")
 
@@ -1241,7 +1241,7 @@ class AppFlowTests(TestCase):
         self.assertEqual(history.completed_at.isoformat(), "2026-06-29")
 
         modal = self.client.get(reverse("fire_request_status_history", args=[self.organ.pk, included.pk]), HTTP_HX_REQUEST="true")
-        self.assertContains(modal, "История изменений заявки F-1")
+        self.assertContains(modal, "История изменений статуса заявки F-1")
         self.assertContains(modal, "Дата исполнения заявки")
 
         export_response = self.client.get(reverse("export_table", args=[self.organ.pk, "fire-requests", "xlsx"]), {"status": "done", "q": "Completed"})
@@ -1287,7 +1287,7 @@ class AppFlowTests(TestCase):
         self.assertEqual(history.completed_at.isoformat(), "2026-06-29")
 
         modal = self.client.get(reverse("anti_terror_status_history", args=[self.organ.pk, included.pk]), HTTP_HX_REQUEST="true")
-        self.assertContains(modal, "История изменений заявки A-1")
+        self.assertContains(modal, "История изменений статуса заявки A-1")
 
         export_response = self.client.get(reverse("export_table", args=[self.organ.pk, "anti-terror", "xlsx"]), {"status": "done", "q": "Completed"})
         workbook = self.response_workbook(export_response)
@@ -1399,7 +1399,7 @@ class AppFlowTests(TestCase):
         self.assertEqual(history.completed_at.isoformat(), "2026-06-29")
 
         modal = self.client.get(reverse("building_repair_status_history", args=[self.organ.pk, included.pk]), HTTP_HX_REQUEST="true")
-        self.assertContains(modal, "История изменений заявки B-1")
+        self.assertContains(modal, "История изменений статуса заявки B-1")
 
         export_response = self.client.get(reverse("export_table", args=[self.organ.pk, "building-repair", "xlsx"]), {"status": "done", "q": "B-1"})
         workbook = self.response_workbook(export_response)

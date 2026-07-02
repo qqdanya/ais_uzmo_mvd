@@ -137,7 +137,7 @@ class AuditLogTests(TestCase):
         self.assertContains(response, "01.07.2026")
         self.assertContains(response, "02.07.2026")
         self.assertNotContains(response, ">1<", html=False)
-        self.assertContains(response, "История изменений заявки")
+        self.assertContains(response, "История изменений статуса заявки")
         self.assertContains(response, "В работе")
         self.assertContains(response, "Исполнена")
 
