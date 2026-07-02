@@ -7,6 +7,7 @@ from django.db.models import Min
 from django.shortcuts import get_object_or_404, render
 from django.http import Http404
 from django.urls import reverse
+from django.utils.text import capfirst
 from django.utils import timezone
 from django.utils.dateparse import parse_date, parse_datetime
 
@@ -92,7 +93,7 @@ def model_class(model_name):
 
 def model_title(model_name):
     model = model_class(model_name)
-    return str(model._meta.verbose_name).capitalize() if model else (model_name or "Системное действие")
+    return capfirst(str(model._meta.verbose_name)) if model else (model_name or "Системное действие")
 
 
 def typographic_quotes(value):
@@ -105,10 +106,10 @@ def field_label(model_name, field_name):
     model = model_class(model_name)
     if model:
         try:
-            return str(model._meta.get_field(field_name).verbose_name).capitalize()
+            return capfirst(str(model._meta.get_field(field_name).verbose_name))
         except Exception:
             pass
-    return field_name.replace("_", " ").capitalize()
+    return capfirst(field_name.replace("_", " "))
 
 
 def field_display_value(model_name, field_name, value):

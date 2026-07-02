@@ -10,7 +10,7 @@
       <a class="btn btn-outline-primary" href="{% url 'dashboard' %}"><i class="bi bi-arrow-left"></i> На главную</a>
     </div>
 
-    <form class="audit-filters">
+    <form class="audit-filters{% if not show_user_filter %} audit-filters-compact{% endif %}">
       {% if show_user_filter %}
         <div class="dropdown audit-multiselect">
           <button class="audit-multiselect-trigger" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">

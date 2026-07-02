@@ -101,6 +101,7 @@ class AuditLogTests(TestCase):
         self.assertContains(response, "Old description")
         self.assertContains(response, "New description")
         self.assertContains(response, "Изменена запись «Заявка ТМЦ № 10/TMC»")
+        self.assertNotContains(response, "Заявка тмц")
         self.assertContains(response, "Google Chrome / Windows")
         self.assertContains(response, "User-Agent")
         self.assertNotContains(response, "ID: 10")

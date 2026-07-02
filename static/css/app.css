@@ -89,6 +89,16 @@ textarea {
   width: 8px;
   height: 8px;
 }
+html.app-modal-scroll-locked {
+  overflow: hidden;
+}
+body.modal-open .organ-panel,
+body.modal-open .department-panel,
+body.modal-open .workspace-panel,
+body.modal-open .table-wrap,
+body.modal-open .photo-browser {
+  overflow: hidden !important;
+}
 .htmx-progress {
   position: fixed;
   top: 0;
@@ -2490,6 +2500,9 @@ textarea {
   grid-template-columns: minmax(220px, 1.2fr) repeat(5, minmax(135px, .72fr)) minmax(300px, 1fr) auto;
   gap: 8px;
   align-items: center;
+}
+.audit-filters-compact {
+  grid-template-columns: repeat(3, minmax(145px, 1fr)) minmax(300px, .9fr) auto;
 }
 .audit-search .form-control {
   padding-left: 2rem;
