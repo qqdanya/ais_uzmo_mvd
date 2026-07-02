@@ -2467,10 +2467,11 @@ textarea {
   flex-direction: column;
   gap: 12px;
   min-height: 0;
-  max-height: calc(100dvh - var(--app-header-height) - 1rem);
+  max-height: none;
 }
 .audit-page {
   min-height: 0;
+  padding: 10px !important;
 }
 .audit-head {
   margin-bottom: 0;
@@ -2483,7 +2484,7 @@ textarea {
 }
 .audit-filters {
   display: grid;
-  grid-template-columns: minmax(220px, 1.4fr) minmax(150px, .7fr) minmax(150px, .7fr) minmax(180px, .9fr) minmax(210px, 1fr) minmax(210px, .9fr) auto;
+  grid-template-columns: minmax(220px, 1.4fr) minmax(150px, .7fr) minmax(150px, .7fr) minmax(180px, .9fr) minmax(210px, 1fr) minmax(300px, 1.05fr) auto;
   gap: 8px;
   align-items: center;
 }
@@ -2492,9 +2493,12 @@ textarea {
 }
 .audit-date-range {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-columns: minmax(8.75rem, 1fr) auto minmax(8.75rem, 1fr);
   align-items: center;
   gap: 6px;
+}
+.audit-date-range .form-control {
+  min-width: 8.75rem;
 }
 .audit-date-range span {
   color: var(--muted);
@@ -2508,7 +2512,9 @@ textarea {
 .audit-toolbar {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 .audit-count-card {
   width: fit-content;
@@ -2516,12 +2522,13 @@ textarea {
 .audit-pagination-top {
   display: flex;
   justify-content: flex-end;
-  margin: -.25rem 0 .75rem;
+  margin: 0;
+  flex: 1 1 420px;
 }
 .audit-table-wrap {
-  flex: 1 1 auto;
   min-height: 0;
   max-height: none;
+  overflow: auto;
 }
 .audit-table th,
 .audit-table td {
@@ -3287,12 +3294,6 @@ textarea.form-control {
   }
   .workspace-panel:has(.tables-workspace-layout) {
     overflow: hidden;
-  }
-}
-@media (min-height: 680px) {
-  .app-header {
-    position: sticky;
-    top: 0;
   }
 }
 @media (max-width: 720px) {

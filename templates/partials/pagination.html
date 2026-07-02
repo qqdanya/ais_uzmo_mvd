@@ -1,0 +1,51 @@
+{% if pagination_page.has_other_pages %}
+  {% with page_param=pagination_page_param|default:"page" mode=pagination_mode|default:"button" %}
+    <nav class="{{ pagination_nav_class|default:'table-pagination' }}" {% if pagination_scroll %}data-pagination-scroll="{{ pagination_scroll }}"{% endif %} aria-label="{{ pagination_aria_label|default:'Страницы' }}">
+      <div class="photo-pagination-group">
+        {% if pagination_page.has_previous %}
+          {% if mode == "link" %}
+            <a class="photo-page-number pagination-arrow" href="{{ pagination_base_url }}?{% if pagination_querystring %}{{ pagination_querystring }}&{% endif %}{{ page_param }}={{ pagination_page.previous_page_number }}" aria-label="Предыдущая страница"><i class="bi bi-chevron-left"></i></a>
+          {% else %}
+            <button class="photo-page-number pagination-arrow" type="button" hx-get="{{ pagination_base_url }}?{% if pagination_querystring %}{{ pagination_querystring }}&{% endif %}{{ page_param }}={{ pagination_page.previous_page_number }}" hx-target="{{ pagination_hx_target }}" hx-swap="{{ pagination_hx_swap|default:'innerHTML' }}" {% if pagination_hx_include %}hx-include="{{ pagination_hx_include }}"{% endif %} aria-label="Предыдущая страница"><i class="bi bi-chevron-left"></i></button>
+          {% endif %}
+        {% endif %}
+        <div class="photo-page-numbers" aria-label="Выбор страницы">
+          {% for page_number in pagination_links %}
+            {% if page_number == pagination_page.paginator.ELLIPSIS %}
+              <span class="photo-page-ellipsis">{{ page_number }}</span>
+            {% elif page_number == pagination_page.number %}
+              <span class="photo-page-number is-active" aria-current="page">{{ page_number }}</span>
+            {% elif mode == "link" %}
+              <a class="photo-page-number" href="{{ pagination_base_url }}?{% if pagination_querystring %}{{ pagination_querystring }}&{% endif %}{{ page_param }}={{ page_number }}" aria-label="Страница {{ page_number }}">{{ page_number }}</a>
+            {% else %}
+              <button class="photo-page-number" type="button" hx-get="{{ pagination_base_url }}?{% if pagination_querystring %}{{ pagination_querystring }}&{% endif %}{{ page_param }}={{ page_number }}" hx-target="{{ pagination_hx_target }}" hx-swap="{{ pagination_hx_swap|default:'innerHTML' }}" {% if pagination_hx_include %}hx-include="{{ pagination_hx_include }}"{% endif %} aria-label="Страница {{ page_number }}">{{ page_number }}</button>
+            {% endif %}
+          {% endfor %}
+        </div>
+        {% if pagination_page.has_next %}
+          {% if mode == "link" %}
+            <a class="photo-page-number pagination-arrow" href="{{ pagination_base_url }}?{% if pagination_querystring %}{{ pagination_querystring }}&{% endif %}{{ page_param }}={{ pagination_page.next_page_number }}" aria-label="Следующая страница"><i class="bi bi-chevron-right"></i></a>
+          {% else %}
+            <button class="photo-page-number pagination-arrow" type="button" hx-get="{{ pagination_base_url }}?{% if pagination_querystring %}{{ pagination_querystring }}&{% endif %}{{ page_param }}={{ pagination_page.next_page_number }}" hx-target="{{ pagination_hx_target }}" hx-swap="{{ pagination_hx_swap|default:'innerHTML' }}" {% if pagination_hx_include %}hx-include="{{ pagination_hx_include }}"{% endif %} aria-label="Следующая страница"><i class="bi bi-chevron-right"></i></button>
+          {% endif %}
+        {% endif %}
+        {% if pagination_jump_input %}
+          <div class="pagination-jump" aria-label="{{ pagination_jump_label|default:'Перейти к странице' }}">
+            <span>Стр.</span>
+            <input class="form-control form-control-sm" type="number" min="1" max="{{ pagination_page.paginator.num_pages }}" value="{{ pagination_page.number }}" name="{{ page_param }}" hx-get="{{ pagination_base_url }}{% if pagination_querystring %}?{{ pagination_querystring }}{% endif %}" hx-target="{{ pagination_hx_target }}" hx-swap="{{ pagination_hx_swap|default:'innerHTML' }}" {% if pagination_hx_include %}hx-include="{{ pagination_hx_include }}"{% endif %} hx-trigger="change, keyup[key=='Enter']">
+            <span>/ {{ pagination_page.paginator.num_pages }}</span>
+          </div>
+        {% else %}
+          <form class="pagination-jump" {% if mode == "link" %}method="get" action="{{ pagination_base_url }}"{% else %}hx-get="{{ pagination_base_url }}{% if pagination_querystring %}?{{ pagination_querystring }}{% endif %}" hx-target="{{ pagination_hx_target }}" hx-swap="{{ pagination_hx_swap|default:'innerHTML' }}"{% if pagination_hx_include %} hx-include="{{ pagination_hx_include }}"{% endif %}{% endif %} aria-label="{{ pagination_jump_label|default:'Перейти к странице' }}">
+            {% for field in pagination_hidden_fields %}
+              <input type="hidden" name="{{ field.name }}" value="{{ field.value }}">
+            {% endfor %}
+            <span>Стр.</span>
+            <input class="form-control form-control-sm" type="number" min="1" max="{{ pagination_page.paginator.num_pages }}" value="{{ pagination_page.number }}" name="{{ page_param }}">
+            <span>/ {{ pagination_page.paginator.num_pages }}</span>
+          </form>
+        {% endif %}
+      </div>
+    </nav>
+  {% endwith %}
+{% endif %}

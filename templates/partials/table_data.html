@@ -103,34 +103,8 @@
     {% endif %}
   </div>
 </div>
-{% if page.has_other_pages %}
-<nav class="table-pagination" data-pagination-scroll=".table-wrap" aria-label="Страницы таблицы">
-  <div class="photo-pagination-group">
-    {% if page.has_previous %}
-      <button class="photo-page-number pagination-arrow" type="button" hx-get="{% url 'table_data' organ.pk table.key %}?{% if table_querystring %}{{ table_querystring }}&{% endif %}page={{ page.previous_page_number }}" hx-target="#table-area" hx-swap="innerHTML" aria-label="Предыдущая страница"><i class="bi bi-chevron-left"></i></button>
-    {% endif %}
-    <div class="photo-page-numbers" aria-label="Выбор страницы">
-      {% for page_number in table_page_links %}
-        {% if page_number == page.paginator.ELLIPSIS %}
-          <span class="photo-page-ellipsis">{{ page_number }}</span>
-        {% elif page_number == page.number %}
-          <span class="photo-page-number is-active" aria-current="page">{{ page_number }}</span>
-        {% else %}
-          <button class="photo-page-number" type="button" hx-get="{% url 'table_data' organ.pk table.key %}?{% if table_querystring %}{{ table_querystring }}&{% endif %}page={{ page_number }}" hx-target="#table-area" hx-swap="innerHTML" aria-label="Страница {{ page_number }}">{{ page_number }}</button>
-        {% endif %}
-      {% endfor %}
-    </div>
-    {% if page.has_next %}
-      <button class="photo-page-number pagination-arrow" type="button" hx-get="{% url 'table_data' organ.pk table.key %}?{% if table_querystring %}{{ table_querystring }}&{% endif %}page={{ page.next_page_number }}" hx-target="#table-area" hx-swap="innerHTML" aria-label="Следующая страница"><i class="bi bi-chevron-right"></i></button>
-    {% endif %}
-    <form class="pagination-jump" hx-get="{% url 'table_data' organ.pk table.key %}{% if table_querystring %}?{{ table_querystring }}{% endif %}" hx-target="#table-area" hx-swap="innerHTML" aria-label="Перейти к странице таблицы">
-      <span>Стр.</span>
-      <input class="form-control form-control-sm" type="number" min="1" max="{{ page.paginator.num_pages }}" value="{{ page.number }}" name="page">
-      <span>/ {{ page.paginator.num_pages }}</span>
-    </form>
-  </div>
-</nav>
-{% endif %}
+{% url 'table_data' organ.pk table.key as table_pagination_url %}
+{% include "partials/pagination.html" with pagination_page=page pagination_links=table_page_links pagination_base_url=table_pagination_url pagination_querystring=table_querystring pagination_mode="button" pagination_nav_class="table-pagination" pagination_scroll=".table-wrap" pagination_aria_label="Страницы таблицы" pagination_hx_target="#table-area" pagination_hx_swap="innerHTML" pagination_jump_label="Перейти к странице таблицы" %}
 <div class="table-wrap">
   <table class="table table-sm align-middle data-table table-{{ table.key }}">
     {% if table.key == "tmc-requests" and is_tmc_grouped %}

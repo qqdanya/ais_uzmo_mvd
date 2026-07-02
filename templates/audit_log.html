@@ -49,43 +49,9 @@
         <strong>{{ total_count }}</strong>
         <span>записей найдено</span>
       </span>
+      {% url 'audit_log' as audit_pagination_url %}
+      {% include "partials/pagination.html" with pagination_page=page pagination_links=page_links pagination_base_url=audit_pagination_url pagination_querystring=querystring pagination_mode="link" pagination_nav_class="table-pagination audit-pagination-top" pagination_aria_label="Страницы журнала действий" pagination_hidden_fields=pagination_fields pagination_jump_label="Перейти к странице журнала" %}
     </div>
-
-    {% if page.has_other_pages %}
-      <nav class="table-pagination audit-pagination-top" aria-label="Страницы журнала действий">
-        <div class="photo-pagination-group">
-          {% if page.has_previous %}
-            <a class="photo-page-number pagination-arrow" href="{% url 'audit_log' %}?{% if querystring %}{{ querystring }}&{% endif %}page={{ page.previous_page_number }}" aria-label="Предыдущая страница"><i class="bi bi-chevron-left"></i></a>
-          {% endif %}
-          <div class="photo-page-numbers" aria-label="Выбор страницы">
-            {% for page_number in page_links %}
-              {% if page_number == page.paginator.ELLIPSIS %}
-                <span class="photo-page-ellipsis">{{ page_number }}</span>
-              {% elif page_number == page.number %}
-                <span class="photo-page-number is-active" aria-current="page">{{ page_number }}</span>
-              {% else %}
-                <a class="photo-page-number" href="{% url 'audit_log' %}?{% if querystring %}{{ querystring }}&{% endif %}page={{ page_number }}">{{ page_number }}</a>
-              {% endif %}
-            {% endfor %}
-          </div>
-          {% if page.has_next %}
-            <a class="photo-page-number pagination-arrow" href="{% url 'audit_log' %}?{% if querystring %}{{ querystring }}&{% endif %}page={{ page.next_page_number }}" aria-label="Следующая страница"><i class="bi bi-chevron-right"></i></a>
-          {% endif %}
-          <form class="pagination-jump" method="get" action="{% url 'audit_log' %}" aria-label="Перейти к странице журнала">
-            <input type="hidden" name="q" value="{{ request.GET.q }}">
-            <input type="hidden" name="user" value="{{ request.GET.user }}">
-            <input type="hidden" name="action" value="{{ request.GET.action }}">
-            <input type="hidden" name="model" value="{{ request.GET.model }}">
-            <input type="hidden" name="organ" value="{{ request.GET.organ }}">
-            <input type="hidden" name="date_from" value="{{ date_from }}">
-            <input type="hidden" name="date_to" value="{{ date_to }}">
-            <span>Стр.</span>
-            <input class="form-control form-control-sm" type="number" min="1" max="{{ page.paginator.num_pages }}" value="{{ page.number }}" name="page">
-            <span>/ {{ page.paginator.num_pages }}</span>
-          </form>
-        </div>
-      </nav>
-    {% endif %}
 
     <div class="table-wrap audit-table-wrap">
       <table class="table table-sm data-table audit-table">

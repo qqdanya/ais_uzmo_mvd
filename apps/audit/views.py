@@ -318,6 +318,15 @@ def audit_log(request):
     User = get_user_model()
     date_from = audit_date_value(request, "date_from")
     date_to = audit_date_value(request, "date_to")
+    pagination_fields = [
+        {"name": "q", "value": request.GET.get("q", "")},
+        {"name": "user", "value": request.GET.get("user", "")},
+        {"name": "action", "value": request.GET.get("action", "")},
+        {"name": "model", "value": request.GET.get("model", "")},
+        {"name": "organ", "value": request.GET.get("organ", "")},
+        {"name": "date_from", "value": date_from},
+        {"name": "date_to", "value": date_to},
+    ]
     return render(
         request,
         "audit_log.html",
@@ -334,6 +343,7 @@ def audit_log(request):
             "querystring": querystring.urlencode(),
             "total_count": logs.count(),
             "page_links": paginator.get_elided_page_range(page.number, on_each_side=1, on_ends=1),
+            "pagination_fields": pagination_fields,
         },
     )
 
