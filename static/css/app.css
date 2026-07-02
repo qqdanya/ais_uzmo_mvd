@@ -367,6 +367,14 @@ textarea {
   flex: 0 0 auto;
   min-height: 0;
 }
+.app-main:has(.audit-page) {
+  flex: 1 0 auto;
+  min-height: calc(100vh - var(--app-header-height) - var(--app-footer-height));
+  min-height: calc(100dvh - var(--app-header-height) - var(--app-footer-height));
+}
+.app-main > .audit-page {
+  flex: 1 0 auto;
+}
 .dashboard-grid.is-organs-collapsed {
   grid-template-columns: minmax(230px, 19vw) minmax(0, 1fr);
 }
@@ -3362,6 +3370,11 @@ textarea.form-control {
     flex: 0 0 calc(100vh - var(--app-header-height));
     flex-basis: calc(100dvh - var(--app-header-height));
     min-height: 0;
+  }
+  .app-main:has(.audit-page) {
+    flex: 1 0 auto;
+    min-height: calc(100vh - var(--app-header-height) - var(--app-footer-height));
+    min-height: calc(100dvh - var(--app-header-height) - var(--app-footer-height));
   }
   .dashboard-grid {
     flex: 1 1 auto;
