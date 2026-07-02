@@ -1048,7 +1048,8 @@ body.modal-open .toast-stack {
   border-radius: 8px;
 }
 .tables-workspace-layout .table-wrap {
-  max-height: none;
+  flex: 0 1 auto;
+  max-height: 100%;
 }
 .data-table {
   margin: 0;
