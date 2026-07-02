@@ -1423,6 +1423,12 @@ document.addEventListener("touchmove", preventBackgroundModalScroll, { passive: 
 const appModalRoot = document.getElementById("modal-root");
 appModalRoot?.addEventListener("show.bs.modal", lockDocumentScrollForModal);
 appModalRoot?.addEventListener("hidden.bs.modal", unlockDocumentScrollForModal);
+appModalRoot?.addEventListener("shown.bs.modal", () => {
+  const input = appModalRoot.querySelector("[autofocus]");
+  if (!isVisibleElement(input)) return;
+  input.focus();
+  input.select?.();
+});
 
 document.body.addEventListener("htmx:afterSwap", (event) => {
   if (event.detail.target.id === "modal-content") {

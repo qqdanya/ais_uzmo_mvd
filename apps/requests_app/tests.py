@@ -172,6 +172,22 @@ class AppFlowTests(TestCase):
         self.assertNotIn(("new", "Новая"), TmcRequest._meta.get_field("status").choices)
         self.assertNotIn(("new", "Новая"), ACTIVE_NEED_STATUS_CHOICES)
 
+    def test_request_number_field_has_autofocus_only_on_create_form(self):
+        request_obj = TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            request_number="18-AF/TMC",
+            request_date="2026-06-27",
+            status="in_work",
+        )
+        self.client.login(username="operator", password="pass12345")
+
+        create_response = self.client.get(reverse("record_create", args=[self.organ.pk, "tmc-requests"]), HTTP_HX_REQUEST="true")
+        update_response = self.client.get(reverse("record_update", args=[self.organ.pk, "tmc-requests", request_obj.pk]), HTTP_HX_REQUEST="true")
+
+        self.assertContains(create_response, 'name="request_number"')
+        self.assertContains(create_response, "autofocus")
+        self.assertNotContains(update_response, "autofocus")
+
     def test_tmc_product_suggest_finds_words_in_any_order(self):
         TmcProduct.objects.create(name="Стол компьютерный", unit="шт.")
         TmcProduct.objects.create(name="Стол письменный", unit="шт.")

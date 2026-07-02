@@ -2535,7 +2535,7 @@ body.modal-open .toast-stack {
   margin: 0;
   color: var(--navy);
   font-size: 1.35rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 .audit-filters {
   display: grid;
@@ -2867,7 +2867,7 @@ body.modal-open .toast-stack {
 .audit-detail-section h3 {
   color: var(--navy);
   font-size: .95rem;
-  font-weight: 800;
+  font-weight: 600;
   margin: 0 0 8px;
 }
 .audit-object-box {

@@ -14,6 +14,8 @@ class BootstrapModelForm(forms.ModelForm):
             self.fields["status"].choices = ACTIVE_NEED_STATUS_CHOICES
             if not self.is_bound and not self.instance.pk:
                 self.fields["status"].initial = ACTIVE_NEED_STATUS_CHOICES[0][0]
+        if not self.is_bound and not self.instance.pk and "request_number" in self.fields:
+            self.fields["request_number"].widget.attrs["autofocus"] = "autofocus"
         if "equipment_type" in self.fields:
             self.fields["equipment_type"].empty_label = "Выберите тип техники"
             choices = list(self.fields["equipment_type"].choices)
