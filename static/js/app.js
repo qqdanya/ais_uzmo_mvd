@@ -1368,38 +1368,12 @@ function isAppModalOpen() {
   return document.getElementById("modal-root")?.classList.contains("show");
 }
 
-let modalScrollLockState = null;
-
 function lockDocumentScrollForModal() {
-  if (modalScrollLockState) return;
-  const scrollY = window.scrollY || document.documentElement.scrollTop || 0;
-  modalScrollLockState = {
-    scrollY,
-    position: document.body.style.position,
-    top: document.body.style.top,
-    left: document.body.style.left,
-    right: document.body.style.right,
-    width: document.body.style.width,
-  };
   document.documentElement.classList.add("app-modal-scroll-locked");
-  document.body.style.position = "fixed";
-  document.body.style.top = `-${scrollY}px`;
-  document.body.style.left = "0";
-  document.body.style.right = "0";
-  document.body.style.width = "100%";
 }
 
 function unlockDocumentScrollForModal() {
-  if (!modalScrollLockState) return;
-  const { scrollY, position, top, left, right, width } = modalScrollLockState;
-  modalScrollLockState = null;
   document.documentElement.classList.remove("app-modal-scroll-locked");
-  document.body.style.position = position;
-  document.body.style.top = top;
-  document.body.style.left = left;
-  document.body.style.right = right;
-  document.body.style.width = width;
-  window.scrollTo(window.scrollX, scrollY);
 }
 
 function preventBackgroundModalScroll(event) {

@@ -756,6 +756,35 @@ class AppFlowTests(TestCase):
         self.assertIn("26/TMC", values)
         self.assertNotIn("27/TMC", values)
 
+    def test_tmc_xlsx_export_includes_organ_column_for_multi_organ_mode(self):
+        other_organ = TerritorialOrgan.objects.create(name="Other territorial organ", order_number=2)
+        first = TmcRequest.objects.create(territorial_organ=self.organ, request_number="28/TMC", request_date="2026-06-20", status="in_work")
+        second = TmcRequest.objects.create(territorial_organ=other_organ, request_number="29/TMC", request_date="2026-06-21", status="done")
+        TmcRequestItem.objects.create(request=first, name="Бумага А4", quantity=5, unit="пач.")
+        TmcRequestItem.objects.create(request=first, name="Папка-регистратор", quantity=2, unit="шт.")
+        TmcRequestItem.objects.create(request=second, name="Кресло офисное", quantity=1, unit="шт.")
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(
+            reverse("export_table", args=[self.organ.pk, "tmc-requests", "xlsx"]),
+            {"organ_ids": [self.organ.pk, other_organ.pk]},
+        )
+
+        workbook = self.response_workbook(response)
+        sheet = workbook.active
+        self.assertEqual(sheet["A1"].value, "Территориальный орган")
+        self.assertEqual(sheet["B1"].value, "Сведения о потребности ТМЦ")
+        self.assertEqual(sheet["D1"].value, "Заявка")
+        self.assertEqual(sheet["G1"].value, "Описание")
+        values = [cell.value for row in sheet.iter_rows() for cell in row]
+        self.assertIn("Test territorial organ", values)
+        self.assertIn("Other territorial organ", values)
+        self.assertIn("28/TMC", values)
+        self.assertIn("29/TMC", values)
+        self.assertIn("Бумага А4", values)
+        self.assertIn("Папка-регистратор", values)
+        self.assertIn("Кресло офисное", values)
+
     def test_tmc_grouped_xlsx_export_matches_grouped_table(self):
         other_organ = TerritorialOrgan.objects.create(name="Other territorial organ", order_number=2)
         first = TmcRequest.objects.create(territorial_organ=self.organ, request_number="48/TMC", request_date="2026-06-20", status="in_work")

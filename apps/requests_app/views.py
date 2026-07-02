@@ -20,6 +20,7 @@ from django.utils.text import capfirst
 from django.views.decorators.http import require_http_methods
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
 
 from apps.audit.models import AuditLog
 from apps.audit.utils import serialize_instance, write_audit
@@ -1181,30 +1182,37 @@ def request_photo_picker(request, organ_id):
     return render(request, "partials/request_photo_picker_results.html", context)
 
 
-def tmc_xlsx_response(qs, organ, filename):
+def tmc_xlsx_response(qs, organ, filename, is_multi_organ=False):
     wb = Workbook()
     ws = wb.active
     ws.title = "Заявки ТМЦ"
 
-    ws.merge_cells("A1:B1")
-    ws.merge_cells("C1:E1")
-    ws.merge_cells("F1:F2")
-    ws["A1"] = "Сведения о потребности ТМЦ"
-    ws["C1"] = "Заявка"
-    ws["F1"] = "Описание"
+    organ_offset = 1 if is_multi_organ else 0
+    need_start = 1 + organ_offset
+    need_end = 2 + organ_offset
+    request_start = 3 + organ_offset
+    request_end = 5 + organ_offset
+    comment_column = 6 + organ_offset
+    max_column = 6 + organ_offset
+
+    if is_multi_organ:
+        ws.merge_cells(start_row=1, start_column=1, end_row=2, end_column=1)
+        ws.cell(row=1, column=1, value="Территориальный орган")
+    ws.merge_cells(start_row=1, start_column=need_start, end_row=1, end_column=need_end)
+    ws.merge_cells(start_row=1, start_column=request_start, end_row=1, end_column=request_end)
+    ws.merge_cells(start_row=1, start_column=comment_column, end_row=2, end_column=comment_column)
+    ws.cell(row=1, column=need_start, value="Сведения о потребности ТМЦ")
+    ws.cell(row=1, column=request_start, value="Заявка")
+    ws.cell(row=1, column=comment_column, value="Описание")
     headers = ["Наименование", "Количество", "Номер", "Дата", "Исполнение заявки", ""]
-    for column, value in enumerate(headers, start=1):
+    for column, value in enumerate(headers, start=need_start):
         if value:
             ws.cell(row=2, column=column, value=value)
 
-    widths = {
-        "A": 34,
-        "B": 16,
-        "C": 18,
-        "D": 14,
-        "E": 22,
-        "F": 34,
-    }
+    widths = [34, 16, 18, 14, 22, 34]
+    if is_multi_organ:
+        widths.insert(0, 34)
+    widths = {get_column_letter(index): width for index, width in enumerate(widths, start=1)}
     for column, width in widths.items():
         ws.column_dimensions[column].width = width
 
@@ -1225,14 +1233,14 @@ def tmc_xlsx_response(qs, organ, filename):
     center_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
     for row in range(1, 3):
-        for column in range(1, 7):
+        for column in range(1, max_column + 1):
             cell = ws.cell(row=row, column=column)
             cell.fill = header_fill if row == 1 else subheader_fill
             cell.font = header_font
             cell.alignment = center_alignment
             cell.border = Border(
                 left=thin,
-                right=block if column in {2, 5, 6} else thin,
+                right=block if column in {need_end, request_end, comment_column} else thin,
                 top=thin,
                 bottom=header_bottom if row == 2 else thin,
             )
@@ -1245,33 +1253,40 @@ def tmc_xlsx_response(qs, organ, filename):
         end_row = current_row + len(items) - 1
 
         for item in items:
-            ws.cell(row=current_row, column=1, value=item.name if item else "-")
-            ws.cell(row=current_row, column=2, value=f"{item.quantity} {item.unit}" if item else "-")
+            ws.cell(row=current_row, column=need_start, value=item.name if item else "-")
+            ws.cell(row=current_row, column=need_start + 1, value=f"{item.quantity} {item.unit}" if item else "-")
             current_row += 1
 
-        ws.cell(row=start_row, column=3, value=obj.request_number)
-        ws.cell(row=start_row, column=4, value=obj.request_date.strftime("%d.%m.%Y"))
-        ws.cell(row=start_row, column=5, value=obj.get_status_display())
-        ws.cell(row=start_row, column=6, value=obj.comment)
+        if is_multi_organ:
+            ws.cell(row=start_row, column=1, value=obj.territorial_organ.name)
+        ws.cell(row=start_row, column=request_start, value=obj.request_number)
+        ws.cell(row=start_row, column=request_start + 1, value=obj.request_date.strftime("%d.%m.%Y"))
+        ws.cell(row=start_row, column=request_start + 2, value=obj.get_status_display())
+        ws.cell(row=start_row, column=comment_column, value=obj.comment)
 
         if end_row > start_row:
-            for column in range(3, 7):
+            if is_multi_organ:
+                ws.merge_cells(start_row=start_row, start_column=1, end_row=end_row, end_column=1)
+            for column in range(request_start, comment_column + 1):
                 ws.merge_cells(start_row=start_row, start_column=column, end_row=end_row, end_column=column)
 
         is_last_request = request_index == len(requests) - 1
         for row in range(start_row, end_row + 1):
-            for column in range(1, 7):
+            for column in range(1, max_column + 1):
                 cell = ws.cell(row=row, column=column)
-                cell.alignment = center_alignment if column in {3, 4, 5} else body_alignment
+                center_columns = {request_start, request_start + 1, request_start + 2}
+                if is_multi_organ:
+                    center_columns.add(1)
+                cell.alignment = center_alignment if column in center_columns else body_alignment
                 cell.border = Border(
                     left=thin,
-                    right=block if column in {2, 5, 6} else thin,
+                    right=block if column in {need_end, request_end, comment_column} else thin,
                     top=thin,
                     bottom=thin if is_last_request else block,
                 )
 
     if current_row > 3:
-        ws.auto_filter.ref = f"A2:F{current_row - 1}"
+        ws.auto_filter.ref = f"A2:{get_column_letter(max_column)}{current_row - 1}"
 
     return workbook_file_response(wb, filename)
 
@@ -1489,7 +1504,7 @@ def export_table(request, organ_id, table_key, fmt):
         return download_ready_response(request, csv_file_response(filename, csv_rows))
     if fmt == "xlsx":
         if table_key == "tmc-requests":
-            return download_ready_response(request, tmc_xlsx_response(qs, organ, filename))
+            return download_ready_response(request, tmc_xlsx_response(qs, organ, filename, len(selected_organs) > 1))
         if table_key in XLSX_EXPORT_CONFIG:
             return download_ready_response(request, styled_xlsx_response(qs, table, fields, filename, **XLSX_EXPORT_CONFIG[table_key]))
         wb = Workbook()

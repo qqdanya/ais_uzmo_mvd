@@ -90,7 +90,7 @@ textarea {
   height: 8px;
 }
 html.app-modal-scroll-locked {
-  overflow: hidden;
+  overflow-y: scroll;
 }
 body.modal-open .organ-panel,
 body.modal-open .department-panel,
@@ -1227,7 +1227,7 @@ body.modal-open .photo-browser {
 .data-table .tmc-grouped-head tr:nth-child(2) th {
   top: var(--tmc-head-row-height);
   border-bottom: 2px solid #8fbfdd;
-  box-shadow: inset 0 2px 0 #7faed0;
+  box-shadow: inset 0 1px 0 #8fbfdd;
   z-index: 3;
 }
 .tmc-boundary-right {
