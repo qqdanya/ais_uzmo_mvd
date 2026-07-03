@@ -1,3 +1,6 @@
+import re
+from pathlib import Path
+
 from django.apps import apps
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -19,6 +22,10 @@ from .models import AuditLog
 
 
 SYSTEM_FIELD_NAMES = {"id", "created_at", "updated_at", "created_by", "updated_by", "is_deleted", "audit_event"}
+MODEL_HIDDEN_FIELD_NAMES = {
+    "TerritorialOrganPhoto": {"created_department"},
+    "TerritorialOrganPhotoFolder": {"created_department"},
+}
 ACTION_DISPLAY_LABELS = {
     AuditLog.Action.CREATE: "Создание",
     AuditLog.Action.UPDATE: "Редактирование",
@@ -187,8 +194,82 @@ def model_title(model_name):
     return capfirst(str(model._meta.verbose_name)) if model else (model_name or "Системное действие")
 
 
+def user_display_name(user):
+    if not user:
+        return "Система"
+    profile = getattr(user, "profile", None)
+    if profile:
+        return profile.display_name
+    full_name = user.get_full_name().strip()
+    return full_name or user.get_username()
+
+
+def table_action_noun(log):
+    table = MODEL_TABLES.get(log.model_name)
+    if not table:
+        return "Запись"
+    model = table["model"]
+    verbose_name = str(model._meta.verbose_name)
+    has_request_number = any(field.name == "request_number" for field in model._meta.fields)
+    if has_request_number or "заявка" in verbose_name.lower():
+        return "Заявка"
+    return "Сведения"
+
+
+def table_action_summary(log, changes):
+    noun = table_action_noun(log)
+    if log.action == AuditLog.Action.CREATE:
+        return f"{noun} добавлена" if noun == "Заявка" else f"{noun} добавлены"
+    if log.action == AuditLog.Action.DELETE:
+        return f"{noun} удалена" if noun == "Заявка" else f"{noun} удалены"
+    if changes:
+        labels = ", ".join(row["label"] for row in changes[:3])
+        if len(changes) > 3:
+            labels = f"{labels} и другие поля"
+        return f"{noun} отредактирована: {labels}" if noun == "Заявка" else f"{noun} отредактированы: {labels}"
+    return ""
+
+
 def typographic_quotes(value):
     return str(value or "").replace('"', "«", 1).replace('"', "»", 1)
+
+
+def quoted_name(value):
+    match = re.search(r"«([^»]+)»", typographic_quotes(value))
+    return match.group(1) if match else ""
+
+
+def first_present_value(*values):
+    for value in values:
+        if value not in (None, "", "None"):
+            return value
+    return ""
+
+
+def audit_object_name(log, *field_names):
+    object_name = quoted_name(log.object_repr)
+    if object_name:
+        return object_name
+    old_values = log.old_values or {}
+    new_values = log.new_values or {}
+    for field_name in field_names:
+        value = first_present_value(new_values.get(field_name), old_values.get(field_name))
+        if value:
+            return str(value)
+    return typographic_quotes(log.object_repr)
+
+
+def audit_object_repr(log):
+    if log.model_name == "TerritorialOrganPhoto":
+        image_name = audit_object_name(log, "original_filename", "image")
+        return f"Фотография «{Path(image_name).name}»"
+    if log.model_name == "TerritorialOrganPhotoFolder":
+        return f"Папка фотографий «{audit_object_name(log, 'name')}»"
+    if log.model_name == "TmcProduct":
+        return f"Товар «{audit_object_name(log, 'name')}»"
+    if log.model_name == "TmcRequestItem":
+        return f"Позиция ТМЦ «{audit_object_name(log, 'name')}»"
+    return typographic_quotes(log.object_repr)
 
 
 def field_label(model_name, field_name):
@@ -265,7 +346,8 @@ def relevant_keys(log):
     old_values = log.old_values or {}
     new_values = log.new_values or {}
     keys = list(dict.fromkeys([*old_values.keys(), *new_values.keys()]))
-    return [key for key in keys if key not in SYSTEM_FIELD_NAMES]
+    hidden_fields = SYSTEM_FIELD_NAMES | MODEL_HIDDEN_FIELD_NAMES.get(log.model_name, set())
+    return [key for key in keys if key not in hidden_fields]
 
 
 def audit_changes(log):
@@ -330,6 +412,10 @@ def audit_summary(log):
             return "Папка фотографий перемещена"
         if changes:
             return "Папка фотографий отредактирована"
+    if log.model_name in MODEL_TABLES:
+        summary = table_action_summary(log, changes)
+        if summary:
+            return summary
     if log.action == AuditLog.Action.CREATE:
         return "Запись добавлена"
     if log.action == AuditLog.Action.DELETE:
@@ -383,7 +469,8 @@ def prepare_log(log):
     log.browser_summary = user_agent_summary(log.user_agent)
     log.change_rows = audit_changes(log)
     log.summary = audit_summary(log)
-    log.display_object_repr = typographic_quotes(log.object_repr)
+    log.detail_action_text = log.summary
+    log.display_object_repr = audit_object_repr(log)
     log.is_object_action = log.action in {AuditLog.Action.CREATE, AuditLog.Action.UPDATE, AuditLog.Action.DELETE}
     log.show_territorial_organ = log.is_object_action and log.territorial_organ_id
     log.location_parts = audit_location(log)
@@ -425,8 +512,10 @@ def audit_pagination_fields(request, date_from, date_to, show_user_filter=True, 
     return fields
 
 
-def audit_multiselect_label(selected_values, empty_label):
+def audit_multiselect_label(selected_values, empty_label, options=None):
     count = len(selected_values)
+    if count == 1 and options:
+        return options.get(selected_values[0], empty_label)
     return f"Выбрано: {count}" if count else empty_label
 
 
@@ -472,6 +561,11 @@ def filtered_logs(request, logs=None, show_user_filter=True, show_department_fil
 
 
 def render_audit_page(request, logs, title, subtitle, reset_url_name, pagination_url_name, show_user_filter=True, show_department_filter=True, show_user_column=True):
+    users = list(scoped_user_queryset(request.user))
+    actions = [(value, ACTION_DISPLAY_LABELS.get(value, label)) for value, label in AuditLog.Action.choices]
+    organs = list(scoped_organ_queryset(request.user))
+    department_filters = scoped_department_options(request.user)
+    object_filters = [(key, label) for key, label, _ in OBJECT_FILTERS]
     paginator = Paginator(logs, 25)
     page = paginator.get_page(request.GET.get("page"))
     for log in page.object_list:
@@ -494,11 +588,11 @@ def render_audit_page(request, logs, title, subtitle, reset_url_name, pagination
             "subtitle": subtitle,
             "page": page,
             "logs": page.object_list,
-            "actions": [(value, ACTION_DISPLAY_LABELS.get(value, label)) for value, label in AuditLog.Action.choices],
-            "organs": scoped_organ_queryset(request.user),
-            "department_filters": scoped_department_options(request.user),
-            "object_filters": [(key, label) for key, label, _ in OBJECT_FILTERS],
-            "users": scoped_user_queryset(request.user),
+            "actions": actions,
+            "organs": organs,
+            "department_filters": department_filters,
+            "object_filters": object_filters,
+            "users": users,
             "show_user_filter": show_user_filter,
             "show_department_filter": show_department_filter,
             "show_user_column": show_user_column,
@@ -509,11 +603,11 @@ def render_audit_page(request, logs, title, subtitle, reset_url_name, pagination
             "selected_departments": selected_departments,
             "selected_objects": selected_objects,
             "selected_organs": selected_organs,
-            "user_filter_label": audit_multiselect_label(selected_users, "Все пользователи"),
-            "action_filter_label": audit_multiselect_label(selected_actions, "Все действия"),
-            "department_filter_label": audit_multiselect_label(selected_departments, "Все отделы"),
-            "object_filter_label": audit_multiselect_label(selected_objects, "Все объекты"),
-            "organ_filter_label": audit_multiselect_label(selected_organs, "Все территориальные органы"),
+            "user_filter_label": audit_multiselect_label(selected_users, "Все пользователи", {account.username: user_display_name(account) for account in users}),
+            "action_filter_label": audit_multiselect_label(selected_actions, "Все действия", dict(actions)),
+            "department_filter_label": audit_multiselect_label(selected_departments, "Все отделы", dict(department_filters)),
+            "object_filter_label": audit_multiselect_label(selected_objects, "Все объекты", dict(object_filters)),
+            "organ_filter_label": audit_multiselect_label(selected_organs, "Все территориальные органы", {str(organ.pk): organ.name for organ in organs}),
             "has_filters": audit_has_filters(request, date_from, date_to, show_user_filter, show_department_filter),
             "reset_url": reverse(reset_url_name),
             "querystring": querystring.urlencode(),

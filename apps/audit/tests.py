@@ -64,7 +64,7 @@ class AuditLogTests(TestCase):
         self.assertContains(response, "audit-detail-button")
         self.assertContains(response, "Страницы журнала действий")
         self.assertContains(response, "Сбросить")
-        self.assertContains(response, "Запись отредактирована")
+        self.assertContains(response, "Заявка отредактирована")
         self.assertEqual(len(response.context["logs"]), 25)
 
     def test_admin_index_links_to_full_audit_log(self):
@@ -106,7 +106,7 @@ class AuditLogTests(TestCase):
         self.assertContains(response, "Изменена запись «Заявка ТМЦ № 10/TMC»")
         self.assertNotContains(response, "Заявка тмц")
         self.assertContains(response, "Google Chrome / Windows")
-        self.assertContains(response, "User-Agent")
+        self.assertContains(response, "Показать технические сведения")
         self.assertNotContains(response, "ID: 10")
 
     def test_audit_detail_displays_foreign_keys_dates_and_request_history(self):
@@ -173,6 +173,38 @@ class AuditLogTests(TestCase):
         self.assertNotContains(response, "Измененные поля")
         self.assertNotContains(response, "Дополнительные параметры по этому действию отсутствуют")
 
+    def test_audit_detail_hides_folder_author_department_field(self):
+        log = self.create_log(
+            action=AuditLog.Action.CREATE,
+            model_name="TerritorialOrganPhotoFolder",
+            object_repr='Создана папка фотографий "333"',
+            new_values={"name": "333", "created_department": str(self.department.pk)},
+        )
+        self.client.login(username="admin", password="pass12345")
+
+        response = self.client.get(reverse("audit_detail", args=[log.pk]), HTTP_HX_REQUEST="true")
+
+        self.assertContains(response, "Папка фотографий «333»")
+        self.assertContains(response, '<strong class="audit-action audit-action-create">Папка фотографий создана</strong>', html=True)
+        self.assertNotContains(response, '<span class="audit-action audit-action-create">Папка фотографий</span>', html=True)
+        self.assertContains(response, "Наименование")
+        self.assertNotContains(response, "Отдел автора")
+
+    def test_audit_detail_hides_photo_author_department_field(self):
+        log = self.create_log(
+            action=AuditLog.Action.CREATE,
+            model_name="TerritorialOrganPhoto",
+            object_repr='Создана фотография "building.jpg"',
+            new_values={"original_filename": "building.jpg", "created_department": str(self.department.pk)},
+        )
+        self.client.login(username="admin", password="pass12345")
+
+        response = self.client.get(reverse("audit_detail", args=[log.pk]), HTTP_HX_REQUEST="true")
+
+        self.assertContains(response, "Фотография «building.jpg»")
+        self.assertContains(response, "Фотография добавлена")
+        self.assertNotContains(response, "Отдел автора")
+
     def test_audit_empty_result_keeps_panel_rows_compact(self):
         self.create_log(object_repr="Visible")
         self.client.login(username="admin", password="pass12345")
@@ -194,7 +226,8 @@ class AuditLogTests(TestCase):
         response = self.client.get(reverse("audit_log"))
 
         self.assertContains(response, "Добавлено описание фотографии")
-        self.assertContains(response, "Изменена фотография «building.jpg»")
+        self.assertContains(response, "Фотография «building.jpg»")
+        self.assertNotContains(response, "Изменена фотография «building.jpg»")
 
     def test_audit_event_summaries_use_clear_names(self):
         self.create_log(action=AuditLog.Action.DELETE, object_repr="Deleted request")
@@ -205,6 +238,12 @@ class AuditLogTests(TestCase):
             new_values={"name": "New"},
         )
         self.create_log(
+            action=AuditLog.Action.CREATE,
+            model_name="TerritorialOrganPhotoFolder",
+            object_repr='Создана запись "333"',
+            new_values={"name": "333"},
+        )
+        self.create_log(
             object_repr="Status request",
             old_values={"status": "in_work"},
             new_values={"audit_event": "request_status_changed", "status": "done"},
@@ -213,8 +252,12 @@ class AuditLogTests(TestCase):
 
         response = self.client.get(reverse("audit_log"))
 
-        self.assertContains(response, "Запись удалена")
+        self.assertContains(response, "Заявка удалена")
         self.assertContains(response, "Папка фотографий переименована")
+        self.assertContains(response, "Папка фотографий создана")
+        self.assertContains(response, "Папка фотографий «Folder»")
+        self.assertContains(response, "Папка фотографий «333»")
+        self.assertNotContains(response, "Создана запись «333»")
         self.assertContains(response, "Изменен статус заявки")
 
     def test_user_audit_log_shows_available_department_actions_with_filters(self):

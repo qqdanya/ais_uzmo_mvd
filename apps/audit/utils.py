@@ -20,15 +20,36 @@ def serialize_instance(instance):
 def object_message(action, instance):
     if instance is None:
         return ""
-    action_words = {
+    feminine_action_words = {
         AuditLog.Action.CREATE: "Создана",
         AuditLog.Action.UPDATE: "Изменена",
         AuditLog.Action.DELETE: "Удалена",
     }
-    action_word = action_words.get(action, "Изменена")
+    masculine_action_words = {
+        AuditLog.Action.CREATE: "Создан",
+        AuditLog.Action.UPDATE: "Изменен",
+        AuditLog.Action.DELETE: "Удален",
+    }
+    neuter_action_words = {
+        AuditLog.Action.CREATE: "Создано",
+        AuditLog.Action.UPDATE: "Изменено",
+        AuditLog.Action.DELETE: "Удалено",
+    }
+    action_word = feminine_action_words.get(action, "Изменена")
     if instance.__class__.__name__ == "TerritorialOrganPhoto":
         filename = Path(instance.image.name).name if getattr(instance, "image", None) else "фотография"
         return f"{action_word} фотография «{filename}»"
+    if instance.__class__.__name__ == "TerritorialOrganPhotoFolder":
+        folder_name = getattr(instance, "name", None) or str(instance)
+        return f"{action_word} папка фотографий «{folder_name}»"
+    if instance.__class__.__name__ == "TmcProduct":
+        product_name = getattr(instance, "name", None) or str(instance)
+        return f"{masculine_action_words.get(action, 'Изменен')} товар «{product_name}»"
+    if instance.__class__.__name__ == "TmcRequestItem":
+        item_name = getattr(instance, "name", None) or str(instance)
+        return f"{feminine_action_words.get(action, 'Изменена')} позиция ТМЦ «{item_name}»"
+    if instance.__class__.__name__ == "RequestStatusHistory":
+        return f"{neuter_action_words.get(action, 'Изменено')} изменение статуса заявки"
     return f"{action_word} запись «{str(instance)}»"
 
 

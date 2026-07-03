@@ -15,7 +15,7 @@
     </div>
     <div class="audit-detail-card">
       <span>Действие</span>
-      <strong>{% if log.is_object_action %}{{ log.action_display }}{% else %}{{ log.summary }}{% endif %}</strong>
+      <strong class="audit-action {{ log.action_badge }}">{{ log.detail_action_text }}</strong>
     </div>
     {% for label,value in log.location_parts %}
       <div class="audit-detail-card">
@@ -29,7 +29,6 @@
     <div class="audit-detail-section">
       <h3>Объект</h3>
       <div class="audit-object-box">
-        <span class="audit-action {{ log.action_badge }}">{{ log.model_title }}</span>
         <strong>{{ log.display_object_repr|default:log.action_display }}</strong>
       </div>
     </div>
@@ -101,10 +100,10 @@
         <strong>{{ log.browser_summary }}</strong>
       </div>
     </div>
-    <div class="audit-user-agent">
-      <span>User-Agent</span>
+    <details class="audit-user-agent">
+      <summary>Показать технические сведения</summary>
       <code>{{ log.user_agent|default:"Не указан" }}</code>
-    </div>
+    </details>
   </div>
 </div>
 <div class="modal-footer">

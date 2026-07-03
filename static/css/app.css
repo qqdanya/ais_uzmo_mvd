@@ -2560,12 +2560,12 @@ body.modal-open .toast-stack {
 }
 .audit-filters {
   display: grid;
-  grid-template-columns: minmax(220px, 1.2fr) repeat(5, minmax(135px, .72fr)) minmax(300px, 1fr) auto;
+  grid-template-columns: repeat(5, minmax(135px, 1fr)) minmax(300px, 1fr) minmax(176px, max-content);
   gap: 8px;
   align-items: center;
 }
 .audit-filters-compact {
-  grid-template-columns: repeat(3, minmax(145px, 1fr)) minmax(300px, .9fr) auto;
+  grid-template-columns: repeat(4, minmax(145px, 1fr)) minmax(300px, 1fr) minmax(176px, max-content);
 }
 .audit-search .form-control {
   padding-left: 2rem;
@@ -2673,7 +2673,11 @@ body.modal-open .toast-stack {
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
+  min-width: 0;
   gap: 6px;
+}
+.audit-filter-actions .btn {
+  white-space: nowrap;
 }
 .audit-toolbar {
   display: flex;
@@ -2741,17 +2745,22 @@ body.modal-open .toast-stack {
 .audit-location-list {
   display: flex;
   flex-wrap: wrap;
-  gap: .28rem .5rem;
+  gap: .3rem;
   margin-top: .32rem;
-  color: var(--muted);
   font-size: .78rem;
   line-height: 1.25;
 }
 .audit-location-list span {
   display: inline-flex;
+  align-items: center;
   gap: .2rem;
   min-width: 0;
   max-width: 100%;
+  padding: .14rem .42rem;
+  border: 1px solid #dbe8f3;
+  border-radius: 999px;
+  background: #f6fbff;
+  color: #52677d;
   overflow-wrap: anywhere;
 }
 .audit-location-list b {
@@ -2871,7 +2880,7 @@ body.modal-open .toast-stack {
   padding: 10px;
 }
 .audit-detail-card span,
-.audit-user-agent > span {
+.audit-user-agent summary {
   display: block;
   color: var(--muted);
   font-size: .76rem;
@@ -2881,6 +2890,23 @@ body.modal-open .toast-stack {
   color: var(--ink);
   font-size: .9rem;
   overflow-wrap: anywhere;
+}
+.audit-detail-card strong.audit-action {
+  font-size: .78rem;
+}
+.audit-detail-card strong.audit-action-create,
+.audit-detail-card strong.audit-action-login {
+  color: #0b5a35;
+}
+.audit-detail-card strong.audit-action-update {
+  color: #6f5700;
+}
+.audit-detail-card strong.audit-action-delete,
+.audit-detail-card strong.audit-action-logout {
+  color: #8a1f1f;
+}
+.audit-detail-card strong.audit-action-default {
+  color: var(--navy);
 }
 .audit-detail-section {
   margin-top: 14px;
@@ -2896,6 +2922,19 @@ body.modal-open .toast-stack {
   gap: .35rem;
 }
 .audit-object-box strong {
+  overflow-wrap: anywhere;
+}
+.audit-user-agent summary {
+  cursor: pointer;
+  user-select: none;
+}
+.audit-user-agent summary:hover {
+  color: var(--blue);
+}
+.audit-user-agent code {
+  display: block;
+  margin-top: 8px;
+  white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 .audit-change-list {
