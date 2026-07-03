@@ -17,6 +17,7 @@
     {% if is_request_table %}
         <form class="tmc-filter-form" data-table-filter-form data-default-date-from="{{ table_filter_defaults.date_from }}" data-default-date-to="{{ table_filter_defaults.date_to }}" hx-get="{% url 'table_data' organ.pk table.key %}" hx-target="#table-area" hx-trigger="input delay:500ms from:#table-search-{{ table.key }}, change" hx-swap="innerHTML">
           {% if is_multi_organ %}{% for selected_organ in selected_organs %}<input type="hidden" name="organ_ids" value="{{ selected_organ.pk }}">{% endfor %}{% endif %}
+          {% if is_request_grouped %}<input type="hidden" name="group" value="{{ group_mode }}">{% endif %}
           <div class="search-box table-search-box">
             <i class="bi bi-search"></i>
             <input id="table-search-{{ table.key }}" class="form-control form-control-sm" name="q" value="{{ request.GET.q }}" placeholder="{{ search_placeholder }}">
@@ -66,16 +67,32 @@
   </a>
 </div>
 {% endif %}
-{% if is_tmc_grouped %}
-<div class="tmc-summary-row" aria-label="Сводка по ТМЦ">
-  <span class="summary-pill"><span>Позиций найдено</span><strong>{{ tmc_summary.position_count }}</strong></span>
-  <span class="summary-pill"><span>Всего заявок</span><strong>{{ tmc_summary.request_count }}</strong></span>
-  <span class="summary-pill"><span>Всего органов</span><strong>{{ tmc_summary.organ_count }}</strong></span>
-  <span class="summary-pill"><span>Общее количество</span><strong>{{ tmc_summary.total_quantity }}</strong></span>
+{% if is_request_grouped %}
+<div class="tmc-summary-row" aria-label="Сводка по заявкам">
+  {% if is_organ_grouped %}
+    <span class="summary-pill"><span>Органов найдено</span><strong>{{ tmc_summary.organ_count }}</strong></span>
+    <span class="summary-pill"><span>Всего заявок</span><strong>{{ tmc_summary.request_count }}</strong></span>
+    {% if is_tmc_grouped %}<span class="summary-pill"><span>Позиций ТМЦ</span><strong>{{ tmc_summary.position_count }}</strong></span>{% endif %}
+  {% elif is_date_grouped %}
+    <span class="summary-pill"><span>Дней найдено</span><strong>{{ tmc_summary.date_count }}</strong></span>
+    <span class="summary-pill"><span>Всего заявок</span><strong>{{ tmc_summary.request_count }}</strong></span>
+    <span class="summary-pill"><span>Всего органов</span><strong>{{ tmc_summary.organ_count }}</strong></span>
+    {% if is_tmc_grouped %}<span class="summary-pill"><span>Позиций ТМЦ</span><strong>{{ tmc_summary.position_count }}</strong></span>{% endif %}
+  {% else %}
+    <span class="summary-pill"><span>Позиций найдено</span><strong>{{ tmc_summary.position_count }}</strong></span>
+    <span class="summary-pill"><span>Всего заявок</span><strong>{{ tmc_summary.request_count }}</strong></span>
+    <span class="summary-pill"><span>Всего органов</span><strong>{{ tmc_summary.organ_count }}</strong></span>
+  {% endif %}
+  {% if is_tmc_grouped %}<span class="summary-pill"><span>Общее количество</span><strong>{{ tmc_summary.total_quantity }}</strong></span>{% endif %}
+  {% if not is_tmc_product_grouped %}
+    <span class="summary-pill summary-pill-in-work {% if not tmc_summary.in_work_count %}is-zero{% endif %}"><span>В работе</span><strong>{{ tmc_summary.in_work_count }}</strong></span>
+    <span class="summary-pill summary-pill-done {% if not tmc_summary.done_count %}is-zero{% endif %}"><span>Исполнено</span><strong>{{ tmc_summary.done_count }}</strong></span>
+    <span class="summary-pill summary-pill-rejected {% if not tmc_summary.rejected_count %}is-zero{% endif %}"><span>Отклонено</span><strong>{{ tmc_summary.rejected_count }}</strong></span>
+  {% endif %}
 </div>
 {% endif %}
 <div class="table-actions-row">
-  {% if is_request_table and not is_tmc_grouped %}
+  {% if is_request_table and not is_request_grouped %}
     <span class="status-summary">
       <span class="summary-pill summary-pill-in-work {% if not table_stats.in_work_count %}is-zero{% endif %}"><span>В работе</span><strong>{{ table_stats.in_work_count }}</strong></span>
       <span class="summary-pill summary-pill-done {% if not table_stats.done_count %}is-zero{% endif %}"><span>Исполнено</span><strong>{{ table_stats.done_count }}</strong></span>
@@ -83,11 +100,18 @@
     </span>
   {% endif %}
   <div class="table-actions">
-    {% if table.key == "tmc-requests" %}
-      <div class="table-view-switch" aria-label="Режим отображения таблицы">
-        <button class="btn btn-sm {% if not is_tmc_grouped %}btn-primary{% else %}btn-outline-primary{% endif %}" type="button" hx-get="{% url 'table_data' organ.pk table.key %}{% if list_querystring %}?{{ list_querystring }}{% endif %}" hx-target="#table-area" hx-swap="innerHTML">По заявкам</button>
-        <button class="btn btn-sm {% if is_tmc_grouped %}btn-primary{% else %}btn-outline-primary{% endif %}" type="button" hx-get="{% url 'table_data' organ.pk table.key %}{% if grouped_querystring %}?{{ grouped_querystring }}{% endif %}" hx-target="#table-area" hx-swap="innerHTML">По ТМЦ</button>
-      </div>
+    {% if is_request_table %}
+      <form class="table-view-form" hx-get="{% url 'table_data' organ.pk table.key %}" hx-target="#table-area" hx-trigger="change" hx-swap="innerHTML">
+        {% for field in table_view_query_fields %}
+          <input type="hidden" name="{{ field.name }}" value="{{ field.value }}">
+        {% endfor %}
+        <select class="form-select form-select-sm" name="group" aria-label="Группировка таблицы заявок">
+          <option value="" {% if group_mode == "requests" %}selected{% endif %}>По заявкам</option>
+          {% if table.key == "tmc-requests" %}<option value="products" {% if group_mode == "products" %}selected{% endif %}>По ТМЦ</option>{% endif %}
+          <option value="dates" {% if group_mode == "dates" %}selected{% endif %}>По дате</option>
+          <option value="organs" {% if group_mode == "organs" %}selected{% endif %} {% if not is_multi_organ %}disabled{% endif %}>По территориальному органу</option>
+        </select>
+      </form>
     {% endif %}
     <div class="dropdown">
       <button class="btn btn-sm btn-download" type="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -107,7 +131,7 @@
 {% include "partials/pagination.html" with pagination_page=page pagination_links=table_page_links pagination_base_url=table_pagination_url pagination_querystring=table_querystring pagination_mode="button" pagination_nav_class="table-pagination" pagination_scroll=".table-wrap" pagination_aria_label="Страницы таблицы" pagination_hx_target="#table-area" pagination_hx_swap="innerHTML" pagination_jump_label="Перейти к странице таблицы" %}
 <div class="table-wrap">
   <table class="table table-sm align-middle data-table table-{{ table.key }}">
-    {% if table.key == "tmc-requests" and is_tmc_grouped %}
+    {% if table.key == "tmc-requests" and is_tmc_product_grouped %}
     <thead>
       <tr>
         <th>Наименование ТМЦ</th>
@@ -134,6 +158,66 @@
       <tr><td colspan="{% if is_multi_organ %}5{% else %}4{% endif %}">
         <div class="empty-state">
           <div>По выбранным условиям ТМЦ не найдены</div>
+        </div>
+      </td></tr>
+      {% endfor %}
+    </tbody>
+    {% elif is_organ_grouped %}
+    <thead>
+      <tr>
+        <th>Территориальный орган</th>
+        <th class="text-center">Заявок</th>
+        {% if is_tmc_grouped %}<th class="text-center">Позиций ТМЦ</th><th class="text-center">Общее количество</th>{% endif %}
+        <th class="text-center">В работе</th>
+        <th class="text-center">Исполнено</th>
+        <th class="text-center">Отклонено</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in page.object_list %}
+      <tr class="data-row">
+        <td>{{ row.request__territorial_organ__name|default:row.territorial_organ__name }}</td>
+        <td class="text-center">{{ row.request_count }}</td>
+        {% if is_tmc_grouped %}<td class="text-center">{{ row.position_count }}</td><td class="text-center">{{ row.total_quantity }}</td>{% endif %}
+        <td class="text-center">{{ row.in_work_count }}</td>
+        <td class="text-center">{{ row.done_count }}</td>
+        <td class="text-center">{{ row.rejected_count }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="{% if is_tmc_grouped %}7{% else %}5{% endif %}">
+        <div class="empty-state">
+          <div>По выбранным условиям заявки не найдены</div>
+        </div>
+      </td></tr>
+      {% endfor %}
+    </tbody>
+    {% elif is_date_grouped %}
+    <thead>
+      <tr>
+        <th>Дата</th>
+        <th class="text-center">Заявок</th>
+        <th class="text-center">Территориальных органов</th>
+        {% if is_tmc_grouped %}<th class="text-center">Позиций ТМЦ</th><th class="text-center">Общее количество</th>{% endif %}
+        <th class="text-center">В работе</th>
+        <th class="text-center">Исполнено</th>
+        <th class="text-center">Отклонено</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in page.object_list %}
+      <tr class="data-row">
+        <td>{{ row.request__request_date|default:row.request_date|date:"d.m.Y" }}</td>
+        <td class="text-center">{{ row.request_count }}</td>
+        <td class="text-center">{{ row.organ_count }}</td>
+        {% if is_tmc_grouped %}<td class="text-center">{{ row.position_count }}</td><td class="text-center">{{ row.total_quantity }}</td>{% endif %}
+        <td class="text-center">{{ row.in_work_count }}</td>
+        <td class="text-center">{{ row.done_count }}</td>
+        <td class="text-center">{{ row.rejected_count }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="{% if is_tmc_grouped %}8{% else %}6{% endif %}">
+        <div class="empty-state">
+          <div>По выбранным условиям заявки не найдены</div>
         </div>
       </td></tr>
       {% endfor %}

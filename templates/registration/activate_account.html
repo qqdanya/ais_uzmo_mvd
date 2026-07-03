@@ -11,7 +11,7 @@
     </div>
     <form method="post" class="auth-card">
       {% csrf_token %}
-      <h1>Активация профиля</h1>
+      <h1>Регистрация</h1>
       {% if form.non_field_errors %}
         <div class="auth-message auth-message-danger" role="alert">
           <i class="bi bi-exclamation-circle"></i>
@@ -26,7 +26,7 @@
       {{ form.activation_code }}
       {% for error in form.activation_code.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
 
-      <label class="form-label mt-3" for="{{ form.password1.id_for_label }}">Пароль</label>
+      <label class="form-label mt-3" for="{{ form.password1.id_for_label }}">Придумайте пароль</label>
       <div class="password-field">
         {{ form.password1 }}
         <button class="password-toggle" type="button" aria-label="Показать пароль" aria-controls="{{ form.password1.id_for_label }}" data-password-toggle>

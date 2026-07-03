@@ -7,7 +7,7 @@ from django.core.exceptions import ValidationError
 class AccountActivationForm(forms.Form):
     username = forms.CharField(label="Логин", max_length=150)
     activation_code = forms.CharField(label="Код активации", max_length=6, min_length=6)
-    password1 = forms.CharField(label="Пароль", widget=forms.PasswordInput)
+    password1 = forms.CharField(label="Придумайте пароль", widget=forms.PasswordInput)
     password2 = forms.CharField(label="Повторите пароль", widget=forms.PasswordInput)
 
     def __init__(self, *args, **kwargs):

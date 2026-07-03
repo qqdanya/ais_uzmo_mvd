@@ -835,6 +835,13 @@ body.modal-open .toast-stack {
 .table-view-switch .btn {
   border-radius: 6px;
 }
+.table-view-form {
+  margin: 0;
+}
+.table-view-form .custom-select,
+.table-view-form .form-select {
+  min-width: 220px;
+}
 .table-actions-row {
   display: flex;
   align-items: flex-start;

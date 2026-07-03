@@ -638,6 +638,9 @@ class AppFlowTests(TestCase):
 
         self.assertContains(response, "По заявкам")
         self.assertContains(response, "По ТМЦ")
+        self.assertContains(response, "По территориальному органу")
+        self.assertContains(response, "По дате")
+        self.assertContains(response, 'name="group"')
         self.assertContains(response, "Бумага А4")
         self.assertContains(response, "Кресло офисное")
         self.assertContains(response, "tmc-drilldown-link")
@@ -666,6 +669,72 @@ class AppFlowTests(TestCase):
         self.assertNotContains(response, "summary-pill-rejected")
         self.assertNotContains(response, "Сбросить фильтры")
         self.assertNotContains(response, reverse("record_update", args=[self.organ.pk, "tmc-requests", first.pk]))
+
+    def test_tmc_table_can_group_by_territorial_organs_when_multiple_selected(self):
+        other_organ = TerritorialOrgan.objects.create(name="Other territorial organ", order_number=2)
+        first = TmcRequest.objects.create(territorial_organ=self.organ, request_number="51/TMC", request_date="2026-06-20", status="in_work")
+        second = TmcRequest.objects.create(territorial_organ=other_organ, request_number="52/TMC", request_date="2026-06-21", status="in_work")
+        third = TmcRequest.objects.create(territorial_organ=other_organ, request_number="53/TMC", request_date="2026-06-22", status="done")
+        TmcRequestItem.objects.create(request=first, name="Бумага А4", quantity=5, unit="пач.")
+        TmcRequestItem.objects.create(request=second, name="Бумага А4", quantity=7, unit="пач.")
+        TmcRequestItem.objects.create(request=third, name="Кресло офисное", quantity=1, unit="шт.")
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(
+            reverse("table_data", args=[self.organ.pk, "tmc-requests"]),
+            {"organ_ids": [self.organ.pk, other_organ.pk], "group": "organs"},
+        )
+
+        self.assertContains(response, "Территориальный орган")
+        self.assertContains(response, "Test territorial organ")
+        self.assertContains(response, "Other territorial organ")
+        self.assertContains(response, "Заявок")
+        self.assertContains(response, "Позиций ТМЦ")
+        self.assertContains(response, "Общее количество")
+        self.assertContains(response, "группировка: По территориальному органу")
+        self.assertContains(response, "органов")
+        self.assertContains(response, "Органов найдено")
+        self.assertContains(response, "<td class=\"text-center\">2</td>", html=True)
+        self.assertNotContains(response, "tmc-drilldown-link")
+        self.assertContains(response, "summary-pill-in-work")
+
+    def test_tmc_organ_grouping_is_available_only_for_multi_organ_mode(self):
+        request_obj = TmcRequest.objects.create(territorial_organ=self.organ, request_number="54/TMC", request_date="2026-06-20", status="in_work")
+        TmcRequestItem.objects.create(request=request_obj, name="Сканер", quantity=2, unit="шт.")
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("table_data", args=[self.organ.pk, "tmc-requests"]), {"group": "organs"})
+
+        self.assertContains(response, "54/TMC")
+        self.assertContains(response, "По территориальному органу")
+        self.assertContains(response, "disabled")
+        self.assertNotContains(response, "группировка: По территориальному органу")
+
+    def test_tmc_table_can_group_by_request_date(self):
+        other_organ = TerritorialOrgan.objects.create(name="Other territorial organ", order_number=2)
+        first = TmcRequest.objects.create(territorial_organ=self.organ, request_number="57/TMC", request_date="2026-06-20", status="in_work")
+        second = TmcRequest.objects.create(territorial_organ=other_organ, request_number="58/TMC", request_date="2026-06-20", status="in_work")
+        third = TmcRequest.objects.create(territorial_organ=other_organ, request_number="59/TMC", request_date="2026-06-21", status="done")
+        TmcRequestItem.objects.create(request=first, name="Бумага А4", quantity=5, unit="пач.")
+        TmcRequestItem.objects.create(request=second, name="Кресло офисное", quantity=2, unit="шт.")
+        TmcRequestItem.objects.create(request=third, name="Сканер", quantity=1, unit="шт.")
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(
+            reverse("table_data", args=[self.organ.pk, "tmc-requests"]),
+            {"organ_ids": [self.organ.pk, other_organ.pk], "group": "dates"},
+        )
+
+        self.assertContains(response, "Дата")
+        self.assertContains(response, "20.06.2026")
+        self.assertContains(response, "21.06.2026")
+        self.assertContains(response, "Территориальных органов")
+        self.assertContains(response, "группировка: По дате")
+        self.assertContains(response, "дней")
+        self.assertContains(response, "Дней найдено")
+        self.assertContains(response, "<td class=\"text-center\">2</td>", html=True)
+        self.assertNotContains(response, "tmc-drilldown-link")
+        self.assertContains(response, "summary-pill-in-work")
 
     def test_table_active_conditions_show_filters_and_reset(self):
         request_obj = TmcRequest.objects.create(
@@ -854,6 +923,43 @@ class AppFlowTests(TestCase):
         self.assertEqual(rows[0], ["Наименование ТМЦ", "Заявок", "Общее количество", "Единица измерения"])
         self.assertEqual(rows[1], ["Сканер", "1", "2", "шт."])
         self.assertNotIn("50/TMC", ",".join(rows[1]))
+
+    def test_tmc_organ_grouped_csv_export_matches_grouped_table(self):
+        other_organ = TerritorialOrgan.objects.create(name="Other territorial organ", order_number=2)
+        first = TmcRequest.objects.create(territorial_organ=self.organ, request_number="55/TMC", request_date="2026-06-20", status="in_work")
+        second = TmcRequest.objects.create(territorial_organ=other_organ, request_number="56/TMC", request_date="2026-06-21", status="in_work")
+        TmcRequestItem.objects.create(request=first, name="Бумага А4", quantity=5, unit="пач.")
+        TmcRequestItem.objects.create(request=second, name="Кресло офисное", quantity=2, unit="шт.")
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(
+            reverse("export_table", args=[self.organ.pk, "tmc-requests", "csv"]),
+            {"organ_ids": [self.organ.pk, other_organ.pk], "group": "organs"},
+        )
+
+        rows = list(csv.reader(self.response_bytes(response).decode("utf-8-sig").splitlines()))
+        self.assertEqual(rows[0], ["Территориальный орган", "Заявок", "Позиций ТМЦ", "Общее количество", "В работе", "Исполнено", "Отклонено"])
+        self.assertIn(["Test territorial organ", "1", "1", "5", "1", "0", "0"], rows)
+        self.assertIn(["Other territorial organ", "1", "1", "2", "1", "0", "0"], rows)
+        self.assertNotIn("55/TMC", ",".join(",".join(row) for row in rows))
+
+    def test_tmc_date_grouped_csv_export_matches_grouped_table(self):
+        other_organ = TerritorialOrgan.objects.create(name="Other territorial organ", order_number=2)
+        first = TmcRequest.objects.create(territorial_organ=self.organ, request_number="60/TMC", request_date="2026-06-20", status="in_work")
+        second = TmcRequest.objects.create(territorial_organ=other_organ, request_number="61/TMC", request_date="2026-06-20", status="in_work")
+        TmcRequestItem.objects.create(request=first, name="Бумага А4", quantity=5, unit="пач.")
+        TmcRequestItem.objects.create(request=second, name="Кресло офисное", quantity=2, unit="шт.")
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(
+            reverse("export_table", args=[self.organ.pk, "tmc-requests", "csv"]),
+            {"organ_ids": [self.organ.pk, other_organ.pk], "group": "dates"},
+        )
+
+        rows = list(csv.reader(self.response_bytes(response).decode("utf-8-sig").splitlines()))
+        self.assertEqual(rows[0], ["Дата", "Заявок", "Территориальных органов", "Позиций ТМЦ", "Общее количество", "В работе", "Исполнено", "Отклонено"])
+        self.assertIn(["20.06.2026", "2", "2", "2", "7", "2", "0", "0"], rows)
+        self.assertNotIn("60/TMC", ",".join(",".join(row) for row in rows))
 
     def test_citsizi_filter_by_equipment_type(self):
         CitsiziEquipment.objects.create(territorial_organ=self.organ, request_number="C-1", request_date="2026-06-20", equipment_type="communication", quantity=1)
@@ -1124,6 +1230,47 @@ class AppFlowTests(TestCase):
         values = [cell.value for row in workbook.active.iter_rows() for cell in row]
         self.assertIn(included.request_number, values)
         self.assertNotIn(excluded.request_number, values)
+
+    def test_request_tables_support_date_and_organ_grouping(self):
+        other_organ = TerritorialOrgan.objects.create(name="Other territorial organ", order_number=2)
+        VehicleRepairRequest.objects.create(territorial_organ=self.organ, request_number="R-30", request_date="2026-06-20", status="in_work", comment="Diagnostics")
+        VehicleRepairRequest.objects.create(territorial_organ=other_organ, request_number="R-31", request_date="2026-06-20", status="done", comment="Diagnostics")
+        VehicleRepairRequest.objects.create(territorial_organ=other_organ, request_number="R-32", request_date="2026-06-21", status="rejected", comment="Oil")
+        self.client.login(username="operator", password="pass12345")
+
+        date_response = self.client.get(
+            reverse("table_data", args=[self.organ.pk, "vehicle-repair"]),
+            {"organ_ids": [self.organ.pk, other_organ.pk], "group": "dates"},
+        )
+        self.assertContains(date_response, "По заявкам")
+        self.assertContains(date_response, "По дате")
+        self.assertContains(date_response, "По территориальному органу")
+        self.assertNotContains(date_response, "По ТМЦ")
+        self.assertContains(date_response, "20.06.2026")
+        self.assertContains(date_response, "21.06.2026")
+        self.assertContains(date_response, "В работе")
+        self.assertContains(date_response, "Исполнено")
+        self.assertContains(date_response, "Отклонено")
+        self.assertContains(date_response, "группировка: По дате")
+        self.assertNotContains(date_response, "R-30")
+
+        organ_response = self.client.get(
+            reverse("table_data", args=[self.organ.pk, "vehicle-repair"]),
+            {"organ_ids": [self.organ.pk, other_organ.pk], "group": "organs"},
+        )
+        self.assertContains(organ_response, "Test territorial organ")
+        self.assertContains(organ_response, "Other territorial organ")
+        self.assertContains(organ_response, "группировка: По территориальному органу")
+        self.assertNotContains(organ_response, "R-31")
+
+        export_response = self.client.get(
+            reverse("export_table", args=[self.organ.pk, "vehicle-repair", "csv"]),
+            {"organ_ids": [self.organ.pk, other_organ.pk], "group": "dates"},
+        )
+        rows = list(csv.reader(self.response_bytes(export_response).decode("utf-8-sig").splitlines()))
+        self.assertEqual(rows[0], ["Дата", "Заявок", "Территориальных органов", "В работе", "Исполнено", "Отклонено"])
+        self.assertIn(["20.06.2026", "2", "2", "1", "1", "0"], rows)
+        self.assertNotIn("R-30", ",".join(",".join(row) for row in rows))
 
     def test_vehicle_fuel_request_matches_vehicle_repair_table_behavior(self):
         request_obj = VehicleFuelRequest.objects.create(

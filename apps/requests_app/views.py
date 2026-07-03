@@ -241,12 +241,16 @@ def format_filter_date(value):
     return date.strftime("%d.%m.%Y") if date else value
 
 
-def active_table_conditions(request, table_key, selected_organs, is_tmc_grouped):
+def active_table_conditions(request, table_key, selected_organs, group_mode="requests"):
     conditions = []
     if len(selected_organs) > 1:
         conditions.append(f"выборочно: {len(selected_organs)} органов")
-    if is_tmc_grouped:
+    if group_mode == "products":
         conditions.append("группировка: По ТМЦ")
+    if group_mode == "organs":
+        conditions.append("группировка: По территориальному органу")
+    if group_mode == "dates":
+        conditions.append("группировка: По дате")
     query = request.GET.get("q", "").strip()
     if query:
         conditions.append(f"поиск: {query}")
@@ -279,6 +283,68 @@ def tmc_grouped_rows(qs):
     )
 
 
+def tmc_organ_grouped_rows(qs):
+    rows = request_organ_grouped_rows(qs)
+    quantities = {
+        row["request__territorial_organ_id"]: row
+        for row in TmcRequestItem.objects.filter(request__in=qs)
+        .values("request__territorial_organ_id", "request__territorial_organ__name")
+        .annotate(
+            request_count=Count("request_id", distinct=True),
+            position_count=Count("id"),
+            total_quantity=Sum("quantity"),
+        )
+    }
+    for row in rows:
+        item_row = quantities.get(row["territorial_organ_id"], {})
+        row["request__territorial_organ__name"] = row.get("territorial_organ__name")
+        row["position_count"] = item_row.get("position_count") or 0
+        row["total_quantity"] = item_row.get("total_quantity") or 0
+    return rows
+
+
+def tmc_date_grouped_rows(qs):
+    rows = request_date_grouped_rows(qs)
+    quantities = {
+        row["request__request_date"]: row
+        for row in TmcRequestItem.objects.filter(request__in=qs)
+        .values("request__request_date")
+        .annotate(position_count=Count("id"), total_quantity=Sum("quantity"))
+    }
+    for row in rows:
+        item_row = quantities.get(row["request_date"], {})
+        row["position_count"] = item_row.get("position_count") or 0
+        row["total_quantity"] = item_row.get("total_quantity") or 0
+    return rows
+
+
+def request_date_grouped_rows(qs):
+    return list(
+        qs.values("request_date")
+        .annotate(
+            request_count=Count("id"),
+            organ_count=Count("territorial_organ_id", distinct=True),
+            in_work_count=Count("id", filter=Q(status=NeedStatus.IN_WORK)),
+            done_count=Count("id", filter=Q(status=NeedStatus.DONE)),
+            rejected_count=Count("id", filter=Q(status=NeedStatus.REJECTED)),
+        )
+        .order_by("-request_date")
+    )
+
+
+def request_organ_grouped_rows(qs):
+    return list(
+        qs.values("territorial_organ_id", "territorial_organ__name")
+        .annotate(
+            request_count=Count("id"),
+            in_work_count=Count("id", filter=Q(status=NeedStatus.IN_WORK)),
+            done_count=Count("id", filter=Q(status=NeedStatus.DONE)),
+            rejected_count=Count("id", filter=Q(status=NeedStatus.REJECTED)),
+        )
+        .order_by("territorial_organ__name")
+    )
+
+
 def tmc_grouped_summary(qs, grouped_count):
     items = TmcRequestItem.objects.filter(request__in=qs)
     return {
@@ -289,6 +355,40 @@ def tmc_grouped_summary(qs, grouped_count):
     }
 
 
+def tmc_organ_grouped_summary(qs, grouped_count):
+    items = TmcRequestItem.objects.filter(request__in=qs)
+    return {
+        "organ_count": grouped_count,
+        "request_count": qs.count(),
+        "position_count": items.count(),
+        "total_quantity": items.aggregate(total=Sum("quantity")).get("total") or 0,
+    }
+
+
+def tmc_date_grouped_summary(qs, grouped_count):
+    items = TmcRequestItem.objects.filter(request__in=qs)
+    summary = request_grouped_summary(qs, date_count=grouped_count)
+    summary.update({
+        "date_count": grouped_count,
+        "position_count": items.count(),
+        "total_quantity": items.aggregate(total=Sum("quantity")).get("total") or 0,
+    })
+    return summary
+
+
+def request_grouped_summary(qs, date_count=None, organ_count=None):
+    summary = request_status_stats(qs)
+    summary.update(
+        {
+            "request_count": qs.count(),
+            "organ_count": organ_count if organ_count is not None else qs.values("territorial_organ_id").distinct().count(),
+        }
+    )
+    if date_count is not None:
+        summary["date_count"] = date_count
+    return summary
+
+
 def attach_tmc_drilldown_querystrings(rows, base_querystring):
     for row in rows:
         product_name = row.get("product__name") or row.get("name") or ""
@@ -296,6 +396,30 @@ def attach_tmc_drilldown_querystrings(rows, base_querystring):
         drilldown_querystring["q"] = product_name
         row["drilldown_querystring"] = drilldown_querystring.urlencode()
     return rows
+
+
+def request_group_mode(request, table_key, is_multi_organ):
+    group = request.GET.get("group")
+    if table_key == "tmc-requests" and group == "products":
+        return "products"
+    if group == "organs" and is_multi_organ:
+        return "organs"
+    if group == "dates":
+        return "dates"
+    return "requests"
+
+
+def table_view_query_fields(querystring):
+    fields = []
+    for name, values in querystring.lists():
+        if name in {"page", "group"}:
+            continue
+        fields.extend({"name": name, "value": value} for value in values)
+    return fields
+
+
+def row_count(rows):
+    return len(rows) if isinstance(rows, list) else rows.count()
 
 
 def valid_equipment_type(value):
@@ -761,19 +885,38 @@ def table_data(request, organ_id, table_key):
     table_filter_defaults = {}
     qs = filtered_queryset(request, table, selected_organs)
     is_request_table = table_key in REQUEST_TABLE_CONFIG
-    is_tmc_grouped = table_key == "tmc-requests" and request.GET.get("group") == "products"
+    current_group_mode = request_group_mode(request, table_key, is_multi_organ) if is_request_table else "requests"
+    is_request_grouped = current_group_mode in {"products", "organs", "dates"}
+    is_tmc_grouped = table_key == "tmc-requests" and is_request_grouped
+    is_tmc_product_grouped = table_key == "tmc-requests" and current_group_mode == "products"
+    is_organ_grouped = current_group_mode == "organs"
+    is_date_grouped = current_group_mode == "dates"
     if is_request_table:
         table_filter_defaults = request_table_date_filter_defaults(table_key, selected_organs)
         table_filters = request_table_date_filter_values(request, table_key, selected_organs)
         stats_qs = request_table_queryset(request, table_key, selected_organs)
         table_stats = request_status_stats(stats_qs)
-    page_qs = tmc_grouped_rows(qs) if is_tmc_grouped else qs
-    tmc_summary = tmc_grouped_summary(qs, page_qs.count()) if is_tmc_grouped else {}
+    if is_tmc_product_grouped:
+        page_qs = tmc_grouped_rows(qs)
+    elif is_organ_grouped:
+        page_qs = tmc_organ_grouped_rows(qs) if table_key == "tmc-requests" else request_organ_grouped_rows(qs)
+    elif is_date_grouped:
+        page_qs = tmc_date_grouped_rows(qs) if table_key == "tmc-requests" else request_date_grouped_rows(qs)
+    else:
+        page_qs = qs
+    grouped_summary = {}
+    grouped_count = row_count(page_qs)
+    if is_tmc_product_grouped:
+        grouped_summary = tmc_grouped_summary(qs, grouped_count)
+    elif is_organ_grouped:
+        grouped_summary = tmc_organ_grouped_summary(qs, grouped_count) if table_key == "tmc-requests" else request_grouped_summary(qs, organ_count=grouped_count)
+    elif is_date_grouped:
+        grouped_summary = tmc_date_grouped_summary(qs, grouped_count) if table_key == "tmc-requests" else request_grouped_summary(qs, date_count=grouped_count)
     paginator = Paginator(page_qs, 20)
     page = paginator.get_page(request.GET.get("page"))
-    if table_key in REQUEST_PHOTO_TABLES and not is_tmc_grouped:
+    if table_key in REQUEST_PHOTO_TABLES and not is_request_grouped:
         attach_request_photo_counts(page.object_list, table["model"], selected_organs)
-    if table_key in STATUS_HISTORY_TABLES and not is_tmc_grouped:
+    if table_key in STATUS_HISTORY_TABLES and not is_request_grouped:
         attach_status_history_flags(page.object_list, table["model"])
     querystring = request.GET.copy()
     querystring.pop("page", None)
@@ -781,7 +924,9 @@ def table_data(request, organ_id, table_key):
     list_querystring.pop("group", None)
     grouped_querystring = querystring.copy()
     grouped_querystring["group"] = "products"
-    if is_tmc_grouped:
+    organ_grouped_querystring = querystring.copy()
+    organ_grouped_querystring["group"] = "organs"
+    if is_tmc_product_grouped:
         page.object_list = attach_tmc_drilldown_querystrings(list(page.object_list), list_querystring)
     writable_organ_ids = [selected_organ.pk for selected_organ in selected_organs if can_write(request.user, selected_organ, table["department"])]
     return render(
@@ -798,16 +943,27 @@ def table_data(request, organ_id, table_key):
             "table_querystring": querystring.urlencode(),
             "list_querystring": list_querystring.urlencode(),
             "grouped_querystring": grouped_querystring.urlencode(),
+            "organ_grouped_querystring": organ_grouped_querystring.urlencode(),
+            "table_view_query_fields": table_view_query_fields(querystring),
             "organ_querystring": selected_organs_querystring(selected_organs) if is_multi_organ else "",
             "status_choices": ACTIVE_NEED_STATUS_CHOICES,
             "table_stats": table_stats,
             "table_filters": table_filters,
             "table_filter_defaults": table_filter_defaults,
-            "active_conditions": active_table_conditions(request, table_key, selected_organs, is_tmc_grouped),
-            "tmc_summary": tmc_summary,
+            "active_conditions": active_table_conditions(request, table_key, selected_organs, current_group_mode),
+            "grouped_summary": grouped_summary,
+            "tmc_summary": grouped_summary,
             "is_request_table": is_request_table,
+            "is_request_grouped": is_request_grouped,
             "is_tmc_grouped": is_tmc_grouped,
-            "record_label": "позиций" if is_tmc_grouped else "записей",
+            "is_tmc_product_grouped": is_tmc_product_grouped,
+            "is_tmc_organ_grouped": table_key == "tmc-requests" and is_organ_grouped,
+            "is_tmc_date_grouped": table_key == "tmc-requests" and is_date_grouped,
+            "is_organ_grouped": is_organ_grouped,
+            "is_date_grouped": is_date_grouped,
+            "tmc_group_mode": current_group_mode,
+            "group_mode": current_group_mode,
+            "record_label": "позиций" if is_tmc_product_grouped else "органов" if is_organ_grouped else "дней" if is_date_grouped else "записей",
             "has_status_history": table_key in STATUS_HISTORY_TABLES,
             "search_placeholder": "Поиск по заявке и ТМЦ" if table_key == "tmc-requests" else "Поиск по заявке и описанию",
             "equipment_type_choices": CitsiziEquipment._meta.get_field("equipment_type").choices,
@@ -1310,14 +1466,103 @@ def tmc_grouped_export_row(row, is_multi_organ):
     return values
 
 
-def tmc_grouped_xlsx_response(rows, is_multi_organ, filename):
+def tmc_organ_grouped_export_headers():
+    return ["Территориальный орган", "Заявок", "Позиций ТМЦ", "Общее количество", "В работе", "Исполнено", "Отклонено"]
+
+
+def tmc_organ_grouped_export_row(row):
+    return [
+        row.get("request__territorial_organ__name") or "-",
+        row.get("request_count") or 0,
+        row.get("position_count") or 0,
+        row.get("total_quantity") or 0,
+        row.get("in_work_count") or 0,
+        row.get("done_count") or 0,
+        row.get("rejected_count") or 0,
+    ]
+
+
+def tmc_date_grouped_export_headers():
+    return ["Дата", "Заявок", "Территориальных органов", "Позиций ТМЦ", "Общее количество", "В работе", "Исполнено", "Отклонено"]
+
+
+def tmc_date_grouped_export_row(row):
+    date = row.get("request__request_date") or row.get("request_date")
+    return [
+        date.strftime("%d.%m.%Y") if date else "-",
+        row.get("request_count") or 0,
+        row.get("organ_count") or 0,
+        row.get("position_count") or 0,
+        row.get("total_quantity") or 0,
+        row.get("in_work_count") or 0,
+        row.get("done_count") or 0,
+        row.get("rejected_count") or 0,
+    ]
+
+
+def request_organ_grouped_export_headers():
+    return ["Территориальный орган", "Заявок", "В работе", "Исполнено", "Отклонено"]
+
+
+def request_organ_grouped_export_row(row):
+    return [
+        row.get("territorial_organ__name") or row.get("request__territorial_organ__name") or "-",
+        row.get("request_count") or 0,
+        row.get("in_work_count") or 0,
+        row.get("done_count") or 0,
+        row.get("rejected_count") or 0,
+    ]
+
+
+def request_date_grouped_export_headers():
+    return ["Дата", "Заявок", "Территориальных органов", "В работе", "Исполнено", "Отклонено"]
+
+
+def request_date_grouped_export_row(row):
+    date = row.get("request_date") or row.get("request__request_date")
+    return [
+        date.strftime("%d.%m.%Y") if date else "-",
+        row.get("request_count") or 0,
+        row.get("organ_count") or 0,
+        row.get("in_work_count") or 0,
+        row.get("done_count") or 0,
+        row.get("rejected_count") or 0,
+    ]
+
+
+def grouped_export_headers(group_mode, is_tmc=False, is_multi_organ=False):
+    if group_mode == "products":
+        return tmc_grouped_export_headers(is_multi_organ)
+    if group_mode == "organs":
+        return tmc_organ_grouped_export_headers() if is_tmc else request_organ_grouped_export_headers()
+    if group_mode == "dates":
+        return tmc_date_grouped_export_headers() if is_tmc else request_date_grouped_export_headers()
+    return []
+
+
+def grouped_export_row(row, group_mode, is_tmc=False, is_multi_organ=False):
+    if group_mode == "products":
+        return tmc_grouped_export_row(row, is_multi_organ)
+    if group_mode == "organs":
+        return tmc_organ_grouped_export_row(row) if is_tmc else request_organ_grouped_export_row(row)
+    if group_mode == "dates":
+        return tmc_date_grouped_export_row(row) if is_tmc else request_date_grouped_export_row(row)
+    return []
+
+
+def tmc_grouped_xlsx_response(rows, is_multi_organ, filename, group_mode="products"):
     wb = Workbook()
     ws = wb.active
     ws.title = "ТМЦ"
-    headers = tmc_grouped_export_headers(is_multi_organ)
+    headers = grouped_export_headers(group_mode, is_tmc=True, is_multi_organ=is_multi_organ)
     ws.append(headers)
 
-    widths = [36, 14, 24, 18, 18] if is_multi_organ else [36, 14, 18, 18]
+    if group_mode == "organs":
+        widths = [42, 14, 16, 18, 14, 14, 14]
+    elif group_mode == "dates":
+        widths = [16, 14, 24, 16, 18, 14, 14, 14]
+    else:
+        widths = [36, 14, 24, 18, 18] if is_multi_organ else [36, 14, 18, 18]
     for index, width in enumerate(widths, start=1):
         ws.column_dimensions[ws.cell(row=1, column=index).column_letter].width = width
 
@@ -1345,7 +1590,54 @@ def tmc_grouped_xlsx_response(rows, is_multi_organ, filename):
         cell.border = Border(left=thin, right=block if column == last_column else thin, top=thin, bottom=header_bottom)
 
     for row_index, row in enumerate(rows, start=2):
-        for column, value in enumerate(tmc_grouped_export_row(row, is_multi_organ), start=1):
+        row_values = grouped_export_row(row, group_mode, is_tmc=True, is_multi_organ=is_multi_organ)
+        for column, value in enumerate(row_values, start=1):
+            cell = ws.cell(row=row_index, column=column, value=value)
+            cell.alignment = body_alignment if column == 1 else center_alignment
+            cell.border = Border(left=thin, right=block if column == last_column else thin, top=thin, bottom=thin)
+
+    if ws.max_row > 1:
+        ws.auto_filter.ref = f"A1:{ws.cell(row=1, column=last_column).column_letter}{ws.max_row}"
+
+    return workbook_file_response(wb, filename)
+
+
+def request_grouped_xlsx_response(rows, table, filename, group_mode):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = table["title"][:31]
+    headers = grouped_export_headers(group_mode, is_tmc=False)
+    ws.append(headers)
+
+    widths = [42, 14, 14, 14, 14] if group_mode == "organs" else [16, 14, 24, 14, 14, 14]
+    for index, width in enumerate(widths, start=1):
+        ws.column_dimensions[ws.cell(row=1, column=index).column_letter].width = width
+
+    ws.freeze_panes = "A2"
+    ws.sheet_view.showGridLines = False
+    ws.page_setup.orientation = "landscape"
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+
+    thin = Side(style="thin", color="C6DBE9")
+    block = Side(style="medium", color="7FAED0")
+    header_bottom = Side(style="medium", color="8FBFDD")
+    header_fill = PatternFill("solid", fgColor="D6EAF7")
+    header_font = Font(bold=True, color="0B2F5B")
+    center_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    body_alignment = Alignment(vertical="top", wrap_text=True)
+    last_column = len(headers)
+
+    for column in range(1, last_column + 1):
+        cell = ws.cell(row=1, column=column)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = center_alignment
+        cell.border = Border(left=thin, right=block if column == last_column else thin, top=thin, bottom=header_bottom)
+
+    for row_index, row in enumerate(rows, start=2):
+        for column, value in enumerate(grouped_export_row(row, group_mode, is_tmc=False), start=1):
             cell = ws.cell(row=row_index, column=column, value=value)
             cell.alignment = body_alignment if column == 1 else center_alignment
             cell.border = Border(left=thin, right=block if column == last_column else thin, top=thin, bottom=thin)
@@ -1490,16 +1782,25 @@ def export_table(request, organ_id, table_key, fmt):
     qs = filtered_queryset(request, table, selected_organs)
     fields = display_fields(table)
     filename = f"{table_key}-{organ.pk}.{fmt}"
-    is_tmc_grouped = table_key == "tmc-requests" and request.GET.get("group") == "products"
-    if is_tmc_grouped:
-        rows = list(tmc_grouped_rows(qs))
-        is_multi_organ = len(selected_organs) > 1
+    is_multi_organ = len(selected_organs) > 1
+    is_request_table = table_key in REQUEST_TABLE_CONFIG
+    current_group_mode = request_group_mode(request, table_key, is_multi_organ) if is_request_table else "requests"
+    if current_group_mode in {"products", "organs", "dates"}:
+        is_tmc = table_key == "tmc-requests"
+        if current_group_mode == "organs":
+            rows = list(tmc_organ_grouped_rows(qs) if is_tmc else request_organ_grouped_rows(qs))
+        elif current_group_mode == "dates":
+            rows = list(tmc_date_grouped_rows(qs) if is_tmc else request_date_grouped_rows(qs))
+        else:
+            rows = list(tmc_grouped_rows(qs))
         if fmt == "csv":
-            csv_rows = [tmc_grouped_export_headers(is_multi_organ)]
-            csv_rows.extend(tmc_grouped_export_row(row, is_multi_organ) for row in rows)
+            csv_rows = [grouped_export_headers(current_group_mode, is_tmc=is_tmc, is_multi_organ=is_multi_organ)]
+            csv_rows.extend(grouped_export_row(row, current_group_mode, is_tmc=is_tmc, is_multi_organ=is_multi_organ) for row in rows)
             return download_ready_response(request, csv_file_response(filename, csv_rows))
         if fmt == "xlsx":
-            return download_ready_response(request, tmc_grouped_xlsx_response(rows, is_multi_organ, filename))
+            if is_tmc:
+                return download_ready_response(request, tmc_grouped_xlsx_response(rows, is_multi_organ, filename, current_group_mode))
+            return download_ready_response(request, request_grouped_xlsx_response(rows, table, filename, current_group_mode))
     if fmt == "csv":
         csv_rows = [table_header_labels(fields)]
         for obj in qs:
