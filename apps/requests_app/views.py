@@ -149,6 +149,42 @@ def filtered_queryset(request, table, organs):
     return qs
 
 
+STATE_SNAPSHOT_TABLES = {
+    "fire-extinguishers",
+    "fire-alarm",
+    "security-alarm",
+    "service-housing",
+}
+
+STATE_SNAPSHOT_MODE_CHOICES = (
+    ("current", "Текущая ситуация"),
+    ("history", "История записей"),
+)
+
+
+def state_snapshot_mode(request, table_key):
+    if table_key not in STATE_SNAPSHOT_TABLES:
+        return ""
+    return "history" if request.GET.get("state_mode") == "history" else "current"
+
+
+def state_snapshot_queryset(request, table_key, qs):
+    if state_snapshot_mode(request, table_key) == "history":
+        return qs
+    latest_ids = []
+    organ_ids = qs.values_list("territorial_organ_id", flat=True).distinct()
+    for organ_id in organ_ids:
+        latest_id = (
+            qs.filter(territorial_organ_id=organ_id)
+            .order_by("-state_date", "-created_at", "-pk")
+            .values_list("pk", flat=True)
+            .first()
+        )
+        if latest_id:
+            latest_ids.append(latest_id)
+    return qs.filter(pk__in=latest_ids).order_by("territorial_organ__name", "-state_date", "-created_at")
+
+
 def request_date_filter_defaults(model, organs):
     oldest_date = model.objects.filter(territorial_organ__in=organs, is_deleted=False).aggregate(oldest=Min("request_date")).get("oldest")
     return {
@@ -290,10 +326,6 @@ def fire_extinguisher_expiry_window():
     return today, today + timedelta(days=FIRE_EXTINGUISHER_SOON_DAYS)
 
 
-def fire_extinguisher_group_mode(request, is_multi_organ):
-    return "organs" if request.GET.get("group") == "organs" and is_multi_organ else "records"
-
-
 def fire_extinguisher_filtered_queryset(request, qs):
     today, soon_until = fire_extinguisher_expiry_window()
     expiry_state = request.GET.get("expiry_state", "")
@@ -319,61 +351,10 @@ def fire_extinguisher_filtered_queryset(request, qs):
     return qs.order_by("-created_at", "-id")
 
 
-def fire_extinguisher_grouped_rows(qs):
-    today, soon_until = fire_extinguisher_expiry_window()
-    rows = list(
-        qs.values("territorial_organ_id", "territorial_organ__name")
-        .annotate(
-            record_count=Count("id"),
-            required_total=Sum("required_count"),
-            available_total=Sum("available_count"),
-            writeoff_total=Sum("writeoff_count"),
-            valid_total=Sum("available_count", filter=Q(expiry_date__gt=soon_until)),
-            soon_total=Sum("available_count", filter=Q(expiry_date__gte=today, expiry_date__lte=soon_until)),
-            expired_total=Sum("available_count", filter=Q(expiry_date__lt=today)),
-        )
-        .order_by("territorial_organ__name")
-    )
-    numeric_fields = (
-        "record_count",
-        "required_total",
-        "available_total",
-        "writeoff_total",
-        "valid_total",
-        "soon_total",
-        "expired_total",
-    )
-    for row in rows:
-        for field in numeric_fields:
-            row[field] = row.get(field) or 0
-    return rows
-
-
-def fire_extinguisher_summary(qs, grouped_count=None):
-    today, soon_until = fire_extinguisher_expiry_window()
-    summary = qs.aggregate(
-        record_count=Count("id"),
-        organ_count=Count("territorial_organ_id", distinct=True),
-        required_total=Sum("required_count"),
-        available_total=Sum("available_count"),
-        writeoff_total=Sum("writeoff_count"),
-        valid_total=Sum("available_count", filter=Q(expiry_date__gt=soon_until)),
-        soon_total=Sum("available_count", filter=Q(expiry_date__gte=today, expiry_date__lte=soon_until)),
-        expired_total=Sum("available_count", filter=Q(expiry_date__lt=today)),
-    )
-    for key, value in list(summary.items()):
-        summary[key] = value or 0
-    if grouped_count is not None:
-        summary["organ_count"] = grouped_count
-    return summary
-
-
-def fire_extinguisher_active_conditions(request, selected_organs, group_mode):
+def fire_extinguisher_active_conditions(request, selected_organs):
     conditions = []
     if len(selected_organs) > 1:
         conditions.append(f"выборочно: {len(selected_organs)} органов")
-    if group_mode == "organs":
-        conditions.append("группировка: По территориальному органу")
     expiry_state_labels = dict(FIRE_EXTINGUISHER_EXPIRY_STATE_CHOICES)
     expiry_state = request.GET.get("expiry_state", "")
     if expiry_state:
@@ -531,7 +512,7 @@ def request_group_mode(request, table_key, is_multi_organ):
 def table_view_query_fields(querystring):
     fields = []
     for name, values in querystring.lists():
-        if name in {"page", "group"}:
+        if name in {"page", "group", "state_mode"}:
             continue
         fields.extend({"name": name, "value": value} for value in values)
     return fields
@@ -1005,24 +986,24 @@ def table_data(request, organ_id, table_key):
     qs = filtered_queryset(request, table, selected_organs)
     is_request_table = table_key in REQUEST_TABLE_CONFIG
     is_fire_extinguisher_table = table_key == "fire-extinguishers"
+    is_state_snapshot_table = table_key in STATE_SNAPSHOT_TABLES
+    current_state_mode = state_snapshot_mode(request, table_key)
     current_group_mode = request_group_mode(request, table_key, is_multi_organ) if is_request_table else "requests"
+    if is_state_snapshot_table:
+        qs = state_snapshot_queryset(request, table_key, qs)
     if is_fire_extinguisher_table:
-        current_group_mode = fire_extinguisher_group_mode(request, is_multi_organ)
         qs = fire_extinguisher_filtered_queryset(request, qs)
     is_request_grouped = current_group_mode in {"products", "organs", "dates"}
     is_tmc_grouped = table_key == "tmc-requests" and is_request_grouped
     is_tmc_product_grouped = table_key == "tmc-requests" and current_group_mode == "products"
     is_organ_grouped = current_group_mode == "organs"
     is_date_grouped = current_group_mode == "dates"
-    is_fire_extinguisher_grouped = is_fire_extinguisher_table and current_group_mode == "organs"
     if is_request_table:
         table_filter_defaults = request_table_date_filter_defaults(table_key, selected_organs)
         table_filters = request_table_date_filter_values(request, table_key, selected_organs)
         stats_qs = request_table_queryset(request, table_key, selected_organs)
         table_stats = request_status_stats(stats_qs)
-    if is_fire_extinguisher_grouped:
-        page_qs = fire_extinguisher_grouped_rows(qs)
-    elif is_tmc_product_grouped:
+    if is_tmc_product_grouped:
         page_qs = tmc_grouped_rows(qs)
     elif is_organ_grouped:
         page_qs = tmc_organ_grouped_rows(qs) if table_key == "tmc-requests" else request_organ_grouped_rows(qs)
@@ -1032,9 +1013,7 @@ def table_data(request, organ_id, table_key):
         page_qs = qs
     grouped_summary = {}
     grouped_count = row_count(page_qs)
-    if is_fire_extinguisher_grouped:
-        grouped_summary = fire_extinguisher_summary(qs, grouped_count)
-    elif is_tmc_product_grouped:
+    if is_tmc_product_grouped:
         grouped_summary = tmc_grouped_summary(qs, grouped_count)
     elif is_organ_grouped:
         grouped_summary = tmc_organ_grouped_summary(qs, grouped_count) if table_key == "tmc-requests" else request_grouped_summary(qs, organ_count=grouped_count)
@@ -1057,10 +1036,12 @@ def table_data(request, organ_id, table_key):
     if is_tmc_product_grouped:
         page.object_list = attach_tmc_drilldown_querystrings(list(page.object_list), list_querystring)
     active_conditions = (
-        fire_extinguisher_active_conditions(request, selected_organs, current_group_mode)
+        fire_extinguisher_active_conditions(request, selected_organs)
         if is_fire_extinguisher_table
         else active_table_conditions(request, table_key, selected_organs, current_group_mode)
     )
+    if is_state_snapshot_table and current_state_mode == "history":
+        active_conditions.append("режим: История записей")
     writable_organ_ids = [selected_organ.pk for selected_organ in selected_organs if can_write(request.user, selected_organ, table["department"])]
     return render(
         request,
@@ -1088,7 +1069,9 @@ def table_data(request, organ_id, table_key):
             "tmc_summary": grouped_summary,
             "is_request_table": is_request_table,
             "is_fire_extinguisher_table": is_fire_extinguisher_table,
-            "is_fire_extinguisher_grouped": is_fire_extinguisher_grouped,
+            "is_state_snapshot_table": is_state_snapshot_table,
+            "state_snapshot_mode": current_state_mode,
+            "state_snapshot_mode_choices": STATE_SNAPSHOT_MODE_CHOICES,
             "is_request_grouped": is_request_grouped,
             "is_tmc_grouped": is_tmc_grouped,
             "is_tmc_product_grouped": is_tmc_product_grouped,
@@ -1687,78 +1670,6 @@ def grouped_export_row(row, group_mode, is_tmc=False, is_multi_organ=False):
     return []
 
 
-def fire_extinguisher_grouped_export_headers():
-    return [
-        "Территориальный орган",
-        "Записей",
-        "Положено",
-        "Наличие",
-        "Годные",
-        "Скоро истекает",
-        "Истекли",
-        "Подлежит списанию",
-    ]
-
-
-def fire_extinguisher_grouped_export_row(row):
-    return [
-        row.get("territorial_organ__name") or "",
-        row.get("record_count") or 0,
-        row.get("required_total") or 0,
-        row.get("available_total") or 0,
-        row.get("valid_total") or 0,
-        row.get("soon_total") or 0,
-        row.get("expired_total") or 0,
-        row.get("writeoff_total") or 0,
-    ]
-
-
-def fire_extinguisher_grouped_xlsx_response(rows, filename):
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Огнетушители"
-    headers = fire_extinguisher_grouped_export_headers()
-    ws.append(headers)
-
-    widths = [42, 14, 14, 14, 14, 18, 14, 20]
-    for index, width in enumerate(widths, start=1):
-        ws.column_dimensions[ws.cell(row=1, column=index).column_letter].width = width
-
-    ws.freeze_panes = "A2"
-    ws.sheet_view.showGridLines = False
-    ws.page_setup.orientation = "landscape"
-    ws.page_setup.fitToWidth = 1
-    ws.page_setup.fitToHeight = 0
-    ws.sheet_properties.pageSetUpPr.fitToPage = True
-
-    thin = Side(style="thin", color="C6DBE9")
-    block = Side(style="medium", color="7FAED0")
-    header_bottom = Side(style="medium", color="8FBFDD")
-    header_fill = PatternFill("solid", fgColor="D6EAF7")
-    header_font = Font(bold=True, color="0B2F5B")
-    body_alignment = Alignment(vertical="top", wrap_text=True)
-    center_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    last_column = len(headers)
-
-    for column in range(1, last_column + 1):
-        cell = ws.cell(row=1, column=column)
-        cell.fill = header_fill
-        cell.font = header_font
-        cell.alignment = center_alignment
-        cell.border = Border(left=thin, right=block if column == last_column else thin, top=thin, bottom=header_bottom)
-
-    for row_index, row in enumerate(rows, start=2):
-        for column, value in enumerate(fire_extinguisher_grouped_export_row(row), start=1):
-            cell = ws.cell(row=row_index, column=column, value=value)
-            cell.alignment = body_alignment if column == 1 else center_alignment
-            cell.border = Border(left=thin, right=block if column == last_column else thin, top=thin, bottom=thin)
-
-    if ws.max_row > 1:
-        ws.auto_filter.ref = f"A1:{ws.cell(row=1, column=last_column).column_letter}{ws.max_row}"
-
-    return workbook_file_response(wb, filename)
-
-
 def tmc_grouped_xlsx_response(rows, is_multi_organ, filename, group_mode="products"):
     wb = Workbook()
     ws = wb.active
@@ -1994,16 +1905,10 @@ def export_table(request, organ_id, table_key, fmt):
     is_multi_organ = len(selected_organs) > 1
     is_request_table = table_key in REQUEST_TABLE_CONFIG
     is_fire_extinguisher_table = table_key == "fire-extinguishers"
+    if table_key in STATE_SNAPSHOT_TABLES:
+        qs = state_snapshot_queryset(request, table_key, qs)
     if is_fire_extinguisher_table:
         qs = fire_extinguisher_filtered_queryset(request, qs)
-        if fire_extinguisher_group_mode(request, is_multi_organ) == "organs":
-            rows = fire_extinguisher_grouped_rows(qs)
-            if fmt == "csv":
-                csv_rows = [fire_extinguisher_grouped_export_headers()]
-                csv_rows.extend(fire_extinguisher_grouped_export_row(row) for row in rows)
-                return download_ready_response(request, csv_file_response(filename, csv_rows))
-            if fmt == "xlsx":
-                return download_ready_response(request, fire_extinguisher_grouped_xlsx_response(rows, filename))
     current_group_mode = request_group_mode(request, table_key, is_multi_organ) if is_request_table else "requests"
     if current_group_mode in {"products", "organs", "dates"}:
         is_tmc = table_key == "tmc-requests"

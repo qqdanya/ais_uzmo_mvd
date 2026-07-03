@@ -759,6 +759,8 @@ class AppFlowTests(TestCase):
         self.assertContains(response, "по 30.06.2026")
         self.assertContains(response, "Сбросить все")
         self.assertContains(response, "data-reset-table-state")
+        self.assertContains(response, 'hx-target="#workspace"')
+        self.assertContains(response, f'{reverse("department_tables", args=[self.organ.pk, "tmc"])}?table=tmc-requests')
         self.assertNotContains(response, "Сбросить фильтры")
 
     def test_request_table_search_triggers_while_typing(self):
@@ -1363,7 +1365,7 @@ class AppFlowTests(TestCase):
         FireExtinguisher.objects.create(territorial_organ=self.organ, state_date=today, required_count=10, available_count=8, expiry_date=today + timedelta(days=10), writeoff_count=1)
         self.client.login(username="operator", password="pass12345")
 
-        response = self.client.get(reverse("table_data", args=[self.organ.pk, "fire-extinguishers"]))
+        response = self.client.get(reverse("table_data", args=[self.organ.pk, "fire-extinguishers"]), {"state_mode": "history"})
 
         self.assertContains(response, "Истек")
         self.assertContains(response, "Скоро истекает")
@@ -1372,7 +1374,47 @@ class AppFlowTests(TestCase):
         self.assertNotContains(response, "row-expired")
         self.assertNotContains(response, "row-expiring")
 
-    def test_fire_extinguishers_can_filter_sort_group_and_export_by_expiry(self):
+    def test_state_snapshot_tables_show_current_records_by_default_and_history_on_request(self):
+        other_organ = TerritorialOrgan.objects.create(name="Second territorial organ", order_number=2)
+        FireExtinguisher.objects.create(territorial_organ=self.organ, state_date="2026-06-01", required_count=10, available_count=6, expiry_date="2026-07-10", writeoff_count=1)
+        FireExtinguisher.objects.create(territorial_organ=self.organ, state_date="2026-07-01", required_count=10, available_count=8, expiry_date="2026-12-31", writeoff_count=0)
+        FireExtinguisher.objects.create(territorial_organ=other_organ, state_date="2026-07-02", required_count=12, available_count=9, expiry_date="2026-08-01", writeoff_count=1)
+        FireAlarm.objects.create(territorial_organ=self.organ, state_date="2026-06-01", required_objects=5, equipped_objects=3, broken_objects=2)
+        FireAlarm.objects.create(territorial_organ=self.organ, state_date="2026-07-01", required_objects=5, equipped_objects=5, broken_objects=0)
+        SecurityAlarm.objects.create(territorial_organ=self.organ, state_date="2026-06-01", required_objects=7, equipped_objects=4, broken_objects=2)
+        SecurityAlarm.objects.create(territorial_organ=self.organ, state_date="2026-07-01", required_objects=7, equipped_objects=6, broken_objects=1)
+        ServiceHousing.objects.create(territorial_organ=self.organ, state_date="2026-06-01", total_count=10, used_by_staff=4, ready_to_move=6)
+        ServiceHousing.objects.create(territorial_organ=self.organ, state_date="2026-07-01", total_count=10, used_by_staff=8, ready_to_move=2)
+        self.client.login(username="operator", password="pass12345")
+
+        extinguishers = self.client.get(
+            reverse("table_data", args=[self.organ.pk, "fire-extinguishers"]),
+            {"organ_ids": [self.organ.pk, other_organ.pk]},
+        )
+        self.assertContains(extinguishers, "Текущая ситуация")
+        self.assertContains(extinguishers, "Second territorial organ")
+        self.assertContains(extinguishers, "31.12.2026")
+        self.assertNotContains(extinguishers, "10.07.2026")
+
+        history = self.client.get(
+            reverse("table_data", args=[self.organ.pk, "fire-extinguishers"]),
+            {"organ_ids": [self.organ.pk, other_organ.pk], "state_mode": "history"},
+        )
+        self.assertContains(history, "режим: История записей")
+        self.assertContains(history, "10.07.2026")
+        self.assertContains(history, "31.12.2026")
+
+        for table_key, old_value, current_value in (
+            ("fire-alarm", "3", "5"),
+            ("security-alarm", "4", "6"),
+            ("service-housing", "4", "8"),
+        ):
+            response = self.client.get(reverse("table_data", args=[self.organ.pk, table_key]))
+            self.assertContains(response, "Текущая ситуация")
+            self.assertContains(response, current_value)
+            self.assertNotContains(response, old_value)
+
+    def test_fire_extinguishers_can_filter_sort_and_export_by_expiry(self):
         today = timezone.localdate()
         other_organ = TerritorialOrgan.objects.create(name="Second territorial organ", order_number=2)
         FireExtinguisher.objects.create(territorial_organ=self.organ, state_date=today, required_count=10, available_count=8, expiry_date=today + timedelta(days=10), writeoff_count=1)
@@ -1383,29 +1425,25 @@ class AppFlowTests(TestCase):
 
         grouped_response = self.client.get(
             reverse("table_data", args=[self.organ.pk, "fire-extinguishers"]),
-            {"organ_ids": [self.organ.pk, other_organ.pk], "group": "organs", "expiry_state": "soon", "expiry_order": "soonest"},
+            {"organ_ids": [self.organ.pk, other_organ.pk], "expiry_state": "soon", "expiry_order": "soonest"},
         )
 
-        self.assertContains(grouped_response, "По территориальному органу")
-        self.assertContains(grouped_response, "Test territorial organ")
         self.assertContains(grouped_response, "Second territorial organ")
         self.assertContains(grouped_response, "Скоро истекает")
-        self.assertContains(grouped_response, "<td class=\"text-center\">8</td>", html=True)
-        self.assertContains(grouped_response, "<td class=\"text-center\">4</td>", html=True)
-        self.assertNotContains(grouped_response, "<td class=\"text-center\">5</td>", html=True)
-        self.assertNotContains(grouped_response, "<td class=\"text-center\">7</td>", html=True)
+        self.assertContains(grouped_response, (today + timedelta(days=20)).strftime("%d.%m.%Y"))
+        self.assertNotContains(grouped_response, (today + timedelta(days=10)).strftime("%d.%m.%Y"))
+        self.assertNotContains(grouped_response, (today + timedelta(days=90)).strftime("%d.%m.%Y"))
+        self.assertNotContains(grouped_response, (today - timedelta(days=5)).strftime("%d.%m.%Y"))
 
         export_response = self.client.get(
             reverse("export_table", args=[self.organ.pk, "fire-extinguishers", "xlsx"]),
-            {"organ_ids": [self.organ.pk, other_organ.pk], "group": "organs", "expiry_state": "soon"},
+            {"organ_ids": [self.organ.pk, other_organ.pk], "expiry_state": "soon", "expiry_order": "soonest"},
         )
         workbook = self.response_workbook(export_response)
         sheet = workbook.active
-        self.assertEqual(sheet["A1"].value, "Территориальный орган")
-        self.assertEqual(sheet["F1"].value, "Скоро истекает")
-        exported_rows = {sheet.cell(row=row, column=1).value: sheet.cell(row=row, column=6).value for row in range(2, sheet.max_row + 1)}
-        self.assertEqual(exported_rows["Test territorial organ"], 8)
-        self.assertEqual(exported_rows["Second territorial organ"], 4)
+        self.assertEqual(sheet.max_row, 2)
+        self.assertEqual(sheet["D1"].value, "Срок годности (эксплуатации)")
+        self.assertEqual(sheet["D2"].value, (today + timedelta(days=20)).strftime("%d.%m.%Y"))
 
     def test_fire_request_has_comment_history_filters_and_styled_export(self):
         included = FireDepartmentRequest.objects.create(territorial_organ=self.organ, request_number="F-1", request_date="2026-06-20", status="in_work", comment="Recharge")

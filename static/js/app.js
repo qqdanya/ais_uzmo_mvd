@@ -155,8 +155,16 @@ function saveTableStateFromUrl(urlValue, scope = document) {
   storeValue(tableStateStorageKey(departmentSlug, tableKey), params.toString());
 }
 
+function isResetTableStateTrigger(element) {
+  return Boolean(element?.closest?.("[data-reset-table-state]"));
+}
+
 function saveTableStateFromHtmxEvent(event) {
   if (event.detail?.target?.id !== "table-area") return;
+  if (isResetTableStateTrigger(event.detail?.requestConfig?.elt)) {
+    clearCurrentTableState();
+    return;
+  }
   const url = event.detail?.xhr?.responseURL || event.detail?.requestConfig?.path;
   saveTableStateFromUrl(url, event.detail.target);
 }
@@ -166,6 +174,25 @@ function clearCurrentTableState() {
   const tableKey = document.querySelector('[data-table-tab="true"].active[data-table-key]')?.dataset.tableKey;
   if (!departmentSlug || !tableKey) return;
   removeStoredValue(tableStateStorageKey(departmentSlug, tableKey));
+}
+
+function clearOrganSelectionFromDepartmentTableStates(departmentSlug = activeDepartmentSlug()) {
+  if (!departmentSlug) return;
+  document.querySelectorAll(`[data-tables-workspace][data-department-slug="${CSS.escape(departmentSlug)}"] [data-table-tab="true"][data-table-key]`).forEach((tab) => {
+    const tableKey = tab.dataset.tableKey;
+    const savedQuery = savedTableQuery(departmentSlug, tableKey);
+    if (savedQuery) {
+      const params = normalizeSavedTableParams(new URLSearchParams(savedQuery));
+      if (params.toString()) {
+        storeValue(tableStateStorageKey(departmentSlug, tableKey), params.toString());
+      } else {
+        removeStoredValue(tableStateStorageKey(departmentSlug, tableKey));
+      }
+    }
+    const url = new URL(tab.getAttribute("hx-get"), window.location.href);
+    url.searchParams.delete("organ_ids");
+    tab.setAttribute("hx-get", `${url.pathname}${url.search}`);
+  });
 }
 
 function findDepartmentBySlug(slug) {
@@ -285,6 +312,7 @@ function setOrganMode(mode) {
 }
 
 function resetTableStateToSingleOrgan(organId) {
+  clearOrganSelectionFromDepartmentTableStates();
   const organ = findOrganById(organId) || document.querySelector(".organ-item.active[data-organ-id]");
   document.querySelectorAll("[data-organ-checkbox]").forEach((checkbox) => {
     checkbox.checked = false;
@@ -1454,6 +1482,21 @@ document.body.addEventListener("htmx:afterSwap", (event) => {
   syncActiveDownloadButtons(event.detail.target);
   applyCollapsedPanels();
   scrollAfterPaginationSwap(event);
+});
+
+document.body.addEventListener("htmx:configRequest", (event) => {
+  if (!isResetTableStateTrigger(event.detail?.elt)) return;
+  const organId = event.detail.elt.dataset.resetOrganId;
+  resetTableStateToSingleOrgan(organId);
+  event.detail.parameters?.delete?.("organ_ids");
+  if (event.detail.parameters && typeof event.detail.parameters === "object" && !event.detail.parameters.delete) {
+    delete event.detail.parameters.organ_ids;
+  }
+  if (event.detail.path) {
+    const url = new URL(event.detail.path, window.location.href);
+    url.searchParams.delete("organ_ids");
+    event.detail.path = `${url.pathname}${url.search}`;
+  }
 });
 
 document.body.addEventListener("htmx:beforeRequest", startHtmxRequest);
