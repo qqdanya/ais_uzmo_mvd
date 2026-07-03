@@ -1391,7 +1391,7 @@ class AppFlowTests(TestCase):
             reverse("table_data", args=[self.organ.pk, "fire-extinguishers"]),
             {"organ_ids": [self.organ.pk, other_organ.pk]},
         )
-        self.assertContains(extinguishers, "Текущая ситуация")
+        self.assertContains(extinguishers, "Последняя запись")
         self.assertContains(extinguishers, "Second territorial organ")
         self.assertContains(extinguishers, "31.12.2026")
         self.assertNotContains(extinguishers, "10.07.2026")
@@ -1410,7 +1410,7 @@ class AppFlowTests(TestCase):
             ("service-housing", "4", "8"),
         ):
             response = self.client.get(reverse("table_data", args=[self.organ.pk, table_key]))
-            self.assertContains(response, "Текущая ситуация")
+            self.assertContains(response, "Последняя запись")
             self.assertContains(response, current_value)
             self.assertNotContains(response, old_value)
 

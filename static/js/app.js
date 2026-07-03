@@ -313,7 +313,7 @@ function setOrganMode(mode) {
 
 function resetTableStateToSingleOrgan(organId) {
   clearOrganSelectionFromDepartmentTableStates();
-  const organ = findOrganById(organId) || document.querySelector(".organ-item.active[data-organ-id]");
+  const organ = findOrganById(rememberedSingleOrganId()) || findOrganById(organId) || document.querySelector(".organ-item.active[data-organ-id]");
   document.querySelectorAll("[data-organ-checkbox]").forEach((checkbox) => {
     checkbox.checked = false;
   });
@@ -322,7 +322,9 @@ function resetTableStateToSingleOrgan(organId) {
   if (organ) {
     setActiveOrgan(organ);
     loadOrganInfo(organ.dataset.organId);
+    return organ.dataset.organId;
   }
+  return "";
 }
 
 function normalizeAuthInput(input) {
@@ -1487,7 +1489,7 @@ document.body.addEventListener("htmx:afterSwap", (event) => {
 document.body.addEventListener("htmx:configRequest", (event) => {
   if (!isResetTableStateTrigger(event.detail?.elt)) return;
   const organId = event.detail.elt.dataset.resetOrganId;
-  resetTableStateToSingleOrgan(organId);
+  const restoredOrganId = resetTableStateToSingleOrgan(organId);
   event.detail.parameters?.delete?.("organ_ids");
   if (event.detail.parameters && typeof event.detail.parameters === "object" && !event.detail.parameters.delete) {
     delete event.detail.parameters.organ_ids;
@@ -1495,6 +1497,9 @@ document.body.addEventListener("htmx:configRequest", (event) => {
   if (event.detail.path) {
     const url = new URL(event.detail.path, window.location.href);
     url.searchParams.delete("organ_ids");
+    if (restoredOrganId) {
+      url.pathname = url.pathname.replace(/\/organs\/\d+\//, `/organs/${restoredOrganId}/`);
+    }
     event.detail.path = `${url.pathname}${url.search}`;
   }
 });
@@ -1677,7 +1682,15 @@ document.addEventListener("click", (event) => {
   const resetTableState = event.target.closest("[data-reset-table-state]");
   if (resetTableState) {
     clearCurrentTableState();
-    resetTableStateToSingleOrgan(resetTableState.dataset.resetOrganId);
+    const restoredOrganId = resetTableStateToSingleOrgan(resetTableState.dataset.resetOrganId);
+    if (restoredOrganId) {
+      const url = new URL(resetTableState.getAttribute("hx-get") || resetTableState.href, window.location.href);
+      url.searchParams.delete("organ_ids");
+      url.pathname = url.pathname.replace(/\/organs\/\d+\//, `/organs/${restoredOrganId}/`);
+      const nextUrl = `${url.pathname}${url.search}`;
+      resetTableState.setAttribute("hx-get", nextUrl);
+      resetTableState.setAttribute("href", nextUrl);
+    }
   }
 
   const organMode = event.target.closest("[data-organ-mode]");

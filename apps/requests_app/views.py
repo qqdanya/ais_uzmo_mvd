@@ -157,7 +157,7 @@ STATE_SNAPSHOT_TABLES = {
 }
 
 STATE_SNAPSHOT_MODE_CHOICES = (
-    ("current", "Текущая ситуация"),
+    ("current", "Последняя запись"),
     ("history", "История записей"),
 )
 
