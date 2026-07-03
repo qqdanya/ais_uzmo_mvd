@@ -1372,6 +1372,41 @@ class AppFlowTests(TestCase):
         self.assertNotContains(response, "row-expired")
         self.assertNotContains(response, "row-expiring")
 
+    def test_fire_extinguishers_can_filter_sort_group_and_export_by_expiry(self):
+        today = timezone.localdate()
+        other_organ = TerritorialOrgan.objects.create(name="Second territorial organ", order_number=2)
+        FireExtinguisher.objects.create(territorial_organ=self.organ, state_date=today, required_count=10, available_count=8, expiry_date=today + timedelta(days=10), writeoff_count=1)
+        FireExtinguisher.objects.create(territorial_organ=self.organ, state_date=today, required_count=5, available_count=5, expiry_date=today + timedelta(days=90), writeoff_count=0)
+        FireExtinguisher.objects.create(territorial_organ=other_organ, state_date=today, required_count=12, available_count=7, expiry_date=today - timedelta(days=5), writeoff_count=2)
+        FireExtinguisher.objects.create(territorial_organ=other_organ, state_date=today, required_count=6, available_count=4, expiry_date=today + timedelta(days=20), writeoff_count=0)
+        self.client.login(username="operator", password="pass12345")
+
+        grouped_response = self.client.get(
+            reverse("table_data", args=[self.organ.pk, "fire-extinguishers"]),
+            {"organ_ids": [self.organ.pk, other_organ.pk], "group": "organs", "expiry_state": "soon", "expiry_order": "soonest"},
+        )
+
+        self.assertContains(grouped_response, "По территориальному органу")
+        self.assertContains(grouped_response, "Test territorial organ")
+        self.assertContains(grouped_response, "Second territorial organ")
+        self.assertContains(grouped_response, "Скоро истекает")
+        self.assertContains(grouped_response, "<td class=\"text-center\">8</td>", html=True)
+        self.assertContains(grouped_response, "<td class=\"text-center\">4</td>", html=True)
+        self.assertNotContains(grouped_response, "<td class=\"text-center\">5</td>", html=True)
+        self.assertNotContains(grouped_response, "<td class=\"text-center\">7</td>", html=True)
+
+        export_response = self.client.get(
+            reverse("export_table", args=[self.organ.pk, "fire-extinguishers", "xlsx"]),
+            {"organ_ids": [self.organ.pk, other_organ.pk], "group": "organs", "expiry_state": "soon"},
+        )
+        workbook = self.response_workbook(export_response)
+        sheet = workbook.active
+        self.assertEqual(sheet["A1"].value, "Территориальный орган")
+        self.assertEqual(sheet["F1"].value, "Скоро истекает")
+        exported_rows = {sheet.cell(row=row, column=1).value: sheet.cell(row=row, column=6).value for row in range(2, sheet.max_row + 1)}
+        self.assertEqual(exported_rows["Test territorial organ"], 8)
+        self.assertEqual(exported_rows["Second territorial organ"], 4)
+
     def test_fire_request_has_comment_history_filters_and_styled_export(self):
         included = FireDepartmentRequest.objects.create(territorial_organ=self.organ, request_number="F-1", request_date="2026-06-20", status="in_work", comment="Recharge")
         excluded = FireDepartmentRequest.objects.create(territorial_organ=self.organ, request_number="F-2", request_date="2026-06-20", status="done", comment="Recharge")

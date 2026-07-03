@@ -14,7 +14,27 @@
         <span>{{ record_label }}</span>
       </span>
       <div class="table-filter-slot">
-    {% if is_request_table %}
+    {% if is_fire_extinguisher_table %}
+        <form class="tmc-filter-form" hx-get="{% url 'table_data' organ.pk table.key %}" hx-target="#table-area" hx-trigger="change" hx-swap="innerHTML">
+          {% if is_multi_organ %}{% for selected_organ in selected_organs %}<input type="hidden" name="organ_ids" value="{{ selected_organ.pk }}">{% endfor %}{% endif %}
+          {% if is_fire_extinguisher_grouped %}<input type="hidden" name="group" value="{{ group_mode }}">{% endif %}
+          <select class="form-select form-select-sm" name="expiry_state" aria-label="Состояние срока годности">
+            {% for value, label in fire_extinguisher_expiry_state_choices %}
+              <option value="{{ value }}" {% if request.GET.expiry_state == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          <select class="form-select form-select-sm" name="expiry_order" aria-label="Сортировка по сроку годности">
+            {% for value, label in fire_extinguisher_expiry_order_choices %}
+              <option value="{{ value }}" {% if request.GET.expiry_order == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          <div class="tmc-date-range">
+            <input class="form-control form-control-sm" type="date" name="expiry_from" value="{{ request.GET.expiry_from }}" aria-label="Срок годности с">
+            <span class="tmc-date-separator">-</span>
+            <input class="form-control form-control-sm" type="date" name="expiry_to" value="{{ request.GET.expiry_to }}" aria-label="Срок годности по">
+          </div>
+        </form>
+    {% elif is_request_table %}
         <form class="tmc-filter-form" data-table-filter-form data-default-date-from="{{ table_filter_defaults.date_from }}" data-default-date-to="{{ table_filter_defaults.date_to }}" hx-get="{% url 'table_data' organ.pk table.key %}" hx-target="#table-area" hx-trigger="input delay:500ms from:#table-search-{{ table.key }}, change" hx-swap="innerHTML">
           {% if is_multi_organ %}{% for selected_organ in selected_organs %}<input type="hidden" name="organ_ids" value="{{ selected_organ.pk }}">{% endfor %}{% endif %}
           {% if is_request_grouped %}<input type="hidden" name="group" value="{{ group_mode }}">{% endif %}
@@ -90,6 +110,15 @@
     <span class="summary-pill summary-pill-rejected {% if not tmc_summary.rejected_count %}is-zero{% endif %}"><span>Отклонено</span><strong>{{ tmc_summary.rejected_count }}</strong></span>
   {% endif %}
 </div>
+{% elif is_fire_extinguisher_grouped %}
+<div class="tmc-summary-row" aria-label="Сводка по огнетушителям">
+  <span class="summary-pill"><span>Органов найдено</span><strong>{{ grouped_summary.organ_count }}</strong></span>
+  <span class="summary-pill"><span>Записей</span><strong>{{ grouped_summary.record_count }}</strong></span>
+  <span class="summary-pill"><span>В наличии</span><strong>{{ grouped_summary.available_total }}</strong></span>
+  <span class="summary-pill summary-pill-done {% if not grouped_summary.valid_total %}is-zero{% endif %}"><span>Годные</span><strong>{{ grouped_summary.valid_total }}</strong></span>
+  <span class="summary-pill summary-pill-in-work {% if not grouped_summary.soon_total %}is-zero{% endif %}"><span>Скоро истекает</span><strong>{{ grouped_summary.soon_total }}</strong></span>
+  <span class="summary-pill summary-pill-rejected {% if not grouped_summary.expired_total %}is-zero{% endif %}"><span>Истекли</span><strong>{{ grouped_summary.expired_total }}</strong></span>
+</div>
 {% endif %}
 <div class="table-actions-row">
   {% if is_request_table and not is_request_grouped %}
@@ -109,6 +138,16 @@
           <option value="" {% if group_mode == "requests" %}selected{% endif %}>По заявкам</option>
           {% if table.key == "tmc-requests" %}<option value="products" {% if group_mode == "products" %}selected{% endif %}>По ТМЦ</option>{% endif %}
           <option value="dates" {% if group_mode == "dates" %}selected{% endif %}>По дате</option>
+          <option value="organs" {% if group_mode == "organs" %}selected{% endif %} {% if not is_multi_organ %}disabled{% endif %}>По территориальному органу</option>
+        </select>
+      </form>
+    {% elif is_fire_extinguisher_table %}
+      <form class="table-view-form" hx-get="{% url 'table_data' organ.pk table.key %}" hx-target="#table-area" hx-trigger="change" hx-swap="innerHTML">
+        {% for field in table_view_query_fields %}
+          <input type="hidden" name="{{ field.name }}" value="{{ field.value }}">
+        {% endfor %}
+        <select class="form-select form-select-sm" name="group" aria-label="Группировка таблицы огнетушителей">
+          <option value="" {% if group_mode == "records" %}selected{% endif %}>По записям</option>
           <option value="organs" {% if group_mode == "organs" %}selected{% endif %} {% if not is_multi_organ %}disabled{% endif %}>По территориальному органу</option>
         </select>
       </form>
@@ -158,6 +197,39 @@
       <tr><td colspan="{% if is_multi_organ %}5{% else %}4{% endif %}">
         <div class="empty-state">
           <div>По выбранным условиям ТМЦ не найдены</div>
+        </div>
+      </td></tr>
+      {% endfor %}
+    </tbody>
+    {% elif is_fire_extinguisher_grouped %}
+    <thead>
+      <tr>
+        <th>Территориальный орган</th>
+        <th class="text-center">Записей</th>
+        <th class="text-center">Положено</th>
+        <th class="text-center">Наличие</th>
+        <th class="text-center">Годные</th>
+        <th class="text-center">Скоро истекает</th>
+        <th class="text-center">Истекли</th>
+        <th class="text-center">Подлежит списанию</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in page.object_list %}
+      <tr class="data-row">
+        <td>{{ row.territorial_organ__name }}</td>
+        <td class="text-center">{{ row.record_count }}</td>
+        <td class="text-center">{{ row.required_total }}</td>
+        <td class="text-center">{{ row.available_total }}</td>
+        <td class="text-center">{{ row.valid_total }}</td>
+        <td class="text-center">{{ row.soon_total }}</td>
+        <td class="text-center">{{ row.expired_total }}</td>
+        <td class="text-center">{{ row.writeoff_total }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="8">
+        <div class="empty-state">
+          <div>По выбранным условиям огнетушители не найдены</div>
         </div>
       </td></tr>
       {% endfor %}
