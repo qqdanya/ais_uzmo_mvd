@@ -13,6 +13,7 @@ from apps.directory.models import Department, TerritorialOrgan, TerritorialOrgan
 from apps.requests_app.models import NeedStatus, TmcProduct
 from apps.requests_app.registry import TABLE_BY_KEY
 
+from .admin_requests import build_request_detail_context, build_requests_context
 from .admin_summary import build_summary_context, build_summary_payload
 from .forms import AccountActivationForm
 from .models import UserProfile
@@ -141,6 +142,20 @@ def admin_panel(request):
     context.update(build_summary_context(request))
     template_name = "admin_panel/_panel.html" if request.headers.get("HX-Request") else "admin_panel/index.html"
     return render(request, template_name, context)
+
+
+@login_required
+def admin_requests_panel(request):
+    if not admin_access_allowed(request.user):
+        raise PermissionDenied
+    return render(request, "admin_panel/requests.html", build_requests_context(request))
+
+
+@login_required
+def admin_request_detail(request, table_key, pk):
+    if not admin_access_allowed(request.user):
+        raise PermissionDenied
+    return render(request, "admin_panel/request_detail.html", build_request_detail_context(request, table_key, pk))
 
 
 @login_required

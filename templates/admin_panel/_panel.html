@@ -1,48 +1,6 @@
 {% load account_tags %}
 <section class="panel admin-command-panel admin-executive-panel" data-admin-summary-root>
-  <div class="admin-command-head admin-executive-head">
-    <div>
-      <h1>Панель руководителя</h1>
-      <p>Оперативная аналитика по заявкам и материальному обеспечению</p>
-    </div>
-    <div class="admin-command-actions">
-      <a class="btn btn-sm btn-outline-primary" href="{% url 'audit_log' %}">
-        <i class="bi bi-activity"></i>
-        Журнал действий
-      </a>
-      <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin:index' %}">
-        <i class="bi bi-tools"></i>
-        Техническая админка
-      </a>
-    </div>
-  </div>
-
-  <nav class="admin-top-tabs" aria-label="Разделы панели руководителя">
-    <button class="admin-top-tab active" type="button">
-      <i class="bi bi-speedometer2"></i>
-      Оперативная сводка
-    </button>
-    <button class="admin-top-tab" type="button" disabled title="Будет реализовано отдельным экраном">
-      <i class="bi bi-inboxes"></i>
-      Заявки
-    </button>
-    <button class="admin-top-tab" type="button" disabled title="Будет реализовано отдельным экраном">
-      <i class="bi bi-geo-alt"></i>
-      Территориальные органы
-    </button>
-    <button class="admin-top-tab" type="button" disabled title="Будет реализовано отдельным экраном">
-      <i class="bi bi-diagram-3"></i>
-      Направления
-    </button>
-    <button class="admin-top-tab" type="button" disabled title="Будет реализовано отдельным экраном">
-      <i class="bi bi-box-seam"></i>
-      Материальная база
-    </button>
-    <button class="admin-top-tab" type="button" disabled title="Будет реализовано отдельным экраном">
-      <i class="bi bi-people"></i>
-      Сотрудники
-    </button>
-  </nav>
+  {% include "admin_panel/_executive_nav.html" with active_tab="summary" %}
 
   <section class="admin-summary-screen" aria-label="Оперативная сводка">
     <div class="admin-summary-filter-layout">
@@ -105,7 +63,7 @@
         <span class="admin-metric-icon"><i class="bi bi-exclamation-triangle"></i></span>
         <span>Зависшие заявки</span>
         <strong data-kpi="stale">{{ summary_payload.kpi.stale }}</strong>
-        <small>в работе более 14 дней</small>
+        <small>в работе более 14 рабочих дней</small>
       </div>
     </div>
 
@@ -160,7 +118,7 @@
       <div class="admin-section-head">
         <div>
           <h2>Заявки, требующие внимания</h2>
-          <span>Заявки, находящиеся в работе более 14 дней</span>
+          <span>Заявки, находящиеся в работе более 14 рабочих дней</span>
         </div>
       </div>
       <div class="admin-attention-list" data-attention-list></div>

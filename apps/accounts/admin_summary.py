@@ -13,6 +13,8 @@ from apps.requests_app.models import NeedStatus, RequestStatusHistory
 from apps.requests_app.permissions import can_view
 from apps.requests_app.registry import TABLES
 
+from .business_days import business_days_inclusive, subtract_business_days_inclusive
+
 
 COMPLETED_DATE_FIELDS = {
     "citsizi-equipment": "due_date",
@@ -213,7 +215,7 @@ def add_status_history_series(counter, table, qs, status, days):
 
 def build_kpi(tables, organs, period):
     totals = Counter()
-    stale_before = timezone.localdate() - timedelta(days=14)
+    stale_before = subtract_business_days_inclusive(timezone.localdate(), 15)
     for table in tables:
         qs = base_queryset(table, organs)
         totals["total"] += apply_request_period(qs, period).count()
@@ -250,7 +252,7 @@ def build_dynamics(tables, organs, period):
 
 def build_org_chart(tables, organs, period, metric="in_work"):
     org_rows = {organ.pk: {"id": organ.pk, "name": organ.name, "value": 0} for organ in organs}
-    stale_before = timezone.localdate() - timedelta(days=14)
+    stale_before = subtract_business_days_inclusive(timezone.localdate(), 15)
     for table in tables:
         qs = base_queryset(table, organs)
         if metric == "total":
@@ -303,7 +305,7 @@ def request_number(obj):
 
 
 def build_attention_requests(tables, organs, limit=10):
-    stale_before = timezone.localdate() - timedelta(days=14)
+    stale_before = subtract_business_days_inclusive(timezone.localdate(), 15)
     today = timezone.localdate()
     departments = {item.slug: item.name for item in Department.objects.filter(is_active=True)}
     items = []
@@ -319,7 +321,7 @@ def build_attention_requests(tables, organs, limit=10):
                     "table": table["title"],
                     "organ": obj.territorial_organ.name,
                     "request_date": obj.request_date.strftime("%d.%m.%Y"),
-                    "days": (today - obj.request_date).days,
+                    "days": business_days_inclusive(obj.request_date, today),
                 }
             )
     items.sort(key=lambda item: item["days"], reverse=True)

@@ -1,0 +1,43 @@
+<div class="admin-command-head admin-executive-head">
+  <div>
+    <h1>Панель руководителя</h1>
+    <p>Оперативная аналитика по заявкам и материальному обеспечению</p>
+  </div>
+  <div class="admin-command-actions">
+    <a class="btn btn-sm btn-outline-primary" href="{% url 'audit_log' %}">
+      <i class="bi bi-activity"></i>
+      Журнал действий
+    </a>
+    <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin:index' %}">
+      <i class="bi bi-tools"></i>
+      Техническая админка
+    </a>
+  </div>
+</div>
+
+<nav class="admin-top-tabs" aria-label="Разделы панели руководителя">
+  <a class="admin-top-tab{% if active_tab == 'summary' %} active{% endif %}" href="{% url 'admin_panel' %}">
+    <i class="bi bi-speedometer2"></i>
+    Оперативная сводка
+  </a>
+  <a class="admin-top-tab{% if active_tab == 'requests' %} active{% endif %}" href="{% url 'admin_requests_panel' %}">
+    <i class="bi bi-inboxes"></i>
+    Заявки
+  </a>
+  <button class="admin-top-tab" type="button" disabled title="Будет реализовано отдельным экраном">
+    <i class="bi bi-geo-alt"></i>
+    Территориальные органы
+  </button>
+  <button class="admin-top-tab" type="button" disabled title="Будет реализовано отдельным экраном">
+    <i class="bi bi-diagram-3"></i>
+    Отделы
+  </button>
+  <button class="admin-top-tab" type="button" disabled title="Будет реализовано отдельным экраном">
+    <i class="bi bi-box-seam"></i>
+    Материальная база
+  </button>
+  <button class="admin-top-tab" type="button" disabled title="Будет реализовано отдельным экраном">
+    <i class="bi bi-people"></i>
+    Сотрудники
+  </button>
+</nav>

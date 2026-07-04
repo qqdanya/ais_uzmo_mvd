@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Заявка {{ request_number }} — Панель руководителя{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260704-005">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3 admin-command-page admin-requests-page">
+  <section class="panel admin-command-panel admin-executive-panel">
+    {% include "admin_panel/_executive_nav.html" with active_tab="requests" %}
+
+    <section class="admin-request-detail-screen" aria-label="Карточка заявки">
+      <div class="admin-request-detail-head">
+        <div>
+          <a class="admin-back-link" href="{{ back_url }}"><i class="bi bi-arrow-left"></i> Назад к реестру</a>
+          <h2>{{ request_title }} № {{ request_number }}</h2>
+          <p>{{ object.territorial_organ.name }} · {{ department_name }}</p>
+        </div>
+        <div class="admin-request-detail-status">
+          <span class="status-badge {{ status_class }}">{{ object.get_status_display }}</span>
+          {% if has_days %}
+            <span class="admin-processing-cell admin-processing-cell-detail">
+              <span class="admin-days-badge {{ days_class }}">{{ days }} дн.</span>
+              {% if days_caption %}<small>{{ days_caption }}</small>{% endif %}
+            </span>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="admin-request-detail-grid">
+        <section class="admin-section">
+          <div class="admin-section-head">
+            <div>
+              <h2>Основные сведения</h2>
+              <span>Данные заявки из соответствующей таблицы отдела</span>
+            </div>
+          </div>
+          <dl class="admin-detail-list">
+            <div>
+              <dt>Территориальный орган</dt>
+              <dd>{{ object.territorial_organ.name }}</dd>
+            </div>
+            <div>
+              <dt>Отдел</dt>
+              <dd><span class="admin-department-pill"><i class="bi {{ department_icon }}"></i>{{ department_name }}</span></dd>
+            </div>
+            {% for field in fields %}
+              <div>
+                <dt>{{ field.label }}</dt>
+                <dd>{{ field.value }}</dd>
+              </div>
+            {% endfor %}
+            <div>
+              <dt>Связанные фотографии</dt>
+              <dd>{{ photo_count }}</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="admin-section">
+          <div class="admin-section-head">
+            <div>
+              <h2>История статуса</h2>
+              <span>Последние изменения статуса заявки</span>
+            </div>
+          </div>
+          {% if history %}
+            <div class="admin-status-history-list">
+              {% for item in history %}
+                <article class="admin-status-history-row">
+                  <time>{{ item.changed_at|date:"d.m.Y H:i" }}</time>
+                  <div>
+                    <strong>{{ item }}</strong>
+                    <span>
+                      {% if item.changed_by %}{{ item.changed_by.get_full_name|default:item.changed_by.username }}{% else %}Система{% endif %}
+                      {% if item.completed_at %} · дата исполнения: {{ item.completed_at|date:"d.m.Y" }}{% endif %}
+                    </span>
+                    {% if item.note %}<p>{{ item.note }}</p>{% endif %}
+                  </div>
+                </article>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="admin-empty admin-empty-compact">
+              <i class="bi bi-clock-history"></i>
+              <strong>История статусов пока отсутствует</strong>
+            </div>
+          {% endif %}
+        </section>
+      </div>
+    </section>
+  </section>
+</div>
+{% endblock %}
