@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ organ.name }} — Панель руководителя{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260704-006">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3 admin-command-page admin-organs-page">
+  <section class="panel admin-command-panel admin-executive-panel">
+    {% include "admin_panel/_executive_nav.html" with active_tab="organs" %}
+
+    <section class="admin-organ-detail-screen" aria-label="Карточка территориального органа">
+      <a class="admin-back-link" href="{{ back_url }}"><i class="bi bi-arrow-left"></i> К списку территориальных органов</a>
+
+      <div class="admin-request-detail-head admin-organ-detail-head">
+        <div>
+          <h2>{{ organ.order_number|floatformat:"-2" }}. {{ organ.name }}</h2>
+          <p>Карточка органа: заявки, сроки обработки, отделы и последняя активность.</p>
+        </div>
+        <div class="admin-organ-detail-meta">
+          <span><i class="bi bi-diagram-3"></i> Подразделений: <strong>{{ children|length }}</strong></span>
+          <span><i class="bi bi-images"></i> Фотографий: <strong>{{ photo_count }}</strong></span>
+        </div>
+      </div>
+
+      <form class="admin-section admin-organs-filter" method="get">
+        <div class="admin-section-head">
+          <div>
+            <h2>Фильтры карточки</h2>
+            <span>Период, отдел и статус заявок для статистики органа</span>
+          </div>
+          <div class="admin-filter-actions">
+            <a class="btn btn-sm btn-outline-secondary" href="{{ reset_url }}">
+              <i class="bi bi-arrow-counterclockwise"></i>
+              Сбросить
+            </a>
+            <button class="btn btn-sm btn-primary" type="submit">
+              <i class="bi bi-funnel"></i>
+              Применить
+            </button>
+          </div>
+        </div>
+
+        <div class="admin-organs-detail-filter-grid">
+          <label class="admin-filter-field">
+            <span>Дата с</span>
+            <input class="form-control form-control-sm" type="date" name="date_from" value="{{ filters.period.date_from|date:'Y-m-d' }}">
+          </label>
+          <label class="admin-filter-field">
+            <span>Дата по</span>
+            <input class="form-control form-control-sm" type="date" name="date_to" value="{{ filters.period.date_to|date:'Y-m-d' }}">
+          </label>
+          <label class="admin-filter-field">
+            <span>Отдел</span>
+            <select class="form-select form-select-sm" name="department">
+              <option value="">Все отделы</option>
+              {% for department in departments %}
+                <option value="{{ department.slug }}"{% if filters.department == department.slug %} selected{% endif %}>{{ department.name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="admin-filter-field">
+            <span>Статус заявок</span>
+            <select class="form-select form-select-sm" name="request_status">
+              {% for value, label in request_status_options %}
+                <option value="{{ value }}"{% if filters.request_status == value %} selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+
+        {% if active_filter_chips %}
+          <div class="admin-active-filter-row" aria-label="Активные фильтры">
+            {% for chip in active_filter_chips %}
+              <span>{{ chip }}</span>
+            {% endfor %}
+          </div>
+        {% endif %}
+      </form>
+
+      <section class="admin-organs-kpi" aria-label="Ключевые показатели органа">
+        {% for item in organ_kpis %}
+          <article class="admin-requests-kpi-card admin-organs-kpi-card">
+            <span class="admin-requests-kpi-icon"><i class="bi {{ item.icon }}"></i></span>
+            <div>
+              <strong>{{ item.value }}</strong>
+              <span>{{ item.label }}</span>
+              <small>{{ item.hint }}</small>
+            </div>
+          </article>
+        {% endfor %}
+      </section>
+
+      <div class="admin-organ-detail-grid">
+        <section class="admin-section">
+          <div class="admin-section-head">
+            <div>
+              <h2>Разбивка по отделам</h2>
+              <span>Где у органа основная нагрузка и есть ли зависшие заявки</span>
+            </div>
+          </div>
+          <div class="admin-requests-table-wrap">
+            <table class="admin-requests-table admin-organs-department-table">
+              <thead>
+                <tr>
+                  <th>Отдел</th>
+                  <th>Всего</th>
+                  <th>В работе</th>
+                  <th>Исполнено</th>
+                  <th>Отклонено</th>
+                  <th>Зависшие</th>
+                  <th>Средний срок</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in department_rows %}
+                  <tr>
+                    <td><span class="admin-department-pill"><i class="bi {{ row.icon }}"></i>{{ row.name }}</span></td>
+                    <td><strong>{{ row.total }}</strong></td>
+                    <td>{{ row.in_work }}</td>
+                    <td>{{ row.done }}</td>
+                    <td>{{ row.rejected }}</td>
+                    <td>
+                      {% if row.stale %}
+                        <span class="admin-days-badge is-danger">{{ row.stale }}</span>
+                      {% else %}
+                        <span class="text-muted">0</span>
+                      {% endif %}
+                    </td>
+                    <td>{{ row.avg_completion_display }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="admin-section">
+          <div class="admin-section-head">
+            <div>
+              <h2>Подразделения</h2>
+              <span>Подчинённые подразделения в справочнике</span>
+            </div>
+          </div>
+          {% if children %}
+            <div class="admin-organ-children-list">
+              {% for child in children %}
+                <span>{{ child.order_number|floatformat:"-2" }}. {{ child.name }}</span>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="admin-empty admin-empty-compact">
+              <i class="bi bi-diagram-3"></i>
+              <strong>Подразделения не указаны</strong>
+            </div>
+          {% endif %}
+        </section>
+      </div>
+
+      <section class="admin-section">
+        <div class="admin-section-head">
+          <div>
+            <h2>Последние заявки</h2>
+            <span>Последние 15 заявок органа по текущим фильтрам</span>
+          </div>
+        </div>
+
+        {% if latest_requests %}
+          <div class="admin-requests-table-wrap">
+            <table class="admin-requests-table admin-organ-latest-table">
+              <thead>
+                <tr>
+                  <th>№ заявки</th>
+                  <th>Дата</th>
+                  <th>Отдел</th>
+                  <th>Вид заявки</th>
+                  <th>Статус</th>
+                  <th>Срок обработки</th>
+                  <th>Действие</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in latest_requests %}
+                  <tr>
+                    <td><strong>{{ row.number }}</strong></td>
+                    <td>{{ row.request_date_display }}</td>
+                    <td><span class="admin-department-pill"><i class="bi {{ row.department_icon }}"></i>{{ row.department }}</span></td>
+                    <td>{{ row.request_type }}</td>
+                    <td><span class="status-badge {{ row.status_class }}">{{ row.status_label }}</span></td>
+                    <td>
+                      {% if row.has_days %}
+                        <span class="admin-processing-cell">
+                          <span class="admin-days-badge {{ row.days_class }}">{{ row.days }} дн.</span>
+                          {% if row.days_caption %}<small>{{ row.days_caption }}</small>{% endif %}
+                        </span>
+                      {% else %}
+                        <span class="text-muted">—</span>
+                      {% endif %}
+                    </td>
+                    <td>
+                      <a class="btn btn-sm btn-outline-primary" href="{{ row.detail_url }}">
+                        <i class="bi bi-eye"></i>
+                        Открыть
+                      </a>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="admin-empty">
+            <i class="bi bi-inbox"></i>
+            <strong>Заявки по органу не найдены</strong>
+            <span>Попробуйте изменить период, отдел или статус заявок.</span>
+          </div>
+        {% endif %}
+      </section>
+    </section>
+  </section>
+</div>
+{% endblock %}

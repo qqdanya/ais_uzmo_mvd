@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Территориальные органы — Панель руководителя{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260704-006">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3 admin-command-page admin-organs-page">
+  <section class="panel admin-command-panel admin-executive-panel">
+    {% include "admin_panel/_executive_nav.html" with active_tab="organs" %}
+
+    <section class="admin-organs-screen" aria-label="Аналитика по территориальным органам">
+      <div class="admin-requests-hero admin-organs-hero">
+        <div>
+          <h2>Территориальные органы</h2>
+          <p>Сравнение органов по заявкам, срокам исполнения, зависшим обращениям и активности.</p>
+        </div>
+        <div class="admin-requests-total">
+          <span>Найдено</span>
+          <strong>{{ total_count }}</strong>
+        </div>
+      </div>
+
+      <section class="admin-organs-kpi" aria-label="Ключевые показатели по территориальным органам">
+        {% for item in organs_kpis %}
+          <article class="admin-requests-kpi-card admin-organs-kpi-card">
+            <span class="admin-requests-kpi-icon"><i class="bi {{ item.icon }}"></i></span>
+            <div>
+              <strong>{{ item.value }}</strong>
+              <span>{{ item.label }}</span>
+              <small>{{ item.hint }}</small>
+            </div>
+          </article>
+        {% endfor %}
+      </section>
+
+      <nav class="admin-status-tabs" aria-label="Быстрые срезы по территориальным органам">
+        {% for tab in view_tabs %}
+          <a class="admin-status-tab{% if tab.active %} active{% endif %}" href="{{ tab.url }}">
+            <span>{{ tab.label }}</span>
+            <strong>{{ tab.count }}</strong>
+          </a>
+        {% endfor %}
+      </nav>
+
+      <form class="admin-section admin-organs-filter" method="get">
+        <div class="admin-section-head">
+          <div>
+            <h2>Фильтры</h2>
+            <span>Период, отдел, статус заявок и поиск по названию органа</span>
+          </div>
+          <div class="admin-filter-actions">
+            <a class="btn btn-sm btn-outline-secondary" href="{{ reset_url }}">
+              <i class="bi bi-arrow-counterclockwise"></i>
+              Сбросить
+            </a>
+            <button class="btn btn-sm btn-primary" type="submit">
+              <i class="bi bi-funnel"></i>
+              Применить
+            </button>
+          </div>
+        </div>
+
+        <div class="admin-organs-filter-grid">
+          <label class="admin-filter-field">
+            <span>Дата с</span>
+            <input class="form-control form-control-sm" type="date" name="date_from" value="{{ filters.period.date_from|date:'Y-m-d' }}">
+          </label>
+          <label class="admin-filter-field">
+            <span>Дата по</span>
+            <input class="form-control form-control-sm" type="date" name="date_to" value="{{ filters.period.date_to|date:'Y-m-d' }}">
+          </label>
+          <label class="admin-filter-field">
+            <span>Отдел</span>
+            <select class="form-select form-select-sm" name="department">
+              <option value="">Все отделы</option>
+              {% for department in departments %}
+                <option value="{{ department.slug }}"{% if filters.department == department.slug %} selected{% endif %}>{{ department.name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="admin-filter-field">
+            <span>Статус заявок</span>
+            <select class="form-select form-select-sm" name="request_status">
+              {% for value, label in request_status_options %}
+                <option value="{{ value }}"{% if filters.request_status == value %} selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="admin-filter-field admin-filter-field-search">
+            <span>Поиск органа</span>
+            <input class="form-control form-control-sm" type="search" name="q" value="{{ filters.query }}" placeholder="Название или номер органа">
+          </label>
+          <label class="admin-filter-field">
+            <span>На странице</span>
+            <select class="form-select form-select-sm" name="per_page">
+              {% for value in per_page_options %}
+                <option value="{{ value }}"{% if filters.per_page == value %} selected{% endif %}>{{ value }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <input type="hidden" name="view" value="{{ filters.view }}">
+        </div>
+
+        {% if active_filter_chips %}
+          <div class="admin-active-filter-row" aria-label="Активные фильтры">
+            {% for chip in active_filter_chips %}
+              <span>{{ chip }}</span>
+            {% endfor %}
+          </div>
+        {% endif %}
+      </form>
+
+      <section class="admin-section admin-organs-table-section">
+        <div class="admin-section-head">
+          <div>
+            <h2>Список территориальных органов</h2>
+            <span>Период: {{ filters.period.label }}. Данные рассчитаны по рабочим дням без выходных.</span>
+          </div>
+        </div>
+
+        {% if page.object_list %}
+          <div class="admin-requests-table-wrap">
+            <table class="admin-requests-table admin-organs-table">
+              <thead>
+                <tr>
+                  <th>Территориальный орган</th>
+                  <th>Всего</th>
+                  <th>В работе</th>
+                  <th>Исполнено</th>
+                  <th>Отклонено</th>
+                  <th>Зависшие</th>
+                  <th>Средний срок</th>
+                  <th>Последняя активность</th>
+                  <th>Действие</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in page.object_list %}
+                  <tr>
+                    <td class="admin-organ-name-cell">
+                      <strong>{{ row.organ.order_number|floatformat:"-2" }}. {{ row.organ.name }}</strong>
+                    </td>
+                    <td><strong>{{ row.total }}</strong></td>
+                    <td>{{ row.in_work }}</td>
+                    <td>{{ row.done }}</td>
+                    <td>{{ row.rejected }}</td>
+                    <td>
+                      {% if row.stale %}
+                        <span class="admin-days-badge is-danger">{{ row.stale }}</span>
+                      {% else %}
+                        <span class="text-muted">0</span>
+                      {% endif %}
+                    </td>
+                    <td>{{ row.avg_completion_display }}</td>
+                    <td>{{ row.latest_display }}</td>
+                    <td>
+                      <a class="btn btn-sm btn-outline-primary" href="{{ row.detail_url }}">
+                        <i class="bi bi-eye"></i>
+                        Открыть
+                      </a>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="admin-pagination-row">
+            <span>Показано {{ page.start_index }}–{{ page.end_index }} из {{ page.paginator.count }}</span>
+            {% include "partials/pagination.html" with pagination_page=page pagination_links=page_links pagination_base_url=pagination_url pagination_querystring=querystring pagination_mode="link" pagination_nav_class="admin-requests-pagination table-pagination" pagination_aria_label="Страницы территориальных органов" pagination_hidden_fields=pagination_fields pagination_jump_label="Перейти к странице территориальных органов" %}
+          </div>
+        {% else %}
+          <div class="admin-empty">
+            <i class="bi bi-building"></i>
+            <strong>Территориальные органы не найдены</strong>
+            <span>Попробуйте изменить фильтры или строку поиска.</span>
+          </div>
+        {% endif %}
+      </section>
+    </section>
+  </section>
+</div>
+{% endblock %}

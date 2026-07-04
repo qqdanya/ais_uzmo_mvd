@@ -13,6 +13,7 @@ from apps.directory.models import Department, TerritorialOrgan, TerritorialOrgan
 from apps.requests_app.models import NeedStatus, TmcProduct
 from apps.requests_app.registry import TABLE_BY_KEY
 
+from .admin_organs import build_organ_detail_context, build_organs_context
 from .admin_requests import build_request_detail_context, build_requests_context
 from .admin_summary import build_summary_context, build_summary_payload
 from .forms import AccountActivationForm
@@ -156,6 +157,20 @@ def admin_request_detail(request, table_key, pk):
     if not admin_access_allowed(request.user):
         raise PermissionDenied
     return render(request, "admin_panel/request_detail.html", build_request_detail_context(request, table_key, pk))
+
+
+@login_required
+def admin_organs_panel(request):
+    if not admin_access_allowed(request.user):
+        raise PermissionDenied
+    return render(request, "admin_panel/organs.html", build_organs_context(request))
+
+
+@login_required
+def admin_organ_detail(request, pk):
+    if not admin_access_allowed(request.user):
+        raise PermissionDenied
+    return render(request, "admin_panel/organ_detail.html", build_organ_detail_context(request, pk))
 
 
 @login_required
