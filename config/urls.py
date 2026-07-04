@@ -4,11 +4,12 @@ from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.urls import include, path
 
-from apps.accounts.views import activate_account, admin_panel, presence_ping
+from apps.accounts.views import activate_account, admin_panel, admin_summary_data, presence_ping
 
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("control/", admin_panel, name="admin_panel"),
+    path("control/summary-data/", admin_summary_data, name="admin_summary_data"),
     path("accounts/login/", auth_views.LoginView.as_view(), name="login"),
     path("accounts/activate/", activate_account, name="account_activate"),
     path("accounts/presence/", presence_ping, name="presence_ping"),

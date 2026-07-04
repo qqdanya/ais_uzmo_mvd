@@ -1,15 +1,20 @@
 {% extends "base.html" %}
+{% load static %}
 
-{% block title %}Панель администратора{% endblock %}
+{% block title %}Панель руководителя{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260704-002">
+{% endblock %}
 
 {% block content %}
-<div
-  id="admin-panel-refresh"
-  class="container-fluid py-3 admin-command-page"
-  hx-get="{% url 'admin_panel' %}"
-  hx-trigger="every 30s"
-  hx-swap="innerHTML"
->
+<div id="admin-panel-refresh" class="container-fluid py-3 admin-command-page" data-summary-url="{% url 'admin_summary_data' %}">
   {% include "admin_panel/_panel.html" %}
 </div>
+{{ summary_payload|json_script:"admin-summary-data" }}
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="{% static 'js/admin_summary.js' %}?v=20260704-001"></script>
 {% endblock %}

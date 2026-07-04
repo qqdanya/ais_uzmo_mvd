@@ -2,7 +2,7 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -13,6 +13,7 @@ from apps.directory.models import Department, TerritorialOrgan, TerritorialOrgan
 from apps.requests_app.models import NeedStatus, TmcProduct
 from apps.requests_app.registry import TABLE_BY_KEY
 
+from .admin_summary import build_summary_context, build_summary_payload
 from .forms import AccountActivationForm
 from .models import UserProfile
 
@@ -137,5 +138,13 @@ def admin_panel(request):
             {"label": "Папок фотографий", "value": TerritorialOrganPhotoFolder.objects.filter(is_deleted=False).count(), "icon": "bi-folder2-open"},
         ],
     }
+    context.update(build_summary_context(request))
     template_name = "admin_panel/_panel.html" if request.headers.get("HX-Request") else "admin_panel/index.html"
     return render(request, template_name, context)
+
+
+@login_required
+def admin_summary_data(request):
+    if not admin_access_allowed(request.user):
+        raise PermissionDenied
+    return JsonResponse(build_summary_payload(request, metric=request.GET.get("org_metric", "in_work")))

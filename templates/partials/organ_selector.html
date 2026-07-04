@@ -1,0 +1,85 @@
+{% comment %}
+Reusable territorial organ selector.
+selector_variant="dashboard" preserves the existing working-screen markup and JS hooks.
+selector_variant="admin" reuses the same visual structure but uses isolated data attributes
+so it does not conflict with the dashboard localStorage and event handlers.
+{% endcomment %}
+{% if selector_variant == "admin" %}
+<aside class="panel organ-panel admin-summary-organs" data-admin-organ-selector>
+  <div class="panel-title admin-organ-selector-title">
+    <span><i class="bi bi-geo-alt"></i> Территориальные органы</span>
+    <span class="admin-organ-filter-badge" data-admin-organ-filter-badge hidden>Фильтр применён</span>
+  </div>
+  <div class="admin-organ-selector-summary" data-admin-organ-summary>Выбрано: все территориальные органы</div>
+  <div class="admin-organ-selector-hint">
+    Выбранные органы подсвечиваются. По умолчанию в сводке учитывается весь доступный перечень.
+  </div>
+  <div class="organ-bulk-actions admin-organ-bulk-actions">
+    <button class="btn btn-sm btn-outline-primary" type="button" data-admin-organ-select-all>Выбрать все</button>
+    <button class="btn btn-sm btn-outline-secondary" type="button" data-admin-organ-clear-all>Снять все</button>
+  </div>
+  <label class="admin-organ-all-row">
+    <input type="checkbox" data-admin-all-organs checked>
+    <span>
+      <strong>Все территориальные органы</strong>
+      <small>Сводная аналитика по всему доступному перечню</small>
+    </span>
+  </label>
+  <div class="search-box mb-3">
+    <i class="bi bi-search"></i>
+    <input class="form-control form-control-sm" id="admin-organ-search" data-admin-organ-search placeholder="Поиск по территориальным органам">
+  </div>
+  <div class="organ-list admin-organ-list" data-admin-organ-list>
+    {% for organ in organs %}
+      <div class="organ-row" data-admin-organ-row data-admin-organ-id="{{ organ.pk }}" data-admin-organ-search="{{ organ.order_number|floatformat:'-2' }} {{ organ.name|lower }}" data-admin-child-search="{% for child in organ.children.all %}{{ child.order_number|floatformat:'-2' }} {{ child.name|lower }} {% endfor %}">
+        <label class="organ-check" aria-label="Выбрать {{ organ.name }}">
+          <input type="checkbox" data-admin-organ-checkbox value="{{ organ.pk }}" checked>
+          <span></span>
+        </label>
+        <button class="admin-organ-item" type="button" data-admin-organ-toggle>
+          <span>{{ organ.order_number|floatformat:"-2" }}. {{ organ.name }}</span>
+        </button>
+      </div>
+    {% empty %}
+      <div class="empty-state">Территориальные органы пока не загружены</div>
+    {% endfor %}
+  </div>
+</aside>
+{% else %}
+<aside class="panel organ-panel">
+  <div class="panel-title">
+    <span><i class="bi bi-geo-alt"></i> Территориальные органы</span>
+    <div class="panel-title-actions">
+      <button class="btn btn-icon" type="button" data-panel-toggle="organs" data-bs-toggle="tooltip" data-tooltip-placement="bottom" data-bs-title="Свернуть территориальные органы" aria-label="Свернуть территориальные органы" aria-pressed="false"><i class="bi bi-chevron-left"></i></button>
+    </div>
+  </div>
+  <button class="btn btn-sm btn-outline-primary navigation-restore-departments" type="button" data-panel-toggle="departments" data-bs-toggle="tooltip" data-tooltip-placement="bottom" data-bs-title="Показать отделы" aria-label="Показать отделы" aria-pressed="true"><i class="bi bi-chevron-right"></i> Показать отделы</button>
+  <div class="organ-mode-switch" role="group" aria-label="Режим выбора территориальных органов">
+    <button class="active" type="button" data-organ-mode="single">Один</button>
+    <button type="button" data-organ-mode="multi">Выборочно</button>
+  </div>
+  <div class="organ-bulk-actions" data-organ-bulk-actions hidden>
+    <button class="btn btn-sm btn-outline-primary" type="button" data-organ-select-all>Выбрать все</button>
+    <button class="btn btn-sm btn-outline-secondary" type="button" data-organ-clear-all>Снять все</button>
+  </div>
+  <div class="search-box mb-3">
+    <i class="bi bi-search"></i>
+    <input class="form-control form-control-sm" id="organ-search" placeholder="Поиск по территориальным органам">
+  </div>
+  <div class="organ-list" id="organ-list">
+    {% for organ in organs %}
+      <div class="organ-row" data-organ-row data-organ-id="{{ organ.pk }}" data-organ-search="{{ organ.order_number|floatformat:'-2' }} {{ organ.name|lower }}" data-child-search="{% for child in organ.children.all %}{{ child.order_number|floatformat:'-2' }} {{ child.name|lower }} {% endfor %}">
+        <label class="organ-check" aria-label="Выбрать {{ organ.name }}">
+          <input type="checkbox" data-organ-checkbox value="{{ organ.pk }}">
+          <span></span>
+        </label>
+        <button class="organ-item" data-organ-id="{{ organ.pk }}" hx-get="{% url 'organ_info' organ.pk %}" hx-trigger="click[!document.body.classList.contains('is-multi-organ-mode')]" hx-target="#organ-info" hx-swap="innerHTML">
+          <span>{{ organ.order_number|floatformat:"-2" }}. {{ organ.name }}</span>
+        </button>
+      </div>
+    {% empty %}
+      <div class="empty-state">Территориальные органы пока не загружены</div>
+    {% endfor %}
+  </div>
+</aside>
+{% endif %}
