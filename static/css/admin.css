@@ -262,7 +262,6 @@
 }
 .admin-organ-list {
   max-height: 318px;
-  padding-bottom: 8px;
 }
 
 .admin-summary-organs .organ-row {
@@ -487,6 +486,12 @@
 .admin-command-page.is-loading-summary .admin-summary-screen {
   opacity: .72;
   pointer-events: none;
+}
+
+.admin-summary-organs .organ-list::after {
+  content: "";
+  display: block;
+  height: 10px;
 }
 
 @media (max-width: 1200px) {
