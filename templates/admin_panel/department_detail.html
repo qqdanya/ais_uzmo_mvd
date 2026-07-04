@@ -1,0 +1,283 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ department.name }} — Отделы{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260704-007">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3 admin-command-page admin-departments-page">
+  <section class="panel admin-command-panel admin-executive-panel">
+    {% include "admin_panel/_executive_nav.html" with active_tab="departments" %}
+
+    <section class="admin-department-detail-screen" aria-label="Карточка отдела">
+      <a class="admin-back-link" href="{{ back_url }}"><i class="bi bi-arrow-left"></i> К списку отделов</a>
+
+      <div class="admin-request-detail-head admin-department-detail-head">
+        <div>
+          <h2><i class="bi {{ department.icon }}"></i> {{ department.name }}</h2>
+          <p>
+            Карточка отдела: заявки, сроки обработки, территориальные органы и последняя активность.
+            {% if department_model and department_model.description %}<br>{{ department_model.description }}{% endif %}
+          </p>
+        </div>
+        <div class="admin-organ-detail-meta">
+          <span><i class="bi bi-geo-alt"></i> Органов в фильтре: <strong>{{ selected_organs|length }}</strong></span>
+          <span><i class="bi bi-calendar-range"></i> Период: <strong>{{ filters.period.label }}</strong></span>
+        </div>
+      </div>
+
+      <form class="admin-section admin-departments-filter" method="get">
+        <div class="admin-section-head">
+          <div>
+            <h2>Фильтры карточки</h2>
+            <span>Период, территориальные органы и статус заявок для статистики отдела</span>
+          </div>
+          <div class="admin-filter-actions">
+            <a class="btn btn-sm btn-outline-secondary" href="{{ reset_url }}">
+              <i class="bi bi-arrow-counterclockwise"></i>
+              Сбросить
+            </a>
+            <button class="btn btn-sm btn-primary" type="submit">
+              <i class="bi bi-funnel"></i>
+              Применить
+            </button>
+          </div>
+        </div>
+
+        <div class="admin-departments-detail-filter-grid">
+          <label class="admin-filter-field">
+            <span>Дата с</span>
+            <input class="form-control form-control-sm" type="date" name="date_from" value="{{ filters.period.date_from|date:'Y-m-d' }}">
+          </label>
+          <label class="admin-filter-field">
+            <span>Дата по</span>
+            <input class="form-control form-control-sm" type="date" name="date_to" value="{{ filters.period.date_to|date:'Y-m-d' }}">
+          </label>
+          <label class="admin-filter-field">
+            <span>Статус заявок</span>
+            <select class="form-select form-select-sm" name="request_status">
+              {% for value, label in request_status_options %}
+                <option value="{{ value }}"{% if filters.request_status == value %} selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+
+        <div class="admin-org-filter-box">
+          <button class="admin-org-filter-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#admin-department-detail-organs" aria-expanded="{% if all_organs_selected %}false{% else %}true{% endif %}" aria-controls="admin-department-detail-organs">
+            <span>
+              <i class="bi bi-geo-alt"></i>
+              Территориальные органы
+            </span>
+            <span class="admin-org-filter-toggle-meta">
+              <strong>
+                {% if all_organs_selected %}
+                  выбраны все
+                {% elif selected_organs|length == 1 %}
+                  выбран 1
+                {% else %}
+                  выбрано {{ selected_organs|length }}
+                {% endif %}
+              </strong>
+              <i class="bi bi-chevron-down"></i>
+            </span>
+          </button>
+          <div class="collapse admin-org-filter-collapse{% if not all_organs_selected %} show{% endif %}" id="admin-department-detail-organs">
+            <div class="admin-org-filter-list">
+              {% for organ in organs %}
+                <label class="admin-org-filter-item{% if organ.pk in selected_organ_ids %} is-selected{% endif %}">
+                  <input type="checkbox" name="organ_ids" value="{{ organ.pk }}"{% if organ.pk in selected_organ_ids %} checked{% endif %}>
+                  <span>{{ organ.order_number|floatformat:"-2" }}. {{ organ.name }}</span>
+                </label>
+              {% empty %}
+                <div class="admin-empty admin-empty-compact">Территориальные органы пока не загружены</div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+
+        {% if active_filter_chips %}
+          <div class="admin-active-filter-row" aria-label="Активные фильтры">
+            {% for chip in active_filter_chips %}
+              <span>{{ chip }}</span>
+            {% endfor %}
+          </div>
+        {% endif %}
+      </form>
+
+      <section class="admin-organs-kpi admin-departments-kpi" aria-label="Ключевые показатели отдела">
+        {% for item in department_kpis %}
+          <article class="admin-requests-kpi-card admin-organs-kpi-card admin-departments-kpi-card">
+            <span class="admin-requests-kpi-icon"><i class="bi {{ item.icon }}"></i></span>
+            <div>
+              <strong>{{ item.value }}</strong>
+              <span>{{ item.label }}</span>
+              <small>{{ item.hint }}</small>
+            </div>
+          </article>
+        {% endfor %}
+      </section>
+
+      <div class="admin-department-detail-grid">
+        <section class="admin-section">
+          <div class="admin-section-head">
+            <div>
+              <h2>Разбивка по территориальным органам</h2>
+              <span>Где по отделу основная нагрузка и есть ли зависшие заявки</span>
+            </div>
+          </div>
+          {% if organ_rows %}
+            <div class="admin-requests-table-wrap">
+              <table class="admin-requests-table admin-departments-organ-table">
+                <thead>
+                  <tr>
+                    <th>Территориальный орган</th>
+                    <th>Всего</th>
+                    <th>В работе</th>
+                    <th>Исполнено</th>
+                    <th>Отклонено</th>
+                    <th>Зависшие</th>
+                    <th>Средний срок</th>
+                    <th>Действие</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in organ_rows %}
+                    <tr>
+                      <td class="admin-organ-name-cell"><strong>{{ row.organ.order_number|floatformat:"-2" }}. {{ row.organ.name }}</strong></td>
+                      <td><strong>{{ row.total }}</strong></td>
+                      <td>{{ row.in_work }}</td>
+                      <td>{{ row.done }}</td>
+                      <td>{{ row.rejected }}</td>
+                      <td>
+                        {% if row.stale %}
+                          <span class="admin-days-badge is-danger">{{ row.stale }}</span>
+                        {% else %}
+                          <span class="text-muted">0</span>
+                        {% endif %}
+                      </td>
+                      <td>{{ row.avg_completion_display }}</td>
+                      <td><a class="btn btn-sm btn-outline-primary" href="{{ row.organ_url }}"><i class="bi bi-eye"></i> Орган</a></td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="admin-empty admin-empty-compact">
+              <i class="bi bi-inbox"></i>
+              <strong>Нет заявок по выбранным органам</strong>
+            </div>
+          {% endif %}
+        </section>
+
+        <section class="admin-section">
+          <div class="admin-section-head">
+            <div>
+              <h2>Виды заявок</h2>
+              <span>Таблицы и подтипы заявок внутри отдела</span>
+            </div>
+          </div>
+          <div class="admin-requests-table-wrap">
+            <table class="admin-requests-table admin-departments-type-table">
+              <thead>
+                <tr>
+                  <th>Вид заявки</th>
+                  <th>Всего</th>
+                  <th>В работе</th>
+                  <th>Исполнено</th>
+                  <th>Отклонено</th>
+                  <th>Зависшие</th>
+                  <th>Средний срок</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in type_rows %}
+                  <tr>
+                    <td><strong>{{ row.title }}</strong></td>
+                    <td>{{ row.total }}</td>
+                    <td>{{ row.in_work }}</td>
+                    <td>{{ row.done }}</td>
+                    <td>{{ row.rejected }}</td>
+                    <td>
+                      {% if row.stale %}
+                        <span class="admin-days-badge is-danger">{{ row.stale }}</span>
+                      {% else %}
+                        <span class="text-muted">0</span>
+                      {% endif %}
+                    </td>
+                    <td>{{ row.avg_completion_display }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <section class="admin-section">
+        <div class="admin-section-head">
+          <div>
+            <h2>Последние заявки</h2>
+            <span>Последние 15 заявок отдела по текущим фильтрам</span>
+          </div>
+        </div>
+
+        {% if latest_requests %}
+          <div class="admin-requests-table-wrap">
+            <table class="admin-requests-table admin-department-latest-table">
+              <thead>
+                <tr>
+                  <th>№ заявки</th>
+                  <th>Дата</th>
+                  <th>Территориальный орган</th>
+                  <th>Вид заявки</th>
+                  <th>Статус</th>
+                  <th>Срок обработки</th>
+                  <th>Действие</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in latest_requests %}
+                  <tr>
+                    <td><strong>{{ row.number }}</strong></td>
+                    <td>{{ row.request_date_display }}</td>
+                    <td class="admin-request-organ">{{ row.organ }}</td>
+                    <td>{{ row.request_type }}</td>
+                    <td><span class="status-badge {{ row.status_class }}">{{ row.status_label }}</span></td>
+                    <td>
+                      {% if row.has_days %}
+                        <span class="admin-processing-cell">
+                          <span class="admin-days-badge {{ row.days_class }}">{{ row.days }} дн.</span>
+                          {% if row.days_caption %}<small>{{ row.days_caption }}</small>{% endif %}
+                        </span>
+                      {% else %}
+                        <span class="text-muted">—</span>
+                      {% endif %}
+                    </td>
+                    <td>
+                      <a class="btn btn-sm btn-outline-primary" href="{{ row.detail_url }}">
+                        <i class="bi bi-eye"></i>
+                        Открыть
+                      </a>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="admin-empty">
+            <i class="bi bi-inbox"></i>
+            <strong>Заявки по отделу не найдены</strong>
+            <span>Попробуйте изменить период, территориальные органы или статус заявок.</span>
+          </div>
+        {% endif %}
+      </section>
+    </section>
+  </section>
+</div>
+{% endblock %}

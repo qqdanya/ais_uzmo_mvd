@@ -4,7 +4,7 @@ from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.urls import include, path
 
-from apps.accounts.views import activate_account, admin_organ_detail, admin_organs_panel, admin_panel, admin_request_detail, admin_requests_panel, admin_summary_data, presence_ping
+from apps.accounts.views import activate_account, admin_department_detail, admin_departments_panel, admin_organ_detail, admin_organs_panel, admin_panel, admin_request_detail, admin_requests_panel, admin_summary_data, presence_ping
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -13,6 +13,8 @@ urlpatterns = [
     path("control/requests/<slug:table_key>/<int:pk>/", admin_request_detail, name="admin_request_detail"),
     path("control/organs/", admin_organs_panel, name="admin_organs_panel"),
     path("control/organs/<int:pk>/", admin_organ_detail, name="admin_organ_detail"),
+    path("control/departments/", admin_departments_panel, name="admin_departments_panel"),
+    path("control/departments/<slug:department_slug>/", admin_department_detail, name="admin_department_detail"),
     path("control/summary-data/", admin_summary_data, name="admin_summary_data"),
     path("accounts/login/", auth_views.LoginView.as_view(), name="login"),
     path("accounts/activate/", activate_account, name="account_activate"),

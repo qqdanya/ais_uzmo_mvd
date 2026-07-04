@@ -13,6 +13,7 @@ from apps.directory.models import Department, TerritorialOrgan, TerritorialOrgan
 from apps.requests_app.models import NeedStatus, TmcProduct
 from apps.requests_app.registry import TABLE_BY_KEY
 
+from .admin_departments import build_department_detail_context, build_departments_context
 from .admin_organs import build_organ_detail_context, build_organs_context
 from .admin_requests import build_request_detail_context, build_requests_context
 from .admin_summary import build_summary_context, build_summary_payload
@@ -171,6 +172,20 @@ def admin_organ_detail(request, pk):
     if not admin_access_allowed(request.user):
         raise PermissionDenied
     return render(request, "admin_panel/organ_detail.html", build_organ_detail_context(request, pk))
+
+
+@login_required
+def admin_departments_panel(request):
+    if not admin_access_allowed(request.user):
+        raise PermissionDenied
+    return render(request, "admin_panel/departments.html", build_departments_context(request))
+
+
+@login_required
+def admin_department_detail(request, department_slug):
+    if not admin_access_allowed(request.user):
+        raise PermissionDenied
+    return render(request, "admin_panel/department_detail.html", build_department_detail_context(request, department_slug))
 
 
 @login_required

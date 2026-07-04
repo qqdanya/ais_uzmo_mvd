@@ -28,10 +28,10 @@
     <i class="bi bi-geo-alt"></i>
     Территориальные органы
   </a>
-  <button class="admin-top-tab" type="button" disabled title="Будет реализовано отдельным экраном">
+  <a class="admin-top-tab{% if active_tab == 'departments' %} active{% endif %}" href="{% url 'admin_departments_panel' %}">
     <i class="bi bi-diagram-3"></i>
     Отделы
-  </button>
+  </a>
   <button class="admin-top-tab" type="button" disabled title="Будет реализовано отдельным экраном">
     <i class="bi bi-box-seam"></i>
     Материальная база
