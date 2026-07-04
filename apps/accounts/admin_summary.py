@@ -14,6 +14,7 @@ from apps.requests_app.permissions import can_view
 from apps.requests_app.registry import TABLES
 
 from .business_days import business_days_inclusive, subtract_business_days_inclusive
+from .admin_thresholds import REQUEST_STALE_WORKDAYS
 
 
 COMPLETED_DATE_FIELDS = {
@@ -81,13 +82,15 @@ def available_organs_for_user(user):
 
 def selected_organs(request, available_organs):
     available_by_id = {organ.pk: organ for organ in available_organs}
+    if request.GET.get("organ_filter_empty") == "1":
+        return []
     raw_ids = request.GET.getlist("organ_ids")
     if not raw_ids and request.GET.get("organ_ids"):
         raw_ids = request.GET["organ_ids"].split(",")
     ids = [int(value) for value in raw_ids if str(value).isdigit()]
     if not ids:
         return available_organs
-    return [available_by_id[pk] for pk in ids if pk in available_by_id] or available_organs
+    return [available_by_id[pk] for pk in ids if pk in available_by_id]
 
 
 def apply_request_period(qs, period):
@@ -215,7 +218,7 @@ def add_status_history_series(counter, table, qs, status, days):
 
 def build_kpi(tables, organs, period):
     totals = Counter()
-    stale_before = subtract_business_days_inclusive(timezone.localdate(), 15)
+    stale_before = subtract_business_days_inclusive(timezone.localdate(), REQUEST_STALE_WORKDAYS + 1)
     for table in tables:
         qs = base_queryset(table, organs)
         totals["total"] += apply_request_period(qs, period).count()
@@ -252,7 +255,7 @@ def build_dynamics(tables, organs, period):
 
 def build_org_chart(tables, organs, period, metric="in_work"):
     org_rows = {organ.pk: {"id": organ.pk, "name": organ.name, "value": 0} for organ in organs}
-    stale_before = subtract_business_days_inclusive(timezone.localdate(), 15)
+    stale_before = subtract_business_days_inclusive(timezone.localdate(), REQUEST_STALE_WORKDAYS + 1)
     for table in tables:
         qs = base_queryset(table, organs)
         if metric == "total":
@@ -305,7 +308,7 @@ def request_number(obj):
 
 
 def build_attention_requests(tables, organs, limit=10):
-    stale_before = subtract_business_days_inclusive(timezone.localdate(), 15)
+    stale_before = subtract_business_days_inclusive(timezone.localdate(), REQUEST_STALE_WORKDAYS + 1)
     today = timezone.localdate()
     departments = {item.slug: item.name for item in Department.objects.filter(is_active=True)}
     items = []
@@ -348,6 +351,7 @@ def build_summary_payload(request, metric="in_work"):
         "org_chart": build_org_chart(tables, organs, period, metric=metric),
         "department_load": build_department_load(tables, organs),
         "attention_requests": build_attention_requests(tables, organs),
+        "request_stale_workdays": int(REQUEST_STALE_WORKDAYS),
     }
     return payload
 
@@ -358,5 +362,6 @@ def build_summary_context(request):
     return {
         "organs": available_organs,
         "summary_payload": payload,
+        "request_stale_workdays": int(REQUEST_STALE_WORKDAYS),
         "summary_org_metric": request.GET.get("org_metric", "in_work"),
     }

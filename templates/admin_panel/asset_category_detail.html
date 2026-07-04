@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ category.title }} — Материальная база{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260704-011">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3 admin-command-page admin-assets-page">
+  <section class="panel admin-command-panel admin-executive-panel">
+    {% include "admin_panel/_executive_nav.html" with active_tab="assets" %}
+
+    <section class="admin-asset-detail-screen" aria-label="Категория материальной базы">
+      <div class="admin-request-detail-head admin-asset-detail-head">
+        <div>
+          <a class="admin-back-link" href="{{ back_url }}"><i class="bi bi-arrow-left"></i> Назад к материальной базе</a>
+          <h2><i class="bi {{ category.icon }}"></i> {{ category.title }}</h2>
+          <p>{{ category.department_name }} · учитывается последняя запись по каждому территориальному органу</p>
+        </div>
+        <div class="admin-organ-detail-meta">
+          <span>Данные есть: <strong>{{ summary.data_label }}</strong></span>
+          <span>Требует внимания: <strong>{{ summary.attention_count }}</strong></span>
+          <span>Нет данных: <strong>{{ summary.no_data_count }}</strong></span>
+          <span>Обновлено: <strong>{{ summary.latest_display }}</strong></span>
+        </div>
+      </div>
+
+      <nav class="admin-status-tabs" aria-label="Срезы категории материальной базы">
+        {% for tab in status_tabs %}
+          <a class="admin-status-tab{% if tab.active %} active{% endif %}" href="{{ tab.url }}">
+            <span>{{ tab.label }}</span>
+            <strong>{{ tab.count }}</strong>
+          </a>
+        {% endfor %}
+      </nav>
+
+      <form class="admin-section admin-assets-filter" method="get">
+        <div class="admin-section-head">
+          <div>
+            <h2>Фильтры</h2>
+            <span>Состояние, территориальные органы и поиск по названию органа</span>
+          </div>
+          <div class="admin-filter-actions">
+            <a class="btn btn-sm btn-outline-secondary" href="{{ reset_url }}"><i class="bi bi-arrow-counterclockwise"></i> Сбросить</a>
+            <button class="btn btn-sm btn-primary" type="submit"><i class="bi bi-funnel"></i> Применить</button>
+          </div>
+        </div>
+        <div class="admin-assets-detail-filter-grid">
+          <label class="admin-filter-field">
+            <span>Состояние</span>
+            <select class="form-select form-select-sm" name="asset_status">
+              {% for value, label in asset_status_options %}
+                <option value="{{ value }}"{% if filters.asset_status == value %} selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="admin-filter-field admin-filter-field-search">
+            <span>Поиск органа</span>
+            <input class="form-control form-control-sm" type="search" name="q" value="{{ filters.query }}" placeholder="Название или номер органа">
+          </label>
+          <label class="admin-filter-field">
+            <span>На странице</span>
+            <select class="form-select form-select-sm" name="per_page">
+              {% for value in per_page_options %}
+                <option value="{{ value }}"{% if filters.per_page == value %} selected{% endif %}>{{ value }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+
+        <div class="admin-org-filter-box">
+          <button class="admin-org-filter-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#admin-assets-category-organs" aria-expanded="{% if all_organs_selected %}false{% else %}true{% endif %}" aria-controls="admin-assets-category-organs">
+            <span><i class="bi bi-geo-alt"></i> Территориальные органы</span>
+            <span class="admin-org-filter-toggle-meta">
+              <strong>{% if all_organs_selected %}выбраны все{% elif selected_organs|length == 1 %}выбран 1{% else %}выбрано {{ selected_organs|length }}{% endif %}</strong>
+              <i class="bi bi-chevron-down"></i>
+            </span>
+          </button>
+          <div class="collapse admin-org-filter-collapse{% if not all_organs_selected %} show{% endif %}" id="admin-assets-category-organs">
+            <div class="admin-org-filter-actions">
+              <button class="btn btn-sm btn-outline-primary" type="button" data-admin-filter-organ-select-all>Выбрать все</button>
+              <button class="btn btn-sm btn-outline-secondary" type="button" data-admin-filter-organ-clear-all>Снять все</button>
+            </div>
+            <div class="admin-org-filter-list">
+              {% for organ in organs %}
+                <label class="admin-org-filter-item{% if organ.pk in selected_organ_ids %} is-selected{% endif %}">
+                  <input type="checkbox" name="organ_ids" value="{{ organ.pk }}"{% if organ.pk in selected_organ_ids %} checked{% endif %}>
+                  <span>{{ organ.order_number|floatformat:"-2" }}. {{ organ.name }}</span>
+                </label>
+              {% empty %}
+                <div class="admin-empty admin-empty-compact">Территориальные органы пока не загружены</div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </form>
+
+      <div class="admin-asset-detail-grid">
+        <section class="admin-section">
+          <div class="admin-section-head">
+            <div>
+              <h2>Текущая ситуация по органам</h2>
+              <span>В таблице показана последняя запись по каждому территориальному органу. Данные старше {{ stale_days }} дней считаются устаревшими.</span>
+            </div>
+          </div>
+          {% if page.object_list %}
+            <div class="admin-requests-table-wrap">
+              <table class="admin-requests-table admin-asset-category-table">
+                <thead>
+                  <tr>
+                    <th>Территориальный орган</th>
+                    <th>Состояние</th>
+                    <th>Актуализация</th>
+                    <th>Показатели</th>
+                    <th>Действие</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in page.object_list %}
+                    {% with cell=row.cells.0 %}
+                      <tr>
+                        <td class="admin-organ-name-cell"><strong>{{ row.organ.order_number|floatformat:"-2" }}. {{ row.organ.name }}</strong></td>
+                        <td><span class="admin-asset-status-badge {{ cell.class }}">{{ cell.label }}</span><small class="admin-cell-note">{{ cell.message }}</small></td>
+                        <td>{{ cell.state_date_display }}</td>
+                        <td>
+                          <div class="admin-asset-metric-list">
+                            {% for metric in cell.metrics %}<span>{{ metric }}</span>{% empty %}<span>—</span>{% endfor %}
+                          </div>
+                        </td>
+                        <td>
+                          <a class="btn btn-sm btn-outline-primary" href="{{ cell.history_url }}"><i class="bi bi-clock-history"></i> История</a>
+                        </td>
+                      </tr>
+                    {% endwith %}
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            <div class="admin-pagination-row">
+              <span>Показано {{ page.start_index }}–{{ page.end_index }} из {{ page.paginator.count }}</span>
+              {% include "partials/pagination.html" with pagination_page=page pagination_links=page_links pagination_base_url=pagination_url pagination_querystring=querystring pagination_mode="link" pagination_nav_class="admin-requests-pagination table-pagination" pagination_aria_label="Страницы категории материальной базы" pagination_hidden_fields=pagination_fields pagination_jump_label="Перейти к странице категории" %}
+            </div>
+          {% else %}
+            <div class="admin-empty"><i class="bi {{ category.icon }}"></i><strong>Записи не найдены</strong><span>Попробуйте изменить фильтры.</span></div>
+          {% endif %}
+        </section>
+
+        <section class="admin-section">
+          <div class="admin-section-head">
+            <div>
+              <h2>Последние актуализации</h2>
+              <span>Исторические записи не влияют на текущие KPI, но помогают видеть динамику обновлений</span>
+            </div>
+          </div>
+          {% if history_rows %}
+            <div class="admin-asset-history-list">
+              {% for item in history_rows %}
+                <article class="admin-asset-history-card">
+                  <time>{{ item.date_display }}</time>
+                  <strong>{{ item.organ.name }}</strong>
+                  <div class="admin-asset-metric-list">
+                    {% for field in item.fields %}<span>{{ field.label }}: {{ field.value }}</span>{% endfor %}
+                  </div>
+                  <a class="btn btn-sm btn-outline-secondary" href="{{ item.edit_url }}"><i class="bi bi-pencil-square"></i> Открыть запись</a>
+                </article>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="admin-empty admin-empty-compact"><i class="bi bi-clock-history"></i><strong>История пока отсутствует</strong></div>
+          {% endif %}
+        </section>
+      </div>
+    </section>
+  </section>
+</div>
+{% endblock %}

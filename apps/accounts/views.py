@@ -13,9 +13,11 @@ from apps.directory.models import Department, TerritorialOrgan, TerritorialOrgan
 from apps.requests_app.models import NeedStatus, TmcProduct
 from apps.requests_app.registry import TABLE_BY_KEY
 
+from .admin_assets import build_asset_category_detail_context, build_asset_organ_detail_context, build_asset_organ_summary_context, build_assets_context
 from .admin_departments import build_department_detail_context, build_departments_context
 from .admin_organs import build_organ_detail_context, build_organs_context
 from .admin_requests import build_request_detail_context, build_requests_context
+from .admin_settings import build_settings_context, handle_settings_post
 from .admin_summary import build_summary_context, build_summary_payload
 from .forms import AccountActivationForm
 from .models import UserProfile
@@ -186,6 +188,46 @@ def admin_department_detail(request, department_slug):
     if not admin_access_allowed(request.user):
         raise PermissionDenied
     return render(request, "admin_panel/department_detail.html", build_department_detail_context(request, department_slug))
+
+
+@login_required
+def admin_assets_panel(request):
+    if not admin_access_allowed(request.user):
+        raise PermissionDenied
+    return render(request, "admin_panel/assets.html", build_assets_context(request))
+
+
+@login_required
+def admin_asset_category_detail(request, category_key):
+    if not admin_access_allowed(request.user):
+        raise PermissionDenied
+    return render(request, "admin_panel/asset_category_detail.html", build_asset_category_detail_context(request, category_key))
+
+
+@login_required
+def admin_asset_organ_summary(request, organ_id):
+    if not admin_access_allowed(request.user):
+        raise PermissionDenied
+    return render(request, "admin_panel/asset_organ_summary.html", build_asset_organ_summary_context(request, organ_id))
+
+
+@login_required
+def admin_asset_organ_detail(request, category_key, organ_id):
+    if not admin_access_allowed(request.user):
+        raise PermissionDenied
+    return render(request, "admin_panel/asset_organ_detail.html", build_asset_organ_detail_context(request, category_key, organ_id))
+
+
+@login_required
+def admin_threshold_settings(request):
+    if not admin_access_allowed(request.user):
+        raise PermissionDenied
+    context = None
+    if request.method == "POST":
+        context = handle_settings_post(request)
+        if context is None:
+            return redirect("admin_threshold_settings")
+    return render(request, "admin_panel/settings.html", context or build_settings_context())
 
 
 @login_required

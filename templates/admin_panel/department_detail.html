@@ -4,7 +4,7 @@
 {% block title %}{{ department.name }} — Отделы{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260704-007">
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260704-011">
 {% endblock %}
 
 {% block content %}
@@ -86,6 +86,10 @@
             </span>
           </button>
           <div class="collapse admin-org-filter-collapse{% if not all_organs_selected %} show{% endif %}" id="admin-department-detail-organs">
+            <div class="admin-org-filter-actions">
+              <button class="btn btn-sm btn-outline-primary" type="button" data-admin-filter-organ-select-all>Выбрать все</button>
+              <button class="btn btn-sm btn-outline-secondary" type="button" data-admin-filter-organ-clear-all>Снять все</button>
+            </div>
             <div class="admin-org-filter-list">
               {% for organ in organs %}
                 <label class="admin-org-filter-item{% if organ.pk in selected_organ_ids %} is-selected{% endif %}">

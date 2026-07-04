@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Настройки — Панель руководителя{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260704-011">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3 admin-command-page admin-settings-page">
+  <section class="panel admin-command-panel admin-executive-panel">
+    {% include "admin_panel/_executive_nav.html" with active_tab="settings" %}
+
+    <section class="admin-settings-screen" aria-label="Настройки панели руководителя">
+      <div class="admin-requests-hero admin-settings-hero">
+        <div>
+          <h2>Настройки</h2>
+          <p>Пороговые значения для управленческой аналитики. Эти параметры влияют на сводку, заявки, территориальные органы, отделы и материальную базу.</p>
+        </div>
+        <div class="admin-requests-total">
+          <span>Раздел</span>
+          <strong>Пороги</strong>
+        </div>
+      </div>
+
+      <form class="admin-section admin-settings-card" method="post" novalidate>
+        {% csrf_token %}
+        <div class="admin-section-head">
+          <div>
+            <h2>Пороговые значения</h2>
+            <span>Изменения применяются сразу после сохранения, без миграций базы данных.</span>
+          </div>
+          <div class="admin-filter-actions">
+            <button class="btn btn-sm btn-outline-secondary" type="submit" name="reset" value="1">
+              <i class="bi bi-arrow-counterclockwise"></i>
+              По умолчанию
+            </button>
+            <button class="btn btn-sm btn-primary" type="submit">
+              <i class="bi bi-check2"></i>
+              Сохранить
+            </button>
+          </div>
+        </div>
+
+        <div class="admin-settings-grid">
+          {% for row in threshold_rows %}
+            <label class="admin-settings-field{% if row.error %} has-error{% endif %}">
+              <span>{{ row.label }}</span>
+              <input class="form-control" type="number" name="{{ row.key }}" value="{{ row.value }}" min="{{ row.min }}" max="{{ row.max }}" step="1">
+              <small>{{ row.hint }} Диапазон: {{ row.min }}–{{ row.max }}. По умолчанию: {{ row.default }}.</small>
+              {% if row.error %}<em>{{ row.error }}</em>{% endif %}
+            </label>
+          {% endfor %}
+        </div>
+      </form>
+
+      <section class="admin-section admin-settings-note">
+        <div class="admin-section-head">
+          <div>
+            <h2>Где используются эти значения</h2>
+            <span>Чтобы критерии во всех вкладках были едиными.</span>
+          </div>
+        </div>
+        <div class="admin-settings-usage-grid">
+          <article>
+            <i class="bi bi-hourglass-split"></i>
+            <strong>Зависшие заявки</strong>
+            <span>Вкладки “Оперативная сводка”, “Заявки”, “Территориальные органы” и “Отделы”.</span>
+          </article>
+          <article>
+            <i class="bi bi-clock-history"></i>
+            <strong>Давно не обновлялось</strong>
+            <span>Вкладка “Материальная база” и карточки категорий/органов.</span>
+          </article>
+        </div>
+      </section>
+    </section>
+  </section>
+</div>
+{% endblock %}

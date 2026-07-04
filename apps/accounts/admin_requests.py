@@ -17,6 +17,7 @@ from apps.requests_app.registry import TABLE_BY_KEY
 
 from .admin_summary import available_organs_for_user, request_tables, selected_organs
 from .business_days import business_days_inclusive, subtract_business_days_inclusive
+from .admin_thresholds import REQUEST_STALE_WORKDAYS
 
 
 STATUS_FILTERS = {
@@ -106,8 +107,8 @@ def selected_state(request):
 
 
 def selected_per_page(request):
-    value = request.GET.get("per_page", "25")
-    return int(value) if value in {"25", "50", "100"} else 25
+    value = request.GET.get("per_page", "50")
+    return int(value) if value in {"50", "100"} else 50
 
 
 def base_table_queryset(table, organs):
@@ -131,7 +132,7 @@ def apply_search(qs, query):
 
 
 def apply_state(qs, state):
-    stale_before = subtract_business_days_inclusive(timezone.localdate(), 15)
+    stale_before = subtract_business_days_inclusive(timezone.localdate(), REQUEST_STALE_WORKDAYS + 1)
     if state == "in_work":
         return qs.filter(status=NeedStatus.IN_WORK)
     if state == "done":
@@ -154,7 +155,7 @@ def filtered_queryset(table, organs, filters, *, with_state=True):
 
 def status_counts(tables, organs, filters):
     counts = {key: 0 for key in STATUS_FILTERS}
-    stale_before = subtract_business_days_inclusive(timezone.localdate(), 15)
+    stale_before = subtract_business_days_inclusive(timezone.localdate(), REQUEST_STALE_WORKDAYS + 1)
     for table in tables:
         if filters["department"] and table["department"] != filters["department"]:
             continue
@@ -230,7 +231,7 @@ def processing_caption(obj, days):
 def days_class(days):
     if days is None:
         return ""
-    if days > 14:
+    if days > REQUEST_STALE_WORKDAYS:
         return "is-danger"
     if days > 7:
         return "is-warning"
@@ -298,7 +299,7 @@ def request_kpis(counts, avg_completion_days):
             "hint": "по исполненным заявкам",
             "icon": "bi-stopwatch",
         },
-        {"label": "Зависшие", "value": counts.get("stale", 0), "hint": "в работе более 14 рабочих дней", "icon": "bi-exclamation-triangle"},
+        {"label": "Зависшие", "value": counts.get("stale", 0), "hint": f"в работе более {REQUEST_STALE_WORKDAYS} рабочих дней", "icon": "bi-exclamation-triangle"},
     ]
 
 
@@ -341,6 +342,8 @@ def pagination_fields(request):
     for value in request.GET.getlist("organ_ids"):
         if value:
             fields.append({"name": "organ_ids", "value": value})
+    if request.GET.get("organ_filter_empty") == "1":
+        fields.append({"name": "organ_filter_empty", "value": "1"})
     return fields
 
 
@@ -381,7 +384,7 @@ def build_requests_context(request):
             for key, label in STATUS_FILTERS.items()
         ],
         "status_options": STATUS_FILTERS.items(),
-        "per_page_options": [25, 50, 100],
+        "per_page_options": [50, 100],
         "request_kpis": request_kpis(counts, avg_completion),
         "page": page,
         "page_links": page.paginator.get_elided_page_range(page.number, on_each_side=1, on_ends=1),

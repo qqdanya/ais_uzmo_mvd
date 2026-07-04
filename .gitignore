@@ -23,3 +23,6 @@ media/
 *.tmp
 outputs/
 work/
+
+# Local executive-dashboard settings
+dashboard_thresholds.json

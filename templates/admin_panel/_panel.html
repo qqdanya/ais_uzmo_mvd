@@ -63,7 +63,7 @@
         <span class="admin-metric-icon"><i class="bi bi-exclamation-triangle"></i></span>
         <span>Зависшие заявки</span>
         <strong data-kpi="stale">{{ summary_payload.kpi.stale }}</strong>
-        <small>в работе более 14 рабочих дней</small>
+        <small>в работе более {{ request_stale_workdays }} рабочих дней</small>
       </div>
     </div>
 
@@ -90,7 +90,7 @@
         <div class="admin-section-head">
           <div>
             <h2>Территориальные органы</h2>
-            <span>Сравнение органов по выбранному показателю</span>
+            <span>Все территориальные органы по выбранному показателю</span>
           </div>
           <select class="form-select form-select-sm admin-native-select" data-admin-org-metric aria-label="Показатель территориальных органов">
             <option value="total">Всего заявок</option>
@@ -118,7 +118,7 @@
       <div class="admin-section-head">
         <div>
           <h2>Заявки, требующие внимания</h2>
-          <span>Заявки, находящиеся в работе более 14 рабочих дней</span>
+          <span>Заявки, находящиеся в работе более {{ request_stale_workdays }} рабочих дней</span>
         </div>
       </div>
       <div class="admin-attention-list" data-attention-list></div>

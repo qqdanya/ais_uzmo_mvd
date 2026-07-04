@@ -4,7 +4,7 @@ from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.urls import include, path
 
-from apps.accounts.views import activate_account, admin_department_detail, admin_departments_panel, admin_organ_detail, admin_organs_panel, admin_panel, admin_request_detail, admin_requests_panel, admin_summary_data, presence_ping
+from apps.accounts.views import activate_account, admin_asset_category_detail, admin_asset_organ_detail, admin_asset_organ_summary, admin_assets_panel, admin_department_detail, admin_departments_panel, admin_organ_detail, admin_organs_panel, admin_panel, admin_request_detail, admin_requests_panel, admin_summary_data, admin_threshold_settings, presence_ping
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -15,7 +15,12 @@ urlpatterns = [
     path("control/organs/<int:pk>/", admin_organ_detail, name="admin_organ_detail"),
     path("control/departments/", admin_departments_panel, name="admin_departments_panel"),
     path("control/departments/<slug:department_slug>/", admin_department_detail, name="admin_department_detail"),
+    path("control/assets/", admin_assets_panel, name="admin_assets_panel"),
+    path("control/assets/organs/<int:organ_id>/", admin_asset_organ_summary, name="admin_asset_organ_summary"),
+    path("control/assets/<slug:category_key>/", admin_asset_category_detail, name="admin_asset_category_detail"),
+    path("control/assets/<slug:category_key>/organs/<int:organ_id>/", admin_asset_organ_detail, name="admin_asset_organ_detail"),
     path("control/summary-data/", admin_summary_data, name="admin_summary_data"),
+    path("control/settings/", admin_threshold_settings, name="admin_threshold_settings"),
     path("accounts/login/", auth_views.LoginView.as_view(), name="login"),
     path("accounts/activate/", activate_account, name="account_activate"),
     path("accounts/presence/", presence_ping, name="presence_ping"),

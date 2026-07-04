@@ -28,6 +28,7 @@ from .admin_requests import (
 )
 from .admin_summary import available_organs_for_user, request_tables, selected_organs
 from .business_days import subtract_business_days_inclusive
+from .admin_thresholds import REQUEST_STALE_WORKDAYS
 
 
 DEPARTMENT_VIEW_FILTERS = {
@@ -119,7 +120,7 @@ def collect_department_stats(department, tables, organs, filters):
     completion_values = []
     active_organ_ids = set()
     latest_date = None
-    stale_before = subtract_business_days_inclusive(timezone.localdate(), 15)
+    stale_before = subtract_business_days_inclusive(timezone.localdate(), REQUEST_STALE_WORKDAYS + 1)
 
     for table in tables_for_department(tables, department["slug"]):
         qs = department_filtered_queryset(table, organs, filters, with_request_status=True)
@@ -234,6 +235,8 @@ def pagination_fields(request):
     for value in request.GET.getlist("organ_ids"):
         if value:
             fields.append({"name": "organ_ids", "value": value})
+    if request.GET.get("organ_filter_empty") == "1":
+        fields.append({"name": "organ_filter_empty", "value": "1"})
     return fields
 
 
@@ -286,7 +289,7 @@ def build_departments_context(request):
         "all_organs_selected": len(organs) == len(available_organs),
         "filters": filters,
         "request_status_options": REQUEST_STATUS_FILTERS.items(),
-        "per_page_options": [25, 50, 100],
+        "per_page_options": [50, 100],
         "departments_kpis": build_departments_kpis(visible_rows),
         "view_tabs": [
             {
@@ -318,7 +321,7 @@ def filter_detail_request_qs(qs, filters):
 def collect_organ_stats_for_department(organ, department, tables, filters):
     stats = Counter()
     completion_values = []
-    stale_before = subtract_business_days_inclusive(timezone.localdate(), 15)
+    stale_before = subtract_business_days_inclusive(timezone.localdate(), REQUEST_STALE_WORKDAYS + 1)
     for table in tables_for_department(tables, department["slug"]):
         qs = table["model"].objects.select_related("territorial_organ").filter(is_deleted=False, territorial_organ=organ)
         qs = apply_period(qs, filters["period"])
@@ -351,7 +354,7 @@ def organ_rows_for_department(organs, department, tables, filters):
 
 def type_rows_for_department(department, tables, organs, filters):
     rows = []
-    stale_before = subtract_business_days_inclusive(timezone.localdate(), 15)
+    stale_before = subtract_business_days_inclusive(timezone.localdate(), REQUEST_STALE_WORKDAYS + 1)
     for table in tables_for_department(tables, department["slug"]):
         qs = department_filtered_queryset(table, organs, filters, with_request_status=True)
         completion_values = completion_values_for_queryset(qs)
@@ -432,7 +435,7 @@ def build_department_detail_context(request, department_slug):
             {"label": "Всего заявок", "value": department_row["total"], "hint": filters["period"]["label"], "icon": "bi-inboxes"},
             {"label": "В работе", "value": department_row["in_work"], "hint": "текущие заявки", "icon": "bi-hourglass-split"},
             {"label": "Исполнено", "value": department_row["done"], "hint": "по текущим фильтрам", "icon": "bi-check2-circle"},
-            {"label": "Зависшие", "value": department_row["stale"], "hint": "более 14 рабочих дней", "icon": "bi-exclamation-triangle"},
+            {"label": "Зависшие", "value": department_row["stale"], "hint": f"более {REQUEST_STALE_WORKDAYS} рабочих дней", "icon": "bi-exclamation-triangle"},
             {"label": "Средний срок", "value": department_row["avg_completion_display"], "hint": "по исполненным заявкам", "icon": "bi-stopwatch"},
         ],
         "organ_rows": organ_rows_for_department(organs, department, tables, filters),

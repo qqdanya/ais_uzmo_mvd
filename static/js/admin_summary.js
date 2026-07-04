@@ -256,7 +256,12 @@
       params.set("date_from", isoDate(selectedStart));
       params.set("date_to", isoDate(selectedEnd));
     }
-    selectedOrganIds().forEach((id) => params.append("organ_ids", id));
+    const ids = selectedOrganIds();
+    ids.forEach((id) => params.append("organ_ids", id));
+    const allInput = allOrgansCheckbox();
+    if (allInput && !allInput.checked && ids.length === 0) {
+      params.set("organ_filter_empty", "1");
+    }
     return params;
   }
 
@@ -384,7 +389,7 @@
     target.replaceChildren();
     const items = state.attention_requests || [];
     if (!items.length) {
-      target.innerHTML = '<div class="admin-empty"><i class="bi bi-check2-circle"></i><strong>Нет заявок, требующих внимания</strong><span>По выбранным органам нет заявок в работе более 14 дней.</span></div>';
+      target.innerHTML = `<div class="admin-empty"><i class="bi bi-check2-circle"></i><strong>Нет заявок, требующих внимания</strong><span>По выбранным органам нет заявок в работе более ${formatNumber(state.request_stale_workdays || 14)} рабочих дней.</span></div>`;
       return;
     }
     items.forEach((item) => {
@@ -422,7 +427,7 @@
     updatePeriodLabel();
     renderKpi();
     renderDynamicsChart();
-    renderBarList("[data-org-chart]", state.org_chart, "Нет данных по территориальным органам", 10);
+    renderBarList("[data-org-chart]", state.org_chart, "Нет данных по территориальным органам");
     const metric = root.querySelector("[data-admin-org-metric]")?.value || "in_work";
     const orgSubtitle = root.querySelector("[data-org-chart]")?.closest(".admin-section")?.querySelector(".admin-section-head span");
     if (orgSubtitle) orgSubtitle.textContent = `Сравнение органов по показателю: ${metricLabel(metric).toLowerCase()}`;

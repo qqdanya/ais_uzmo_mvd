@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ category.title }} — {{ organ.name }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260704-011">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3 admin-command-page admin-assets-page">
+  <section class="panel admin-command-panel admin-executive-panel">
+    {% include "admin_panel/_executive_nav.html" with active_tab="assets" %}
+
+    <section class="admin-asset-detail-screen" aria-label="История материальной базы">
+      <div class="admin-request-detail-head admin-asset-detail-head">
+        <div>
+          <a class="admin-back-link" href="{{ back_url }}"><i class="bi bi-arrow-left"></i> Назад к категории</a>
+          <h2><i class="bi {{ category.icon }}"></i> {{ category.title }}</h2>
+          <p>{{ organ.order_number|floatformat:"-2" }}. {{ organ.name }}</p>
+        </div>
+        {% if cell %}
+          <div class="admin-request-detail-status">
+            <span class="admin-asset-status-badge {{ cell.class }}">{{ cell.label }}</span>
+            <span class="admin-processing-cell admin-processing-cell-detail">
+              <span class="admin-days-badge {% if cell.status == 'danger' %}is-danger{% elif cell.status == 'ok' %}is-normal{% else %}is-warning{% endif %}">{{ cell.state_date_display }}</span>
+              <small>{{ cell.message }}</small>
+            </span>
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="admin-asset-detail-grid">
+        <section class="admin-section">
+          <div class="admin-section-head">
+            <div>
+              <h2>Актуальная запись</h2>
+              <span>Именно она учитывается в матрице и KPI материальной базы</span>
+            </div>
+          </div>
+          {% if cell and cell.object %}
+            <dl class="admin-detail-list">
+              <div><dt>Состояние</dt><dd><span class="admin-asset-status-badge {{ cell.class }}">{{ cell.label }}</span> {{ cell.message }}</dd></div>
+              <div><dt>Дата актуализации</dt><dd>{{ cell.state_date_display }}</dd></div>
+              {% for metric in cell.metrics %}<div><dt>Показатель</dt><dd>{{ metric }}</dd></div>{% endfor %}
+            </dl>
+            {% if cell.edit_url %}<a class="btn btn-sm btn-outline-primary" href="{{ cell.edit_url }}"><i class="bi bi-pencil-square"></i> Открыть запись в рабочем экране</a>{% endif %}
+          {% else %}
+            <div class="admin-empty"><i class="bi bi-database-x"></i><strong>Актуальной записи нет</strong><span>Для этого органа данные по категории пока не внесены.</span></div>
+          {% endif %}
+        </section>
+
+        <section class="admin-section">
+          <div class="admin-section-head">
+            <div>
+              <h2>История актуализаций</h2>
+              <span>Предыдущие записи используются только как история и не влияют на текущий срез</span>
+            </div>
+          </div>
+          {% if history_rows %}
+            <div class="admin-asset-history-list">
+              {% for item in history_rows %}
+                <article class="admin-asset-history-card">
+                  <time>{{ item.date_display }}</time>
+                  <div class="admin-asset-metric-list">
+                    {% for field in item.fields %}<span>{{ field.label }}: {{ field.value }}</span>{% endfor %}
+                  </div>
+                  <a class="btn btn-sm btn-outline-secondary" href="{{ item.edit_url }}"><i class="bi bi-pencil-square"></i> Открыть запись</a>
+                </article>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="admin-empty admin-empty-compact"><i class="bi bi-clock-history"></i><strong>История пока отсутствует</strong></div>
+          {% endif %}
+        </section>
+      </div>
+    </section>
+  </section>
+</div>
+{% endblock %}

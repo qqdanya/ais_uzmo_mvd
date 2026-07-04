@@ -29,6 +29,7 @@ from .admin_requests import (
 )
 from .admin_summary import available_organs_for_user, request_tables
 from .business_days import subtract_business_days_inclusive
+from .admin_thresholds import REQUEST_STALE_WORKDAYS
 
 
 ORGAN_VIEW_FILTERS = {
@@ -117,7 +118,7 @@ def collect_organ_stats(organ, tables, filters):
     stats = Counter()
     completion_values = []
     latest_date = None
-    stale_before = subtract_business_days_inclusive(timezone.localdate(), 15)
+    stale_before = subtract_business_days_inclusive(timezone.localdate(), REQUEST_STALE_WORKDAYS + 1)
 
     for table in iter_tables(tables, filters):
         qs = org_filtered_queryset(table, organ, filters, with_request_status=True)
@@ -192,7 +193,7 @@ def build_organs_kpis(all_rows, visible_rows):
     return [
         {"label": "Всего органов", "value": len(visible_rows), "hint": "в текущем списке", "icon": "bi-building"},
         {"label": "Активные органы", "value": sum(1 for row in visible_rows if row["total"] > 0), "hint": "есть заявки", "icon": "bi-activity"},
-        {"label": "С зависшими", "value": sum(1 for row in visible_rows if row["stale"] > 0), "hint": "более 14 рабочих дней", "icon": "bi-exclamation-triangle"},
+        {"label": "С зависшими", "value": sum(1 for row in visible_rows if row["stale"] > 0), "hint": f"более {REQUEST_STALE_WORKDAYS} рабочих дней", "icon": "bi-exclamation-triangle"},
         {
             "label": "Средний срок",
             "value": f"{str(avg_completion).replace('.', ',')} дн." if avg_completion is not None else "—",
@@ -266,7 +267,7 @@ def build_organs_context(request):
         "filters": filters,
         "departments": departments,
         "request_status_options": REQUEST_STATUS_FILTERS.items(),
-        "per_page_options": [25, 50, 100],
+        "per_page_options": [50, 100],
         "organs_kpis": build_organs_kpis(all_rows, visible_rows),
         "view_tabs": [
             {
@@ -292,7 +293,7 @@ def build_organs_context(request):
 def department_stats_for_organ(organ, tables, filters):
     departments = {item.slug: item.name for item in Department.objects.filter(is_active=True)}
     rows = []
-    stale_before = subtract_business_days_inclusive(timezone.localdate(), 15)
+    stale_before = subtract_business_days_inclusive(timezone.localdate(), REQUEST_STALE_WORKDAYS + 1)
     for department in department_options(tables):
         if filters["department"] and department["slug"] != filters["department"]:
             continue
@@ -378,7 +379,7 @@ def build_organ_detail_context(request, pk):
             {"label": "Всего заявок", "value": organ_row["total"], "hint": filters["period"]["label"], "icon": "bi-inboxes"},
             {"label": "В работе", "value": organ_row["in_work"], "hint": "текущие заявки", "icon": "bi-hourglass-split"},
             {"label": "Исполнено", "value": organ_row["done"], "hint": "по текущим фильтрам", "icon": "bi-check2-circle"},
-            {"label": "Зависшие", "value": organ_row["stale"], "hint": "более 14 рабочих дней", "icon": "bi-exclamation-triangle"},
+            {"label": "Зависшие", "value": organ_row["stale"], "hint": f"более {REQUEST_STALE_WORKDAYS} рабочих дней", "icon": "bi-exclamation-triangle"},
             {"label": "Средний срок", "value": organ_row["avg_completion_display"], "hint": "по исполненным заявкам", "icon": "bi-stopwatch"},
         ],
         "department_rows": department_stats_for_organ(organ, tables, filters),
