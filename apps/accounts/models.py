@@ -58,7 +58,7 @@ class UserProfile(models.Model):
     def is_online(self):
         if not self.last_seen_at:
             return False
-        return self.last_seen_at >= timezone.now() - timedelta(minutes=5)
+        return self.last_seen_at >= timezone.now() - timedelta(minutes=1)
 
     @property
     def needs_activation(self):

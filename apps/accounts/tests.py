@@ -1,6 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.directory.models import Department, TerritorialOrgan
 
@@ -52,6 +53,17 @@ class AccountFoundationTests(TestCase):
         self.assertEqual(len(profile.activation_code), 6)
         self.assertTrue(profile.activation_code.isdigit())
 
+    def test_profile_online_window_is_one_minute(self):
+        User = get_user_model()
+        user = User.objects.create_user("operator", password="pass12345")
+        profile = UserProfile.objects.create(user=user, role=UserProfile.Role.OPERATOR)
+
+        profile.last_seen_at = timezone.now() - timezone.timedelta(seconds=50)
+        self.assertTrue(profile.is_online)
+
+        profile.last_seen_at = timezone.now() - timezone.timedelta(seconds=70)
+        self.assertFalse(profile.is_online)
+
     def test_admin_add_user_creates_employee_profile_without_password(self):
         User = get_user_model()
         admin = User.objects.create_superuser("admin", password="pass12345")
@@ -91,3 +103,82 @@ class AccountFoundationTests(TestCase):
         self.assertTrue(user.profile.activation_code)
         self.assertEqual(list(user.profile.allowed_departments.all()), [department])
         self.assertEqual(list(user.profile.allowed_organs.all()), [organ])
+
+    def test_custom_admin_panel_is_available_to_admin(self):
+        User = get_user_model()
+        admin = User.objects.create_superuser("admin", password="pass12345")
+        UserProfile.objects.create(user=admin, role=UserProfile.Role.ADMIN)
+        Department.objects.create(name="ТМЦ", slug="tmc", order_number=1)
+        TerritorialOrgan.objects.create(name="Тестовый орган", order_number=1)
+        self.client.login(username="admin", password="pass12345")
+
+        response = self.client.get(reverse("admin_panel"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "admin-command-page")
+        self.assertContains(response, 'hx-trigger="every 30s"')
+        self.assertContains(response, reverse("audit_log"))
+        self.assertContains(response, reverse("admin:index"))
+
+    def test_custom_admin_panel_is_forbidden_to_operator(self):
+        User = get_user_model()
+        user = User.objects.create_user("operator", password="pass12345")
+        UserProfile.objects.create(user=user, role=UserProfile.Role.OPERATOR)
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("admin_panel"))
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_custom_admin_panel_hx_refresh_returns_only_panel(self):
+        User = get_user_model()
+        admin = User.objects.create_superuser("admin", password="pass12345")
+        UserProfile.objects.create(user=admin, role=UserProfile.Role.ADMIN)
+        self.client.login(username="admin", password="pass12345")
+
+        response = self.client.get(reverse("admin_panel"), HTTP_HX_REQUEST="true")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "admin-command-panel")
+        self.assertNotContains(response, "app-footer")
+        self.assertNotContains(response, "<main")
+
+    def test_presence_ping_updates_last_seen(self):
+        User = get_user_model()
+        user = User.objects.create_user("operator", password="pass12345")
+        profile = UserProfile.objects.create(user=user, role=UserProfile.Role.OPERATOR)
+        old_seen = timezone.now() - timezone.timedelta(minutes=10)
+        profile.last_seen_at = old_seen
+        profile.save(update_fields=["last_seen_at"])
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.post(reverse("presence_ping"))
+
+        self.assertEqual(response.status_code, 204)
+        profile.refresh_from_db()
+        self.assertGreater(profile.last_seen_at, old_seen)
+
+    def test_presence_ping_requires_login(self):
+        response = self.client.post(reverse("presence_ping"))
+
+        self.assertEqual(response.status_code, 302)
+
+    def test_authenticated_layout_contains_presence_url(self):
+        User = get_user_model()
+        user = User.objects.create_user("operator", password="pass12345")
+        UserProfile.objects.create(user=user, role=UserProfile.Role.OPERATOR)
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("dashboard"))
+
+        self.assertContains(response, f'data-presence-url="{reverse("presence_ping")}"')
+
+    def test_user_menu_admin_link_points_to_custom_panel(self):
+        User = get_user_model()
+        admin = User.objects.create_superuser("admin", password="pass12345")
+        UserProfile.objects.create(user=admin, role=UserProfile.Role.ADMIN)
+        self.client.login(username="admin", password="pass12345")
+
+        response = self.client.get(reverse("dashboard"))
+
+        self.assertContains(response, f'href="{reverse("admin_panel")}"')

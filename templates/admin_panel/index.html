@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}Панель администратора{% endblock %}
+
+{% block content %}
+<div
+  id="admin-panel-refresh"
+  class="container-fluid py-3 admin-command-page"
+  hx-get="{% url 'admin_panel' %}"
+  hx-trigger="every 30s"
+  hx-swap="innerHTML"
+>
+  {% include "admin_panel/_panel.html" %}
+</div>
+{% endblock %}

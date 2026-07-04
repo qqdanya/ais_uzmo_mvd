@@ -1,0 +1,204 @@
+{% load account_tags %}
+<section class="panel admin-command-panel">
+    <div class="admin-command-head">
+      <div>
+        <span class="admin-command-kicker">Контур управления системой</span>
+        <h1>Панель администратора</h1>
+      </div>
+      <div class="admin-command-actions">
+        <a class="btn btn-sm btn-outline-primary" href="{% url 'audit_log' %}">
+          <i class="bi bi-activity"></i>
+          Журнал действий
+        </a>
+        <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin:index' %}">
+          <i class="bi bi-tools"></i>
+          Техническая админка
+        </a>
+      </div>
+    </div>
+
+    <div class="admin-metric-grid" aria-label="Ключевые показатели">
+      {% for metric in metrics %}
+        <div class="admin-metric-card">
+          <span class="admin-metric-icon"><i class="bi {{ metric.icon }}"></i></span>
+          <span>{{ metric.label }}</span>
+          <strong>{{ metric.value }}</strong>
+        </div>
+      {% endfor %}
+    </div>
+
+    <div class="admin-command-grid">
+      <section class="admin-section admin-section-wide">
+        <div class="admin-section-head">
+          <div>
+            <h2>Сотрудники и доступы</h2>
+            <span>Активные учетные записи и закрепленные направления работы</span>
+          </div>
+          <a class="btn btn-sm btn-outline-primary" href="{% url 'admin:auth_user_changelist' %}">
+            <i class="bi bi-person-gear"></i>
+            Управлять
+          </a>
+        </div>
+
+        <div class="admin-employee-list">
+          {% for employee in employees %}
+            <article class="admin-employee-row">
+              <div class="admin-employee-person">
+                <strong>{{ employee.display_name }}</strong>
+                <span>{{ employee.user.username }} · {{ employee.role }}</span>
+              </div>
+              <div class="admin-employee-state">
+                {% if employee.is_online %}
+                  <span class="admin-pill admin-pill-success"><i class="bi bi-circle-fill"></i> онлайн</span>
+                {% else %}
+                  <span class="admin-pill admin-pill-muted"><i class="bi bi-circle"></i> офлайн</span>
+                {% endif %}
+                {% if employee.needs_activation %}
+                  <span class="admin-pill admin-pill-warning">активация</span>
+                {% endif %}
+              </div>
+              <div class="admin-employee-access">
+                <span>
+                  <i class="bi bi-diagram-3"></i>
+                  {% for department in employee.departments %}
+                    {{ department.name }}{% if not forloop.last %}, {% endif %}
+                  {% empty %}
+                    отделы не назначены
+                  {% endfor %}
+                  {% if employee.departments_extra %}+{{ employee.departments_extra }}{% endif %}
+                </span>
+                <span>
+                  <i class="bi bi-building"></i>
+                  {% for organ in employee.organs %}
+                    {{ organ.name }}{% if not forloop.last %}, {% endif %}
+                  {% empty %}
+                    все доступные органы
+                  {% endfor %}
+                  {% if employee.organs_extra %}+{{ employee.organs_extra }}{% endif %}
+                </span>
+              </div>
+            </article>
+          {% empty %}
+            <div class="admin-empty">
+              <i class="bi bi-person-lines-fill"></i>
+              <strong>Сотрудники не найдены</strong>
+            </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="admin-section">
+        <div class="admin-section-head">
+          <div>
+            <h2>Активация</h2>
+            <span>Профили, ожидающие первого входа</span>
+          </div>
+        </div>
+        <div class="admin-compact-list">
+          {% for profile in awaiting_activation %}
+            <div class="admin-compact-item">
+              <strong>{{ profile.display_name }}</strong>
+              <span>{{ profile.user.username }}</span>
+            </div>
+          {% empty %}
+            <div class="admin-empty admin-empty-compact">
+              <i class="bi bi-check2-circle"></i>
+              <strong>Нет ожидающих активации</strong>
+            </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="admin-section">
+        <div class="admin-section-head">
+          <div>
+            <h2>Сейчас в системе</h2>
+            <span>Сотрудники с недавней активностью</span>
+          </div>
+        </div>
+        <div class="admin-compact-list">
+          {% for profile in online_profiles %}
+            <div class="admin-compact-item">
+              <strong>{{ profile.display_name }}</strong>
+              <span>{{ profile.last_seen_at|date:"d.m.Y H:i" }}</span>
+            </div>
+          {% empty %}
+            <div class="admin-empty admin-empty-compact">
+              <i class="bi bi-moon"></i>
+              <strong>Сейчас никого онлайн</strong>
+            </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="admin-section">
+        <div class="admin-section-head">
+          <div>
+            <h2>Доступ по отделам</h2>
+            <span>Сколько сотрудников закреплено за направлением</span>
+          </div>
+        </div>
+        <div class="admin-access-list">
+          {% for row in department_access %}
+            <div class="admin-access-row">
+              <span>{{ row.department.name }}</span>
+              <strong>{{ row.employee_count }}</strong>
+            </div>
+          {% empty %}
+            <div class="admin-empty admin-empty-compact">
+              <i class="bi bi-diagram-3"></i>
+              <strong>Отделы не настроены</strong>
+            </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="admin-section">
+        <div class="admin-section-head">
+          <div>
+            <h2>Контур данных</h2>
+            <span>Основные справочники и хранилище фотографий</span>
+          </div>
+        </div>
+        <div class="admin-data-grid">
+          {% for item in data_summary %}
+            <div class="admin-data-item">
+              <i class="bi {{ item.icon }}"></i>
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }}</strong>
+            </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="admin-section admin-section-wide">
+        <div class="admin-section-head">
+          <div>
+            <h2>Последние события</h2>
+            <span>Недавние действия пользователей в системе</span>
+          </div>
+          <a class="btn btn-sm btn-outline-primary" href="{% url 'audit_log' %}">
+            <i class="bi bi-box-arrow-up-right"></i>
+            Открыть журнал
+          </a>
+        </div>
+        <div class="admin-events-list">
+          {% for log in recent_logs %}
+            <article class="admin-event-row">
+              <span class="audit-action {{ log.action_badge }}">{{ log.action_display }}</span>
+              <div>
+                <strong>{{ log.summary }}</strong>
+                {% if log.display_object_repr %}<span>{{ log.display_object_repr }}</span>{% endif %}
+              </div>
+              <time>{{ log.created_at|date:"d.m.Y H:i" }}</time>
+            </article>
+          {% empty %}
+            <div class="admin-empty">
+              <i class="bi bi-activity"></i>
+              <strong>Журнал пока пуст</strong>
+            </div>
+          {% endfor %}
+        </div>
+      </section>
+    </div>
+</section>

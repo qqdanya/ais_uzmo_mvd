@@ -4,12 +4,14 @@ from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.urls import include, path
 
-from apps.accounts.views import activate_account
+from apps.accounts.views import activate_account, admin_panel, presence_ping
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("control/", admin_panel, name="admin_panel"),
     path("accounts/login/", auth_views.LoginView.as_view(), name="login"),
     path("accounts/activate/", activate_account, name="account_activate"),
+    path("accounts/presence/", presence_ping, name="presence_ping"),
     path("accounts/logout/", auth_views.LogoutView.as_view(), name="logout"),
     path(
         "accounts/password-change/",

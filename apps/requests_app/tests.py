@@ -822,6 +822,17 @@ class AppFlowTests(TestCase):
         self.assertContains(response, "30/TMC")
         self.assertNotContains(response, "31/TMC")
 
+    def test_tmc_date_filters_default_to_today_without_records(self):
+        today = timezone.localdate()
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("table_data", args=[self.organ.pk, "tmc-requests"]))
+
+        self.assertContains(response, f'name="date_from" value="{today.isoformat()}"')
+        self.assertContains(response, f'name="date_to" value="{today.isoformat()}"')
+        self.assertContains(response, f'data-default-date-from="{today.isoformat()}"')
+        self.assertContains(response, f'data-default-date-to="{today.isoformat()}"')
+
     def test_table_pagination_uses_photo_style_controls_above_table(self):
         for index in range(21):
             request_obj = TmcRequest.objects.create(

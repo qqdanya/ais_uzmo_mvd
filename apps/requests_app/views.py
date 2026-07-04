@@ -187,9 +187,10 @@ def state_snapshot_queryset(request, table_key, qs):
 
 def request_date_filter_defaults(model, organs):
     oldest_date = model.objects.filter(territorial_organ__in=organs, is_deleted=False).aggregate(oldest=Min("request_date")).get("oldest")
+    today = timezone.localdate()
     return {
-        "date_from": oldest_date.isoformat() if oldest_date else "",
-        "date_to": timezone.localdate().isoformat(),
+        "date_from": oldest_date.isoformat() if oldest_date else today.isoformat(),
+        "date_to": today.isoformat(),
     }
 
 

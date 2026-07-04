@@ -7,6 +7,7 @@ const DEPARTMENT_TABLE_PREFIX = "asu-zmo:last-table:";
 const TABLE_STATE_PREFIX = "asu-zmo:table-state:";
 const COLLAPSED_PANELS_KEY = "asu-zmo:collapsed-panels";
 const BULK_PHOTO_BATCH_SIZE = 25;
+const PRESENCE_HEARTBEAT_MS = 30000;
 let htmxRequests = 0;
 let loadingFailsafeTimer = null;
 let pendingBulkPhotoFiles = [];
@@ -52,6 +53,37 @@ function removeStoredValue(key) {
   } catch (error) {
     // Nothing to clean up when storage is unavailable.
   }
+}
+
+function cookieValue(name) {
+  return document.cookie
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${name}=`))
+    ?.slice(name.length + 1) || "";
+}
+
+function sendPresencePing() {
+  const url = document.body?.dataset.presenceUrl;
+  if (!url) return;
+  fetch(url, {
+    method: "POST",
+    credentials: "same-origin",
+    keepalive: true,
+    headers: {
+      "X-CSRFToken": decodeURIComponent(cookieValue("csrftoken")),
+      "X-Requested-With": "XMLHttpRequest",
+    },
+  }).catch(() => {});
+}
+
+function startPresenceHeartbeat() {
+  if (!document.body?.dataset.presenceUrl) return;
+  sendPresencePing();
+  window.setInterval(sendPresencePing, PRESENCE_HEARTBEAT_MS);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) sendPresencePing();
+  });
 }
 
 function formatLocalDateTime(date) {
@@ -2004,6 +2036,7 @@ document.addEventListener("DOMContentLoaded", () => {
   resetHtmxLoading();
   initCustomSelects();
   initTooltips();
+  startPresenceHeartbeat();
   document.querySelectorAll(".auth-ascii-input").forEach(normalizeAuthInput);
   autoDismissAlerts();
   applyCollapsedPanels();
