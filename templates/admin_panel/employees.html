@@ -1,0 +1,298 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Сотрудники — Панель руководителя{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260704-015">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3 admin-command-page admin-employees-page">
+  <section class="panel admin-command-panel admin-executive-panel">
+    {% include "admin_panel/_executive_nav.html" with active_tab="employees" %}
+
+    <section class="admin-employees-screen" aria-label="Управление сотрудниками" data-employees-presence-url="{{ presence_data_url }}">
+      <div class="admin-requests-hero admin-employees-hero">
+        <div>
+          <h2>Сотрудники</h2>
+          <p>Онлайн-статус, последнее посещение, права доступа, активация и управление учетными записями сотрудников.</p>
+        </div>
+        <div class="admin-employee-hero-actions">
+          <div class="admin-requests-total">
+            <span>Найдено</span>
+            <strong>{{ total_count }}</strong>
+          </div>
+        </div>
+      </div>
+
+      <section class="admin-employees-kpi" aria-label="Ключевые показатели по сотрудникам">
+        {% for item in employee_kpis %}
+          <article class="admin-requests-kpi-card admin-employees-kpi-card">
+            <span class="admin-requests-kpi-icon"><i class="bi {{ item.icon }}"></i></span>
+            <div>
+              <strong data-employees-kpi="{{ item.key }}">{{ item.value }}</strong>
+              <span>{{ item.label }}</span>
+              <small>{{ item.hint }}</small>
+            </div>
+          </article>
+        {% endfor %}
+      </section>
+
+      <nav class="admin-status-tabs" aria-label="Быстрые срезы по сотрудникам">
+        {% for tab in view_tabs %}
+          <a class="admin-status-tab{% if tab.active %} active{% endif %}" href="{{ tab.url }}">
+            <span>{{ tab.label }}</span>
+            <strong data-employees-tab-count="{{ tab.key }}">{{ tab.count }}</strong>
+          </a>
+        {% endfor %}
+      </nav>
+
+      <section class="admin-section admin-employees-activity-section">
+        <div class="admin-section-head">
+          <div>
+            <h2>Активность сотрудников за 30 дней</h2>
+            <span>Сравнение созданных заявок и действий в журнале. Показываются до 10 самых активных сотрудников.</span>
+          </div>
+        </div>
+        {% if activity_chart %}
+          <div class="admin-employees-activity-chart" aria-label="Диаграмма активности сотрудников">
+            {% for item in activity_chart %}
+              <a class="admin-employee-activity-row" href="{{ item.detail_url }}">
+                <div class="admin-employee-activity-name">{{ item.name }}</div>
+                <div class="admin-employee-activity-bars">
+                  <div class="admin-employee-activity-line">
+                    <span>Заявки</span>
+                    <div class="admin-assets-bar-track">{% if item.created_requests %}<span style="width: {{ item.created_width|stringformat:'s' }}%;"></span>{% endif %}</div>
+                    <strong>{{ item.created_requests }}</strong>
+                  </div>
+                  <div class="admin-employee-activity-line">
+                    <span>Действия</span>
+                    <div class="admin-assets-bar-track">{% if item.actions %}<span style="width: {{ item.actions_width|stringformat:'s' }}%;"></span>{% endif %}</div>
+                    <strong>{{ item.actions }}</strong>
+                  </div>
+                </div>
+              </a>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="admin-empty admin-empty-compact"><i class="bi bi-bar-chart"></i><strong>Активности пока нет</strong><span>Диаграмма появится после создания заявок или действий в журнале.</span></div>
+        {% endif %}
+      </section>
+
+      <form class="admin-section admin-employees-filter" method="get">
+        <div class="admin-section-head">
+          <div>
+            <h2>Фильтры</h2>
+            <span>Кастомные мультивыборы по ролям, активности, активации, отделам и территориальным органам</span>
+          </div>
+          <div class="admin-filter-actions">
+            <a class="btn btn-sm btn-outline-secondary" href="{{ reset_url }}"><i class="bi bi-arrow-counterclockwise"></i> Сбросить</a>
+            <button class="btn btn-sm btn-primary" type="submit"><i class="bi bi-funnel"></i> Применить</button>
+          </div>
+        </div>
+
+        <div class="admin-employees-filter-grid">
+          <label class="admin-filter-field admin-filter-field-search">
+            <span>Поиск сотрудника</span>
+            <input class="form-control form-control-sm admin-control" type="search" name="q" value="{{ filters.query }}" placeholder="ФИО или логин">
+          </label>
+
+          <div class="admin-filter-field">
+            <span>Роль</span>
+            <div class="dropdown admin-multiselect" data-admin-multiselect data-empty-label="Все роли">
+              <button class="admin-multiselect-trigger" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                <span data-admin-multiselect-label>{{ filter_labels.roles }}</span>
+                <i class="bi bi-chevron-down"></i>
+              </button>
+              <div class="dropdown-menu admin-multiselect-menu">
+                <div class="admin-multiselect-actions">
+                  <button type="button" data-admin-multiselect-select-all>Выбрать все</button>
+                  <button type="button" data-admin-multiselect-clear>Снять все</button>
+                </div>
+                {% for value, label in role_options %}
+                  <label class="admin-multiselect-option">
+                    <input type="checkbox" name="role" value="{{ value }}" data-admin-multiselect-input {% if value in filters.roles %}checked{% endif %}>
+                    <span>{{ label }}</span>
+                  </label>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+
+          <div class="admin-filter-field">
+            <span>Активность</span>
+            <div class="dropdown admin-multiselect" data-admin-multiselect data-empty-label="Любая активность">
+              <button class="admin-multiselect-trigger" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                <span data-admin-multiselect-label>{{ filter_labels.activities }}</span>
+                <i class="bi bi-chevron-down"></i>
+              </button>
+              <div class="dropdown-menu admin-multiselect-menu">
+                <div class="admin-multiselect-actions">
+                  <button type="button" data-admin-multiselect-select-all>Выбрать все</button>
+                  <button type="button" data-admin-multiselect-clear>Снять все</button>
+                </div>
+                {% for value, label in activity_options %}
+                  <label class="admin-multiselect-option">
+                    <input type="checkbox" name="activity" value="{{ value }}" data-admin-multiselect-input {% if value in filters.activities %}checked{% endif %}>
+                    <span>{{ label }}</span>
+                  </label>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+
+          <div class="admin-filter-field">
+            <span>Активация</span>
+            <div class="dropdown admin-multiselect" data-admin-multiselect data-empty-label="Любой статус">
+              <button class="admin-multiselect-trigger" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                <span data-admin-multiselect-label>{{ filter_labels.activations }}</span>
+                <i class="bi bi-chevron-down"></i>
+              </button>
+              <div class="dropdown-menu admin-multiselect-menu">
+                <div class="admin-multiselect-actions">
+                  <button type="button" data-admin-multiselect-select-all>Выбрать все</button>
+                  <button type="button" data-admin-multiselect-clear>Снять все</button>
+                </div>
+                {% for value, label in activation_options %}
+                  <label class="admin-multiselect-option">
+                    <input type="checkbox" name="activation" value="{{ value }}" data-admin-multiselect-input {% if value in filters.activations %}checked{% endif %}>
+                    <span>{{ label }}</span>
+                  </label>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+
+          <div class="admin-filter-field">
+            <span>Отделы</span>
+            <div class="dropdown admin-multiselect" data-admin-multiselect data-empty-label="Все отделы">
+              <button class="admin-multiselect-trigger" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                <span data-admin-multiselect-label>{{ filter_labels.departments }}</span>
+                <i class="bi bi-chevron-down"></i>
+              </button>
+              <div class="dropdown-menu admin-multiselect-menu">
+                <div class="admin-multiselect-actions">
+                  <button type="button" data-admin-multiselect-select-all>Выбрать все</button>
+                  <button type="button" data-admin-multiselect-clear>Снять все</button>
+                </div>
+                {% for department in departments %}
+                  <label class="admin-multiselect-option">
+                    <input type="checkbox" name="department" value="{{ department.slug }}" data-admin-multiselect-input {% if department.slug in filters.departments %}checked{% endif %}>
+                    <span>{{ department.name }}</span>
+                  </label>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+
+          <div class="admin-filter-field">
+            <span>Территориальные органы</span>
+            <div class="dropdown admin-multiselect" data-admin-multiselect data-empty-label="Все территориальные органы">
+              <button class="admin-multiselect-trigger" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                <span data-admin-multiselect-label>{{ filter_labels.organs }}</span>
+                <i class="bi bi-chevron-down"></i>
+              </button>
+              <div class="dropdown-menu admin-multiselect-menu admin-multiselect-menu-wide">
+                <div class="admin-multiselect-actions">
+                  <button type="button" data-admin-multiselect-select-all>Выбрать все</button>
+                  <button type="button" data-admin-multiselect-clear>Снять все</button>
+                </div>
+                {% for organ in organs %}
+                  {% with organ_id=organ.pk|stringformat:"s" %}
+                    <label class="admin-multiselect-option">
+                      <input type="checkbox" name="organ" value="{{ organ_id }}" data-admin-multiselect-input {% if organ_id in filters.organs %}checked{% endif %}>
+                      <span>{{ organ.order_number|floatformat:"-2" }}. {{ organ.name }}</span>
+                    </label>
+                  {% endwith %}
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+
+          <div class="admin-filter-field">
+            <span>На странице</span>
+            <div class="dropdown admin-multiselect admin-multiselect-single" data-admin-multiselect data-empty-label="50 на странице">
+              <button class="admin-multiselect-trigger" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                <span data-admin-multiselect-label>{{ filter_labels.per_page }}</span>
+                <i class="bi bi-chevron-down"></i>
+              </button>
+              <div class="dropdown-menu admin-multiselect-menu admin-multiselect-menu-small">
+                {% for value in per_page_options %}
+                  <label class="admin-multiselect-option">
+                    <input type="radio" name="per_page" value="{{ value }}" data-admin-multiselect-input {% if filters.per_page == value %}checked{% endif %}>
+                    <span>{{ value }} на странице</span>
+                  </label>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+          <input type="hidden" name="view" value="{{ filters.view }}">
+        </div>
+
+        {% if active_filter_chips %}
+          <div class="admin-active-filter-row" aria-label="Активные фильтры">
+            {% for chip in active_filter_chips %}<span>{{ chip }}</span>{% endfor %}
+          </div>
+        {% endif %}
+      </form>
+
+      <section class="admin-section admin-employees-table-section">
+        <div class="admin-section-head">
+          <div>
+            <h2>Список сотрудников</h2>
+            <span>Онлайн считается по heartbeat-запросам пользователей за последнюю минуту.</span>
+          </div>
+          <a class="btn btn-primary btn-sm" href="{{ create_url }}">
+            <i class="bi bi-person-plus"></i>
+            Добавить сотрудника
+          </a>
+        </div>
+
+        {% if employees %}
+          <div class="admin-requests-table-wrap">
+            <table class="admin-requests-table admin-employees-table">
+              <thead>
+                <tr>
+                  <th>Сотрудник</th>
+                  <th>Логин</th>
+                  <th>Роль</th>
+                  <th>Статус</th>
+                  <th>Последнее посещение</th>
+                  <th>Отделы</th>
+                  <th>Территориальные органы</th>
+                  <th>Активация</th>
+                  <th>Действие</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in employees %}
+                  <tr>
+                    <td class="admin-employee-name-cell"><strong>{{ row.display_name }}</strong></td>
+                    <td><code>{{ row.user.username }}</code></td>
+                    <td><span class="admin-role-badge {{ row.role_class }}">{{ row.role_label }}</span></td>
+                    <td><span class="admin-activity-badge is-{{ row.activity_state }}" data-employee-activity="{{ row.user.pk }}">{{ row.activity_label }}</span></td>
+                    <td data-employee-last-seen="{{ row.user.pk }}">{{ row.last_seen }}</td>
+                    <td>{{ row.departments_summary }}</td>
+                    <td>{{ row.organs_summary }}</td>
+                    <td><span class="admin-activation-badge is-{{ row.activation_state }}" data-employee-activation="{{ row.user.pk }}">{{ row.activation_label }}</span></td>
+                    <td class="admin-table-action-cell">
+                      <div class="admin-table-action-stack">
+                        <a class="btn btn-sm btn-outline-primary" href="{{ row.detail_url }}"><i class="bi bi-eye"></i> Открыть</a>
+                        <a class="btn btn-sm btn-outline-secondary" href="{{ row.edit_url }}"><i class="bi bi-pencil"></i> Права</a>
+                      </div>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% include "partials/pagination.html" with pagination_page=page pagination_links=page_links pagination_base_url=pagination_url pagination_querystring=querystring pagination_mode="link" pagination_hidden_fields=pagination_fields pagination_nav_class="admin-pagination-row admin-requests-pagination" %}
+        {% else %}
+          <div class="admin-empty"><i class="bi bi-people"></i><strong>Сотрудники не найдены</strong><span>Измените фильтры или добавьте нового сотрудника.</span></div>
+        {% endif %}
+      </section>
+    </section>
+  </section>
+</div>
+{% endblock %}

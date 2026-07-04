@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% load static account_tags %}
+
+{% block title %}{{ display_name }} — Сотрудники{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260704-015">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3 admin-command-page admin-employee-detail-page">
+  <section class="panel admin-command-panel admin-executive-panel">
+    {% include "admin_panel/_executive_nav.html" with active_tab="employees" %}
+
+    <section class="admin-employee-detail-screen" data-employees-presence-url="{{ presence_data_url }}">
+      <div class="admin-detail-topline">
+        <a class="btn btn-sm btn-outline-secondary" href="{{ back_url }}"><i class="bi bi-arrow-left"></i> К сотрудникам</a>
+        <a class="btn btn-sm btn-primary" href="{{ edit_url }}"><i class="bi bi-pencil"></i> Изменить права</a>
+      </div>
+
+      <div class="admin-detail-hero admin-employee-hero-card">
+        <div class="admin-employee-avatar"><i class="bi bi-person"></i></div>
+        <div>
+          <span class="admin-detail-eyebrow">Карточка сотрудника</span>
+          <h2>{{ display_name }}</h2>
+          <p><code>{{ employee.username }}</code> · <span class="admin-role-badge {{ role_class }}">{{ role_label }}</span></p>
+        </div>
+        <div class="admin-employee-detail-status">
+          <span class="admin-activity-badge is-{{ activity_state }}" data-employee-activity="{{ employee.pk }}">{{ activity_label }}</span>
+          <small data-employee-last-seen="{{ employee.pk }}">{{ last_seen }}</small>
+        </div>
+      </div>
+
+      {% if profile and profile.needs_activation and profile.activation_code %}
+        <section class="admin-section admin-employee-activation-code">
+          <div>
+            <strong>Код активации</strong>
+            <span>Передайте сотруднику логин <code>{{ employee.username }}</code> и этот код. Пароль сотрудник задаст сам.</span>
+          </div>
+          <code>{{ profile.activation_code }}</code>
+        </section>
+      {% endif %}
+
+      <section class="admin-employees-kpi admin-employee-detail-kpi" aria-label="Показатели сотрудника">
+        <article class="admin-requests-kpi-card admin-employees-kpi-card">
+          <span class="admin-requests-kpi-icon"><i class="bi bi-broadcast"></i></span>
+          <div><strong data-employee-activity="{{ employee.pk }}" >{{ activity_label }}</strong><span>Активность</span><small data-employee-last-seen="{{ employee.pk }}">{{ last_seen }}</small></div>
+        </article>
+        <article class="admin-requests-kpi-card admin-employees-kpi-card">
+          <span class="admin-requests-kpi-icon"><i class="bi bi-key"></i></span>
+          <div><strong>{{ activation_label }}</strong><span>Активация</span><small>{% if employee.is_active %}вход разрешён{% else %}вход отключён{% endif %}</small></div>
+        </article>
+        <article class="admin-requests-kpi-card admin-employees-kpi-card">
+          <span class="admin-requests-kpi-icon"><i class="bi bi-plus-circle"></i></span>
+          <div><strong>{{ recent_created_requests }}</strong><span>Создано заявок</span><small>за последние 30 дней</small></div>
+        </article>
+        <article class="admin-requests-kpi-card admin-employees-kpi-card">
+          <span class="admin-requests-kpi-icon"><i class="bi bi-activity"></i></span>
+          <div><strong>{{ recent_actions }}</strong><span>Действий за 30 дней</span><small>по журналу действий</small></div>
+        </article>
+        <article class="admin-requests-kpi-card admin-employees-kpi-card">
+          <span class="admin-requests-kpi-icon"><i class="bi bi-shield-check"></i></span>
+          <div><strong>{% if employee.is_superuser %}Руководитель{% else %}Рабочий доступ{% endif %}</strong><span>Системные права</span><small>{% if employee.is_superuser %}доступ к Таблицам БД{% else %}без технической панели{% endif %}</small></div>
+        </article>
+      </section>
+
+      <div class="admin-employee-detail-grid">
+        <section class="admin-section admin-employee-rights-card">
+          <div class="admin-section-head">
+            <div><h2>Права доступа</h2><span>Что сотрудник видит и где может работать</span></div>
+          </div>
+          <dl class="admin-detail-list">
+            <div><dt>Отделы</dt><dd>{{ departments_summary }}</dd></div>
+            <div><dt>Территориальные органы</dt><dd>{{ organs_summary }}</dd></div>
+            <div><dt>Дата регистрации</dt><dd>{{ employee.date_joined|date:"d.m.Y H:i" }}</dd></div>
+            <div><dt>Последний вход</dt><dd>{% if employee.last_login %}{{ employee.last_login|date:"d.m.Y H:i" }}{% else %}—{% endif %}</dd></div>
+          </dl>
+
+          <div class="admin-employee-rights-lists">
+            <div>
+              <h3>Отделы</h3>
+              {% if all_departments %}
+                <span class="admin-employee-right-chip">Все отделы</span>
+              {% elif no_departments %}
+                <span class="admin-employee-right-chip is-muted">Отделы не выбраны</span>
+              {% else %}
+                {% for department in allowed_departments %}<span class="admin-employee-right-chip">{{ department.name }}</span>{% endfor %}
+              {% endif %}
+            </div>
+            <div>
+              <h3>Территориальные органы</h3>
+              {% if all_organs %}
+                <span class="admin-employee-right-chip">Все территориальные органы</span>
+              {% else %}
+                {% for organ in allowed_organs %}<span class="admin-employee-right-chip">{{ organ.order_number|floatformat:"-2" }}. {{ organ.name }}</span>{% endfor %}
+              {% endif %}
+            </div>
+          </div>
+        </section>
+
+        <section class="admin-section admin-employee-actions-card">
+          <div class="admin-section-head">
+            <div><h2>Действия</h2><span>Безопасное управление учетной записью</span></div>
+          </div>
+          <div class="admin-employee-actions-list">
+            <form method="post" action="{% url 'admin_employee_action' employee.pk %}">
+              {% csrf_token %}
+              {% if employee.is_active %}
+                <button class="btn btn-outline-danger" type="submit" name="action" value="block"{% if is_self %} disabled title="Нельзя заблокировать себя"{% endif %}><i class="bi bi-person-x"></i> Заблокировать</button>
+              {% else %}
+                <button class="btn btn-outline-success" type="submit" name="action" value="unblock"><i class="bi bi-person-check"></i> Разблокировать</button>
+              {% endif %}
+            </form>
+            <form method="post" action="{% url 'admin_employee_action' employee.pk %}">
+              {% csrf_token %}
+              <button class="btn btn-outline-primary" type="submit" name="action" value="reset_activation"{% if is_self %} disabled title="Нельзя сбросить активацию себе"{% endif %}><i class="bi bi-arrow-clockwise"></i> Сбросить активацию</button>
+            </form>
+            <p>Удаление сотрудников не используется: блокировка сохраняет историю действий и связи с заявками.</p>
+          </div>
+        </section>
+      </div>
+
+      <section class="admin-section admin-employee-audit-card">
+        <div class="admin-section-head">
+          <div><h2>Последние действия сотрудника</h2><span>По журналу действий системы</span></div>
+          <a class="btn btn-sm btn-outline-primary" href="{% url 'audit_log' %}?user={{ employee.username }}"><i class="bi bi-box-arrow-up-right"></i> Полный журнал</a>
+        </div>
+        {% if recent_logs %}
+          <div class="admin-employee-log-list">
+            {% for log in recent_logs %}
+              <article class="admin-employee-log-item">
+                <time>{{ log.created_at|date:"d.m.Y H:i" }}</time>
+                <div>
+                  <strong>{{ log.summary }}</strong>
+                  <span>{{ log.model_title }}{% if log.display_object_repr %}: {{ log.display_object_repr }}{% endif %}</span>
+                </div>
+              </article>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="admin-empty admin-empty-compact"><i class="bi bi-activity"></i><strong>Действий пока нет</strong></div>
+        {% endif %}
+      </section>
+    </section>
+  </section>
+</div>
+{% endblock %}

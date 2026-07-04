@@ -58,6 +58,11 @@ AUDIT_EVENT_SUMMARIES = {
     "tmc_item_removed": "Удалена позиция ТМЦ",
     "tmc_item_quantity_changed": "Изменено количество ТМЦ",
     "tmc_product_created": "Создан товар в справочнике ТМЦ",
+    "employee_created": "Создан сотрудник",
+    "employee_permissions_updated": "Обновлены права сотрудника",
+    "employee_blocked": "Сотрудник заблокирован",
+    "employee_unblocked": "Сотрудник разблокирован",
+    "employee_activation_reset": "Сброшена активация сотрудника",
 }
 
 

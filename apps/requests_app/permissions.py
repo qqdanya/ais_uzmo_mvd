@@ -21,7 +21,7 @@ def can_write(user, organ=None, department_slug=None):
         return False
     if department_slug:
         departments = profile.allowed_departments.all()
-        if departments.exists() and not departments.filter(slug=department_slug).exists():
+        if not departments.exists() or not departments.filter(slug=department_slug).exists():
             return False
     if organ is None:
         return True

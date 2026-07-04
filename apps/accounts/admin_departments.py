@@ -22,9 +22,11 @@ from .admin_requests import (
     processing_caption,
     processing_days,
     query_with,
+    multiselect_label,
     request_number,
     request_title,
     selected_per_page,
+    selected_values,
 )
 from .admin_summary import available_organs_for_user, request_tables, selected_organs
 from .business_days import subtract_business_days_inclusive
@@ -58,9 +60,8 @@ def selected_department_view(request):
     return value if value in DEPARTMENT_VIEW_FILTERS else "all"
 
 
-def selected_request_status(request):
-    value = request.GET.get("request_status", "all")
-    return value if value in REQUEST_STATUS_FILTERS else "all"
+def selected_request_statuses(request):
+    return selected_values(request, "request_status", REQUEST_STATUS_FILTERS.keys())
 
 
 def selected_department_slug(request, departments):
@@ -97,8 +98,9 @@ def tables_for_department(tables, department_slug):
 def department_filtered_queryset(table, organs, filters, *, with_request_status=True):
     qs = table["model"].objects.select_related("territorial_organ").filter(is_deleted=False, territorial_organ__in=organs)
     qs = apply_period(qs, filters["period"])
-    if with_request_status and filters["request_status"] != "all":
-        qs = qs.filter(status=REQUEST_STATUS_TO_MODEL_STATUS[filters["request_status"]])
+    statuses = filters.get("request_statuses") or []
+    if with_request_status and statuses:
+        qs = qs.filter(status__in=[REQUEST_STATUS_TO_MODEL_STATUS[item] for item in statuses if item in REQUEST_STATUS_TO_MODEL_STATUS])
     return qs
 
 
@@ -228,10 +230,13 @@ def department_view_counts(all_rows):
 
 def pagination_fields(request):
     fields = []
-    for name in ("date_from", "date_to", "request_status", "view", "q", "per_page"):
+    for name in ("date_from", "date_to", "view", "q", "per_page"):
         value = request.GET.get(name, "")
         if value:
             fields.append({"name": name, "value": value})
+    for value in request.GET.getlist("request_status"):
+        if value:
+            fields.append({"name": "request_status", "value": value})
     for value in request.GET.getlist("organ_ids"):
         if value:
             fields.append({"name": "organ_ids", "value": value})
@@ -249,8 +254,8 @@ def active_filter_chips(filters, selected_organs_list, available_organs):
             chips.append(f"Орган: {selected_organs_list[0].name}")
         else:
             chips.append(f"Органы: {len(selected_organs_list)} из {len(available_organs)}")
-    if filters["request_status"] != "all":
-        chips.append(f"Статус заявок: {REQUEST_STATUS_FILTERS[filters['request_status']]}")
+    if filters.get("request_statuses"):
+        chips.append(f"Статусы заявок: {filters['request_status_label']}")
     if filters["query"]:
         chips.append(f"Поиск: {filters['query']}")
     if filters["view"] != "all":
@@ -259,13 +264,18 @@ def active_filter_chips(filters, selected_organs_list, available_organs):
 
 
 def build_filters(request):
-    return {
+    selected_status_values = selected_request_statuses(request)
+    filters = {
         "period": date_period_from_request(request),
-        "request_status": selected_request_status(request),
+        "request_statuses": selected_status_values,
+        "request_status": selected_status_values[0] if len(selected_status_values) == 1 else "all",
+        "request_status_label": multiselect_label(selected_status_values, "Все статусы", REQUEST_STATUS_FILTERS),
         "view": selected_department_view(request),
         "query": (request.GET.get("q", "") or "").strip(),
         "per_page": selected_per_page(request),
     }
+    filters["per_page_label"] = f"{filters['per_page']} на странице"
+    return filters
 
 
 def build_departments_context(request):
@@ -288,7 +298,7 @@ def build_departments_context(request):
         "selected_organ_ids": selected_ids,
         "all_organs_selected": len(organs) == len(available_organs),
         "filters": filters,
-        "request_status_options": REQUEST_STATUS_FILTERS.items(),
+        "request_status_options": [(key, label) for key, label in REQUEST_STATUS_FILTERS.items() if key != "all"],
         "per_page_options": [50, 100],
         "departments_kpis": build_departments_kpis(visible_rows),
         "view_tabs": [
@@ -313,8 +323,9 @@ def build_departments_context(request):
 
 
 def filter_detail_request_qs(qs, filters):
-    if filters["request_status"] != "all":
-        qs = qs.filter(status=REQUEST_STATUS_TO_MODEL_STATUS[filters["request_status"]])
+    statuses = filters.get("request_statuses") or []
+    if statuses:
+        qs = qs.filter(status__in=[REQUEST_STATUS_TO_MODEL_STATUS[item] for item in statuses if item in REQUEST_STATUS_TO_MODEL_STATUS])
     return qs
 
 
@@ -430,7 +441,7 @@ def build_department_detail_context(request, department_slug):
         "selected_organ_ids": selected_ids,
         "all_organs_selected": len(organs) == len(available_organs),
         "filters": filters,
-        "request_status_options": REQUEST_STATUS_FILTERS.items(),
+        "request_status_options": [(key, label) for key, label in REQUEST_STATUS_FILTERS.items() if key != "all"],
         "department_kpis": [
             {"label": "Всего заявок", "value": department_row["total"], "hint": filters["period"]["label"], "icon": "bi-inboxes"},
             {"label": "В работе", "value": department_row["in_work"], "hint": "текущие заявки", "icon": "bi-hourglass-split"},

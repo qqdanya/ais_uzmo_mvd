@@ -23,9 +23,11 @@ from .admin_requests import (
     processing_caption,
     processing_days,
     query_with,
+    multiselect_label,
     request_number,
     request_title,
     selected_per_page,
+    selected_values,
 )
 from .admin_summary import available_organs_for_user, request_tables
 from .business_days import subtract_business_days_inclusive
@@ -60,15 +62,12 @@ def selected_organs_view(request):
     return value if value in ORGAN_VIEW_FILTERS else "all"
 
 
-def selected_request_status(request):
-    value = request.GET.get("request_status", "all")
-    return value if value in REQUEST_STATUS_FILTERS else "all"
+def selected_request_statuses(request):
+    return selected_values(request, "request_status", REQUEST_STATUS_FILTERS.keys())
 
 
-def selected_department(request, options):
-    allowed = {item["slug"] for item in options}
-    value = request.GET.get("department", "")
-    return value if value in allowed else ""
+def selected_departments(request, options):
+    return selected_values(request, "department", [item["slug"] for item in options])
 
 
 def base_organs_for_user(user):
@@ -85,14 +84,16 @@ def filter_organs_by_search(organs, query):
 def org_filtered_queryset(table, organ, filters, *, with_request_status=True):
     qs = table["model"].objects.select_related("territorial_organ").filter(is_deleted=False, territorial_organ=organ)
     qs = apply_period(qs, filters["period"])
-    if with_request_status and filters["request_status"] != "all":
-        qs = qs.filter(status=REQUEST_STATUS_TO_MODEL_STATUS[filters["request_status"]])
+    statuses = filters.get("request_statuses") or []
+    if with_request_status and statuses:
+        qs = qs.filter(status__in=[REQUEST_STATUS_TO_MODEL_STATUS[item] for item in statuses if item in REQUEST_STATUS_TO_MODEL_STATUS])
     return qs
 
 
 def iter_tables(tables, filters):
     for table in tables:
-        if filters["department"] and table["department"] != filters["department"]:
+        departments = filters.get("departments") or []
+        if departments and table["department"] not in departments:
             continue
         yield table
 
@@ -216,10 +217,14 @@ def org_view_counts(all_rows):
 
 def pagination_fields(request):
     fields = []
-    for name in ("date_from", "date_to", "department", "request_status", "view", "q", "per_page"):
+    for name in ("date_from", "date_to", "view", "q", "per_page"):
         value = request.GET.get(name, "")
         if value:
             fields.append({"name": name, "value": value})
+    for name in ("department", "request_status"):
+        for value in request.GET.getlist(name):
+            if value:
+                fields.append({"name": name, "value": value})
     return fields
 
 
@@ -227,10 +232,10 @@ def active_filter_chips(filters):
     chips = []
     if filters["period"]["date_from"] or filters["period"]["date_to"]:
         chips.append(f"Период: {filters['period']['label']}")
-    if filters["department"]:
-        chips.append(f"Отдел: {filters['department_name']}")
-    if filters["request_status"] != "all":
-        chips.append(f"Статус заявок: {REQUEST_STATUS_FILTERS[filters['request_status']]}")
+    if filters.get("departments"):
+        chips.append(f"Отделы: {filters['department_label']}")
+    if filters.get("request_statuses"):
+        chips.append(f"Статусы заявок: {filters['request_status_label']}")
     if filters["query"]:
         chips.append(f"Поиск: {filters['query']}")
     if filters["view"] != "all":
@@ -239,17 +244,23 @@ def active_filter_chips(filters):
 
 
 def build_filters(request, departments):
-    department = selected_department(request, departments)
-    department_name = next((item["name"] for item in departments if item["slug"] == department), "")
-    return {
+    selected_department_values = selected_departments(request, departments)
+    selected_status_values = selected_request_statuses(request)
+    department_names = {item["slug"]: item["name"] for item in departments}
+    filters = {
         "period": date_period_from_request(request),
-        "department": department,
-        "department_name": department_name,
-        "request_status": selected_request_status(request),
+        "departments": selected_department_values,
+        "department": selected_department_values[0] if len(selected_department_values) == 1 else "",
+        "department_label": multiselect_label(selected_department_values, "Все отделы", department_names),
+        "request_statuses": selected_status_values,
+        "request_status": selected_status_values[0] if len(selected_status_values) == 1 else "all",
+        "request_status_label": multiselect_label(selected_status_values, "Все статусы", REQUEST_STATUS_FILTERS),
         "view": selected_organs_view(request),
         "query": (request.GET.get("q", "") or "").strip(),
         "per_page": selected_per_page(request),
     }
+    filters["per_page_label"] = f"{filters['per_page']} на странице"
+    return filters
 
 
 def build_organs_context(request):
@@ -266,7 +277,7 @@ def build_organs_context(request):
         "active_tab": "organs",
         "filters": filters,
         "departments": departments,
-        "request_status_options": REQUEST_STATUS_FILTERS.items(),
+        "request_status_options": [(key, label) for key, label in REQUEST_STATUS_FILTERS.items() if key != "all"],
         "per_page_options": [50, 100],
         "organs_kpis": build_organs_kpis(all_rows, visible_rows),
         "view_tabs": [
@@ -295,7 +306,7 @@ def department_stats_for_organ(organ, tables, filters):
     rows = []
     stale_before = subtract_business_days_inclusive(timezone.localdate(), REQUEST_STALE_WORKDAYS + 1)
     for department in department_options(tables):
-        if filters["department"] and department["slug"] != filters["department"]:
+        if filters.get("departments") and department["slug"] not in filters["departments"]:
             continue
         stats = Counter()
         completion_values = []
@@ -374,7 +385,7 @@ def build_organ_detail_context(request, pk):
         "photo_count": photo_count,
         "filters": filters,
         "departments": departments,
-        "request_status_options": REQUEST_STATUS_FILTERS.items(),
+        "request_status_options": [(key, label) for key, label in REQUEST_STATUS_FILTERS.items() if key != "all"],
         "organ_kpis": [
             {"label": "Всего заявок", "value": organ_row["total"], "hint": filters["period"]["label"], "icon": "bi-inboxes"},
             {"label": "В работе", "value": organ_row["in_work"], "hint": "текущие заявки", "icon": "bi-hourglass-split"},

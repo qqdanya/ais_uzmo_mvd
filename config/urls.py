@@ -4,7 +4,7 @@ from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.urls import include, path
 
-from apps.accounts.views import activate_account, admin_asset_category_detail, admin_asset_organ_detail, admin_asset_organ_summary, admin_assets_panel, admin_department_detail, admin_departments_panel, admin_organ_detail, admin_organs_panel, admin_panel, admin_request_detail, admin_requests_panel, admin_summary_data, admin_threshold_settings, presence_ping
+from apps.accounts.views import activate_account, admin_asset_category_detail, admin_asset_organ_detail, admin_asset_organ_summary, admin_assets_panel, admin_department_detail, admin_departments_panel, admin_employee_action, admin_employee_create, admin_employee_detail, admin_employee_edit, admin_employees_panel, admin_employees_presence_data, admin_organ_detail, admin_organs_panel, admin_panel, admin_request_detail, admin_requests_panel, admin_summary_data, admin_threshold_settings, presence_ping
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -19,6 +19,12 @@ urlpatterns = [
     path("control/assets/organs/<int:organ_id>/", admin_asset_organ_summary, name="admin_asset_organ_summary"),
     path("control/assets/<slug:category_key>/", admin_asset_category_detail, name="admin_asset_category_detail"),
     path("control/assets/<slug:category_key>/organs/<int:organ_id>/", admin_asset_organ_detail, name="admin_asset_organ_detail"),
+    path("control/employees/", admin_employees_panel, name="admin_employees_panel"),
+    path("control/employees/create/", admin_employee_create, name="admin_employee_create"),
+    path("control/employees/presence-data/", admin_employees_presence_data, name="admin_employees_presence_data"),
+    path("control/employees/<int:pk>/", admin_employee_detail, name="admin_employee_detail"),
+    path("control/employees/<int:pk>/edit/", admin_employee_edit, name="admin_employee_edit"),
+    path("control/employees/<int:pk>/action/", admin_employee_action, name="admin_employee_action"),
     path("control/summary-data/", admin_summary_data, name="admin_summary_data"),
     path("control/settings/", admin_threshold_settings, name="admin_threshold_settings"),
     path("accounts/login/", auth_views.LoginView.as_view(), name="login"),

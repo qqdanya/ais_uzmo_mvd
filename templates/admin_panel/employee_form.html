@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ title }} — Сотрудники{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260704-015">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3 admin-command-page admin-employee-form-page">
+  <section class="panel admin-command-panel admin-executive-panel">
+    {% include "admin_panel/_executive_nav.html" with active_tab="employees" %}
+
+    <section class="admin-employee-form-screen">
+      <div class="admin-detail-topline">
+        <a class="btn btn-sm btn-outline-secondary" href="{{ back_url }}"><i class="bi bi-arrow-left"></i> К сотрудникам</a>
+        {% if employee %}<a class="btn btn-sm btn-outline-primary" href="{% url 'admin_employee_detail' employee.pk %}"><i class="bi bi-eye"></i> Карточка</a>{% endif %}
+      </div>
+
+      <div class="admin-requests-hero admin-employees-hero">
+        <div>
+          <h2>{{ title }}</h2>
+          <p>{% if mode == 'create' %}Сотрудник будет создан без пароля. Система выдаст код активации, а пароль сотрудник задаст самостоятельно.{% else %}Изменение роли, доступных отделов, территориальных органов и технических прав.{% endif %}</p>
+        </div>
+      </div>
+
+      <form class="admin-section admin-employee-form" method="post" novalidate>
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        <div class="admin-section-head">
+          <div><h2>Данные сотрудника</h2><span>ФИО заполняется вертикально, отдельно от логина и системной роли</span></div>
+          <div class="admin-filter-actions">
+            <button class="btn btn-sm btn-primary" type="submit"><i class="bi bi-check2"></i> {{ submit_label }}</button>
+          </div>
+        </div>
+
+        <div class="admin-employee-form-layout">
+          <section class="admin-employee-form-card admin-employee-fio-card">
+            <h3>ФИО сотрудника</h3>
+            <div class="admin-employee-fio-stack">
+              <label class="admin-filter-field{% if form.last_name.errors %} has-error{% endif %}">
+                <span>{{ form.last_name.label }}</span>
+                {{ form.last_name }}
+                {% for error in form.last_name.errors %}<em>{{ error }}</em>{% endfor %}
+              </label>
+              <label class="admin-filter-field{% if form.first_name.errors %} has-error{% endif %}">
+                <span>{{ form.first_name.label }}</span>
+                {{ form.first_name }}
+                {% for error in form.first_name.errors %}<em>{{ error }}</em>{% endfor %}
+              </label>
+              <label class="admin-filter-field{% if form.middle_name.errors %} has-error{% endif %}">
+                <span>{{ form.middle_name.label }}</span>
+                {{ form.middle_name }}
+                {% for error in form.middle_name.errors %}<em>{{ error }}</em>{% endfor %}
+              </label>
+            </div>
+          </section>
+
+          <section class="admin-employee-form-card admin-employee-account-card">
+            <h3>Учетная запись</h3>
+            <div class="admin-employee-account-grid">
+              <label class="admin-filter-field{% if form.username.errors %} has-error{% endif %}">
+                <span>{{ form.username.label }}</span>
+                {{ form.username }}
+                {% if form.username.help_text %}<small>{{ form.username.help_text }}</small>{% endif %}
+                {% for error in form.username.errors %}<em>{{ error }}</em>{% endfor %}
+              </label>
+
+              <div class="admin-filter-field{% if form.role.errors %} has-error{% endif %}">
+                <span>{{ form.role.label }}</span>
+                <div class="dropdown admin-multiselect admin-multiselect-single" data-admin-multiselect data-empty-label="Роль в системе">
+                  <button class="admin-multiselect-trigger" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                    <span data-admin-multiselect-label>{{ role_label }}</span>
+                    <i class="bi bi-chevron-down"></i>
+                  </button>
+                  <div class="dropdown-menu admin-multiselect-menu admin-multiselect-menu-small">
+                    {% for value, label in role_options %}
+                      <label class="admin-multiselect-option">
+                        <input type="radio" name="role" value="{{ value }}" data-admin-multiselect-input {% if selected_role == value %}checked{% endif %}>
+                        <span>{{ label }}</span>
+                      </label>
+                    {% endfor %}
+                  </div>
+                </div>
+                {% for error in form.role.errors %}<em>{{ error }}</em>{% endfor %}
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div class="admin-employee-access-grid admin-employee-access-grid-redone">
+          <section class="admin-employee-form-card admin-employee-rights-picker">
+            <div class="admin-section-head admin-section-head-compact">
+              <div><h2>Отделы</h2><span>По умолчанию отделы не выбраны. Для полного доступа нажмите «Выбрать все».</span></div>
+            </div>
+            <div class="dropdown admin-multiselect admin-multiselect-large" data-admin-multiselect data-empty-label="Отделы не выбраны">
+              <button class="admin-multiselect-trigger" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                <span data-admin-multiselect-label>{{ department_label }}</span>
+                <i class="bi bi-chevron-down"></i>
+              </button>
+              <div class="dropdown-menu admin-multiselect-menu admin-multiselect-menu-wide">
+                <div class="admin-multiselect-actions">
+                  <button type="button" data-admin-multiselect-select-all>Выбрать все</button>
+                  <button type="button" data-admin-multiselect-clear>Снять все</button>
+                </div>
+                {% for department in departments %}
+                  {% with department_id=department.pk|stringformat:"s" %}
+                    <label class="admin-multiselect-option">
+                      <input type="checkbox" name="allowed_departments" value="{{ department_id }}" data-admin-multiselect-input {% if department_id in selected_departments %}checked{% endif %}>
+                      <span>{{ department.name }}</span>
+                    </label>
+                  {% endwith %}
+                {% endfor %}
+              </div>
+            </div>
+            {% for error in form.allowed_departments.errors %}<em class="admin-form-error">{{ error }}</em>{% endfor %}
+          </section>
+
+          <section class="admin-employee-form-card admin-employee-rights-picker">
+            <div class="admin-section-head admin-section-head-compact">
+              <div><h2>Территориальные органы</h2><span>Если ничего не выбрано — доступ ко всем территориальным органам.</span></div>
+            </div>
+            <div class="dropdown admin-multiselect admin-multiselect-large" data-admin-multiselect data-empty-label="Все территориальные органы">
+              <button class="admin-multiselect-trigger" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                <span data-admin-multiselect-label>{{ organ_label }}</span>
+                <i class="bi bi-chevron-down"></i>
+              </button>
+              <div class="dropdown-menu admin-multiselect-menu admin-multiselect-menu-wide admin-multiselect-menu-organs">
+                <div class="admin-multiselect-actions">
+                  <button type="button" data-admin-multiselect-select-all>Выбрать все</button>
+                  <button type="button" data-admin-multiselect-clear>Снять все</button>
+                </div>
+                {% for organ in organs %}
+                  {% with organ_id=organ.pk|stringformat:"s" %}
+                    <label class="admin-multiselect-option">
+                      <input type="checkbox" name="allowed_organs" value="{{ organ_id }}" data-admin-multiselect-input {% if organ_id in selected_organs %}checked{% endif %}>
+                      <span>{{ organ.order_number|floatformat:"-2" }}. {{ organ.name }}</span>
+                    </label>
+                  {% endwith %}
+                {% endfor %}
+              </div>
+            </div>
+            {% for error in form.allowed_organs.errors %}<em class="admin-form-error">{{ error }}</em>{% endfor %}
+          </section>
+        </div>
+
+        <section class="admin-employee-form-card admin-employee-system-rights admin-employee-account-status">
+          <div class="admin-section-head admin-section-head-compact">
+            <div><h2>Статус учетной записи</h2><span>Обычному сотруднику достаточно роли и рабочих прав по отделам/территориальным органам.</span></div>
+          </div>
+          <label class="admin-employee-switch{% if form.is_active.errors %} has-error{% endif %}">
+            {{ form.is_active }}
+            <span>{{ form.is_active.label }}</span>
+            {% for error in form.is_active.errors %}<em>{{ error }}</em>{% endfor %}
+          </label>
+        </section>
+      </form>
+    </section>
+  </section>
+</div>
+{% endblock %}

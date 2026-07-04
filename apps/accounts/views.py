@@ -15,6 +15,7 @@ from apps.requests_app.registry import TABLE_BY_KEY
 
 from .admin_assets import build_asset_category_detail_context, build_asset_organ_detail_context, build_asset_organ_summary_context, build_assets_context
 from .admin_departments import build_department_detail_context, build_departments_context
+from .admin_employees import build_employees_context, create_employee, edit_employee, employee_detail_context, employee_presence_payload, handle_employee_action
 from .admin_organs import build_organ_detail_context, build_organs_context
 from .admin_requests import build_request_detail_context, build_requests_context
 from .admin_settings import build_settings_context, handle_settings_post
@@ -216,6 +217,55 @@ def admin_asset_organ_detail(request, category_key, organ_id):
     if not admin_access_allowed(request.user):
         raise PermissionDenied
     return render(request, "admin_panel/asset_organ_detail.html", build_asset_organ_detail_context(request, category_key, organ_id))
+
+
+@login_required
+def admin_employees_panel(request):
+    if not admin_access_allowed(request.user):
+        raise PermissionDenied
+    return render(request, "admin_panel/employees.html", build_employees_context(request))
+
+
+@login_required
+def admin_employee_detail(request, pk):
+    if not admin_access_allowed(request.user):
+        raise PermissionDenied
+    return render(request, "admin_panel/employee_detail.html", employee_detail_context(request, pk))
+
+
+@login_required
+def admin_employee_create(request):
+    if not admin_access_allowed(request.user):
+        raise PermissionDenied
+    result = create_employee(request)
+    if hasattr(result, "status_code"):
+        return result
+    return render(request, "admin_panel/employee_form.html", result)
+
+
+@login_required
+def admin_employee_edit(request, pk):
+    if not admin_access_allowed(request.user):
+        raise PermissionDenied
+    result = edit_employee(request, pk)
+    if hasattr(result, "status_code"):
+        return result
+    return render(request, "admin_panel/employee_form.html", result)
+
+
+@login_required
+@require_POST
+def admin_employee_action(request, pk):
+    if not admin_access_allowed(request.user):
+        raise PermissionDenied
+    return handle_employee_action(request, pk)
+
+
+@login_required
+def admin_employees_presence_data(request):
+    if not admin_access_allowed(request.user):
+        raise PermissionDenied
+    return JsonResponse(employee_presence_payload())
 
 
 @login_required

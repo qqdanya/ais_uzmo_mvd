@@ -95,20 +95,54 @@ def department_options(tables):
     ]
 
 
-def selected_department(request, options):
-    allowed = {item["slug"] for item in options}
-    value = request.GET.get("department", "")
-    return value if value in allowed else ""
+def selected_departments(request, options):
+    return selected_values(request, "department", [item["slug"] for item in options])
 
 
-def selected_state(request):
-    value = request.GET.get("state", "all")
-    return value if value in STATUS_FILTERS else "all"
+def selected_states(request):
+    return selected_values(request, "state", STATUS_FILTERS.keys())
 
 
 def selected_per_page(request):
     value = request.GET.get("per_page", "50")
     return int(value) if value in {"50", "100"} else 50
+
+
+def selected_values(request, name, allowed_values, *, drop_all=True):
+    allowed = {str(value) for value in allowed_values}
+    result = []
+    for value in request.GET.getlist(name):
+        value = str(value)
+        if drop_all and value == "all":
+            continue
+        if value in allowed and value not in result:
+            result.append(value)
+    return result
+
+
+def multiselect_label(selected_values_list, empty_label, options):
+    selected = [str(value) for value in selected_values_list if str(value)]
+    if not selected:
+        return empty_label
+    if len(selected) == 1:
+        return options.get(selected[0], selected[0])
+    return f"{len(selected)} выбрано"
+
+
+def query_with(request, **updates):
+    query = request.GET.copy()
+    query.pop("page", None)
+    for key, value in updates.items():
+        query.pop(key, None)
+        if value in (None, ""):
+            continue
+        if isinstance(value, (list, tuple, set)):
+            cleaned = [str(item) for item in value if str(item)]
+            if cleaned:
+                query.setlist(key, cleaned)
+        else:
+            query[key] = value
+    return query.urlencode()
 
 
 def base_table_queryset(table, organs):
@@ -131,17 +165,26 @@ def apply_search(qs, query):
     return qs.filter(filters).distinct()
 
 
-def apply_state(qs, state):
+def apply_state(qs, states):
+    states = [state for state in (states or []) if state != "all"]
+    if not states:
+        return qs
     stale_before = subtract_business_days_inclusive(timezone.localdate(), REQUEST_STALE_WORKDAYS + 1)
-    if state == "in_work":
-        return qs.filter(status=NeedStatus.IN_WORK)
-    if state == "done":
-        return qs.filter(status=NeedStatus.DONE)
-    if state == "rejected":
-        return qs.filter(status=NeedStatus.REJECTED)
-    if state == "stale":
-        return qs.filter(status=NeedStatus.IN_WORK, request_date__lte=stale_before)
-    return qs
+    query = Q()
+    if "in_work" in states:
+        query |= Q(status=NeedStatus.IN_WORK)
+    if "done" in states:
+        query |= Q(status=NeedStatus.DONE)
+    if "rejected" in states:
+        query |= Q(status=NeedStatus.REJECTED)
+    if "stale" in states:
+        query |= Q(status=NeedStatus.IN_WORK, request_date__lte=stale_before)
+    return qs.filter(query) if query else qs
+
+
+def table_matches_departments(table, filters):
+    departments = filters.get("departments") or []
+    return not departments or table["department"] in departments
 
 
 def filtered_queryset(table, organs, filters, *, with_state=True):
@@ -149,7 +192,7 @@ def filtered_queryset(table, organs, filters, *, with_state=True):
     qs = apply_period(qs, filters["period"])
     qs = apply_search(qs, filters["query"])
     if with_state:
-        qs = apply_state(qs, filters["state"])
+        qs = apply_state(qs, filters.get("states") or [])
     return qs
 
 
@@ -157,7 +200,7 @@ def status_counts(tables, organs, filters):
     counts = {key: 0 for key in STATUS_FILTERS}
     stale_before = subtract_business_days_inclusive(timezone.localdate(), REQUEST_STALE_WORKDAYS + 1)
     for table in tables:
-        if filters["department"] and table["department"] != filters["department"]:
+        if not table_matches_departments(table, filters):
             continue
         qs = filtered_queryset(table, organs, filters, with_state=False)
         counts["all"] += qs.count()
@@ -242,7 +285,7 @@ def request_rows(tables, organs, filters):
     departments = {item.slug: item.name for item in Department.objects.filter(is_active=True)}
     rows = []
     for table in tables:
-        if filters["department"] and table["department"] != filters["department"]:
+        if not table_matches_departments(table, filters):
             continue
         qs = filtered_queryset(table, organs, filters).order_by("-request_date", "-created_at", "-pk")
         for obj in qs:
@@ -277,7 +320,7 @@ def request_rows(tables, organs, filters):
 def average_completion_days(tables, organs, filters):
     values = []
     for table in tables:
-        if filters["department"] and table["department"] != filters["department"]:
+        if not table_matches_departments(table, filters):
             continue
         qs = filtered_queryset(table, organs, filters, with_state=False).filter(status=NeedStatus.DONE)
         for obj in qs:
@@ -303,16 +346,6 @@ def request_kpis(counts, avg_completion_days):
     ]
 
 
-def query_with(request, **updates):
-    query = request.GET.copy()
-    query.pop("page", None)
-    for key, value in updates.items():
-        if value in (None, ""):
-            query.pop(key, None)
-        else:
-            query[key] = value
-    return query.urlencode()
-
 
 def active_filter_chips(filters, selected_organs_list, available_organs, departments):
     chips = []
@@ -323,22 +356,26 @@ def active_filter_chips(filters, selected_organs_list, available_organs, departm
             chips.append(f"Орган: {selected_organs_list[0].name}")
         else:
             chips.append(f"Органы: {len(selected_organs_list)} из {len(available_organs)}")
-    if filters["department"]:
-        name = next((item["name"] for item in departments if item["slug"] == filters["department"]), filters["department"])
-        chips.append(f"Отдел: {name}")
+    if filters.get("departments"):
+        names = {item["slug"]: item["name"] for item in departments}
+        chips.append(f"Отделы: {multiselect_label(filters['departments'], 'Все отделы', names)}")
     if filters["query"]:
         chips.append(f"Поиск: {filters['query']}")
-    if filters["state"] != "all":
-        chips.append(f"Статус: {STATUS_FILTERS[filters['state']]}")
+    if filters.get("states"):
+        chips.append(f"Статусы: {multiselect_label(filters['states'], 'Все статусы', STATUS_FILTERS)}")
     return chips
 
 
 def pagination_fields(request):
     fields = []
-    for name in ("date_from", "date_to", "department", "state", "q", "per_page"):
+    for name in ("date_from", "date_to", "q", "per_page"):
         value = request.GET.get(name, "")
         if value:
             fields.append({"name": name, "value": value})
+    for name in ("department", "state"):
+        for value in request.GET.getlist(name):
+            if value:
+                fields.append({"name": name, "value": value})
     for value in request.GET.getlist("organ_ids"):
         if value:
             fields.append({"name": "organ_ids", "value": value})
@@ -354,11 +391,15 @@ def build_requests_context(request):
     departments = department_options(tables)
     filters = {
         "period": date_period_from_request(request),
-        "department": selected_department(request, departments),
-        "state": selected_state(request),
+        "departments": selected_departments(request, departments),
+        "states": selected_states(request),
+        "department": "",
+        "state": "all",
         "query": (request.GET.get("q", "") or "").strip(),
         "per_page": selected_per_page(request),
     }
+    filters["department"] = filters["departments"][0] if len(filters["departments"]) == 1 else ""
+    filters["state"] = filters["states"][0] if len(filters["states"]) == 1 else "all"
     counts = status_counts(tables, organs, filters)
     avg_completion = average_completion_days(tables, organs, filters)
     rows = request_rows(tables, organs, filters)
@@ -379,11 +420,14 @@ def build_requests_context(request):
                 "label": label,
                 "count": counts.get(key, 0),
                 "url": f"?{query_with(request, state=key)}",
-                "active": filters["state"] == key,
+                "active": (not filters["states"] and key == "all") or filters["states"] == [key],
             }
             for key, label in STATUS_FILTERS.items()
         ],
-        "status_options": STATUS_FILTERS.items(),
+        "status_options": [(key, label) for key, label in STATUS_FILTERS.items() if key != "all"],
+        "department_label": multiselect_label(filters["departments"], "Все отделы", {item["slug"]: item["name"] for item in departments}),
+        "state_label": multiselect_label(filters["states"], "Все статусы", STATUS_FILTERS),
+        "per_page_label": f"{filters['per_page']} на странице",
         "per_page_options": [50, 100],
         "request_kpis": request_kpis(counts, avg_completion),
         "page": page,
