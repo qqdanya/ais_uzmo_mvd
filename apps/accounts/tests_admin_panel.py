@@ -878,7 +878,27 @@ class FrontendModuleSplitTests(TestCase):
             "markPreparingDownload",
             "DownloadPreparing",
         ],
+        "presence_ping.js": [
+            "startPresenceHeartbeat",
+        ],
+        "admin_org_filter.js": [
+            "updateAdminFilterOrgBox",
+            "initAdminFilterOrgBoxes",
+        ],
     }
+
+    app_modules = [
+        "app_storage.js",
+        "app_dom_utils.js",
+        "table_state.js",
+        "organ_navigation.js",
+        "request_photo_picker.js",
+        "layout_panels.js",
+        "table_interactions.js",
+        "htmx_lifecycle.js",
+        "app_events.js",
+        "app.js",
+    ]
 
     def project_root(self):
         return Path(__file__).resolve().parents[2]
@@ -886,32 +906,58 @@ class FrontendModuleSplitTests(TestCase):
     def read_static_js(self, filename):
         return (self.project_root() / "static" / "js" / filename).read_text(encoding="utf-8")
 
-    def test_tmc_and_download_helpers_are_split_from_app_js(self):
+    def test_frontend_helpers_are_split_from_app_js(self):
         project_root = self.project_root()
         app_js = self.read_static_js("app.js")
-        tmc_js = self.read_static_js("tmc_products.js")
-        download_js = self.read_static_js("download_preparing.js")
-        toasts_js = self.read_static_js("toasts.js")
-        photo_upload_js = self.read_static_js("photo_upload.js")
         base_html = (project_root / "templates" / "base.html").read_text(encoding="utf-8")
 
-        self.assertLessEqual(len(app_js.splitlines()), 1400)
-        self.assertNotIn("function requestTmcProductSuggestions", app_js)
-        self.assertNotIn("function markPreparingDownload", app_js)
-        self.assertNotIn("function renderBulkPhotoFiles", app_js)
-        self.assertNotIn("function uploadBulkPhotos", app_js)
-        self.assertNotIn("function showToast", app_js)
-        self.assertNotIn("function initTooltips", app_js)
-        self.assertIn("function requestTmcProductSuggestions", tmc_js)
-        self.assertIn("function markPreparingDownload", download_js)
-        self.assertIn("function showToast", toasts_js)
-        self.assertIn("function initTooltips", toasts_js)
-        self.assertIn("window.initTooltips = initTooltips", toasts_js)
-        self.assertIn("function uploadBulkPhotos", photo_upload_js)
-        self.assertLess(base_html.index("js/toasts.js"), base_html.index("js/app.js"))
-        self.assertLess(base_html.index("js/photo_upload.js"), base_html.index("js/app.js"))
-        self.assertLess(base_html.index("js/tmc_products.js"), base_html.index("js/app.js"))
-        self.assertLess(base_html.index("js/download_preparing.js"), base_html.index("js/app.js"))
+        self.assertLessEqual(len(app_js.splitlines()), 80)
+        self.assertIn("function initApp", app_js)
+        self.assertIn("registerModalLifecycle();", app_js)
+        self.assertIn("registerHtmxLifecycle();", app_js)
+        self.assertIn("registerAppEventHandlers();", app_js)
+
+        moved_functions = [
+            "function storedValue",
+            "function requestTmcProductSuggestions",
+            "function markPreparingDownload",
+            "function renderBulkPhotoFiles",
+            "function uploadBulkPhotos",
+            "function showToast",
+            "function initTooltips",
+            "function startPresenceHeartbeat",
+            "function updateAdminFilterOrgBox",
+            "function loadDepartment",
+            "function syncRequestPhotoPicker",
+            "function applyCollapsedPanels",
+            "function registerHtmxLifecycle",
+            "function registerAppEventHandlers",
+        ]
+        for function_name in moved_functions:
+            with self.subTest(function=function_name):
+                self.assertNotIn(function_name, app_js)
+
+        for module_name in self.app_modules:
+            with self.subTest(module=module_name):
+                self.assertIn(f"js/{module_name}", base_html)
+
+    def test_split_frontend_modules_contain_expected_responsibilities(self):
+        expected_fragments = {
+            "app_storage.js": ["function storedValue", "const ORGAN_STORAGE_KEY", "function formatLocalDateTime"],
+            "app_dom_utils.js": ["function normalizeAuthInput", "function isVisibleElement"],
+            "table_state.js": ["function tableUrlWithSavedState", "function resetTableStateToSingleOrgan"],
+            "organ_navigation.js": ["function loadDepartment", "function setActiveOrgan", "function preferredDepartmentForOrgan"],
+            "request_photo_picker.js": ["function syncRequestPhotoPicker", "function detachRequestPhoto"],
+            "layout_panels.js": ["function syncHeaderHeight", "function applyCollapsedPanels"],
+            "table_interactions.js": ["function filterCurrentTable", "function focusCurrentSearch", "function closeOpenModal"],
+            "htmx_lifecycle.js": ["function registerHtmxLifecycle", "htmx:afterSwap", "bootstrap.Modal.getOrCreateInstance(document.getElementById(\"modal-root\")).show()"],
+            "app_events.js": ["function registerAppEventHandlers", "data-organ-mode", "data-request-photo-toggle"],
+        }
+        for module_name, fragments in expected_fragments.items():
+            content = self.read_static_js(module_name)
+            with self.subTest(module=module_name):
+                for fragment in fragments:
+                    self.assertIn(fragment, content)
 
     def test_frontend_modules_export_globals_used_by_app_js(self):
         for module_name, global_names in self.frontend_globals.items():
@@ -920,36 +966,28 @@ class FrontendModuleSplitTests(TestCase):
                 for global_name in global_names:
                     self.assertIn(f"window.{global_name}", module_js)
 
-    def test_app_js_global_dependencies_are_declared_in_modules_before_app(self):
+    def test_app_js_module_order_keeps_dependencies_before_bootstrap(self):
         project_root = self.project_root()
         base_html = (project_root / "templates" / "base.html").read_text(encoding="utf-8")
-        app_js = self.read_static_js("app.js")
-
-        expected_dependencies = [
-            "showToast",
-            "initTooltips",
-            "autoDismissAlerts",
-            "PhotoUpload",
-            "requestTmcProductSuggestions",
-            "chooseTmcProductSuggestion",
-            "closeAllTmcProductSuggestions",
-            "syncActiveDownloadButtons",
-            "showDownloadPreparingNotice",
-            "downloadToken",
-            "downloadUrlWithToken",
-            "downloadKey",
-            "waitForDownloadStart",
-            "markPreparingDownload",
-        ]
-        for dependency in expected_dependencies:
-            with self.subTest(dependency=dependency):
-                self.assertIn(dependency, app_js)
 
         script_order = [
+            "js/custom_select.js",
+            "js/photo_lightbox.js",
+            "js/presence_ping.js",
+            "js/admin_org_filter.js",
             "js/toasts.js",
             "js/photo_upload.js",
             "js/tmc_products.js",
             "js/download_preparing.js",
+            "js/app_storage.js",
+            "js/app_dom_utils.js",
+            "js/table_state.js",
+            "js/organ_navigation.js",
+            "js/request_photo_picker.js",
+            "js/layout_panels.js",
+            "js/table_interactions.js",
+            "js/htmx_lifecycle.js",
+            "js/app_events.js",
             "js/app.js",
         ]
         for previous, current in zip(script_order, script_order[1:]):
@@ -957,12 +995,12 @@ class FrontendModuleSplitTests(TestCase):
                 self.assertLess(base_html.index(previous), base_html.index(current))
 
     def test_htmx_modal_lifecycle_dependencies_are_stable_after_module_split(self):
-        app_js = self.read_static_js("app.js")
+        htmx_js = self.read_static_js("htmx_lifecycle.js")
         toasts_js = self.read_static_js("toasts.js")
 
-        self.assertIn('htmx:afterSwap', app_js)
-        self.assertIn('bootstrap.Modal.getOrCreateInstance(document.getElementById("modal-root")).show()', app_js)
-        self.assertIn("initTooltips();", app_js)
+        self.assertIn('htmx:afterSwap', htmx_js)
+        self.assertIn('bootstrap.Modal.getOrCreateInstance(document.getElementById("modal-root")).show()', htmx_js)
+        self.assertIn("initTooltips();", htmx_js)
         self.assertIn("window.initTooltips = initTooltips", toasts_js)
 
 

@@ -1050,7 +1050,7 @@ Lock-файл зависимостей намеренно не сгенерир�
 
 ## Stage 39 — local vendor static
 
-Bootstrap, HTMX and Chart.js are connected from local `static/vendor/` files. Bootstrap Icons remain on the pinned CDN stylesheet unless icon fonts are installed locally on the deployment machine. Details are documented in `docs/VENDOR_STATIC.md`; the downloader script is `scripts/download_vendor_static.py`.
+Bootstrap, Bootstrap Icons, HTMX and Chart.js are connected from local `static/vendor/` files. Bootstrap Icons require local font files next to `bootstrap-icons.css`. Details are documented in `docs/VENDOR_STATIC.md`; downloader scripts are `scripts/download_vendor_static.py` and `scripts/download_bootstrap_icons.py`.
 
 ## Stage 40 — admin search ORM prefilter cleanup
 
@@ -1068,5 +1068,43 @@ Suggested local checks:
 ```bash
 python manage.py check
 python manage.py test apps.accounts
+python manage.py test
+```
+
+
+## Stage 41 — conservative app.js split
+
+- `static/js/app.js` was reduced from 1335 to about 1229 lines without changing HTML behavior or HTMX modal lifecycle.
+- Self-contained user heartbeat logic moved to `static/js/presence_ping.js`.
+- Self-contained admin organ filter checkbox UI moved to `static/js/admin_org_filter.js`.
+- `templates/base.html` loads both modules before `app.js`.
+- Existing modal/tooltip/HTMX lifecycle remains in `app.js` intentionally, because it is the highest-regression-risk frontend area.
+- Regression tests were updated to keep the new module order and exported globals stable.
+
+## Stage 42 — full app.js modularization
+
+- `static/js/app.js` was reduced to a small bootstrap module that calls lifecycle/event registration and initializes the page on `DOMContentLoaded`.
+- The former app shell logic was split into focused classic-script modules:
+  - `app_storage.js`
+  - `app_dom_utils.js`
+  - `table_state.js`
+  - `organ_navigation.js`
+  - `request_photo_picker.js`
+  - `layout_panels.js`
+  - `table_interactions.js`
+  - `htmx_lifecycle.js`
+  - `app_events.js`
+- `templates/base.html` now loads the dependency modules before `app.js`.
+- The HTMX modal lifecycle was moved into `htmx_lifecycle.js`, but the critical behavior is preserved:
+  - `htmx:afterSwap` still initializes custom selects/tooltips/toasts;
+  - modal swaps still call `bootstrap.Modal.getOrCreateInstance(document.getElementById("modal-root")).show()`;
+  - request photo picker and download-state refresh still run after HTMX swaps.
+- Frontend split regression tests were updated to enforce module presence, order, and key lifecycle snippets.
+
+Suggested local checks:
+
+```bash
+python manage.py check
+python manage.py test apps.accounts.tests_admin_panel.FrontendModuleSplitTests
 python manage.py test
 ```

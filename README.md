@@ -322,8 +322,35 @@ python -m pip freeze > requirements.lock.txt
 
 ## Stage 39 — local vendor static
 
-Bootstrap, HTMX and Chart.js are now connected from local `static/vendor/` files instead of CDN. Bootstrap Icons remain on the pinned CDN stylesheet unless icon fonts are installed locally on the deployment machine. See `docs/VENDOR_STATIC.md`.
+Bootstrap, Bootstrap Icons, HTMX and Chart.js are connected from local `static/vendor/` files instead of CDN. Bootstrap Icons require local `bootstrap-icons.woff` and `bootstrap-icons.woff2` next to `bootstrap-icons.css`. See `docs/VENDOR_STATIC.md`.
 
 ### Stage 40 note
 
 The admin search filters for organs, departments and assets now use ORM prefilter helpers instead of Python `.casefold()` scans over loaded objects. This keeps the existing UI behavior while making search safer for larger datasets.
+
+
+### Stage 41 note
+
+`static/js/app.js` was reduced conservatively by moving two self-contained behaviors into focused frontend modules:
+
+- `static/js/presence_ping.js` — authenticated user heartbeat;
+- `static/js/admin_org_filter.js` — admin organ filter checkbox summary and empty-selection marker.
+
+The HTMX modal lifecycle remains in `app.js` intentionally to avoid repeating the previous modal regression.
+
+### Stage 42 note
+
+`static/js/app.js` is now a small application bootstrap. The former 1200+ line file was split into focused frontend modules:
+
+- `app_storage.js` — storage keys and shared storage/date helpers;
+- `app_dom_utils.js` — small DOM/input helpers;
+- `table_state.js` — persisted table tab/filter state;
+- `organ_navigation.js` — territorial organ and department navigation;
+- `request_photo_picker.js` — request photo attachment picker;
+- `layout_panels.js` — header/footer sizing and collapsed navigation panels;
+- `table_interactions.js` — table search, row hover and modal/search shortcuts;
+- `htmx_lifecycle.js` — HTMX loading/errors and Bootstrap modal lifecycle;
+- `app_events.js` — delegated UI event handlers;
+- `app.js` — startup orchestration only.
+
+The script order in `templates/base.html` is part of the regression surface: dependency modules must stay before `app.js`.
