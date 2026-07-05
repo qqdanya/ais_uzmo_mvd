@@ -78,6 +78,80 @@ def multiselect_label(selected_values_list, empty_label, options):
     return f"{len(selected)} выбрано"
 
 
+def search_terms(query):
+    """Return safe text variants for case-insensitive admin search on SQLite/PostgreSQL.
+
+    SQLite does not reliably handle non-ASCII case-insensitive LIKE, so we keep
+    a small set of case variants while still letting the database do the
+    filtering instead of iterating through full Python object lists.
+    """
+    value = (query or "").strip()
+    if not value:
+        return []
+    variants = {
+        value,
+        value.lower(),
+        value.upper(),
+        value.title(),
+        value.capitalize(),
+        value.casefold(),
+    }
+    return [item for item in variants if item]
+
+
+def build_admin_search_q(text_fields, query, *, numeric_fields=()):
+    """Build an ORM search condition for admin list filters.
+
+    `text_fields` are searched with icontains over a bounded set of case
+    variants. `numeric_fields` are matched exactly when the query is numeric.
+    """
+    condition = Q()
+    for term in search_terms(query):
+        for field_name in text_fields:
+            condition |= Q(**{f"{field_name}__icontains": term})
+
+    value = (query or "").strip()
+    if value.isdigit():
+        number = int(value)
+        for field_name in numeric_fields:
+            condition |= Q(**{field_name: number})
+    return condition
+
+
+def filter_model_objects_by_search(objects, query, *, text_fields, numeric_fields=()):
+    """Filter an already permission-scoped model object list through the ORM.
+
+    Admin pages often receive lists after applying access checks. This helper
+    preserves that scoped list and its order, but delegates text matching to the
+    database using pk__in instead of scanning all objects with Python casefold().
+    """
+    items = list(objects)
+    if not (query or "").strip() or not items:
+        return items
+
+    model = items[0].__class__
+    pks = [item.pk for item in items]
+    condition = build_admin_search_q(text_fields, query, numeric_fields=numeric_fields)
+    matched_ids = set(model.objects.filter(pk__in=pks).filter(condition).values_list("pk", flat=True))
+    return [item for item in items if item.pk in matched_ids]
+
+
+def filter_department_options_by_search(departments, query):
+    """Filter department option dictionaries through the Department queryset."""
+    items = list(departments)
+    if not (query or "").strip() or not items:
+        return items
+
+    slugs = [item["slug"] for item in items]
+    condition = build_admin_search_q(("name", "slug", "description"), query, numeric_fields=("order_number",))
+    matched_slugs = set(
+        Department.objects.filter(is_active=True, slug__in=slugs)
+        .filter(condition)
+        .values_list("slug", flat=True)
+    )
+    return [item for item in items if item["slug"] in matched_slugs]
+
+
 def query_with(request, **updates):
     query = request.GET.copy()
     query.pop("page", None)

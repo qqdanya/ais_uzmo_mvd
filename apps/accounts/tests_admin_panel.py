@@ -286,6 +286,24 @@ class AdminOrgansDepartmentsPanelTests(AdminPanelTestMixin, TestCase):
         self.assertIn("Статусы заявок: В работе", response.context["active_filter_chips"])
         self.assertIn("Поиск: Тестовый", response.context["active_filter_chips"])
 
+    def test_organs_panel_search_uses_database_prefilter_with_cyrillic_case_variants(self):
+        self.login_admin()
+
+        response = self.client.get(reverse("admin_organs_panel"), {"q": "тестовый"})
+
+        self.assertEqual(response.status_code, 200)
+        rows = list(response.context["page"].object_list)
+        self.assertEqual([row["organ"] for row in rows], [self.organ])
+
+    def test_departments_panel_search_uses_database_prefilter_with_cyrillic_case_variants(self):
+        self.login_admin()
+
+        response = self.client.get(reverse("admin_departments_panel"), {"q": "тмц"})
+
+        self.assertEqual(response.status_code, 200)
+        rows = list(response.context["page"].object_list)
+        self.assertEqual([row["slug"] for row in rows], ["tmc"])
+
     def test_departments_panel_respects_selected_organ_and_request_status(self):
         self.login_admin()
         today = timezone.localdate()
@@ -523,8 +541,27 @@ class AdminAssetsPanelTests(AdminPanelTestMixin, TestCase):
         self.assertEqual(rows[0]["organ"], self.other_organ)
         self.assertEqual(rows[0]["danger"], 1)
         self.assertIn("Категории: Огнетушители", response.context["active_filter_chips"])
-        self.assertIn("Состояния: Проблемные", response.context["active_filter_chips"])
-        self.assertIn("Поиск: Другой", response.context["active_filter_chips"])
+
+    def test_assets_panel_search_uses_database_prefilter_with_cyrillic_case_variants(self):
+        self.login_admin()
+        today = timezone.localdate()
+        FireExtinguisher.objects.create(
+            territorial_organ=self.other_organ,
+            created_by=self.admin,
+            state_date=today,
+            required_count=10,
+            available_count=10,
+            expiry_date=today + timezone.timedelta(days=365),
+            writeoff_count=0,
+        )
+
+        response = self.client.get(reverse("admin_assets_panel"), {"q": "другой"})
+
+        self.assertEqual(response.status_code, 200)
+        rows = list(response.context["page"].object_list)
+        self.assertEqual([row["organ"] for row in rows], [self.other_organ])
+        self.assertIn("Поиск: другой", response.context["active_filter_chips"])
+        self.assertNotIn("Состояния: Проблемные", response.context["active_filter_chips"])
 
     def test_asset_category_detail_filters_by_status_without_changing_summary(self):
         self.login_admin()
@@ -927,3 +964,39 @@ class FrontendModuleSplitTests(TestCase):
         self.assertIn('bootstrap.Modal.getOrCreateInstance(document.getElementById("modal-root")).show()', app_js)
         self.assertIn("initTooltips();", app_js)
         self.assertIn("window.initTooltips = initTooltips", toasts_js)
+
+
+class AdminSearchOptimizationTests(TestCase):
+    def project_root(self):
+        return Path(__file__).resolve().parents[2]
+
+    def test_admin_search_casefold_filtering_is_centralized(self):
+        project_root = self.project_root()
+        optimized_files = [
+            project_root / "apps" / "accounts" / "admin_assets.py",
+            project_root / "apps" / "accounts" / "admin_organs.py",
+            project_root / "apps" / "accounts" / "admin_departments.py",
+        ]
+        for path in optimized_files:
+            content = path.read_text(encoding="utf-8")
+            with self.subTest(file=path.name):
+                self.assertNotIn(".casefold()", content)
+                self.assertNotIn("casefold(", content)
+
+        common = (project_root / "apps" / "accounts" / "admin_common.py").read_text(encoding="utf-8")
+        self.assertIn("def filter_model_objects_by_search", common)
+        self.assertIn("def filter_department_options_by_search", common)
+        self.assertIn("pk__in=pks", common)
+        self.assertIn('values_list("pk", flat=True)', common)
+
+    def test_admin_search_modules_use_orm_search_helpers(self):
+        project_root = self.project_root()
+        expectations = {
+            "admin_assets.py": "filter_model_objects_by_search",
+            "admin_organs.py": "filter_model_objects_by_search",
+            "admin_departments.py": "filter_department_options_by_search",
+        }
+        for filename, helper in expectations.items():
+            content = (project_root / "apps" / "accounts" / filename).read_text(encoding="utf-8")
+            with self.subTest(file=filename):
+                self.assertIn(helper, content)

@@ -14,6 +14,7 @@ from .admin_common import (
     build_pagination_fields,
     field_label,
     field_value,
+    filter_model_objects_by_search,
     multiselect_label,
     query_with,
     selected_per_page,
@@ -121,16 +122,12 @@ def selected_asset_statuses(request):
 
 
 def filter_organs_by_search(organs, query):
-    query = (query or "").strip().casefold()
-    if not query:
-        return list(organs)
-    return [
-        organ
-        for organ in organs
-        if query in organ.name.casefold()
-        or query in str(organ.order_number).casefold()
-        or query in (organ.description or "").casefold()
-    ]
+    return filter_model_objects_by_search(
+        organs,
+        query,
+        text_fields=("name", "description"),
+        numeric_fields=("order_number",),
+    )
 
 
 def visible_categories(categories, selected_categories):

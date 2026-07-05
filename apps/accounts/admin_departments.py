@@ -21,6 +21,7 @@ from .admin_common import (
     completion_values_for_queryset,
     date_period_from_request,
     days_class,
+    filter_department_options_by_search,
     department_options,
     global_completion_average,
     latest_request_date_for_queryset,
@@ -85,16 +86,7 @@ def department_icon(slug):
 
 
 def filter_departments_by_search(departments, query):
-    query = (query or "").strip().casefold()
-    if not query:
-        return departments
-    return [
-        department
-        for department in departments
-        if query in department["name"].casefold()
-        or query in department["slug"].casefold()
-        or query in str(department.get("order_number", "")).casefold()
-    ]
+    return filter_department_options_by_search(departments, query)
 
 
 def tables_for_department(tables, department_slug):

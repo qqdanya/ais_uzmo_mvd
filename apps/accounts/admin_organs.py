@@ -22,6 +22,7 @@ from .admin_common import (
     completion_values_for_queryset,
     date_period_from_request,
     days_class,
+    filter_model_objects_by_search,
     department_options,
     global_completion_average,
     latest_request_date_for_queryset,
@@ -81,10 +82,12 @@ def base_organs_for_user(user):
 
 
 def filter_organs_by_search(organs, query):
-    query = (query or "").strip().casefold()
-    if not query:
-        return organs
-    return [organ for organ in organs if query in organ.name.casefold() or query in str(organ.order_number).casefold()]
+    return filter_model_objects_by_search(
+        organs,
+        query,
+        text_fields=("name",),
+        numeric_fields=("order_number",),
+    )
 
 
 def org_filtered_queryset(table, organ, filters, *, with_request_status=True):

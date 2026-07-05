@@ -323,3 +323,7 @@ python -m pip freeze > requirements.lock.txt
 ## Stage 39 — local vendor static
 
 Bootstrap, HTMX and Chart.js are now connected from local `static/vendor/` files instead of CDN. Bootstrap Icons remain on the pinned CDN stylesheet unless icon fonts are installed locally on the deployment machine. See `docs/VENDOR_STATIC.md`.
+
+### Stage 40 note
+
+The admin search filters for organs, departments and assets now use ORM prefilter helpers instead of Python `.casefold()` scans over loaded objects. This keeps the existing UI behavior while making search safer for larger datasets.
