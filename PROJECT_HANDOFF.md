@@ -1037,3 +1037,17 @@ python manage.py test apps.requests_app.tests_refactor_safety --noinput
   - `_rows_default.html`
 - No URL, context key, UI behavior, or business logic was intentionally changed.
 - Added regression tests to keep `table_data.html` delegated to partials and prevent the large table template from returning.
+
+## Stage 38 — production readiness checklist
+
+После stage 36–37 добавлены production-ориентированные материалы:
+
+- `.env.production.example` — отдельный шаблон серверного `.env` с `DEBUG=False`, PostgreSQL `DATABASE_URL`, `CSRF_TRUSTED_ORIGINS`, `SECURE_SSL_REDIRECT=True` и начальными superuser-переменными;
+- `docs/DEPLOY_CHECKLIST.md` — порядок server-check, `check --deploy`, миграций, `collectstatic`, media/static, HTTPS-cookie, CDN-рисков и dependency lock.
+
+Lock-файл зависимостей намеренно не сгенерирован автоматически в архиве: его нужно создавать командой `python -m pip freeze > requirements.lock.txt` только после установки и проверки проекта в чистом окружении, иначе в lock попадут лишние пакеты машины разработчика.
+
+
+## Stage 39 — local vendor static
+
+Bootstrap, HTMX and Chart.js are connected from local `static/vendor/` files. Bootstrap Icons remain on the pinned CDN stylesheet unless icon fonts are installed locally on the deployment machine. Details are documented in `docs/VENDOR_STATIC.md`; the downloader script is `scripts/download_vendor_static.py`.

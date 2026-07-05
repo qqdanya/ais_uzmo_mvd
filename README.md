@@ -292,3 +292,34 @@ Runtime dashboard threshold files are ignored by Git:
 - `dashboard_thresholds.json.tmp`
 
 The large table partial has been split. `templates/partials/table_data.html` now delegates to focused partials in `templates/partials/table/`, including toolbar, active filters, summary, actions, pagination, and row variants.
+
+## Stage 38 — production readiness checklist
+
+Добавлены отдельные production-материалы:
+
+- `.env.production.example` — шаблон переменных окружения для сервера;
+- `docs/DEPLOY_CHECKLIST.md` — чеклист деплоя, security-check, static/media, HTTPS-cookie, CDN и dependency lock.
+
+Перед тестовым деплоем используйте:
+
+```bash
+cp .env.production.example .env
+python manage.py check --deploy --settings=config.settings_prod
+python manage.py makemigrations --check --dry-run --settings=config.settings_prod
+python manage.py migrate --settings=config.settings_prod
+python manage.py collectstatic --noinput --settings=config.settings_prod
+python manage.py test
+```
+
+Точный `requirements.lock.txt` лучше создавать только из проверенного чистого окружения:
+
+```bash
+python -m pip freeze > requirements.lock.txt
+```
+
+Не создавайте lock-файл из рабочей машины, где установлены лишние пакеты.
+
+
+## Stage 39 — local vendor static
+
+Bootstrap, HTMX and Chart.js are now connected from local `static/vendor/` files instead of CDN. Bootstrap Icons remain on the pinned CDN stylesheet unless icon fonts are installed locally on the deployment machine. See `docs/VENDOR_STATIC.md`.

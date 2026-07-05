@@ -687,6 +687,85 @@ class RuntimeFileIgnoreTests(TestCase):
         self.assertIn("dashboard_thresholds.json.tmp", gitignore)
 
 
+class ProductionReadinessDocsTests(TestCase):
+    def test_production_env_template_contains_required_security_settings(self):
+        project_root = Path(__file__).resolve().parents[2]
+        env_template = (project_root / ".env.production.example").read_text(encoding="utf-8")
+
+        for required_name in [
+            "SECRET_KEY",
+            "DEBUG=False",
+            "ALLOWED_HOSTS",
+            "DATABASE_URL=postgres://",
+            "CSRF_TRUSTED_ORIGINS=https://",
+            "SECURE_SSL_REDIRECT=True",
+            "SUPERUSER_PASSWORD",
+        ]:
+            with self.subTest(required_name=required_name):
+                self.assertIn(required_name, env_template)
+
+    def test_deploy_checklist_documents_required_commands_and_risks(self):
+        project_root = Path(__file__).resolve().parents[2]
+        checklist = (project_root / "docs" / "DEPLOY_CHECKLIST.md").read_text(encoding="utf-8")
+
+        for required_text in [
+            "check --deploy --settings=config.settings_prod",
+            "migrate --settings=config.settings_prod",
+            "collectstatic --noinput --settings=config.settings_prod",
+            "DATABASE_URL",
+            "SESSION_COOKIE_SECURE",
+            "CSRF_COOKIE_SECURE",
+            "CDN",
+            "requirements.lock.txt",
+            "X-Accel-Redirect",
+        ]:
+            with self.subTest(required_text=required_text):
+                self.assertIn(required_text, checklist)
+
+
+class VendorStaticTemplateTests(TestCase):
+    def test_vendor_assets_are_local_static_files(self):
+        project_root = Path(__file__).resolve().parents[2]
+        base_template = (project_root / "templates" / "base.html").read_text(encoding="utf-8")
+        admin_index = (project_root / "templates" / "admin_panel" / "index.html").read_text(encoding="utf-8")
+
+        for local_path in [
+            "vendor/bootstrap/bootstrap.min.css",
+            "vendor/bootstrap/bootstrap.bundle.min.js",
+            "vendor/bootstrap-icons/bootstrap-icons.css",
+            "vendor/htmx/htmx.min.js",
+            "vendor/chartjs/chart.umd.min.js",
+        ]:
+            with self.subTest(local_path=local_path):
+                self.assertIn(local_path, base_template + admin_index)
+                self.assertTrue((project_root / "static" / local_path).exists())
+
+        for icon_font_path in [
+            "vendor/bootstrap-icons/fonts/bootstrap-icons.woff",
+            "vendor/bootstrap-icons/fonts/bootstrap-icons.woff2",
+        ]:
+            with self.subTest(icon_font_path=icon_font_path):
+                self.assertTrue((project_root / "static" / icon_font_path).exists())
+
+    def test_templates_do_not_use_external_cdn_assets(self):
+        project_root = Path(__file__).resolve().parents[2]
+        template_text = "\n".join(
+            path.read_text(encoding="utf-8")
+            for path in (project_root / "templates").rglob("*.html")
+        )
+
+        for removed_cdn in [
+            "cdn.jsdelivr.net",
+            "unpkg.com",
+            "bootstrap@5.3.3",
+            "bootstrap-icons@1.11.3",
+            "htmx.org@1.9.12",
+            "chart.js@4.4.3",
+        ]:
+            with self.subTest(removed_cdn=removed_cdn):
+                self.assertNotIn(removed_cdn, template_text)
+
+
 class TableDataTemplateSplitTests(TestCase):
     expected_partials = {
         "_nested_tabs.html",

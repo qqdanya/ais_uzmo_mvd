@@ -71,3 +71,18 @@ git diff --stat
 - `staticfiles/`
 - `dashboard_thresholds.json`
 - `__pycache__/`
+
+
+## 7. Production readiness
+
+Перед тестовым или боевым деплоем дополнительно пройти `docs/DEPLOY_CHECKLIST.md`. Минимальные команды:
+
+```bash
+python manage.py check --deploy --settings=config.settings_prod
+python manage.py makemigrations --check --dry-run --settings=config.settings_prod
+python manage.py migrate --settings=config.settings_prod
+python manage.py collectstatic --noinput --settings=config.settings_prod
+python manage.py test
+```
+
+Для сервера используйте `.env.production.example` как шаблон и не коммитьте реальный `.env`.
