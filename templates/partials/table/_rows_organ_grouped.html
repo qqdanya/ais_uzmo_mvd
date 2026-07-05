@@ -1,0 +1,29 @@
+{% load request_tags account_tags %}
+    <thead>
+      <tr>
+        <th>Территориальный орган</th>
+        <th class="text-center">Заявок</th>
+        {% if is_tmc_grouped %}<th class="text-center">Позиций ТМЦ</th><th class="text-center">Общее количество</th>{% endif %}
+        <th class="text-center">В работе</th>
+        <th class="text-center">Исполнено</th>
+        <th class="text-center">Отклонено</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in page.object_list %}
+      <tr class="data-row">
+        <td>{{ row.request__territorial_organ__name|default:row.territorial_organ__name }}</td>
+        <td class="text-center">{{ row.request_count }}</td>
+        {% if is_tmc_grouped %}<td class="text-center">{{ row.position_count }}</td><td class="text-center">{{ row.total_quantity }}</td>{% endif %}
+        <td class="text-center">{{ row.in_work_count }}</td>
+        <td class="text-center">{{ row.done_count }}</td>
+        <td class="text-center">{{ row.rejected_count }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="{% if is_tmc_grouped %}7{% else %}5{% endif %}">
+        <div class="empty-state">
+          <div>По выбранным условиям заявки не найдены</div>
+        </div>
+      </td></tr>
+      {% endfor %}
+    </tbody>

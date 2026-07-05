@@ -283,3 +283,12 @@ python manage.py test apps.requests_app
 python manage.py test apps.requests_app.tests_photos
 python manage.py test apps.requests_app.tests_tmc
 ```
+
+## Stage 36–37 — runtime ignore files and table template split
+
+Runtime dashboard threshold files are ignored by Git:
+
+- `dashboard_thresholds.json`
+- `dashboard_thresholds.json.tmp`
+
+The large table partial has been split. `templates/partials/table_data.html` now delegates to focused partials in `templates/partials/table/`, including toolbar, active filters, summary, actions, pagination, and row variants.

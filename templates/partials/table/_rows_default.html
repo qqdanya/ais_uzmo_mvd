@@ -1,0 +1,50 @@
+{% load request_tags account_tags %}
+    <thead><tr>
+      {% if is_multi_organ %}<th>Территориальный орган</th>{% endif %}
+      {% for field in fields %}<th>{{ field.verbose_name|capfirst }}</th>{% endfor %}
+      <th class="table-actions-head" aria-label="Действия"><i class="bi bi-three-dots-vertical"></i><span class="visually-hidden">Действия</span></th>
+    </tr></thead>
+    <tbody>
+      {% for obj in page.object_list %}
+      <tr class="data-row {% row_class table.key obj %} {% if obj.is_deleted %}table-warning{% endif %}">
+        {% if is_multi_organ %}<td>{{ obj.territorial_organ.name }}</td>{% endif %}
+        {% for field in fields %}
+          <td{% if field.name == "status" %} class="status-cell"{% elif field.name == "comment" %} class="request-description-cell"{% endif %}>
+            {% if field.name == "status" %}
+              {% status_badge obj %}
+            {% elif table.key == "fire-extinguishers" and field.name == "expiry_date" %}
+              {% expiry_date_cell obj %}
+            {% elif field.name == "comment" %}
+              <div class="request-description-text">{{ obj|get_attr:field.name|default:"—" }}</div>
+              {% include "partials/request_photo_thumbnails.html" with obj=obj table=table %}
+            {% else %}
+              {{ obj|get_attr:field.name }}
+            {% endif %}
+          </td>
+        {% endfor %}
+        <td class="table-row-actions">
+          <div class="table-action-stack">
+          {% if obj.attached_photo_count %}
+            <button class="btn btn-icon request-photo-count" data-bs-toggle="tooltip" data-bs-title="Прикрепленные фотографии ({{ obj.attached_photo_count }} шт.)" hx-get="{% url 'request_photos' obj.territorial_organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Прикрепленные фотографии ({{ obj.attached_photo_count }} шт.)"><i class="bi bi-images"></i></button>
+          {% endif %}
+          {% if has_status_history and obj.has_status_history_entries %}
+            <button class="btn btn-icon" data-bs-toggle="tooltip" data-bs-title="История статуса заявки" hx-get="{% url 'status_history' obj.territorial_organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="История статуса заявки"><i class="bi bi-clock-history"></i></button>
+          {% endif %}
+          {% if obj.territorial_organ_id|in_list:writable_organ_ids %}
+            <button class="btn btn-icon edit" data-bs-toggle="tooltip" data-bs-title="Редактировать" hx-get="{% url 'record_update' obj.territorial_organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Редактировать"><i class="bi bi-pencil"></i></button>
+            <button class="btn btn-icon danger" data-bs-toggle="tooltip" data-bs-title="Удалить" hx-get="{% url 'record_delete' obj.territorial_organ.pk table.key obj.pk %}" hx-target="#modal-content" data-open-modal="true" aria-label="Удалить"><i class="bi bi-trash"></i></button>
+          {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="20">
+        <div class="empty-state">
+          <div>Записей пока нет</div>
+          {% if can_add %}
+            <button class="btn btn-sm btn-primary mt-2" hx-get="{% url 'record_create' organ.pk table.key %}" hx-target="#modal-content" data-open-modal="true"><i class="bi bi-plus-lg"></i> Добавить запись</button>
+          {% endif %}
+        </div>
+      </td></tr>
+      {% endfor %}
+    </tbody>

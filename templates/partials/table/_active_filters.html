@@ -1,0 +1,15 @@
+{% if active_conditions %}
+<div class="active-filter-bar">
+  <div class="active-filter-content">
+    <span class="active-filter-title"><i class="bi bi-funnel"></i> Применены фильтры:</span>
+    <span class="active-filter-list">
+      {% for condition in active_conditions %}
+        <span class="active-filter-chip">{{ condition }}</span>
+      {% endfor %}
+    </span>
+  </div>
+  <a class="btn btn-sm btn-outline-secondary" data-reset-table-state data-reset-organ-id="{{ organ.pk }}" hx-get="{% url 'department_tables' organ.pk table.department %}?table={{ table.key }}" hx-target="#workspace" hx-swap="innerHTML" href="{% url 'department_tables' organ.pk table.department %}?table={{ table.key }}">
+    <i class="bi bi-x-lg"></i> Сбросить все
+  </a>
+</div>
+{% endif %}

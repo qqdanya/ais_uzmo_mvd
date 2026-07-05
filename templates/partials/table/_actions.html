@@ -1,0 +1,39 @@
+{% load account_tags %}
+<div class="table-actions-row">
+  {% if is_request_table and not is_request_grouped %}
+    <span class="status-summary">
+      <span class="summary-pill summary-pill-in-work {% if not table_stats.in_work_count %}is-zero{% endif %}"><span>В работе</span><strong>{{ table_stats.in_work_count }}</strong></span>
+      <span class="summary-pill summary-pill-done {% if not table_stats.done_count %}is-zero{% endif %}"><span>Исполнено</span><strong>{{ table_stats.done_count }}</strong></span>
+      <span class="summary-pill summary-pill-rejected {% if not table_stats.rejected_count %}is-zero{% endif %}"><span>Отклонено</span><strong>{{ table_stats.rejected_count }}</strong></span>
+    </span>
+  {% endif %}
+  <div class="table-actions">
+    {% if is_request_table %}
+      <form class="table-view-form" hx-get="{% url 'table_data' organ.pk table.key %}" hx-target="#table-area" hx-trigger="change" hx-swap="innerHTML">
+        {% for field in table_view_query_fields %}
+          <input type="hidden" name="{{ field.name }}" value="{{ field.value }}">
+        {% endfor %}
+        {% single_select name="group" options=request_group_choices selected_value=group_select_value aria_label="Группировка таблицы заявок" %}
+      </form>
+    {% elif is_state_snapshot_table %}
+      <form class="table-view-form" hx-get="{% url 'table_data' organ.pk table.key %}" hx-target="#table-area" hx-trigger="change" hx-swap="innerHTML">
+        {% for field in table_view_query_fields %}
+          <input type="hidden" name="{{ field.name }}" value="{{ field.value }}">
+        {% endfor %}
+        {% single_select name="state_mode" options=state_snapshot_mode_choices selected_value=state_snapshot_mode aria_label="Режим отображения состояния" %}
+      </form>
+    {% endif %}
+    <div class="dropdown">
+      <button class="btn btn-sm btn-download" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="bi bi-download"></i> Экспорт
+      </button>
+      <div class="dropdown-menu dropdown-menu-end">
+        <a class="dropdown-item" href="{% url 'export_table' organ.pk table.key 'csv' %}{% if table_querystring %}?{{ table_querystring }}{% endif %}" data-download-preparing="Подготовка экспорта..."><i class="bi bi-filetype-csv"></i> Экспорт в CSV</a>
+        <a class="dropdown-item" href="{% url 'export_table' organ.pk table.key 'xlsx' %}{% if table_querystring %}?{{ table_querystring }}{% endif %}" data-download-preparing="Подготовка экспорта..."><i class="bi bi-file-earmark-spreadsheet"></i> Экспорт в Excel</a>
+      </div>
+    </div>
+    {% if can_add %}
+      <button class="btn btn-sm btn-primary" hx-get="{% url 'record_create' organ.pk table.key %}" hx-target="#modal-content" data-open-modal="true"><i class="bi bi-plus-lg"></i> Добавить запись</button>
+    {% endif %}
+  </div>
+</div>

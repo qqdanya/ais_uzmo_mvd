@@ -1,0 +1,16 @@
+<div class="table-wrap">
+  <table class="table table-sm align-middle data-table table-{{ table.key }}">
+    {% if table.key == "tmc-requests" and is_tmc_product_grouped %}
+      {% include "partials/table/_rows_tmc_product_grouped.html" %}
+    {% elif is_organ_grouped %}
+      {% include "partials/table/_rows_organ_grouped.html" %}
+    {% elif is_date_grouped %}
+      {% include "partials/table/_rows_date_grouped.html" %}
+    {% elif table.key == "tmc-requests" %}
+      {% include "partials/table/_rows_tmc_default.html" %}
+    {% else %}
+      {% include "partials/table/_rows_default.html" %}
+    {% endif %}
+  </table>
+  <div class="empty-state table-empty-filter" hidden>По этому поиску ничего не найдено</div>
+</div>

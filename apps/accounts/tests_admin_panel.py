@@ -678,6 +678,64 @@ class AdminSelectComponentTests(AdminPanelTestMixin, TestCase):
 
 
 
+class RuntimeFileIgnoreTests(TestCase):
+    def test_dashboard_threshold_runtime_files_are_ignored(self):
+        project_root = Path(__file__).resolve().parents[2]
+        gitignore = (project_root / ".gitignore").read_text(encoding="utf-8")
+
+        self.assertIn("dashboard_thresholds.json", gitignore)
+        self.assertIn("dashboard_thresholds.json.tmp", gitignore)
+
+
+class TableDataTemplateSplitTests(TestCase):
+    expected_partials = {
+        "_nested_tabs.html",
+        "_toolbar.html",
+        "_active_filters.html",
+        "_summary.html",
+        "_actions.html",
+        "_pagination.html",
+        "_rows.html",
+        "_rows_tmc_product_grouped.html",
+        "_rows_organ_grouped.html",
+        "_rows_date_grouped.html",
+        "_rows_tmc_default.html",
+        "_rows_default.html",
+    }
+
+    def test_table_data_template_is_delegated_to_partials(self):
+        project_root = Path(__file__).resolve().parents[2]
+        table_data = project_root / "templates" / "partials" / "table_data.html"
+        table_partials_dir = project_root / "templates" / "partials" / "table"
+
+        self.assertLessEqual(len(table_data.read_text(encoding="utf-8").splitlines()), 25)
+        existing_partials = {path.name for path in table_partials_dir.glob("*.html")}
+        self.assertTrue(self.expected_partials.issubset(existing_partials))
+
+        content = table_data.read_text(encoding="utf-8")
+        for partial_name in [
+            "_toolbar.html",
+            "_active_filters.html",
+            "_summary.html",
+            "_actions.html",
+            "_pagination.html",
+            "_rows.html",
+        ]:
+            with self.subTest(partial=partial_name):
+                self.assertIn(f'partials/table/{partial_name}', content)
+
+    def test_table_row_variants_are_split_from_rows_dispatcher(self):
+        project_root = Path(__file__).resolve().parents[2]
+        rows_dispatcher = project_root / "templates" / "partials" / "table" / "_rows.html"
+        content = rows_dispatcher.read_text(encoding="utf-8")
+
+        self.assertLessEqual(len(content.splitlines()), 40)
+        self.assertIn("_rows_tmc_product_grouped.html", content)
+        self.assertIn("_rows_tmc_default.html", content)
+        self.assertIn("_rows_default.html", content)
+
+
+
 class FrontendModuleSplitTests(TestCase):
     frontend_globals = {
         "toasts.js": [

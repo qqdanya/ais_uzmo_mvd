@@ -1010,3 +1010,30 @@ python manage.py test apps.requests_app.tests_refactor_safety --noinput
 - Добавлен regression-тест в `tests_refactor_safety.py`, который фиксирует, что большой `tests.py` не вернулся обратно.
 - Команда для полного набора по приложению остаётся: `python manage.py test apps.requests_app`.
 - Для точечных прогонов теперь можно использовать тематические модули, например `python manage.py test apps.requests_app.tests_photos`.
+
+## Stage 36 — local runtime gitignore cleanup
+
+- `.gitignore` now explicitly ignores dashboard threshold runtime files:
+  - `dashboard_thresholds.json`
+  - `dashboard_thresholds.json.tmp`
+- These files are local/runtime configuration artifacts and should not be committed.
+- Existing runtime exclusions remain in place: `.env`, `db.sqlite3`, `media/`, `staticfiles/`, `__pycache__/`, `*.pyc`.
+
+## Stage 37 — table_data template split
+
+- `templates/partials/table_data.html` is now a small dispatcher template instead of a 371-line mixed table template.
+- Table UI is split into focused partials under `templates/partials/table/`:
+  - `_nested_tabs.html`
+  - `_toolbar.html`
+  - `_active_filters.html`
+  - `_summary.html`
+  - `_actions.html`
+  - `_pagination.html`
+  - `_rows.html`
+  - `_rows_tmc_product_grouped.html`
+  - `_rows_organ_grouped.html`
+  - `_rows_date_grouped.html`
+  - `_rows_tmc_default.html`
+  - `_rows_default.html`
+- No URL, context key, UI behavior, or business logic was intentionally changed.
+- Added regression tests to keep `table_data.html` delegated to partials and prevent the large table template from returning.

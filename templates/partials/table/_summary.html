@@ -1,0 +1,24 @@
+{% if is_request_grouped %}
+<div class="tmc-summary-row" aria-label="Сводка по заявкам">
+  {% if is_organ_grouped %}
+    <span class="summary-pill"><span>Органов найдено</span><strong>{{ tmc_summary.organ_count }}</strong></span>
+    <span class="summary-pill"><span>Всего заявок</span><strong>{{ tmc_summary.request_count }}</strong></span>
+    {% if is_tmc_grouped %}<span class="summary-pill"><span>Позиций ТМЦ</span><strong>{{ tmc_summary.position_count }}</strong></span>{% endif %}
+  {% elif is_date_grouped %}
+    <span class="summary-pill"><span>Дней найдено</span><strong>{{ tmc_summary.date_count }}</strong></span>
+    <span class="summary-pill"><span>Всего заявок</span><strong>{{ tmc_summary.request_count }}</strong></span>
+    <span class="summary-pill"><span>Всего органов</span><strong>{{ tmc_summary.organ_count }}</strong></span>
+    {% if is_tmc_grouped %}<span class="summary-pill"><span>Позиций ТМЦ</span><strong>{{ tmc_summary.position_count }}</strong></span>{% endif %}
+  {% else %}
+    <span class="summary-pill"><span>Позиций найдено</span><strong>{{ tmc_summary.position_count }}</strong></span>
+    <span class="summary-pill"><span>Всего заявок</span><strong>{{ tmc_summary.request_count }}</strong></span>
+    <span class="summary-pill"><span>Всего органов</span><strong>{{ tmc_summary.organ_count }}</strong></span>
+  {% endif %}
+  {% if is_tmc_grouped %}<span class="summary-pill"><span>Общее количество</span><strong>{{ tmc_summary.total_quantity }}</strong></span>{% endif %}
+  {% if not is_tmc_product_grouped %}
+    <span class="summary-pill summary-pill-in-work {% if not tmc_summary.in_work_count %}is-zero{% endif %}"><span>В работе</span><strong>{{ tmc_summary.in_work_count }}</strong></span>
+    <span class="summary-pill summary-pill-done {% if not tmc_summary.done_count %}is-zero{% endif %}"><span>Исполнено</span><strong>{{ tmc_summary.done_count }}</strong></span>
+    <span class="summary-pill summary-pill-rejected {% if not tmc_summary.rejected_count %}is-zero{% endif %}"><span>Отклонено</span><strong>{{ tmc_summary.rejected_count }}</strong></span>
+  {% endif %}
+</div>
+{% endif %}

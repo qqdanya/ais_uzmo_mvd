@@ -1,0 +1,2 @@
+{% url 'table_data' organ.pk table.key as table_pagination_url %}
+{% include "partials/pagination.html" with pagination_page=page pagination_links=table_page_links pagination_base_url=table_pagination_url pagination_querystring=table_querystring pagination_mode="button" pagination_nav_class="table-pagination" pagination_scroll=".table-wrap" pagination_aria_label="Страницы таблицы" pagination_hx_target="#table-area" pagination_hx_swap="innerHTML" pagination_jump_label="Перейти к странице таблицы" %}

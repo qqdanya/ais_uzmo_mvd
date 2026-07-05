@@ -16,3 +16,7 @@ media/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Local runtime settings
+dashboard_thresholds.json
+dashboard_thresholds.json.tmp
