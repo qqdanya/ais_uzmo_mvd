@@ -276,3 +276,24 @@ class SearchPerformanceRegressionTests(TestCase):
 
         self.assertGreaterEqual(len(suggestions), 1)
         self.assertEqual(suggestions[0].name, "Пылесос")
+
+
+class RequestsAppTestsSplitRegressionTests(TestCase):
+    def test_requests_app_tests_are_split_into_thematic_modules(self):
+        expected_modules = [
+            "apps/requests_app/tests_core.py",
+            "apps/requests_app/tests_tmc.py",
+            "apps/requests_app/tests_tables.py",
+            "apps/requests_app/tests_photos.py",
+            "apps/requests_app/tests_seed.py",
+        ]
+        for module_path in expected_modules:
+            with self.subTest(module_path=module_path):
+                self.assertTrue(open(module_path, encoding="utf-8").read().strip())
+
+        monolith_lines = open("apps/requests_app/tests.py", encoding="utf-8").read().splitlines()
+        self.assertLessEqual(len(monolith_lines), 80)
+
+        for module_path in expected_modules:
+            with self.subTest(module_path=module_path):
+                self.assertIn("class ", open(module_path, encoding="utf-8").read())

@@ -972,3 +972,41 @@ python manage.py test apps.requests_app.tests_refactor_safety --noinput
 - MIME-тип фото теперь определяется по содержимому файла, а не только по имени/данным браузера.
 - Добавлена миграция `apps/directory/migrations/0009_alter_territorialorganphoto_image.py` для фиксации нового валидатора поля `image`.
 - Добавлены тесты: поддельный `.jpg` с текстовым содержимым отклоняется модельной валидацией и формой; валидное изображение с неверным browser `content_type` сохраняется с реальным MIME.
+
+## Stage 31 — frontend module split
+
+- Split TMC product suggestion UI helpers from `static/js/app.js` into `static/js/tmc_products.js`.
+- Split download preparation indicator helpers from `static/js/app.js` into `static/js/download_preparing.js`.
+- Kept `app.js` as the main entry point and event orchestration file; no UI behavior or routes changed.
+- Updated `templates/base.html` script loading order so helper modules are loaded before `app.js`.
+- Added a regression test to keep these helper blocks outside `app.js` and ensure script order is correct.
+- Static checks completed in this environment: `python scripts/refactor_static_check.py`, `node --check static/js/app.js`, `node --check static/js/tmc_products.js`, `node --check static/js/download_preparing.js`, `python -m compileall`.
+- Django checks/tests were not run in this environment because Django is not installed here (`ModuleNotFoundError: No module named 'django'`).
+
+## Stage 34: refactor audit views
+
+Журнал действий больше не держит всю подготовку контекста и человекочитаемых событий в `apps/audit/views.py`.
+
+Новая структура:
+
+- `apps/audit/views.py` — тонкие контроллеры `/audit/`, `/audit/my/`, `/audit/<pk>/`.
+- `apps/audit/services/constants.py` — общие константы журнала, подписи действий, группы моделей.
+- `apps/audit/services/filters.py` — права видимости журнала, фильтры, даты, pagination fields.
+- `apps/audit/services/display.py` — `prepare_log()`, человекочитаемые события, изменения полей, user-agent, статусная история.
+- `apps/audit/services/page_context.py` — сбор контекста и render общего шаблона журнала.
+
+Важно: `prepare_log` по-прежнему реэкспортируется из `apps.audit.views`, потому что его используют `apps/accounts/views.py` и `apps/accounts/admin_employees.py`.
+
+## Stage 35 — requests_app tests split
+
+- Бывший монолитный `apps/requests_app/tests.py` (~2500 строк) заменён маленьким compatibility-файлом с описанием новой структуры.
+- Общие фикстуры и helper-методы вынесены в `apps/requests_app/tests_base.py`.
+- Тесты разделены по тематическим модулям:
+  - `apps/requests_app/tests_core.py` — dashboard, прямые URL, базовые права доступа;
+  - `apps/requests_app/tests_tmc.py` — заявки ТМЦ, подсказки товаров, группировки, фильтры и экспорты ТМЦ;
+  - `apps/requests_app/tests_tables.py` — остальные таблицы заявок/учёта, статусы, экспорты, валидация;
+  - `apps/requests_app/tests_photos.py` — библиотека фото, папки, bulk upload, request-photo picker/lightbox;
+  - `apps/requests_app/tests_seed.py` — idempotent seed command.
+- Добавлен regression-тест в `tests_refactor_safety.py`, который фиксирует, что большой `tests.py` не вернулся обратно.
+- Команда для полного набора по приложению остаётся: `python manage.py test apps.requests_app`.
+- Для точечных прогонов теперь можно использовать тематические модули, например `python manage.py test apps.requests_app.tests_photos`.

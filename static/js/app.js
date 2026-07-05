@@ -6,12 +6,9 @@ const DEPARTMENT_STORAGE_PREFIX = "asu-zmo:last-department:";
 const DEPARTMENT_TABLE_PREFIX = "asu-zmo:last-table:";
 const TABLE_STATE_PREFIX = "asu-zmo:table-state:";
 const COLLAPSED_PANELS_KEY = "asu-zmo:collapsed-panels";
-const BULK_PHOTO_BATCH_SIZE = 25;
 const PRESENCE_HEARTBEAT_MS = 30000;
 let htmxRequests = 0;
 let loadingFailsafeTimer = null;
-let pendingBulkPhotoFiles = [];
-const tmcProductSuggestTimers = new WeakMap();
 function storedValue(key) {
   try {
     return localStorage.getItem(key) ?? sessionStorage.getItem(key);
@@ -354,273 +351,6 @@ function normalizeSearchText(value) {
   return String(value || "").trim().toLocaleLowerCase("ru-RU");
 }
 
-function autoDismissAlerts() {
-  document.querySelectorAll("[data-auto-dismiss]").forEach((alert) => {
-    if (alert.dataset.dismissScheduled === "true") return;
-    alert.dataset.dismissScheduled = "true";
-    const delay = Number(alert.dataset.autoDismiss) || 6000;
-    window.setTimeout(() => {
-      const instance = bootstrap.Alert.getOrCreateInstance(alert);
-      instance.close();
-    }, delay);
-  });
-}
-
-function initTooltips() {
-  document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((el) => {
-    const title = el.getAttribute("data-bs-title") || el.getAttribute("title") || el.dataset.cssTooltip;
-    if (!title) return;
-    el.removeAttribute("title");
-    el.removeAttribute("data-ui-tooltip");
-    window.bootstrap?.Tooltip?.getInstance(el)?.dispose();
-    el.dataset.cssTooltip = title;
-  });
-}
-
-function closeTmcProductSuggestions(field) {
-  const box = field?.querySelector("[data-tmc-product-suggestions]");
-  if (!box) return;
-  box.hidden = true;
-  box.innerHTML = "";
-}
-
-function closeAllTmcProductSuggestions(exceptField = null) {
-  document.querySelectorAll("[data-tmc-product-field]").forEach((field) => {
-    if (field !== exceptField) closeTmcProductSuggestions(field);
-  });
-}
-
-function renderTmcProductSuggestions(input, results) {
-  const field = input.closest("[data-tmc-product-field]");
-  const box = field?.querySelector("[data-tmc-product-suggestions]");
-  if (!field || !box) return;
-  box.innerHTML = "";
-  if (!results.length) {
-    closeTmcProductSuggestions(field);
-    return;
-  }
-  results.forEach((product) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "tmc-product-suggestion";
-    button.dataset.tmcProductSuggestion = "true";
-    button.dataset.productId = product.id;
-    button.dataset.productName = product.name;
-    button.dataset.productUnit = product.unit || "шт.";
-    button.innerHTML = `<span>${product.name}</span><small>${product.unit || "шт."}</small>`;
-    box.append(button);
-  });
-  box.hidden = false;
-}
-
-function requestTmcProductSuggestions(input) {
-  const field = input.closest("[data-tmc-product-field]");
-  if (!field) return;
-  field.querySelector("[data-tmc-product-id]").value = "";
-  const query = input.value.trim();
-  window.clearTimeout(tmcProductSuggestTimers.get(input));
-  if (query.length < 2) {
-    closeTmcProductSuggestions(field);
-    return;
-  }
-  const timer = window.setTimeout(async () => {
-    try {
-      const url = `${input.dataset.suggestUrl}?q=${encodeURIComponent(query)}`;
-      const response = await fetch(url, { headers: { Accept: "application/json" } });
-      if (!response.ok || input.value.trim() !== query) return;
-      const data = await response.json();
-      renderTmcProductSuggestions(input, data.results || []);
-    } catch {
-      closeTmcProductSuggestions(field);
-    }
-  }, 250);
-  tmcProductSuggestTimers.set(input, timer);
-}
-
-function chooseTmcProductSuggestion(button) {
-  const field = button.closest("[data-tmc-product-field]");
-  const row = button.closest("[data-tmc-item-row]");
-  if (!field || !row) return;
-  field.querySelector("[data-tmc-product-id]").value = button.dataset.productId || "";
-  field.querySelector("[data-tmc-product-input]").value = button.dataset.productName || "";
-  const unitInput = row.querySelector('[name="item_unit"]');
-  if (unitInput && button.dataset.productUnit) unitInput.value = button.dataset.productUnit;
-  closeTmcProductSuggestions(field);
-}
-
-function showToast(message, level = "success") {
-  if (!message) return;
-  const stack = document.querySelector(".toast-stack") || document.body.appendChild(document.createElement("div"));
-  stack.classList.add("toast-stack");
-  const toast = document.createElement("div");
-  const alertLevel = level === "error" ? "danger" : level;
-  toast.className = `app-toast alert alert-${alertLevel} alert-dismissible fade show`;
-  toast.setAttribute("role", "alert");
-  toast.dataset.autoDismiss = "5000";
-  toast.append(document.createTextNode(message));
-  const close = document.createElement("button");
-  close.type = "button";
-  close.className = "btn-close";
-  close.dataset.bsDismiss = "alert";
-  close.setAttribute("aria-label", "Закрыть");
-  toast.append(close);
-  stack.appendChild(toast);
-  autoDismissAlerts();
-}
-
-let downloadPreparingNoticeTimer = null;
-const DOWNLOAD_READY_COOKIE_PREFIX = "download-ready-";
-const activeDownloads = new Map();
-
-function showDownloadPreparingNotice(label) {
-  const stack = document.querySelector(".toast-stack") || document.body.appendChild(document.createElement("div"));
-  stack.classList.add("toast-stack");
-  let notice = stack.querySelector("[data-download-preparing-notice]");
-  if (!notice) {
-    notice = document.createElement("div");
-    notice.className = "app-toast download-preparing-notice alert alert-info show";
-    notice.dataset.downloadPreparingNotice = "true";
-    notice.setAttribute("role", "status");
-    stack.appendChild(notice);
-  }
-  notice.replaceChildren();
-  const spinner = document.createElement("span");
-  spinner.className = "spinner-border spinner-border-sm";
-  spinner.setAttribute("aria-hidden", "true");
-  const content = document.createElement("span");
-  content.className = "download-preparing-text";
-  const title = document.createElement("strong");
-  title.textContent = label;
-  const hint = document.createElement("span");
-  hint.textContent = "Файл начнет скачиваться автоматически.";
-  content.append(title, hint);
-  notice.append(spinner, content);
-  window.clearTimeout(downloadPreparingNoticeTimer);
-  downloadPreparingNoticeTimer = window.setTimeout(() => notice.remove(), 600000);
-}
-
-function hideDownloadPreparingNotice() {
-  window.clearTimeout(downloadPreparingNoticeTimer);
-  document.querySelector("[data-download-preparing-notice]")?.remove();
-}
-
-function refreshDownloadPreparingNotice() {
-  const nextDownload = activeDownloads.values().next().value;
-  if (nextDownload) {
-    showDownloadPreparingNotice(nextDownload.label);
-  } else {
-    hideDownloadPreparingNotice();
-  }
-}
-
-function isIconOnlyDownload(trigger) {
-  return !trigger.textContent.trim();
-}
-
-function restorePreparingDownload(trigger) {
-  if (!trigger?.dataset.downloadOriginalHtml) return;
-  trigger.innerHTML = trigger.dataset.downloadOriginalHtml;
-  trigger.classList.remove("is-preparing");
-  trigger.classList.remove("is-preparing-icon");
-  trigger.removeAttribute("aria-disabled");
-  delete trigger.dataset.downloadOriginalHtml;
-  delete trigger.dataset.downloadPreparingActive;
-  delete trigger.dataset.downloadPreparingKey;
-}
-
-function downloadReadyCookieName(token) {
-  return `${DOWNLOAD_READY_COOKIE_PREFIX}${token}`;
-}
-
-function hasCookie(name) {
-  return document.cookie.split(";").some((item) => item.trim().startsWith(`${name}=`));
-}
-
-function clearCookie(name) {
-  document.cookie = `${name}=; Max-Age=0; path=/`;
-}
-
-function downloadToken() {
-  if (window.crypto?.randomUUID) return window.crypto.randomUUID().replace(/-/g, "");
-  return `${Date.now()}${Math.random().toString(36).slice(2)}`;
-}
-
-function downloadUrlWithToken(href, token) {
-  const url = new URL(href, window.location.href);
-  url.searchParams.set("download_token", token);
-  return url.toString();
-}
-
-function downloadKey(trigger) {
-  if (trigger.dataset.downloadKey) return trigger.dataset.downloadKey;
-  const url = new URL(trigger.href, window.location.href);
-  url.searchParams.delete("download_token");
-  return `${url.pathname}?${url.searchParams.toString()}`;
-}
-
-function restorePreparingDownloadsByKey(key) {
-  document.querySelectorAll("a[data-download-preparing]").forEach((trigger) => {
-    if (downloadKey(trigger) === key) restorePreparingDownload(trigger);
-  });
-}
-
-function syncActiveDownloadButtons(root = document) {
-  root.querySelectorAll?.("a[data-download-preparing]").forEach((trigger) => {
-    const key = downloadKey(trigger);
-    const active = activeDownloads.get(key);
-    if (active && trigger.dataset.downloadPreparingActive !== "true") {
-      markPreparingDownload(trigger, key, active.label);
-    }
-  });
-}
-
-function waitForDownloadStart(token, key) {
-  const cookieName = downloadReadyCookieName(token);
-  const startedAt = Date.now();
-  const interval = window.setInterval(() => {
-    if (hasCookie(cookieName)) {
-      window.clearInterval(interval);
-      clearCookie(cookieName);
-      activeDownloads.delete(key);
-      restorePreparingDownloadsByKey(key);
-      refreshDownloadPreparingNotice();
-      return;
-    }
-    if (Date.now() - startedAt > 600000) {
-      window.clearInterval(interval);
-      activeDownloads.delete(key);
-      restorePreparingDownloadsByKey(key);
-      refreshDownloadPreparingNotice();
-    }
-  }, 500);
-}
-
-function markPreparingDownload(trigger, key = downloadKey(trigger), label = null) {
-  label = label || trigger.dataset.downloadPreparing || "Подготовка файла...";
-  const iconOnly = isIconOnlyDownload(trigger);
-  trigger.dataset.downloadOriginalHtml = trigger.innerHTML;
-  trigger.dataset.downloadPreparingActive = "true";
-  trigger.dataset.downloadPreparingKey = key;
-  trigger.classList.add("is-preparing");
-  trigger.setAttribute("aria-disabled", "true");
-  trigger.replaceChildren();
-
-  const spinner = document.createElement("span");
-  spinner.className = "spinner-border spinner-border-sm";
-  spinner.setAttribute("aria-hidden", "true");
-  if (iconOnly) {
-    trigger.classList.add("is-preparing-icon");
-    trigger.append(spinner);
-  } else {
-    const text = document.createElement("span");
-    text.textContent = label;
-    trigger.append(spinner, text);
-  }
-
-  bootstrap.Tooltip.getInstance(trigger)?.hide();
-  showDownloadPreparingNotice(label);
-}
-
 function setLoading(isLoading) {
   const progress = document.getElementById("htmx-progress");
   if (!progress) return;
@@ -869,238 +599,6 @@ function fillCompletedDate(form) {
   }
 }
 
-function renderBulkPhotoFiles(form, files, descriptions = null) {
-  const input = form.querySelector("[data-bulk-photo-input]");
-  const list = form.querySelector("[data-bulk-photo-list]");
-  if (!input || !list) return;
-  const previousDescriptions = descriptions || Array.from(list.querySelectorAll("[data-bulk-description]")).map((textarea) => textarea.value);
-  list.querySelectorAll("[data-bulk-preview-url]").forEach((preview) => {
-    URL.revokeObjectURL(preview.dataset.bulkPreviewUrl);
-  });
-  const images = Array.from(files).filter((file) => file.type.startsWith("image/"));
-  const selectedImages = images;
-  const transfer = new DataTransfer();
-  selectedImages.forEach((file) => transfer.items.add(file));
-  input.files = transfer.files;
-  list.replaceChildren();
-  if (!selectedImages.length) {
-    const empty = document.createElement("div");
-    empty.className = "empty-state";
-    empty.textContent = "Изображения не выбраны";
-    list.append(empty);
-    return;
-  }
-  selectedImages.forEach((file, index) => {
-    const item = document.createElement("div");
-    item.className = "bulk-photo-item";
-    item.dataset.bulkPhotoIndex = String(index);
-    const previewUrl = URL.createObjectURL(file);
-    const preview = document.createElement("div");
-    preview.className = "bulk-photo-preview";
-    preview.dataset.bulkPreviewUrl = previewUrl;
-    const image = document.createElement("img");
-    image.src = previewUrl;
-    image.alt = file.name;
-    image.loading = "lazy";
-    preview.append(image);
-    const body = document.createElement("div");
-    body.className = "bulk-photo-body";
-    const meta = document.createElement("div");
-    meta.className = "bulk-photo-meta";
-    const metaInfo = document.createElement("div");
-    metaInfo.className = "bulk-photo-meta-info";
-    const icon = document.createElement("i");
-    icon.className = "bi bi-file-image";
-    const filename = document.createElement("span");
-    filename.textContent = file.name;
-    metaInfo.append(icon, filename);
-    const remove = document.createElement("button");
-    remove.className = "btn btn-icon danger bulk-photo-remove";
-    remove.type = "button";
-    remove.dataset.removeBulkPhoto = String(index);
-    remove.setAttribute("aria-label", "Убрать изображение из загрузки");
-    remove.innerHTML = '<i class="bi bi-x-lg"></i>';
-    meta.append(metaInfo, remove);
-    const label = document.createElement("label");
-    label.className = "form-label";
-    label.setAttribute("for", `bulk-description-${index}`);
-    label.textContent = "Описание";
-    const textarea = document.createElement("textarea");
-    textarea.className = "form-control";
-    textarea.id = `bulk-description-${index}`;
-    textarea.name = "descriptions";
-    textarea.dataset.bulkDescription = String(index);
-    textarea.rows = 2;
-    textarea.placeholder = "Описание фотографии";
-    textarea.value = previousDescriptions[index] || "";
-    body.append(meta, label, textarea);
-    item.append(preview, body);
-    list.append(item);
-  });
-}
-
-function removeBulkPhotoFile(form, index) {
-  const input = form.querySelector("[data-bulk-photo-input]");
-  const list = form.querySelector("[data-bulk-photo-list]");
-  if (!input) return;
-  const files = Array.from(input.files).filter((_, fileIndex) => fileIndex !== index);
-  const descriptions = Array.from(list?.querySelectorAll("[data-bulk-description]") || [])
-    .filter((_, descriptionIndex) => descriptionIndex !== index)
-    .map((textarea) => textarea.value);
-  renderBulkPhotoFiles(form, files, descriptions);
-}
-
-function csrfToken(form) {
-  return form.querySelector('[name="csrfmiddlewaretoken"]')?.value || "";
-}
-
-function setBulkUploadProgress(form, uploaded, total, note = "") {
-  const progress = form.querySelector("[data-bulk-upload-progress]");
-  const counter = form.querySelector("[data-bulk-upload-counter]");
-  const bar = form.querySelector("[data-bulk-upload-bar]");
-  const noteNode = form.querySelector("[data-bulk-upload-note]");
-  if (!progress) return;
-  progress.hidden = false;
-  if (counter) counter.textContent = `${uploaded} / ${total}`;
-  if (bar) bar.style.width = `${total ? Math.round((uploaded / total) * 100) : 0}%`;
-  if (noteNode && note) noteNode.textContent = note;
-}
-
-function setBulkPhotoFormBusy(form, isBusy) {
-  form.classList.toggle("is-uploading", isBusy);
-  form.querySelectorAll("button, input, textarea").forEach((control) => {
-    control.disabled = isBusy;
-  });
-  const submit = form.querySelector("[data-bulk-upload-submit]");
-  if (submit) {
-    submit.innerHTML = isBusy
-      ? '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Загрузка...'
-      : '<i class="bi bi-cloud-arrow-up"></i> Загрузить';
-  }
-}
-
-function updateSingleFilePicker(input) {
-  const picker = input.closest("[data-single-file-picker]");
-  const file = input.files?.[0];
-  const name = picker?.querySelector("[data-single-file-name]");
-  if (name) name.textContent = file?.name || "Изображение не выбрано";
-  if (!picker || !file) return;
-
-  const uploadedAt = formatLocalDateTime(new Date());
-  const uploadDate = document.querySelector("[data-single-file-uploaded-at]");
-  if (uploadDate) uploadDate.textContent = uploadedAt;
-  const meta = picker.querySelector("[data-single-file-meta]");
-  const metaTime = picker.querySelector("[data-single-file-meta-time]");
-  if (metaTime) {
-    metaTime.innerHTML = `<i class="bi bi-clock"></i> ${uploadedAt}`;
-  } else if (meta) {
-    meta.textContent = `${uploadedAt} · ${meta.dataset.singleFileOwner || "-"}`;
-  }
-
-  const preview = picker.querySelector("[data-single-file-preview]");
-  if (!preview) return;
-  if (preview.dataset.objectUrl) {
-    URL.revokeObjectURL(preview.dataset.objectUrl);
-  }
-  const objectUrl = URL.createObjectURL(file);
-  preview.dataset.objectUrl = objectUrl;
-  preview.src = objectUrl;
-  preview.alt = file.name;
-
-  const lightboxButton = picker.querySelector("[data-lightbox-photo]");
-  if (lightboxButton) {
-    lightboxButton.dataset.src = objectUrl;
-    lightboxButton.dataset.description = file.name;
-    lightboxButton.dataset.meta = meta?.textContent?.trim() || uploadedAt;
-  }
-}
-
-async function postBulkPhotoBatch(form, files, descriptions, startIndex) {
-  const formData = new FormData();
-  formData.append("csrfmiddlewaretoken", csrfToken(form));
-  const folder = form.querySelector('[name="folder"]')?.value;
-  const newFolder = form.querySelector('[name="new_folder"]')?.value?.trim();
-  if (folder) formData.append("folder", folder);
-  if (newFolder) formData.append("new_folder", newFolder);
-  files.forEach((file, offset) => {
-    formData.append("images", file, file.name);
-    formData.append("descriptions", descriptions[startIndex + offset] || "");
-  });
-  const response = await fetch(form.getAttribute("hx-post") || form.action || window.location.href, {
-    method: "POST",
-    body: formData,
-    headers: {
-      "X-Bulk-Photo-Batch": "true",
-      "X-CSRFToken": csrfToken(form),
-      "X-Requested-With": "XMLHttpRequest",
-    },
-  });
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
-  }
-  return response.json();
-}
-
-async function uploadBulkPhotos(form) {
-  const input = form.querySelector("[data-bulk-photo-input]");
-  const files = Array.from(input?.files || []);
-  if (!files.length) {
-    showToast("Выберите хотя бы одно изображение.", "warning");
-    return;
-  }
-  const descriptions = Array.from(form.querySelectorAll("[data-bulk-description]")).map((textarea) => textarea.value);
-  let uploaded = 0;
-  let created = 0;
-  let failed = 0;
-  const errors = [];
-  setBulkPhotoFormBusy(form, true);
-  setLoading(true);
-  try {
-    for (let start = 0; start < files.length; start += BULK_PHOTO_BATCH_SIZE) {
-      const batch = files.slice(start, start + BULK_PHOTO_BATCH_SIZE);
-      setBulkUploadProgress(form, uploaded, files.length, `Отправка ${start + 1}-${Math.min(start + batch.length, files.length)} из ${files.length}`);
-      const result = await postBulkPhotoBatch(form, batch, descriptions, start);
-      uploaded += batch.length;
-      created += Number(result.created || 0);
-      failed += Number(result.failed || 0);
-      if (Array.isArray(result.errors)) errors.push(...result.errors);
-      setBulkUploadProgress(form, uploaded, files.length, `Загружено: ${created}. Ошибок: ${failed}.`);
-    }
-    const modal = bootstrap.Modal.getInstance(document.getElementById("modal-root"));
-    if (modal) modal.hide();
-    showToast(failed ? `Загружено: ${created}. Не загружено: ${failed}.` : `Фотографий загружено: ${created}.`, failed ? "warning" : "success");
-    if (errors.length) console.warn("Bulk photo upload errors:", errors);
-    const refreshUrl = form.dataset.bulkRefreshUrl;
-    if (refreshUrl && window.htmx) {
-      window.htmx.ajax("GET", refreshUrl, { target: "#workspace", swap: "innerHTML" });
-    }
-  } catch (error) {
-    setBulkUploadProgress(form, uploaded, files.length, "Загрузка остановлена из-за ошибки.");
-    showToast("Загрузка прервана. Попробуйте повторить или выбрать меньше файлов.", "danger");
-    console.error(error);
-  } finally {
-    setBulkPhotoFormBusy(form, false);
-    setLoading(false);
-  }
-}
-
-function openBulkPhotoModal(dropzone, files) {
-  pendingBulkPhotoFiles = Array.from(files).filter((file) => file.type.startsWith("image/"));
-  if (!pendingBulkPhotoFiles.length || !window.htmx) return;
-  const uploadUrl = dropzone.dataset.photoUploadUrl || dropzone.getAttribute("hx-get");
-  if (!uploadUrl) return;
-  window.htmx.ajax("GET", uploadUrl, { target: "#modal-content", swap: "innerHTML" });
-}
-
-function photoDropTarget(event) {
-  const folder = event.target.closest(".folder-card[data-photo-upload-url]");
-  return folder || event.target.closest("[data-photo-dropzone]");
-}
-
-function clearPhotoDragState() {
-  document.querySelectorAll(".photo-browser.is-dragover, .folder-card.is-dragover").forEach((item) => item.classList.remove("is-dragover"));
-}
-
 function loadDepartment(department) {
   if (!department || !window.htmx) return;
   const departmentSlug = department.dataset.departmentSlug;
@@ -1291,8 +789,7 @@ document.body.addEventListener("htmx:afterSwap", (event) => {
     bootstrap.Modal.getOrCreateInstance(document.getElementById("modal-root")).show();
     const bulkForm = event.detail.target.querySelector("[data-bulk-photo-form]");
     if (bulkForm) {
-      renderBulkPhotoFiles(bulkForm, pendingBulkPhotoFiles);
-      pendingBulkPhotoFiles = [];
+      PhotoUpload.renderPendingBulkPhotoFiles(bulkForm);
     }
     event.detail.target.querySelectorAll("[data-request-photo-box]").forEach(syncRequestPhotoPicker);
     syncActiveDownloadButtons(event.detail.target);
@@ -1382,7 +879,7 @@ document.addEventListener("submit", (event) => {
   if (!bulkForm) return;
   event.preventDefault();
   event.stopPropagation();
-  uploadBulkPhotos(bulkForm);
+  PhotoUpload.uploadBulkPhotos(bulkForm);
 }, true);
 
 document.addEventListener("input", (event) => {
@@ -1437,34 +934,34 @@ document.addEventListener("change", (event) => {
     return;
   }
   if (event.target.matches("[data-single-file-picker] input[type='file']")) {
-    updateSingleFilePicker(event.target);
+    PhotoUpload.updateSingleFilePicker(event.target);
     return;
   }
   if (!event.target.matches("[data-bulk-photo-input]")) return;
   const form = event.target.closest("[data-bulk-photo-form]");
-  if (form) renderBulkPhotoFiles(form, event.target.files);
+  if (form) PhotoUpload.renderBulkPhotoFiles(form, event.target.files);
 });
 
 document.addEventListener("dragover", (event) => {
-  const dropzone = photoDropTarget(event);
+  const dropzone = PhotoUpload.photoDropTarget(event);
   if (!dropzone) return;
   event.preventDefault();
-  clearPhotoDragState();
+  PhotoUpload.clearPhotoDragState();
   dropzone.classList.add("is-dragover");
 });
 
 document.addEventListener("dragleave", (event) => {
-  const dropzone = photoDropTarget(event);
+  const dropzone = PhotoUpload.photoDropTarget(event);
   if (!dropzone || dropzone.contains(event.relatedTarget)) return;
   dropzone.classList.remove("is-dragover");
 });
 
 document.addEventListener("drop", (event) => {
-  const dropzone = photoDropTarget(event);
+  const dropzone = PhotoUpload.photoDropTarget(event);
   if (!dropzone) return;
   event.preventDefault();
-  clearPhotoDragState();
-  openBulkPhotoModal(dropzone, event.dataTransfer.files);
+  PhotoUpload.clearPhotoDragState();
+  PhotoUpload.openBulkPhotoModal(dropzone, event.dataTransfer.files);
 });
 
 document.addEventListener("beforeinput", (event) => {
@@ -1678,7 +1175,7 @@ document.addEventListener("click", (event) => {
   const bulkRemove = event.target.closest("[data-remove-bulk-photo]");
   if (bulkRemove) {
     const form = bulkRemove.closest("[data-bulk-photo-form]");
-    if (form) removeBulkPhotoFile(form, Number(bulkRemove.dataset.removeBulkPhoto));
+    if (form) PhotoUpload.removeBulkPhotoFile(form, Number(bulkRemove.dataset.removeBulkPhoto));
     return;
   }
 

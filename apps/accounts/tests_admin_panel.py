@@ -676,3 +676,117 @@ class AdminSelectComponentTests(AdminPanelTestMixin, TestCase):
                 self.assertContains(response, "data-admin-multiselect")
                 self.assertNotContains(response, "request-photo-sort-select")
 
+
+
+class FrontendModuleSplitTests(TestCase):
+    frontend_globals = {
+        "toasts.js": [
+            "autoDismissAlerts",
+            "initTooltips",
+            "showToast",
+        ],
+        "photo_upload.js": [
+            "PhotoUpload",
+        ],
+        "tmc_products.js": [
+            "closeAllTmcProductSuggestions",
+            "requestTmcProductSuggestions",
+            "chooseTmcProductSuggestion",
+            "TmcProducts",
+        ],
+        "download_preparing.js": [
+            "showDownloadPreparingNotice",
+            "downloadToken",
+            "downloadUrlWithToken",
+            "downloadKey",
+            "syncActiveDownloadButtons",
+            "waitForDownloadStart",
+            "markPreparingDownload",
+            "DownloadPreparing",
+        ],
+    }
+
+    def project_root(self):
+        return Path(__file__).resolve().parents[2]
+
+    def read_static_js(self, filename):
+        return (self.project_root() / "static" / "js" / filename).read_text(encoding="utf-8")
+
+    def test_tmc_and_download_helpers_are_split_from_app_js(self):
+        project_root = self.project_root()
+        app_js = self.read_static_js("app.js")
+        tmc_js = self.read_static_js("tmc_products.js")
+        download_js = self.read_static_js("download_preparing.js")
+        toasts_js = self.read_static_js("toasts.js")
+        photo_upload_js = self.read_static_js("photo_upload.js")
+        base_html = (project_root / "templates" / "base.html").read_text(encoding="utf-8")
+
+        self.assertLessEqual(len(app_js.splitlines()), 1400)
+        self.assertNotIn("function requestTmcProductSuggestions", app_js)
+        self.assertNotIn("function markPreparingDownload", app_js)
+        self.assertNotIn("function renderBulkPhotoFiles", app_js)
+        self.assertNotIn("function uploadBulkPhotos", app_js)
+        self.assertNotIn("function showToast", app_js)
+        self.assertNotIn("function initTooltips", app_js)
+        self.assertIn("function requestTmcProductSuggestions", tmc_js)
+        self.assertIn("function markPreparingDownload", download_js)
+        self.assertIn("function showToast", toasts_js)
+        self.assertIn("function initTooltips", toasts_js)
+        self.assertIn("window.initTooltips = initTooltips", toasts_js)
+        self.assertIn("function uploadBulkPhotos", photo_upload_js)
+        self.assertLess(base_html.index("js/toasts.js"), base_html.index("js/app.js"))
+        self.assertLess(base_html.index("js/photo_upload.js"), base_html.index("js/app.js"))
+        self.assertLess(base_html.index("js/tmc_products.js"), base_html.index("js/app.js"))
+        self.assertLess(base_html.index("js/download_preparing.js"), base_html.index("js/app.js"))
+
+    def test_frontend_modules_export_globals_used_by_app_js(self):
+        for module_name, global_names in self.frontend_globals.items():
+            module_js = self.read_static_js(module_name)
+            with self.subTest(module=module_name):
+                for global_name in global_names:
+                    self.assertIn(f"window.{global_name}", module_js)
+
+    def test_app_js_global_dependencies_are_declared_in_modules_before_app(self):
+        project_root = self.project_root()
+        base_html = (project_root / "templates" / "base.html").read_text(encoding="utf-8")
+        app_js = self.read_static_js("app.js")
+
+        expected_dependencies = [
+            "showToast",
+            "initTooltips",
+            "autoDismissAlerts",
+            "PhotoUpload",
+            "requestTmcProductSuggestions",
+            "chooseTmcProductSuggestion",
+            "closeAllTmcProductSuggestions",
+            "syncActiveDownloadButtons",
+            "showDownloadPreparingNotice",
+            "downloadToken",
+            "downloadUrlWithToken",
+            "downloadKey",
+            "waitForDownloadStart",
+            "markPreparingDownload",
+        ]
+        for dependency in expected_dependencies:
+            with self.subTest(dependency=dependency):
+                self.assertIn(dependency, app_js)
+
+        script_order = [
+            "js/toasts.js",
+            "js/photo_upload.js",
+            "js/tmc_products.js",
+            "js/download_preparing.js",
+            "js/app.js",
+        ]
+        for previous, current in zip(script_order, script_order[1:]):
+            with self.subTest(order=f"{previous} before {current}"):
+                self.assertLess(base_html.index(previous), base_html.index(current))
+
+    def test_htmx_modal_lifecycle_dependencies_are_stable_after_module_split(self):
+        app_js = self.read_static_js("app.js")
+        toasts_js = self.read_static_js("toasts.js")
+
+        self.assertIn('htmx:afterSwap', app_js)
+        self.assertIn('bootstrap.Modal.getOrCreateInstance(document.getElementById("modal-root")).show()', app_js)
+        self.assertIn("initTooltips();", app_js)
+        self.assertIn("window.initTooltips = initTooltips", toasts_js)
