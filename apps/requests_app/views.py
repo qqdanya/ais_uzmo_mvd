@@ -6,7 +6,7 @@ from django.views.decorators.http import require_http_methods
 from apps.directory.models import Department, TerritorialOrgan
 
 from .permissions import can_view
-from .registry import TABLE_BY_KEY
+from .registry import get_table_or_404
 from .services.photo_responses import (
     photo_bulk_upload_response,
     photo_delete_response,
@@ -60,7 +60,7 @@ def department_tables(request, organ_id, department_slug):
 
 @login_required
 def table_data(request, organ_id, table_key):
-    table = TABLE_BY_KEY[table_key]
+    table = get_table_or_404(table_key)
     organ = get_object_or_404(TerritorialOrgan, pk=organ_id, is_active=True)
     if not can_view(request.user, organ):
         raise Http404
@@ -120,7 +120,7 @@ def request_photo_picker(request, organ_id):
 @login_required
 @require_http_methods(["GET", "POST"])
 def record_form(request, organ_id, table_key, pk=None):
-    table = TABLE_BY_KEY[table_key]
+    table = get_table_or_404(table_key)
     organ = get_object_or_404(TerritorialOrgan, pk=organ_id, is_active=True)
     instance = get_object_or_404(table["model"], pk=pk, territorial_organ=organ) if pk else None
     return record_form_response(request, organ, table_key, table, instance, lambda: table_data(request, organ.pk, table_key))
@@ -129,14 +129,14 @@ def record_form(request, organ_id, table_key, pk=None):
 @login_required
 @require_http_methods(["GET", "POST"])
 def record_delete(request, organ_id, table_key, pk):
-    table = TABLE_BY_KEY[table_key]
+    table = get_table_or_404(table_key)
     organ = get_object_or_404(TerritorialOrgan, pk=organ_id, is_active=True)
     return record_delete_response(request, organ, table_key, table, pk, lambda: table_data(request, organ.pk, table_key))
 
 
 @login_required
 def export_table(request, organ_id, table_key, fmt):
-    table = TABLE_BY_KEY[table_key]
+    table = get_table_or_404(table_key)
     organ = get_object_or_404(TerritorialOrgan, pk=organ_id)
     if not can_view(request.user, organ):
         raise Http404

@@ -13,7 +13,7 @@ from .request_photos import (
     sync_request_photos,
     write_request_photo_audit_events,
 )
-from ..registry import TABLE_BY_KEY
+from ..registry import get_table_or_404
 from .table_config import REQUEST_PHOTO_TABLES, REQUEST_TABLE_CONFIG
 
 
@@ -28,7 +28,7 @@ def request_photos_response(request, organ, table_key, pk):
     obj = request_object_or_404(organ, table_key, pk)
     if not can_view(request.user, organ):
         raise Http404
-    department_slug = TABLE_BY_KEY[table_key]["department"]
+    department_slug = get_table_or_404(table_key)["department"]
     if request.method == "POST":
         if not can_write(request.user, organ, department_slug):
             raise Http404

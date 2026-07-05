@@ -2,7 +2,7 @@ from django import forms
 from django.utils import timezone
 
 from .models import ACTIVE_NEED_STATUS_CHOICES, TmcRequest
-from .registry import TABLE_BY_KEY
+from .registry import get_table_or_404
 
 
 class BootstrapModelForm(forms.ModelForm):
@@ -31,7 +31,7 @@ class BootstrapModelForm(forms.ModelForm):
 
 
 def form_for_table(table_key):
-    table = TABLE_BY_KEY[table_key]
+    table = get_table_or_404(table_key)
     model = table["model"]
     editable_fields = table["form_fields"]
     widgets = {field.name: forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d") for field in model._meta.fields if field.get_internal_type() == "DateField"}

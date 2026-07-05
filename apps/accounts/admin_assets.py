@@ -8,7 +8,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from apps.directory.models import Department, TerritorialOrgan
-from apps.requests_app.registry import TABLE_BY_KEY
+from apps.requests_app.registry import TABLE_BY_KEY, get_table_or_404
 
 from .admin_common import (
     build_pagination_fields,
@@ -627,7 +627,7 @@ def category_history(category, organs, limit=12):
 
 def field_rows(category, obj):
     rows = []
-    table = TABLE_BY_KEY[category["key"]]
+    table = get_table_or_404(category["key"])
     for name in category.get("fields", []):
         rows.append({"label": field_label(table, name), "value": field_value(obj, name)})
     return rows

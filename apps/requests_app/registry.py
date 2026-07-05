@@ -1,3 +1,5 @@
+from django.http import Http404
+
 from . import models
 
 
@@ -90,3 +92,10 @@ HIDDEN_TABLES = [
 
 TABLE_BY_KEY = {item["key"]: item for group in TABLES.values() for item in group}
 TABLE_BY_KEY.update({item["key"]: item for item in HIDDEN_TABLES})
+
+def get_table_or_404(table_key):
+    try:
+        return TABLE_BY_KEY[table_key]
+    except KeyError as exc:
+        raise Http404 from exc
+

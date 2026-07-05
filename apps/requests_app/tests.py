@@ -84,6 +84,22 @@ class AppFlowTests(TestCase):
         self.assertContains(response, "bi-truck")
         self.assertContains(response, "bi-folder2-open")
 
+    def test_invalid_table_key_returns_404_for_direct_urls(self):
+        self.client.login(username="operator", password="pass12345")
+        invalid_key = "unknown-table"
+        urls = [
+            reverse("table_data", args=[self.organ.pk, invalid_key]),
+            reverse("record_create", args=[self.organ.pk, invalid_key]),
+            reverse("record_update", args=[self.organ.pk, invalid_key, 999]),
+            reverse("record_delete", args=[self.organ.pk, invalid_key, 999]),
+            reverse("export_table", args=[self.organ.pk, invalid_key, "csv"]),
+        ]
+
+        for url in urls:
+            with self.subTest(url=url):
+                response = self.client.get(url)
+                self.assertEqual(response.status_code, 404)
+
     def test_crud_creates_tmc_request_with_multiple_items_and_audit_log(self):
         self.client.login(username="operator", password="pass12345")
         response = self.client.post(
