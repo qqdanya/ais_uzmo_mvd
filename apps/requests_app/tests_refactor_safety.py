@@ -236,3 +236,43 @@ class ThinViewRegressionSmokeTests(TestCase):
             with self.subTest(url=url):
                 response = self.client.get(url, HTTP_HX_REQUEST="true")
                 self.assertLess(response.status_code, 500)
+
+
+class SearchPerformanceRegressionTests(TestCase):
+    def test_search_helpers_do_not_iterate_full_querysets_in_python(self):
+        files = {
+            "apps/requests_app/services/table_filters.py": [
+                "matched_ids = [obj.pk for obj in qs",
+                "object_matches_casefold_search",
+            ],
+            "apps/requests_app/services/photo_assets.py": [
+                "for photo in qs if photo_matches_query",
+                "query_normalized in folder.name.casefold()",
+            ],
+            "apps/requests_app/services/request_photos.py": [
+                "for photo in scoped_qs",
+                "query_normalized in photo.description.casefold()",
+            ],
+            "apps/requests_app/services/tmc.py": [
+                "for product in TmcProduct.objects.filter(is_active=True):",
+            ],
+        }
+        for path, forbidden_snippets in files.items():
+            with self.subTest(path=path):
+                source = open(path, encoding="utf-8").read()
+                for snippet in forbidden_snippets:
+                    self.assertNotIn(snippet, source)
+
+    def test_tmc_suggestions_keep_typo_match_after_candidate_prefilter(self):
+        from apps.requests_app.services.tmc import tmc_product_suggestions
+        from apps.requests_app.models import TmcProduct
+
+        for index in range(30):
+            TmcProduct.objects.create(name=f"Канцелярский набор {index}", unit="шт.")
+        TmcProduct.objects.create(name="Пылесос", unit="шт.")
+        TmcProduct.objects.create(name="Пылесборник", unit="шт.")
+
+        suggestions = tmc_product_suggestions("пылксос")
+
+        self.assertGreaterEqual(len(suggestions), 1)
+        self.assertEqual(suggestions[0].name, "Пылесос")

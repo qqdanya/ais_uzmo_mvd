@@ -1,3 +1,5 @@
+from django.db.models import Q
+
 from apps.audit.models import AuditLog
 from apps.audit.utils import serialize_instance, write_audit
 
@@ -60,6 +62,47 @@ def best_fuzzy_similarity(query_normalized, product):
     return max(similarity_ratio(query_normalized, candidate) for candidate in candidates if candidate)
 
 
+TMC_SUGGESTION_CANDIDATE_LIMIT = 200
+
+
+def tmc_suggestion_candidate_queryset(query_normalized, query_tokens, candidate_limit=TMC_SUGGESTION_CANDIDATE_LIMIT):
+    """Return a bounded candidate queryset before running fuzzy matching in Python."""
+    candidates_q = Q(normalized_name__icontains=query_normalized)
+    for token in query_tokens:
+        candidates_q |= Q(normalized_name__icontains=token)
+    if len(query_normalized) >= 3:
+        candidates_q |= Q(normalized_name__icontains=query_normalized[:3])
+    elif query_normalized:
+        candidates_q |= Q(normalized_name__startswith=query_normalized[:1])
+
+    qs = TmcProduct.objects.filter(is_active=True).filter(candidates_q).order_by("name", "pk")[:candidate_limit]
+    candidates = list(qs)
+    if candidates or not query_normalized:
+        return candidates
+    # Last-resort bounded fuzzy fallback for heavy typo cases where DB prefilter
+    # cannot find a prefix/token match. This avoids scanning the full catalog.
+    return list(TmcProduct.objects.filter(is_active=True).order_by("name", "pk")[:candidate_limit])
+
+
+def score_tmc_product_suggestion(query_normalized, query_tokens, product):
+    product_tokens_set = product_tokens(product.name)
+    if not product_tokens_set:
+        return 0
+    if product.normalized_name == query_normalized:
+        return 100
+    if query_tokens and query_tokens.issubset(product_tokens_set):
+        return 90
+    if query_tokens and product_tokens_set.issubset(query_tokens):
+        return 80
+    if query_normalized and query_normalized in product.normalized_name:
+        return 70
+    common_tokens = query_tokens & product_tokens_set
+    if common_tokens:
+        return 50 + len(common_tokens)
+    ratio = best_fuzzy_similarity(query_normalized, product)
+    return 40 + int(ratio * 10) if ratio >= fuzzy_threshold(query_normalized) else 0
+
+
 def tmc_product_suggestions(query, limit=8):
     query = clean_product_name(query)
     if not query:
@@ -67,25 +110,8 @@ def tmc_product_suggestions(query, limit=8):
     query_normalized = normalize_product_name(query)
     query_tokens = product_tokens(query)
     suggestions = []
-    for product in TmcProduct.objects.filter(is_active=True):
-        product_tokens_set = product_tokens(product.name)
-        if not product_tokens_set:
-            continue
-        if product.normalized_name == query_normalized:
-            score = 100
-        elif query_tokens and query_tokens.issubset(product_tokens_set):
-            score = 90
-        elif query_tokens and product_tokens_set.issubset(query_tokens):
-            score = 80
-        elif query_normalized and query_normalized in product.normalized_name:
-            score = 70
-        else:
-            common_tokens = query_tokens & product_tokens_set
-            if common_tokens:
-                score = 50 + len(common_tokens)
-            else:
-                ratio = best_fuzzy_similarity(query_normalized, product)
-                score = 40 + int(ratio * 10) if ratio >= fuzzy_threshold(query_normalized) else 0
+    for product in tmc_suggestion_candidate_queryset(query_normalized, query_tokens):
+        score = score_tmc_product_suggestion(query_normalized, query_tokens, product)
         if score:
             suggestions.append((score, product.name.casefold(), product))
     suggestions.sort(key=lambda item: (-item[0], item[1]))

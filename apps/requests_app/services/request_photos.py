@@ -7,14 +7,19 @@ from apps.directory.models import TerritorialOrganPhoto
 
 from ..models import RequestPhotoLink
 from .request_numbers import request_content_type_for_model, request_content_type_for_object
+from .table_filters import search_query_variants
 
 
 REQUEST_PHOTO_PICKER_PAGE_SIZE = 12
 
 
-def photo_matches_query(photo, query):
-    query_normalized = query.casefold()
-    return query_normalized in photo.description.casefold() or query_normalized in photo.original_filename.casefold()
+def photo_search_q(query, include_folder=True):
+    search_q = Q()
+    for variant in search_query_variants(query):
+        search_q |= Q(description__icontains=variant) | Q(original_filename__icontains=variant)
+        if include_folder:
+            search_q |= Q(folder__name__icontains=variant)
+    return search_q
 
 
 def folder_path(folder):
@@ -118,17 +123,8 @@ def request_photo_picker_context(request, organ, selected_ids):
     else:
         scoped_qs = qs.filter(folder=selected_folder) if selected_folder else qs.filter(folder__isnull=True)
     if query:
-        query_normalized = query.casefold()
-        qs = [
-            photo
-            for photo in scoped_qs
-            if query_normalized in photo.description.casefold()
-            or query_normalized in photo.original_filename.casefold()
-            or (photo.folder and query_normalized in photo.folder.name.casefold())
-        ]
-        qs = sorted(qs, key=lambda photo: (photo.created_at, photo.pk), reverse=sort != "oldest")
-    else:
-        qs = scoped_qs.order_by("created_at", "pk") if sort == "oldest" else scoped_qs.order_by("-created_at", "-pk")
+        scoped_qs = scoped_qs.filter(photo_search_q(query))
+    qs = scoped_qs.order_by("created_at", "pk") if sort == "oldest" else scoped_qs.order_by("-created_at", "-pk")
 
     page = Paginator(qs, REQUEST_PHOTO_PICKER_PAGE_SIZE).get_page(request.GET.get("photo_page"))
     photos = list(page.object_list)

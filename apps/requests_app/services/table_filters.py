@@ -2,7 +2,7 @@
 
 from datetime import timedelta
 
-from django.db.models import Min, OuterRef, Subquery
+from django.db.models import Min, OuterRef, Q, Subquery
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 
@@ -79,39 +79,36 @@ def request_table_date_filter_values(request, table_key, organs):
     return request_date_filter_values(request, REQUEST_TABLE_CONFIG[table_key]["model"], organs)
 
 
-def related_search_values(obj, field_name):
-    values = [obj]
-    for part in field_name.split("__"):
-        next_values = []
-        for value in values:
-            attr = getattr(value, part, None)
-            if attr is None:
-                continue
-            if hasattr(attr, "all") and callable(attr.all):
-                next_values.extend(attr.all())
-            else:
-                next_values.append(attr)
-        values = next_values
-    return values
+def search_query_variants(query):
+    """Return DB-search variants that preserve common Cyrillic case-insensitive behaviour.
+
+    SQLite does not provide reliable case-insensitive LIKE for Cyrillic text,
+    while PostgreSQL handles __icontains better. Searching a small set of
+    Python-generated variants keeps the operation in SQL without falling back
+    to iterating over the whole queryset in Python.
+    """
+    query = (query or "").strip()
+    if not query:
+        return []
+    variants = {query, query.lower(), query.upper(), query.title(), query.capitalize(), query.casefold()}
+    return [variant for variant in variants if variant]
 
 
-def object_matches_casefold_search(obj, search_fields, query):
-    query = query.casefold()
-    for field_name in search_fields:
-        for value in related_search_values(obj, field_name):
-            if query in str(value or "").casefold():
-                return True
-    return False
+def build_search_q(search_fields, query):
+    search_q = Q()
+    for variant in search_query_variants(query):
+        for field_name in search_fields:
+            search_q |= Q(**{f"{field_name}__icontains": variant})
+    return search_q
 
 
-def apply_casefold_search(qs, search_fields, query):
-    query = query.strip()
+def apply_casefold_search(qs, search_fields, query, distinct=False):
+    query = (query or "").strip()
     if not query:
         return qs
-    matched_ids = [obj.pk for obj in qs if object_matches_casefold_search(obj, search_fields, query)]
-    if not matched_ids:
-        return qs.none()
-    return qs.filter(pk__in=matched_ids)
+    search_q = build_search_q(search_fields, query)
+    qs = qs.filter(search_q) if search_q else qs.none()
+    return qs.distinct() if distinct else qs
 
 
 def request_table_queryset(request, table_key, organs, include_status=False):
@@ -130,7 +127,7 @@ def request_table_queryset(request, table_key, organs, include_status=False):
         qs = qs.filter(request_date__lte=date_to)
     if config.get("equipment_type_filter") and valid_equipment_type(request.GET.get("equipment_type")):
         qs = qs.filter(equipment_type=request.GET["equipment_type"])
-    qs = apply_casefold_search(qs, config["search_fields"], request.GET.get("q", ""))
+    qs = apply_casefold_search(qs, config["search_fields"], request.GET.get("q", ""), distinct=config.get("distinct_search", False))
     if include_status and request.GET.get("status") in dict(ACTIVE_NEED_STATUS_CHOICES):
         qs = qs.filter(status=request.GET["status"])
     return qs

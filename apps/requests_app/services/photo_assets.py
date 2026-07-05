@@ -3,10 +3,12 @@ from django.db.models import Count, Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 
+from apps.requests_app.services.table_filters import search_query_variants
+
 from apps.directory.models import TerritorialOrganPhoto, TerritorialOrganPhotoFolder
 
 from ..permissions import can_manage_photo_asset, can_write, user_primary_department
-from .request_photos import add_folder_content_counts, folder_path, folder_path_from_map, photo_matches_query
+from .request_photos import add_folder_content_counts, folder_path, folder_path_from_map, photo_search_q
 
 
 PHOTO_GALLERY_PAGE_SIZE = 24
@@ -63,11 +65,12 @@ def gallery_folders_queryset(organ, selected_folder, sort, query):
         photo_count=Count("photos", filter=Q(photos__is_deleted=False)),
         child_count=Count("children", filter=Q(children__is_deleted=False), distinct=True),
     )
-    folders = folders.order_by("created_at", "pk") if sort == "oldest" else folders.order_by("-created_at", "-pk")
     if query:
-        query_normalized = query.casefold()
-        return [folder for folder in folders if query_normalized in folder.name.casefold()]
-    return folders
+        folder_q = Q()
+        for variant in search_query_variants(query):
+            folder_q |= Q(name__icontains=variant)
+        folders = folders.filter(folder_q) if folder_q else folders.none()
+    return folders.order_by("created_at", "pk") if sort == "oldest" else folders.order_by("-created_at", "-pk")
 
 
 def gallery_photos_queryset(organ, folder_id, sort, query):
@@ -77,8 +80,7 @@ def gallery_photos_queryset(organ, folder_id, sort, query):
     else:
         qs = qs.filter(folder__isnull=True)
     if query:
-        photos = [photo for photo in qs if photo_matches_query(photo, query)]
-        return sorted(photos, key=lambda photo: (photo.created_at, photo.pk), reverse=sort != "oldest")
+        qs = qs.filter(photo_search_q(query))
     return qs.order_by("created_at", "pk") if sort == "oldest" else qs.order_by("-created_at", "-pk")
 
 
