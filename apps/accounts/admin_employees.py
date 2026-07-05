@@ -4,7 +4,7 @@ from django import forms
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
@@ -15,7 +15,7 @@ from apps.audit.views import prepare_log
 from apps.directory.models import Department, TerritorialOrgan
 from apps.requests_app.registry import TABLE_BY_KEY
 
-from .admin_requests import selected_per_page
+from .admin_common import build_pagination_fields, multiselect_label, query_with, selected_per_page, selected_values
 from .models import UserProfile
 
 
@@ -176,7 +176,24 @@ def format_departments_summary(profile, total_departments, user=None):
         return "Полный доступ"
     if not profile:
         return "—"
-    return rights_summary(profile.allowed_departments.all(), total_departments, "отделы", empty_label="Отделы не выбраны")
+    return rights_summary(profile.allowed_departments.all(), total_departments, "отделы")
+
+
+def has_all_departments_access(user, profile, total_departments):
+    if user.is_superuser:
+        return True
+    if not profile:
+        return False
+    selected_count = profile.allowed_departments.count()
+    return selected_count == 0 or bool(total_departments and selected_count == total_departments)
+
+
+def has_all_organs_access(user, profile):
+    if user.is_superuser:
+        return True
+    if not profile:
+        return False
+    return not profile.allowed_organs.exists()
 
 
 def activation_state(user):
@@ -230,16 +247,6 @@ def selected_view(request):
     return value if value in VIEW_TABS else "all"
 
 
-def selected_values(request, name, allowed_values):
-    allowed = {str(value) for value in allowed_values}
-    result = []
-    for value in request.GET.getlist(name):
-        value = str(value)
-        if value in allowed and value not in result:
-            result.append(value)
-    return result
-
-
 def selected_employee_filters(request, departments=None, organs=None):
     departments = departments if departments is not None else list(active_departments())
     organs = organs if organs is not None else list(top_level_organs())
@@ -253,15 +260,6 @@ def selected_employee_filters(request, departments=None, organs=None):
         "organs": selected_values(request, "organ", [str(organ.pk) for organ in organs]),
         "per_page": selected_per_page(request),
     }
-
-
-def multiselect_label(selected_values_list, empty_label, options):
-    selected = [str(value) for value in selected_values_list]
-    if not selected:
-        return empty_label
-    if len(selected) == 1:
-        return options.get(selected[0], selected[0])
-    return f"{len(selected)} выбрано"
 
 
 def employee_filter_labels(filters, departments, organs):
@@ -300,85 +298,107 @@ def activation_q(states):
     return query
 
 
-def filtered_users(request, users, departments=None, organs=None):
-    filters = selected_employee_filters(request, departments=departments, organs=organs)
+def apply_employee_search_filter(users, query):
+    if not query:
+        return users
+    return users.filter(
+        Q(username__icontains=query)
+        | Q(first_name__icontains=query)
+        | Q(last_name__icontains=query)
+        | Q(profile__middle_name__icontains=query)
+    )
 
-    if filters["query"]:
-        users = users.filter(
-            Q(username__icontains=filters["query"])
-            | Q(first_name__icontains=filters["query"])
-            | Q(last_name__icontains=filters["query"])
-            | Q(profile__middle_name__icontains=filters["query"])
-        )
+
+def apply_employee_access_filters(users, filters):
     if filters["roles"]:
         users = users.filter(profile__role__in=filters["roles"])
     if filters["departments"]:
-        users = users.filter(profile__allowed_departments__slug__in=filters["departments"])
+        users = users.filter(
+            Q(profile__allowed_departments__slug__in=filters["departments"])
+            | Q(profile__allowed_departments__isnull=True)
+        )
     if filters["organs"]:
         organ_ids = [int(value) for value in filters["organs"]]
         users = users.filter(Q(profile__allowed_organs__pk__in=organ_ids) | Q(profile__allowed_organs__isnull=True))
+    return users
 
-    activity_states = list(filters["activities"])
+
+def normalized_activity_states(filters):
     if filters["view"] in {"online", "recent", "offline"}:
-        activity_states = [filters["view"]]
+        return [filters["view"]]
+    return list(filters["activities"])
+
+
+def normalized_activation_states(filters):
+    if filters["view"] == "activation":
+        return ["needs_activation"]
+    if filters["view"] == "blocked":
+        return ["blocked"]
+    return list(filters["activations"])
+
+
+def apply_employee_state_filters(users, filters):
+    activity_states = normalized_activity_states(filters)
     if activity_states:
         users = users.filter(activity_q(activity_states))
 
-    activation_states = list(filters["activations"])
-    if filters["view"] == "activation":
-        activation_states = ["needs_activation"]
-    elif filters["view"] == "blocked":
-        activation_states = ["blocked"]
+    activation_states = normalized_activation_states(filters)
     if activation_states:
         users = users.filter(activation_q(activation_states))
+
     if filters["view"] == "admins":
         users = users.filter(Q(is_superuser=True) | Q(profile__role=UserProfile.Role.ADMIN))
+    return users
 
+
+def filtered_users(request, users, departments=None, organs=None):
+    filters = selected_employee_filters(request, departments=departments, organs=organs)
+    users = apply_employee_search_filter(users, filters["query"])
+    users = apply_employee_access_filters(users, filters)
+    users = apply_employee_state_filters(users, filters)
     return users.distinct()
 
 
-def tab_count(users, key):
+def employee_status_counts(users):
     now = timezone.now()
-    if key == "all":
-        return users.count()
-    if key == "online":
-        return users.filter(profile__last_seen_at__gte=now - ONLINE_DELTA).count()
-    if key == "recent":
-        return users.filter(profile__last_seen_at__lt=now - ONLINE_DELTA, profile__last_seen_at__gte=now - RECENT_DELTA).count()
-    if key == "offline":
-        return users.filter(Q(profile__last_seen_at__lt=now - RECENT_DELTA) | Q(profile__last_seen_at__isnull=True)).count()
-    if key == "activation":
-        return users.filter(is_active=True, profile__activation_code__gt="").count()
-    if key == "blocked":
-        return users.filter(is_active=False).count()
-    if key == "admins":
-        return users.filter(Q(is_superuser=True) | Q(profile__role=UserProfile.Role.ADMIN)).count()
-    return 0
+    counts = users.aggregate(
+        total=Count("pk", distinct=True),
+        online=Count("pk", distinct=True, filter=Q(profile__last_seen_at__gte=now - ONLINE_DELTA)),
+        recent=Count(
+            "pk",
+            distinct=True,
+            filter=Q(profile__last_seen_at__lt=now - ONLINE_DELTA, profile__last_seen_at__gte=now - RECENT_DELTA),
+        ),
+        offline=Count("pk", distinct=True, filter=Q(profile__last_seen_at__lt=now - RECENT_DELTA) | Q(profile__last_seen_at__isnull=True)),
+        activation=Count("pk", distinct=True, filter=Q(is_active=True, profile__activation_code__gt="")),
+        blocked=Count("pk", distinct=True, filter=Q(is_active=False)),
+        admins=Count("pk", distinct=True, filter=Q(is_superuser=True) | Q(profile__role=UserProfile.Role.ADMIN)),
+    )
+    return {key: counts.get(key) or 0 for key in ("total", "online", "recent", "offline", "activation", "blocked", "admins")}
 
 
-def query_with(request, **updates):
-    query = request.GET.copy()
-    query.pop("page", None)
-    for key, value in updates.items():
-        query.pop(key, None)
-        if value in (None, ""):
-            continue
-        if isinstance(value, (list, tuple, set)):
-            cleaned = [str(item) for item in value if str(item)]
-            if cleaned:
-                query.setlist(key, cleaned)
-        else:
-            query[key] = value
-    return query.urlencode()
+def employee_tab_counts(users):
+    counts = employee_status_counts(users)
+    return {
+        "all": counts["total"],
+        "online": counts["online"],
+        "recent": counts["recent"],
+        "offline": counts["offline"],
+        "activation": counts["activation"],
+        "blocked": counts["blocked"],
+        "admins": counts["admins"],
+    }
+
+
+def tab_count(users, key):
+    return employee_tab_counts(users).get(key, 0)
 
 
 def pagination_fields(request):
-    fields = []
-    for name in ("view", "q", "role", "activity", "activation", "department", "organ", "per_page"):
-        for value in request.GET.getlist(name):
-            if value:
-                fields.append({"name": name, "value": value})
-    return fields
+    return build_pagination_fields(
+        request,
+        list_fields=("view", "q", "role", "activity", "activation", "department", "organ", "per_page"),
+    )
 
 
 def active_filter_chips(filters, departments, organs):
@@ -403,19 +423,14 @@ def active_filter_chips(filters, departments, organs):
 # Metrics and charts
 # ---------------------------------------------------------------------------
 
-def employee_kpis(users):
-    now = timezone.now()
-    total = users.count()
-    online = users.filter(profile__last_seen_at__gte=now - ONLINE_DELTA).count()
-    activation = users.filter(is_active=True, profile__activation_code__gt="").count()
-    blocked = users.filter(is_active=False).count()
-    admins = users.filter(Q(is_superuser=True) | Q(profile__role=UserProfile.Role.ADMIN)).count()
+def employee_kpis(users_or_counts):
+    counts = users_or_counts if isinstance(users_or_counts, dict) else employee_status_counts(users_or_counts)
     return [
-        {"key": "total", "label": "Всего сотрудников", "value": total, "hint": "включая заблокированных", "icon": "bi-people"},
-        {"key": "online", "label": "Онлайн сейчас", "value": online, "hint": "активность за последнюю минуту", "icon": "bi-broadcast"},
-        {"key": "activation", "label": "Ожидают активации", "value": activation, "hint": "ещё не задали пароль", "icon": "bi-person-check"},
-        {"key": "blocked", "label": "Заблокированы", "value": blocked, "hint": "вход отключён", "icon": "bi-person-x"},
-        {"key": "admins", "label": "Руководители/админы", "value": admins, "hint": "управленческий доступ", "icon": "bi-shield-lock"},
+        {"key": "total", "label": "Всего сотрудников", "value": counts["total"], "hint": "включая заблокированных", "icon": "bi-people"},
+        {"key": "online", "label": "Онлайн сейчас", "value": counts["online"], "hint": "активность за последнюю минуту", "icon": "bi-broadcast"},
+        {"key": "activation", "label": "Ожидают активации", "value": counts["activation"], "hint": "ещё не задали пароль", "icon": "bi-person-check"},
+        {"key": "blocked", "label": "Заблокированы", "value": counts["blocked"], "hint": "вход отключён", "icon": "bi-person-x"},
+        {"key": "admins", "label": "Руководители/админы", "value": counts["admins"], "hint": "управленческий доступ", "icon": "bi-shield-lock"},
     ]
 
 
@@ -471,12 +486,14 @@ def employee_activity_stats(users, days=30):
 
 
 def employee_presence_payload():
-    users = list(employee_queryset())
-    kpis = employee_kpis(employee_queryset())
+    users_qs = employee_queryset()
+    users = list(users_qs)
+    counts = employee_status_counts(users_qs)
+    kpis = employee_kpis(counts)
     return {
         "generated_at": timezone.localtime(timezone.now()).strftime("%d.%m.%Y %H:%M:%S"),
         "kpis": {item["key"]: item["value"] for item in kpis},
-        "tabs": {key: tab_count(employee_queryset(), key) for key in VIEW_TABS},
+        "tabs": {key: counts.get("total" if key == "all" else key, 0) for key in VIEW_TABS},
         "employees": [
             {
                 "id": user.pk,
@@ -491,6 +508,20 @@ def employee_presence_payload():
     }
 
 
+def employee_view_tabs(request, filters, counts):
+    tab_counts = {key: counts.get("total" if key == "all" else key, 0) for key in VIEW_TABS}
+    return [
+        {
+            "key": key,
+            "label": label,
+            "count": tab_counts[key],
+            "url": f"?{query_with(request, view=key)}",
+            "active": filters["view"] == key,
+        }
+        for key, label in VIEW_TABS.items()
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Context builders
 # ---------------------------------------------------------------------------
@@ -500,6 +531,7 @@ def build_employees_context(request):
     departments = list(active_departments())
     organs = list(top_level_organs())
     filters = selected_employee_filters(request, departments=departments, organs=organs)
+    counts = employee_status_counts(users)
     filtered = filtered_users(request, users, departments=departments, organs=organs)
     paginator = Paginator(filtered, filters["per_page"])
     page = paginator.get_page(request.GET.get("page"))
@@ -508,19 +540,10 @@ def build_employees_context(request):
     rows = [employee_row(user, total_organs, total_departments) for user in page.object_list]
     return {
         "active_tab": "employees",
-        "employee_kpis": employee_kpis(users),
+        "employee_kpis": employee_kpis(counts),
         "activity_chart": employee_activity_stats(list(users), days=30),
         "presence_data_url": reverse("admin_employees_presence_data"),
-        "view_tabs": [
-            {
-                "key": key,
-                "label": label,
-                "count": tab_count(users, key),
-                "url": f"?{query_with(request, view=key)}",
-                "active": filters["view"] == key,
-            }
-            for key, label in VIEW_TABS.items()
-        ],
+        "view_tabs": employee_view_tabs(request, filters, counts),
         "filters": filters,
         "filter_labels": employee_filter_labels(filters, departments, organs),
         "employees": rows,
@@ -658,7 +681,7 @@ def employee_form_context(request, *, user=None, form=None, mode="create"):
         "selected_role": str(role_value_current),
         "role_options": role_options,
         "role_label": dict(role_options).get(str(role_value_current), "Роль в системе"),
-        "department_label": multiselect_label(selected_departments, "Отделы не выбраны", {str(department.pk): department.name for department in departments}),
+        "department_label": multiselect_label(selected_departments, "Все отделы", {str(department.pk): department.name for department in departments}),
         "organ_label": multiselect_label(selected_organs, "Все территориальные органы", {str(organ.pk): organ.name for organ in organs}),
         "is_create": mode == "create",
         "back_url": reverse("admin_employees_panel"),
@@ -696,9 +719,9 @@ def employee_detail_context(request, pk):
         "departments_summary": format_departments_summary(profile, total_departments, user),
         "allowed_organs": list(profile.allowed_organs.all()) if profile else [],
         "allowed_departments": list(profile.allowed_departments.all()) if profile else [],
-        "all_organs": bool(user.is_superuser or not profile or not profile.allowed_organs.exists()),
-        "all_departments": bool(user.is_superuser or (profile and profile.allowed_departments.count() == total_departments and total_departments)),
-        "no_departments": bool((not user.is_superuser) and (not profile or not profile.allowed_departments.exists())),
+        "all_organs": has_all_organs_access(user, profile),
+        "all_departments": has_all_departments_access(user, profile, total_departments),
+        "no_departments": False,
         "has_full_access": user.is_superuser,
         "recent_logs": logs,
         "recent_actions": recent_actions,

@@ -22,10 +22,10 @@ class DepartmentAdmin(admin.ModelAdmin):
 
 @admin.register(TerritorialOrganPhoto)
 class TerritorialOrganPhotoAdmin(admin.ModelAdmin):
-    list_display = ("preview", "territorial_organ", "folder", "created_at", "created_by", "created_department", "is_deleted")
-    list_filter = ("territorial_organ", "folder", "created_department", "created_by", "is_deleted")
+    list_display = ("preview", "territorial_organ", "folder", "file_size", "mime_type", "created_at", "created_by", "created_department", "is_deleted")
+    list_filter = ("territorial_organ", "folder", "mime_type", "created_department", "created_by", "is_deleted")
     search_fields = ("description", "original_filename", "territorial_organ__name", "folder__name", "created_by__username", "created_by__last_name")
-    readonly_fields = ("preview", "created_at", "updated_at")
+    readonly_fields = ("preview", "file_size", "mime_type", "created_at", "updated_at")
 
     class Media:
         css = {"all": ("css/admin.css",)}

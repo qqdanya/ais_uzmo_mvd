@@ -1,0 +1,26 @@
+/* Unified metadata rows for photo and attachment cards. */
+.photo-card-meta-list {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.photo-card-meta,
+.request-photo-picker-meta-line {
+  display: inline-flex;
+  align-items: center;
+  gap: .32rem;
+  min-width: 0;
+  color: var(--muted);
+  font-size: .8rem;
+  line-height: 1.2;
+}
+.photo-card-meta i,
+.request-photo-picker-meta-line i {
+  flex: 0 0 auto;
+  color: #6f9fbd;
+  font-size: .82rem;
+}
+.photo-card-meta span,
+.request-photo-picker-meta-line span {
+  min-width: 0;
+}

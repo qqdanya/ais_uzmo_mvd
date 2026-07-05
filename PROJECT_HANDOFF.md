@@ -71,9 +71,16 @@ python manage.py runserver 127.0.0.1:8000
 ```powershell
 python manage.py check
 python manage.py test apps.accounts apps.audit apps.requests_app
+python scripts/refactor_static_check.py
+
+Для проверки стабилизационного stage 14 отдельно:
+
+```powershell
+python manage.py test apps.accounts
+```
 ```
 
-Для точечных изменений можно запускать отдельные приложения, но перед большим коммитом лучше прогонять расширенный набор.
+`refactor_static_check.py` не заменяет Django-тесты, но быстро ловит два типовых риска после переноса кода: потерянные импорты между локальными модулями и незакрытые базовые блоки Django-шаблонов. Для точечных изменений можно запускать отдельные приложения, но перед большим коммитом лучше прогонять расширенный набор.
 
 ## 4. Структура приложений
 
@@ -104,7 +111,11 @@ python manage.py test apps.accounts apps.audit apps.requests_app
 
 - `models.py` - модели заявок и состояний.
 - `registry.py` - конфигурация таблиц, вкладок, отделов.
-- `views.py` - большая часть CRUD, фильтров, фотографий, экспортов.
+- `views.py` - тонкий маршрутизирующий слой для URL. Основная логика вынесена в `services/`.
+- `services/table_context.py`, `services/table_exports.py`, `services/table_filters.py` - таблицы, фильтры, группировки и экспорт.
+- `services/record_forms.py`, `services/record_actions.py` - формы, сохранение и удаление заявок.
+- `services/photo_responses.py`, `services/photo_assets.py`, `services/photo_asset_actions.py` - раздел фотографий.
+- `services/request_photo_panels.py`, `services/request_photos.py` - фотографии, прикрепленные к заявкам.
 - `forms.py` - формы таблиц.
 - `permissions.py` - права пользователя по отделам и органам.
 - `templates/partials/table_data.html` - отрисовка таблиц.
@@ -153,6 +164,7 @@ python manage.py test apps.accounts apps.audit apps.requests_app
 - `models.py` - `UserProfile`.
 - `admin.py` - кастомизация стандартной Django admin для пользователей.
 - `views.py` - активация, кастомная админ-панель, presence heartbeat.
+- `tests_admin_panel.py` - regression-тесты кастомной административной панели: доступы, сотрудники, presence, материальная база, настройки порогов.
 - `forms.py` - активация учетной записи.
 - `templatetags/account_tags.py` - отображение ФИО.
 
@@ -673,29 +685,25 @@ static/js/app.js
 
 ## 16. Кодовая чистота и будущий рефакторинг
 
-Есть известная зона технического долга:
+Зона технического долга уже частично разобрана:
 
-- `apps/requests_app/views.py` большой.
-- `static/js/app.js` большой.
-- `static/css/app.css` большой.
+- `apps/requests_app/views.py` сокращен до тонкого контроллера; не возвращать туда бизнес-логику без необходимости.
+- `static/js/app.js` частично разнесен на отдельные JS-файлы.
+- `static/css/app.css` и `static/css/admin.css` разнесены на CSS-модули через entry-файлы.
 
-Но нельзя начинать с радикального рефакторинга. Лучше:
+Дальше лучше:
 
 1. Добавлять новые функции аккуратно.
 2. Выносить только явно самостоятельные куски.
 3. После каждого шага прогонять тесты.
 4. Не менять UX одновременно с рефакторингом.
 
-Планируемое аккуратное разбиение в будущем:
+Актуальный подход к дальнейшему рефакторингу:
 
-- `views/tables.py`
-- `views/photos.py`
-- `views/exports.py`
-- `views/history.py`
-- `table_config.py`
-- JS-блоки: dashboard, tables, photos, auth, tooltips, admin panel.
-
-Но это делать только отдельной задачей и с тестами.
+- не дробить `partials/table_data.html` без проверки через Django template engine; однажды разбиение этого файла сломало `{% if %}`;
+- расширять существующие сервисы, а не создавать дублирующие helpers;
+- добавлять тесты на таблицы, экспорт, формы заявок и фотографии;
+- JS-блоки можно дальше выносить только с сохранением порядка подключения.
 
 ## 17. Тесты
 
@@ -762,6 +770,14 @@ python manage.py check
 ```
 
 Такой промпт опасен: новый разработчик может удалить важную адаптивную логику, упростить права, сломать таблицы, заменить кастомные контролы стандартными или переписать существующий UX.
+
+
+## Исправление после stage 13
+
+После прогона `python manage.py test apps.requests_app` исправлены два регресса стабилизационного этапа:
+
+- оператор без явно заданных отделов снова считается не ограниченным по отделам; если отделы назначены явно, доступ ограничивается только ими;
+- в picker прикрепления фотографий уже выбранные фотографии остаются видимыми даже при поиске/фильтре по папке.
 
 ## 20. Главные "не ломать"
 
@@ -836,3 +852,123 @@ python manage.py check
 - фото из вложенных папок показывались в корне.
 
 Не надо "упрощать" эти места без проверки.
+
+## 23. Stage 13 additional test-fix notes
+
+Повторный прогон `python manage.py test apps.requests_app` показал оставшийся хвост: не создавалась `RequestStatusHistory` при смене статуса и picker фотографий не показывал найденную фотографию из папки при поиске из корня.
+
+Причины и решения:
+
+- `ModelForm.is_valid()` мутирует переданный `instance` до вызова `form.save(commit=False)`. Поэтому сервисы сохранения теперь получают старые значения из БД перед сохранением и используют их для status history и аудита.
+- `request_photo_picker_context()` при поиске из корня теперь ищет по всей библиотеке фотографий органа, включая вложенные папки. Уже выбранные фотографии по-прежнему добавляются в выдачу поверх фильтра.
+
+## Stage 20 refactor notes
+
+Stage 20 продолжил внутреннюю чистку существующей кастомной админ-панели без изменения UI, маршрутов и бизнес-поведения.
+
+Изменения:
+
+- `apps/accounts/admin_assets.py` разложен на более мелкие helper-функции для фильтров, вкладок состояния, пагинационных hidden fields, сортировки и фильтрации строк матрицы.
+- Матрица материальной базы для `/control/assets/` теперь строится один раз, после чего статусные фильтры применяются к уже подготовленным строкам. Раньше общий набор и видимый набор строк собирались раздельно, что повторяло запросы к тем же таблицам.
+- Деталка категории `/control/assets/<category>/` также переиспользует уже подготовленные строки для фильтра по состоянию, не пересобирая матрицу повторно.
+- Для pagination fields используется общий `build_pagination_fields()` из `admin_common.py`.
+- Добавлены regression-тесты на фильтрацию материальной базы по категории, состоянию и поиску, а также на то, что фильтр состояния в деталке категории не меняет итоговую summary-сводку.
+
+Проверено:
+
+```text
+python manage.py check
+python manage.py makemigrations --check --dry-run
+python manage.py test apps.accounts --noinput
+python manage.py test apps.audit --noinput
+python manage.py test apps.requests_app.tests_refactor_safety --noinput
+python scripts/refactor_static_check.py
+```
+
+Полный `python manage.py test apps.requests_app --noinput` в среде ChatGPT снова не завершился до таймаута; до таймаута тесты шли без падений.
+
+## Stage 21 refactor notes
+
+Stage 21 продолжил внутреннюю чистку существующего раздела сотрудников кастомной админ-панели без добавления новых маршрутов, вкладок или бизнес-функций.
+
+Изменения:
+
+- `apps/accounts/admin_employees.py` разложен на более мелкие helper-функции для поиска, фильтрации по правам, фильтрации по активности/активации и построения вкладок.
+- Счётчики KPI и вкладок сотрудников теперь считаются одним агрегированным запросом через `Count(..., filter=...)` вместо серии отдельных `.count()`.
+- `employee_presence_payload()` переиспользует один queryset и один набор агрегированных счётчиков вместо повторных вызовов `employee_queryset()` для каждой вкладки.
+- Pagination hidden fields переведены на общий `build_pagination_fields()` из `admin_common.py`.
+- Исправлено отображение и фильтрация полного доступа по отделам: пустой список `allowed_departments` в проекте уже означает отсутствие ограничения по отделам, поэтому UI теперь показывает «Все отделы», а фильтр по отделу включает таких сотрудников.
+- Добавлены regression-тесты на фильтр сотрудников по отделу с полным доступом и на отображение полного доступа по отделам в карточке сотрудника.
+
+Проверено:
+
+```text
+python manage.py check
+python manage.py makemigrations --check --dry-run
+python manage.py test apps.accounts --noinput
+python manage.py test apps.audit --noinput
+python manage.py test apps.requests_app.tests_refactor_safety --noinput
+python scripts/refactor_static_check.py
+```
+
+Полный `python manage.py test apps.requests_app --noinput` в среде ChatGPT снова не завершился до таймаута; до таймаута тесты шли без падений.
+
+## Stage 24 refactor notes
+
+Stage 24 закрывает пункт по унификации кастомных выпадающих списков без изменения UI, маршрутов и бизнес-поведения.
+
+Изменения:
+
+- Добавлен общий partial `templates/partials/admin_multiselect.html` для admin dropdown/multiselect.
+- Добавлен inclusion tag `apps/accounts/templatetags/admin_select_tags.py`, который нормализует варианты checkbox/radio фильтров и рендерит общий partial.
+- Ручная разметка `admin-multiselect` удалена из существующих шаблонов админ-панели: заявки, органы, отделы, материальная база, сотрудники и форма сотрудника теперь используют общий компонент.
+- Отдельный `request-photo-sort-select` заменён обычным `select.form-select`, который автоматически обрабатывается общим `static/js/custom_select.js`.
+- Из `custom_select.js` удалена отдельная ветка JS для `request-photo-sort-select`; сортировка фотографий теперь использует общий single-select обработчик.
+- Добавлены regression-тесты, которые проверяют централизованную разметку `admin-multiselect`, отсутствие отдельного `request-photo-sort-select` и успешный рендер ключевых страниц админ-панели.
+
+Проверено:
+
+```text
+python manage.py check
+python manage.py makemigrations --check --dry-run
+python scripts/refactor_static_check.py
+python manage.py collectstatic --dry-run --noinput
+python manage.py test apps.accounts --noinput
+python manage.py test apps.audit --noinput
+python manage.py test apps.requests_app.tests_refactor_safety --noinput
+```
+
+Полный `python manage.py test` и полный `python manage.py test apps.requests_app` в среде ChatGPT снова не завершились до таймаута. Чтобы проверить фактический набор, `apps.requests_app.tests` был прогнан по чанкам: все 108 тестов `apps.requests_app.tests` прошли без падений.
+
+## Stage 27 — ограничения данных и metadata фотографий
+
+Сделано:
+- Добавлен `MinValueValidator(0)` и DB `CheckConstraint` для `TerritorialOrgan.order_number`, чтобы порядок территориального органа не мог быть отрицательным.
+- В `TerritorialOrganPhoto` добавлены служебные поля `file_size` и `mime_type`.
+- При сохранении фотографии автоматически обновляются `original_filename`, `file_size`, `mime_type`.
+- Добавлена миграция `apps/directory/migrations/0008_territorialorganphoto_file_size_and_more.py` с заполнением metadata для уже существующих фотографий.
+- В Django admin для фотографий metadata добавлены в список/фильтр/readonly-поля.
+- Добавлены tests в `apps/directory/tests.py` для отрицательного `order_number` и metadata фотографий.
+
+Проверки:
+- `python manage.py check` — OK.
+- `python manage.py makemigrations --check --dry-run` — OK.
+- `python scripts/refactor_static_check.py` — OK.
+- `python manage.py collectstatic --dry-run --noinput` — OK.
+- `python manage.py test apps.accounts --noinput` — OK, 40 tests.
+- `python manage.py test apps.audit --noinput` — OK, 18 tests.
+- `python manage.py test apps.directory --noinput` — OK, 3 tests.
+- `python manage.py test apps.requests_app.tests_refactor_safety --noinput` — OK, 7 tests.
+- `apps.requests_app.tests.AppFlowTests` — OK по чанкам, 107 tests.
+- `apps.requests_app.tests.SeedCommandTests` — OK, 1 test.
+
+Примечание:
+- Проверка реального MIME/содержимого загружаемого файла остаётся отдельным production-hardening этапом; в stage 27 добавлено именно хранение metadata.
+
+## Stage 28 — strict photo upload validation
+
+- Исправлен слишком строгий regression-тест `test_single_select_markup_is_centralized`: теперь он допускает только системные raw-select partials `templates/partials/table/_summary_actions.html` и `templates/partials/table/_toolbar.html`, если они есть в локальной ветке, и продолжает запрещать неожиданные ручные `<select>` в остальных шаблонах.
+- Добавлена проверка реального содержимого загружаемых фото через Pillow: разрешены только фактические изображения JPEG, PNG и WEBP.
+- MIME-тип фото теперь определяется по содержимому файла, а не только по имени/данным браузера.
+- Добавлена миграция `apps/directory/migrations/0009_alter_territorialorganphoto_image.py` для фиксации нового валидатора поля `image`.
+- Добавлены тесты: поддельный `.jpg` с текстовым содержимым отклоняется модельной валидацией и формой; валидное изображение с неверным browser `content_type` сохраняется с реальным MIME.

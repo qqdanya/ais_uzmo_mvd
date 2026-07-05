@@ -1,0 +1,55 @@
+      <section class="admin-section admin-employees-table-section">
+        <div class="admin-section-head">
+          <div>
+            <h2>Список сотрудников</h2>
+            <span>Роли, доступы и текущая активность сотрудников.</span>
+          </div>
+          <a class="btn btn-primary btn-sm" href="{{ create_url }}">
+            <i class="bi bi-person-plus"></i>
+            Добавить сотрудника
+          </a>
+        </div>
+
+        {% if employees %}
+          <div class="admin-requests-table-wrap">
+            <table class="admin-requests-table admin-employees-table">
+              <thead>
+                <tr>
+                  <th>Сотрудник</th>
+                  <th>Логин</th>
+                  <th>Роль</th>
+                  <th>Статус</th>
+                  <th>Последнее посещение</th>
+                  <th>Отделы</th>
+                  <th>Территориальные органы</th>
+                  <th>Активация</th>
+                  <th>Действие</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in employees %}
+                  <tr>
+                    <td class="admin-employee-name-cell"><strong>{{ row.display_name }}</strong></td>
+                    <td><code>{{ row.user.username }}</code></td>
+                    <td><span class="admin-role-badge {{ row.role_class }}">{{ row.role_label }}</span></td>
+                    <td><span class="admin-activity-badge is-{{ row.activity_state }}" data-employee-activity="{{ row.user.pk }}">{{ row.activity_label }}</span></td>
+                    <td data-employee-last-seen="{{ row.user.pk }}">{{ row.last_seen }}</td>
+                    <td>{{ row.departments_summary }}</td>
+                    <td>{{ row.organs_summary }}</td>
+                    <td><span class="admin-activation-badge is-{{ row.activation_state }}" data-employee-activation="{{ row.user.pk }}">{{ row.activation_label }}</span></td>
+                    <td class="admin-table-action-cell">
+                      <div class="admin-table-action-stack">
+                        <a class="btn btn-sm btn-outline-primary" href="{{ row.detail_url }}"><i class="bi bi-eye"></i> Открыть</a>
+                        <a class="btn btn-sm btn-outline-secondary" href="{{ row.edit_url }}"><i class="bi bi-pencil"></i> Права</a>
+                      </div>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% include "partials/pagination.html" with pagination_page=page pagination_links=page_links pagination_base_url=pagination_url pagination_querystring=querystring pagination_mode="link" pagination_hidden_fields=pagination_fields pagination_nav_class="admin-pagination-row admin-requests-pagination" %}
+        {% else %}
+          <div class="admin-empty"><i class="bi bi-people"></i><strong>Сотрудники не найдены</strong><span>Измените фильтры или добавьте нового сотрудника.</span></div>
+        {% endif %}
+      </section>

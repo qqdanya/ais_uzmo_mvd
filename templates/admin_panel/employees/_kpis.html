@@ -1,0 +1,12 @@
+      <section class="admin-employees-kpi" aria-label="Ключевые показатели по сотрудникам">
+        {% for item in employee_kpis %}
+          <article class="admin-requests-kpi-card admin-employees-kpi-card">
+            <span class="admin-requests-kpi-icon"><i class="bi {{ item.icon }}"></i></span>
+            <div>
+              <strong data-employees-kpi="{{ item.key }}">{{ item.value }}</strong>
+              <span>{{ item.label }}</span>
+              <small>{{ item.hint }}</small>
+            </div>
+          </article>
+        {% endfor %}
+      </section>

@@ -1,3 +1,5 @@
+from functools import wraps
+
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
@@ -36,6 +38,17 @@ def activate_account(request):
 def admin_access_allowed(user):
     profile = getattr(user, "profile", None)
     return user.is_superuser or getattr(profile, "role", "") == UserProfile.Role.ADMIN
+
+
+def admin_required(view_func):
+    @wraps(view_func)
+    @login_required
+    def wrapped(request, *args, **kwargs):
+        if not admin_access_allowed(request.user):
+            raise PermissionDenied
+        return view_func(request, *args, **kwargs)
+
+    return wrapped
 
 
 def active_request_models():
@@ -103,10 +116,8 @@ def presence_ping(request):
     return HttpResponse(status=204)
 
 
-@login_required
+@admin_required
 def admin_panel(request):
-    if not admin_access_allowed(request.user):
-        raise PermissionDenied
 
     User = get_user_model()
     users = (
@@ -149,129 +160,95 @@ def admin_panel(request):
     return render(request, template_name, context)
 
 
-@login_required
+@admin_required
 def admin_requests_panel(request):
-    if not admin_access_allowed(request.user):
-        raise PermissionDenied
     return render(request, "admin_panel/requests.html", build_requests_context(request))
 
 
-@login_required
+@admin_required
 def admin_request_detail(request, table_key, pk):
-    if not admin_access_allowed(request.user):
-        raise PermissionDenied
     return render(request, "admin_panel/request_detail.html", build_request_detail_context(request, table_key, pk))
 
 
-@login_required
+@admin_required
 def admin_organs_panel(request):
-    if not admin_access_allowed(request.user):
-        raise PermissionDenied
     return render(request, "admin_panel/organs.html", build_organs_context(request))
 
 
-@login_required
+@admin_required
 def admin_organ_detail(request, pk):
-    if not admin_access_allowed(request.user):
-        raise PermissionDenied
     return render(request, "admin_panel/organ_detail.html", build_organ_detail_context(request, pk))
 
 
-@login_required
+@admin_required
 def admin_departments_panel(request):
-    if not admin_access_allowed(request.user):
-        raise PermissionDenied
     return render(request, "admin_panel/departments.html", build_departments_context(request))
 
 
-@login_required
+@admin_required
 def admin_department_detail(request, department_slug):
-    if not admin_access_allowed(request.user):
-        raise PermissionDenied
     return render(request, "admin_panel/department_detail.html", build_department_detail_context(request, department_slug))
 
 
-@login_required
+@admin_required
 def admin_assets_panel(request):
-    if not admin_access_allowed(request.user):
-        raise PermissionDenied
     return render(request, "admin_panel/assets.html", build_assets_context(request))
 
 
-@login_required
+@admin_required
 def admin_asset_category_detail(request, category_key):
-    if not admin_access_allowed(request.user):
-        raise PermissionDenied
     return render(request, "admin_panel/asset_category_detail.html", build_asset_category_detail_context(request, category_key))
 
 
-@login_required
+@admin_required
 def admin_asset_organ_summary(request, organ_id):
-    if not admin_access_allowed(request.user):
-        raise PermissionDenied
     return render(request, "admin_panel/asset_organ_summary.html", build_asset_organ_summary_context(request, organ_id))
 
 
-@login_required
+@admin_required
 def admin_asset_organ_detail(request, category_key, organ_id):
-    if not admin_access_allowed(request.user):
-        raise PermissionDenied
     return render(request, "admin_panel/asset_organ_detail.html", build_asset_organ_detail_context(request, category_key, organ_id))
 
 
-@login_required
+@admin_required
 def admin_employees_panel(request):
-    if not admin_access_allowed(request.user):
-        raise PermissionDenied
     return render(request, "admin_panel/employees.html", build_employees_context(request))
 
 
-@login_required
+@admin_required
 def admin_employee_detail(request, pk):
-    if not admin_access_allowed(request.user):
-        raise PermissionDenied
     return render(request, "admin_panel/employee_detail.html", employee_detail_context(request, pk))
 
 
-@login_required
+@admin_required
 def admin_employee_create(request):
-    if not admin_access_allowed(request.user):
-        raise PermissionDenied
     result = create_employee(request)
     if hasattr(result, "status_code"):
         return result
     return render(request, "admin_panel/employee_form.html", result)
 
 
-@login_required
+@admin_required
 def admin_employee_edit(request, pk):
-    if not admin_access_allowed(request.user):
-        raise PermissionDenied
     result = edit_employee(request, pk)
     if hasattr(result, "status_code"):
         return result
     return render(request, "admin_panel/employee_form.html", result)
 
 
-@login_required
+@admin_required
 @require_POST
 def admin_employee_action(request, pk):
-    if not admin_access_allowed(request.user):
-        raise PermissionDenied
     return handle_employee_action(request, pk)
 
 
-@login_required
+@admin_required
 def admin_employees_presence_data(request):
-    if not admin_access_allowed(request.user):
-        raise PermissionDenied
     return JsonResponse(employee_presence_payload())
 
 
-@login_required
+@admin_required
 def admin_threshold_settings(request):
-    if not admin_access_allowed(request.user):
-        raise PermissionDenied
     context = None
     if request.method == "POST":
         context = handle_settings_post(request)
@@ -280,8 +257,6 @@ def admin_threshold_settings(request):
     return render(request, "admin_panel/settings.html", context or build_settings_context())
 
 
-@login_required
+@admin_required
 def admin_summary_data(request):
-    if not admin_access_allowed(request.user):
-        raise PermissionDenied
     return JsonResponse(build_summary_payload(request, metric=request.GET.get("org_metric", "in_work")))

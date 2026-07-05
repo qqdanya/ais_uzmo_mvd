@@ -1,5 +1,5 @@
 from collections import Counter
-from datetime import date, timedelta
+from datetime import timedelta
 
 from django.core.paginator import Paginator
 from django.http import Http404
@@ -10,9 +10,17 @@ from django.utils import timezone
 from apps.directory.models import Department, TerritorialOrgan
 from apps.requests_app.registry import TABLE_BY_KEY
 
-from .admin_requests import field_label, field_value, multiselect_label, query_with, selected_per_page, selected_values
+from .admin_common import (
+    build_pagination_fields,
+    field_label,
+    field_value,
+    multiselect_label,
+    query_with,
+    selected_per_page,
+    selected_values,
+)
 from .admin_summary import available_organs_for_user, selected_organs
-from .admin_thresholds import ASSET_STALE_DAYS
+from .admin_thresholds import get_asset_stale_days
 
 
 ASSET_CATEGORY_KEYS = [
@@ -74,7 +82,7 @@ def age_days(value):
 
 def is_stale(value):
     days = age_days(value)
-    return days is not None and days > ASSET_STALE_DAYS
+    return days is not None and days > get_asset_stale_days()
 
 
 def department_names():
@@ -166,7 +174,7 @@ def make_status(status, message, *, state_date=None, metrics=None, object_=None,
 
 def with_stale_status(base_status, messages, state_date):
     if is_stale(state_date):
-        messages.append(f"данные старше {ASSET_STALE_DAYS} дней")
+        messages.append(f"данные старше {get_asset_stale_days()} дней")
         if base_status == "ok":
             return "stale"
         if base_status == "warning":
@@ -291,12 +299,32 @@ def cell_matches_status(cell, status_filter):
     if status_filter == "danger":
         return cell["status"] == "danger"
     if status_filter == "stale":
-        return cell["status"] == "stale" or (cell.get("age_days") is not None and cell["age_days"] > ASSET_STALE_DAYS)
+        return cell["status"] == "stale" or (cell.get("age_days") is not None and cell["age_days"] > get_asset_stale_days())
     if status_filter == "no_data":
         return cell["status"] == "no_data"
     if status_filter == "ok":
         return cell["status"] == "ok"
     return True
+
+
+def normalized_asset_status_filters(status_filter):
+    values = status_filter if isinstance(status_filter, (list, tuple, set)) else [status_filter]
+    return [item for item in values if item and item != "all"]
+
+
+def row_matches_asset_statuses(row, status_filter):
+    status_filters = normalized_asset_status_filters(status_filter)
+    if not status_filters:
+        return True
+    return any(cell_matches_status(cell, status_filter) for status_filter in status_filters for cell in row["cells"])
+
+
+def filter_asset_rows(rows, status_filter):
+    return [row for row in rows if row_matches_asset_statuses(row, status_filter)]
+
+
+def sort_asset_rows(rows):
+    return sorted(rows, key=lambda row: (-row["issue_score"], -row["danger"], -row["attention"], row["organ"].order_number, row["organ"].name))
 
 
 def issue_weight(cell):
@@ -309,9 +337,7 @@ def issue_weight(cell):
     return 0
 
 
-def build_asset_matrix(organs, categories, status_filter="all"):
-    status_filters = status_filter if isinstance(status_filter, (list, tuple, set)) else [status_filter]
-    status_filters = [item for item in status_filters if item and item != "all"]
+def build_asset_matrix(organs, categories):
     latest_by_category = {category["key"]: latest_objects_by_organ(category, organs) for category in categories}
     rows = []
     for organ in organs:
@@ -329,8 +355,6 @@ def build_asset_matrix(organs, categories, status_filter="all"):
             cells.append(cell)
             if cell["state_date"] and (latest_date is None or cell["state_date"] > latest_date):
                 latest_date = cell["state_date"]
-        if status_filters and not any(any(cell_matches_status(cell, status_filter) for status_filter in status_filters) for cell in cells):
-            continue
         counters = Counter(cell["status"] for cell in cells)
         stale_count = sum(1 for cell in cells if cell_matches_status(cell, "stale"))
         attention_count = counters["warning"] + counters["danger"] + counters["stale"]
@@ -399,7 +423,7 @@ def build_assets_kpis(rows, categories):
         {"label": "Полный актуальный срез", "value": complete_actual, "hint": f"из {total_organs} органов", "icon": "bi-check2-circle"},
         {"label": "Требует внимания", "value": attention_organs, "hint": "органы с сигналами", "icon": "bi-exclamation-triangle"},
         {"label": "Есть пробелы в данных", "value": no_data_organs, "hint": "нет записи в категории", "icon": "bi-database-x"},
-        {"label": "Давно не обновлялось", "value": stale_organs, "hint": f"старше {ASSET_STALE_DAYS} дней", "icon": "bi-clock-history"},
+        {"label": "Давно не обновлялось", "value": stale_organs, "hint": f"старше {get_asset_stale_days()} дней", "icon": "bi-clock-history"},
     ]
 
 
@@ -446,22 +470,65 @@ def asset_status_counts(rows):
     }
 
 
-def pagination_fields(request):
-    fields = []
-    for name in ("q", "per_page"):
-        value = request.GET.get(name, "")
-        if value:
-            fields.append({"name": name, "value": value})
-    for name in ("category", "asset_status"):
-        for value in request.GET.getlist(name):
-            if value:
-                fields.append({"name": name, "value": value})
-    for value in request.GET.getlist("organ_ids"):
-        if value:
-            fields.append({"name": "organ_ids", "value": value})
-    if request.GET.get("organ_filter_empty") == "1":
-        fields.append({"name": "organ_filter_empty", "value": "1"})
-    return fields
+def asset_pagination_fields(request):
+    return build_pagination_fields(
+        request,
+        scalar_fields=("q", "per_page"),
+        list_fields=("category", "asset_status", "organ_ids"),
+        flag_fields=("organ_filter_empty",),
+    )
+
+
+def category_pagination_fields(request):
+    return build_pagination_fields(
+        request,
+        scalar_fields=("q", "per_page"),
+        list_fields=("asset_status", "organ_ids"),
+        flag_fields=("organ_filter_empty",),
+    )
+
+
+def build_asset_filters(request, categories):
+    filters = {
+        "categories": selected_asset_categories(request, categories),
+        "asset_statuses": selected_asset_statuses(request),
+        "category": "",
+        "asset_status": "all",
+        "query": (request.GET.get("q", "") or "").strip(),
+        "per_page": selected_per_page(request),
+    }
+    filters["category"] = filters["categories"][0] if len(filters["categories"]) == 1 else ""
+    filters["asset_status"] = filters["asset_statuses"][0] if len(filters["asset_statuses"]) == 1 else "all"
+    filters["category_label"] = multiselect_label(filters["categories"], "Все категории", {item["key"]: item["title"] for item in categories})
+    filters["asset_status_label"] = multiselect_label(filters["asset_statuses"], "Все состояния", ASSET_STATUS_FILTERS)
+    filters["per_page_label"] = f"{filters['per_page']} на странице"
+    return filters
+
+
+def build_asset_category_filters(request):
+    filters = {
+        "asset_statuses": selected_asset_statuses(request),
+        "asset_status": "all",
+        "query": (request.GET.get("q", "") or "").strip(),
+        "per_page": selected_per_page(request),
+    }
+    filters["asset_status"] = filters["asset_statuses"][0] if len(filters["asset_statuses"]) == 1 else "all"
+    filters["asset_status_label"] = multiselect_label(filters["asset_statuses"], "Все состояния", ASSET_STATUS_FILTERS)
+    filters["per_page_label"] = f"{filters['per_page']} на странице"
+    return filters
+
+
+def build_asset_status_tabs(request, filters, counts):
+    return [
+        {
+            "key": key,
+            "label": label,
+            "count": counts.get(key, 0),
+            "url": f"?{query_with(request, asset_status=key)}",
+            "active": (not filters["asset_statuses"] and key == "all") or filters["asset_statuses"] == [key],
+        }
+        for key, label in ASSET_STATUS_FILTERS.items()
+    ]
 
 
 def active_filter_chips(filters, selected_organs_list, available_organs, categories):
@@ -484,24 +551,11 @@ def build_assets_context(request):
     categories = asset_categories()
     available_organs = available_organs_for_user(request.user)
     organs = selected_organs(request, available_organs)
-    filters = {
-        "categories": selected_asset_categories(request, categories),
-        "asset_statuses": selected_asset_statuses(request),
-        "category": "",
-        "asset_status": "all",
-        "query": (request.GET.get("q", "") or "").strip(),
-        "per_page": selected_per_page(request),
-    }
-    filters["category"] = filters["categories"][0] if len(filters["categories"]) == 1 else ""
-    filters["asset_status"] = filters["asset_statuses"][0] if len(filters["asset_statuses"]) == 1 else "all"
-    filters["category_label"] = multiselect_label(filters["categories"], "Все категории", {item["key"]: item["title"] for item in categories})
-    filters["asset_status_label"] = multiselect_label(filters["asset_statuses"], "Все состояния", ASSET_STATUS_FILTERS)
-    filters["per_page_label"] = f"{filters['per_page']} на странице"
+    filters = build_asset_filters(request, categories)
     organs_for_matrix = filter_organs_by_search(organs, filters["query"])
     matrix_categories = visible_categories(categories, filters["categories"])
-    all_rows = build_asset_matrix(organs_for_matrix, matrix_categories, "all")
-    visible_rows = build_asset_matrix(organs_for_matrix, matrix_categories, filters["asset_statuses"])
-    visible_rows.sort(key=lambda row: (-row["issue_score"], -row["danger"], -row["attention"], row["organ"].order_number, row["organ"].name))
+    all_rows = build_asset_matrix(organs_for_matrix, matrix_categories)
+    visible_rows = sort_asset_rows(filter_asset_rows(all_rows, filters["asset_statuses"]))
     category_summaries = [category_summary(category, all_rows) for category in matrix_categories]
     counts = asset_status_counts(all_rows)
     paginator = Paginator(visible_rows, filters["per_page"])
@@ -522,25 +576,16 @@ def build_assets_context(request):
         "category_summaries": category_summaries,
         "category_chart": build_category_charts(category_summaries),
         "top_problem_organs": build_top_problem_organs(all_rows),
-        "status_tabs": [
-            {
-                "key": key,
-                "label": label,
-                "count": counts.get(key, 0),
-                "url": f"?{query_with(request, asset_status=key)}",
-                "active": (not filters["asset_statuses"] and key == "all") or filters["asset_statuses"] == [key],
-            }
-            for key, label in ASSET_STATUS_FILTERS.items()
-        ],
+        "status_tabs": build_asset_status_tabs(request, filters, counts),
         "page": page,
         "page_links": page.paginator.get_elided_page_range(page.number, on_each_side=1, on_ends=1),
         "total_count": page.paginator.count,
         "querystring": query_with(request),
         "pagination_url": reverse("admin_assets_panel"),
-        "pagination_fields": pagination_fields(request),
+        "pagination_fields": asset_pagination_fields(request),
         "active_filter_chips": active_filter_chips(filters, organs, available_organs, categories),
         "reset_url": reverse("admin_assets_panel"),
-        "stale_days": ASSET_STALE_DAYS,
+        "stale_days": get_asset_stale_days(),
     }
 
 
@@ -553,9 +598,8 @@ def get_asset_category(category_key):
 
 def category_current_rows(category, organs, status_filter="all", query=""):
     filtered_organs = filter_organs_by_search(organs, query)
-    rows = build_asset_matrix(filtered_organs, [category], status_filter)
-    rows.sort(key=lambda row: (-row["issue_score"], -row["danger"], -row["attention"], row["organ"].order_number, row["organ"].name))
-    return rows
+    rows = build_asset_matrix(filtered_organs, [category])
+    return sort_asset_rows(filter_asset_rows(rows, status_filter))
 
 
 def category_history(category, organs, limit=12):
@@ -593,17 +637,9 @@ def build_asset_category_detail_context(request, category_key):
     category = get_asset_category(category_key)
     available_organs = available_organs_for_user(request.user)
     organs = selected_organs(request, available_organs)
-    filters = {
-        "asset_statuses": selected_asset_statuses(request),
-        "asset_status": "all",
-        "query": (request.GET.get("q", "") or "").strip(),
-        "per_page": selected_per_page(request),
-    }
-    filters["asset_status"] = filters["asset_statuses"][0] if len(filters["asset_statuses"]) == 1 else "all"
-    filters["asset_status_label"] = multiselect_label(filters["asset_statuses"], "Все состояния", ASSET_STATUS_FILTERS)
-    filters["per_page_label"] = f"{filters['per_page']} на странице"
+    filters = build_asset_category_filters(request)
     rows_all = category_current_rows(category, organs, "all", filters["query"])
-    rows = category_current_rows(category, organs, filters["asset_statuses"], filters["query"])
+    rows = filter_asset_rows(rows_all, filters["asset_statuses"])
     counts = asset_status_counts(rows_all)
     paginator = Paginator(rows, filters["per_page"])
     page = paginator.get_page(request.GET.get("page"))
@@ -619,16 +655,7 @@ def build_asset_category_detail_context(request, category_key):
         "asset_status_options": [(key, label) for key, label in ASSET_STATUS_FILTERS.items() if key != "all"],
         "per_page_options": [50, 100],
         "summary": category_summary(category, rows_all),
-        "status_tabs": [
-            {
-                "key": key,
-                "label": label,
-                "count": counts.get(key, 0),
-                "url": f"?{query_with(request, asset_status=key)}",
-                "active": (not filters["asset_statuses"] and key == "all") or filters["asset_statuses"] == [key],
-            }
-            for key, label in ASSET_STATUS_FILTERS.items()
-        ],
+        "status_tabs": build_asset_status_tabs(request, filters, counts),
         "page": page,
         "page_links": page.paginator.get_elided_page_range(page.number, on_each_side=1, on_ends=1),
         "querystring": query_with(request),
@@ -637,25 +664,9 @@ def build_asset_category_detail_context(request, category_key):
         "history_rows": category_history(category, organs),
         "reset_url": reverse("admin_asset_category_detail", kwargs={"category_key": category_key}),
         "back_url": reverse("admin_assets_panel"),
-        "stale_days": ASSET_STALE_DAYS,
+        "stale_days": get_asset_stale_days(),
     }
 
-
-def category_pagination_fields(request):
-    fields = []
-    for name in ("q", "per_page"):
-        value = request.GET.get(name, "")
-        if value:
-            fields.append({"name": name, "value": value})
-    for value in request.GET.getlist("asset_status"):
-        if value:
-            fields.append({"name": "asset_status", "value": value})
-    for value in request.GET.getlist("organ_ids"):
-        if value:
-            fields.append({"name": "organ_ids", "value": value})
-    if request.GET.get("organ_filter_empty") == "1":
-        fields.append({"name": "organ_filter_empty", "value": "1"})
-    return fields
 
 
 def build_asset_organ_summary_context(request, organ_id):
@@ -664,7 +675,7 @@ def build_asset_organ_summary_context(request, organ_id):
     if organ not in list(available_organs):
         raise Http404
     categories = asset_categories()
-    rows = build_asset_matrix([organ], categories, "all")
+    rows = build_asset_matrix([organ], categories)
     row = rows[0] if rows else None
     history = []
     for category in categories:
@@ -677,7 +688,7 @@ def build_asset_organ_summary_context(request, organ_id):
         "categories": categories,
         "history_groups": history,
         "back_url": reverse("admin_assets_panel"),
-        "stale_days": ASSET_STALE_DAYS,
+        "stale_days": get_asset_stale_days(),
     }
 
 
@@ -687,7 +698,7 @@ def build_asset_organ_detail_context(request, category_key, organ_id):
     available_organs = available_organs_for_user(request.user)
     if organ not in list(available_organs):
         raise Http404
-    rows = build_asset_matrix([organ], [category], "all")
+    rows = build_asset_matrix([organ], [category])
     cell = rows[0]["cells"][0] if rows else None
     history = []
     qs = category["model"].objects.filter(is_deleted=False, territorial_organ=organ).order_by("-state_date", "-created_at", "-pk")
@@ -707,5 +718,5 @@ def build_asset_organ_detail_context(request, category_key, organ_id):
         "cell": cell,
         "history_rows": history,
         "back_url": reverse("admin_asset_category_detail", kwargs={"category_key": category_key}),
-        "stale_days": ASSET_STALE_DAYS,
+        "stale_days": get_asset_stale_days(),
     }

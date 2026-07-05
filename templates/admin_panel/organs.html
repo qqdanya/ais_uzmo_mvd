@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static account_tags %}
 
 {% block title %}Территориальные органы — Административная панель{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260704-015">
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260705-009">
 {% endblock %}
 
 {% block content %}
@@ -75,45 +75,11 @@
           </label>
           <div class="admin-filter-field">
             <span>Отделы</span>
-            <div class="dropdown admin-multiselect" data-admin-multiselect data-empty-label="Все отделы">
-              <button class="admin-multiselect-trigger" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
-                <span data-admin-multiselect-label>{{ filters.department_label }}</span>
-                <i class="bi bi-chevron-down"></i>
-              </button>
-              <div class="dropdown-menu admin-multiselect-menu">
-                <div class="admin-multiselect-actions">
-                  <button type="button" data-admin-multiselect-select-all>Выбрать все</button>
-                  <button type="button" data-admin-multiselect-clear>Снять все</button>
-                </div>
-                {% for department in departments %}
-                  <label class="admin-multiselect-option">
-                    <input type="checkbox" name="department" value="{{ department.slug }}" data-admin-multiselect-input {% if department.slug in filters.departments %}checked{% endif %}>
-                    <span>{{ department.name }}</span>
-                  </label>
-                {% endfor %}
-              </div>
-            </div>
+            {% admin_multiselect name="department" options=departments selected_values=filters.departments current_label=filters.department_label empty_label="Все отделы" value_attr="slug" label_attr="name" %}
           </div>
           <div class="admin-filter-field">
             <span>Статусы заявок</span>
-            <div class="dropdown admin-multiselect" data-admin-multiselect data-empty-label="Все статусы">
-              <button class="admin-multiselect-trigger" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
-                <span data-admin-multiselect-label>{{ filters.request_status_label }}</span>
-                <i class="bi bi-chevron-down"></i>
-              </button>
-              <div class="dropdown-menu admin-multiselect-menu">
-                <div class="admin-multiselect-actions">
-                  <button type="button" data-admin-multiselect-select-all>Выбрать все</button>
-                  <button type="button" data-admin-multiselect-clear>Снять все</button>
-                </div>
-                {% for value, label in request_status_options %}
-                  <label class="admin-multiselect-option">
-                    <input type="checkbox" name="request_status" value="{{ value }}" data-admin-multiselect-input {% if value in filters.request_statuses %}checked{% endif %}>
-                    <span>{{ label }}</span>
-                  </label>
-                {% endfor %}
-              </div>
-            </div>
+            {% admin_multiselect name="request_status" options=request_status_options selected_values=filters.request_statuses current_label=filters.request_status_label empty_label="Все статусы" %}
           </div>
           <label class="admin-filter-field admin-filter-field-search">
             <span>Поиск органа</span>
@@ -121,20 +87,7 @@
           </label>
           <div class="admin-filter-field">
             <span>На странице</span>
-            <div class="dropdown admin-multiselect admin-multiselect-single" data-admin-multiselect data-empty-label="50 на странице">
-              <button class="admin-multiselect-trigger" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
-                <span data-admin-multiselect-label>{{ filters.per_page_label }}</span>
-                <i class="bi bi-chevron-down"></i>
-              </button>
-              <div class="dropdown-menu admin-multiselect-menu admin-multiselect-menu-small">
-                {% for value in per_page_options %}
-                  <label class="admin-multiselect-option">
-                    <input type="radio" name="per_page" value="{{ value }}" data-admin-multiselect-input {% if filters.per_page == value %}checked{% endif %}>
-                    <span>{{ value }} на странице</span>
-                  </label>
-                {% endfor %}
-              </div>
-            </div>
+            {% admin_multiselect name="per_page" options=per_page_options selected_value=filters.per_page current_label=filters.per_page_label empty_label="50 на странице" input_type="radio" label_suffix="на странице" menu_class="admin-multiselect-menu-small" %}
           </div>
           <input type="hidden" name="view" value="{{ filters.view }}">
         </div>

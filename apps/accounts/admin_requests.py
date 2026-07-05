@@ -1,23 +1,39 @@
 from datetime import date
-from urllib.parse import urlencode
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
-from django.utils.dateparse import parse_date
 
-from apps.directory.models import Department, TerritorialOrgan
+from apps.directory.models import Department
 from apps.requests_app.models import NeedStatus, RequestPhotoLink, RequestStatusHistory
 from apps.requests_app.permissions import can_view
 from apps.requests_app.registry import TABLE_BY_KEY
 
 from .admin_summary import available_organs_for_user, request_tables, selected_organs
-from .business_days import business_days_inclusive, subtract_business_days_inclusive
-from .admin_thresholds import REQUEST_STALE_WORKDAYS
+from .admin_common import (
+    DEPARTMENT_ICONS,
+    STATUS_BADGE_CLASSES,
+    apply_period,
+    date_period_from_request,
+    days_class,
+    department_options,
+    field_label,
+    field_value,
+    multiselect_label,
+    processing_caption,
+    processing_days,
+    query_with,
+    request_number,
+    request_title,
+    selected_per_page,
+    selected_values,
+)
+from .business_days import subtract_business_days_inclusive
+from .admin_thresholds import get_request_stale_workdays
 
 
 STATUS_FILTERS = {
@@ -27,72 +43,8 @@ STATUS_FILTERS = {
     "rejected": "Отклонено",
     "stale": "Зависшие",
 }
-
-STATUS_BADGE_CLASSES = {
-    NeedStatus.IN_WORK: "status-in_work",
-    NeedStatus.DONE: "status-done",
-    NeedStatus.REJECTED: "status-rejected",
-}
-
-
-DEPARTMENT_ICONS = {
-    "tmc": "bi-box-seam",
-    "transport": "bi-truck",
-    "fire": "bi-fire",
-    "antiterror": "bi-shield-lock",
-    "citsizi": "bi-router",
-    "uoto": "bi-building",
-}
-
-
-COMPUTED_FIELD_LABELS = {
-    "items_summary": "Наименования",
-}
-
-
-def request_number(obj):
-    return getattr(obj, "request_number", None) or str(obj.pk)
-
-
-def request_title(table, obj):
-    title = table.get("title") or obj._meta.verbose_name.title()
-    parent_title = table.get("parent_title")
-    if parent_title:
-        return f"{parent_title}: {title}"
-    return title
-
-
-def date_period_from_request(request):
-    date_from = parse_date(request.GET.get("date_from", ""))
-    date_to = parse_date(request.GET.get("date_to", ""))
-    if date_from and date_to and date_from > date_to:
-        date_from, date_to = date_to, date_from
-    if date_from and date_to:
-        label = f"{date_from:%d.%m.%Y} — {date_to:%d.%m.%Y}"
-    elif date_from:
-        label = f"с {date_from:%d.%m.%Y}"
-    elif date_to:
-        label = f"по {date_to:%d.%m.%Y}"
-    else:
-        label = "за всё время"
-    return {"date_from": date_from, "date_to": date_to, "label": label}
-
-
-def department_options(tables):
-    slugs = []
-    for table in tables:
-        slug = table["department"]
-        if slug not in slugs:
-            slugs.append(slug)
-    departments = {item.slug: item.name for item in Department.objects.filter(is_active=True)}
-    return [
-        {
-            "slug": slug,
-            "name": departments.get(slug, slug),
-            "icon": DEPARTMENT_ICONS.get(slug, "bi-folder2-open"),
-        }
-        for slug in slugs
-    ]
+REQUEST_LIST_ORDERING = ("-request_date", "-created_at", "-pk")
+REQUEST_DETAIL_REQUIRED_FIELDS = {"status", "request_date", "territorial_organ", "is_deleted"}
 
 
 def selected_departments(request, options):
@@ -103,58 +55,16 @@ def selected_states(request):
     return selected_values(request, "state", STATUS_FILTERS.keys())
 
 
-def selected_per_page(request):
-    value = request.GET.get("per_page", "50")
-    return int(value) if value in {"50", "100"} else 50
+def department_name_map():
+    return {item.slug: item.name for item in Department.objects.filter(is_active=True)}
 
 
-def selected_values(request, name, allowed_values, *, drop_all=True):
-    allowed = {str(value) for value in allowed_values}
-    result = []
-    for value in request.GET.getlist(name):
-        value = str(value)
-        if drop_all and value == "all":
-            continue
-        if value in allowed and value not in result:
-            result.append(value)
-    return result
-
-
-def multiselect_label(selected_values_list, empty_label, options):
-    selected = [str(value) for value in selected_values_list if str(value)]
-    if not selected:
-        return empty_label
-    if len(selected) == 1:
-        return options.get(selected[0], selected[0])
-    return f"{len(selected)} выбрано"
-
-
-def query_with(request, **updates):
-    query = request.GET.copy()
-    query.pop("page", None)
-    for key, value in updates.items():
-        query.pop(key, None)
-        if value in (None, ""):
-            continue
-        if isinstance(value, (list, tuple, set)):
-            cleaned = [str(item) for item in value if str(item)]
-            if cleaned:
-                query.setlist(key, cleaned)
-        else:
-            query[key] = value
-    return query.urlencode()
+def stale_cutoff_date():
+    return subtract_business_days_inclusive(timezone.localdate(), get_request_stale_workdays() + 1)
 
 
 def base_table_queryset(table, organs):
     return table["model"].objects.select_related("territorial_organ").filter(is_deleted=False, territorial_organ__in=organs)
-
-
-def apply_period(qs, period):
-    if period["date_from"]:
-        qs = qs.filter(request_date__gte=period["date_from"])
-    if period["date_to"]:
-        qs = qs.filter(request_date__lte=period["date_to"])
-    return qs
 
 
 def apply_search(qs, query):
@@ -169,7 +79,6 @@ def apply_state(qs, states):
     states = [state for state in (states or []) if state != "all"]
     if not states:
         return qs
-    stale_before = subtract_business_days_inclusive(timezone.localdate(), REQUEST_STALE_WORKDAYS + 1)
     query = Q()
     if "in_work" in states:
         query |= Q(status=NeedStatus.IN_WORK)
@@ -178,13 +87,17 @@ def apply_state(qs, states):
     if "rejected" in states:
         query |= Q(status=NeedStatus.REJECTED)
     if "stale" in states:
-        query |= Q(status=NeedStatus.IN_WORK, request_date__lte=stale_before)
+        query |= Q(status=NeedStatus.IN_WORK, request_date__lte=stale_cutoff_date())
     return qs.filter(query) if query else qs
 
 
 def table_matches_departments(table, filters):
     departments = filters.get("departments") or []
     return not departments or table["department"] in departments
+
+
+def matching_tables(tables, filters):
+    return [table for table in tables if table_matches_departments(table, filters)]
 
 
 def filtered_queryset(table, organs, filters, *, with_state=True):
@@ -196,132 +109,64 @@ def filtered_queryset(table, organs, filters, *, with_state=True):
     return qs
 
 
+def table_status_counts(table, organs, filters, stale_before):
+    return filtered_queryset(table, organs, filters, with_state=False).aggregate(
+        all=Count("pk"),
+        in_work=Count("pk", filter=Q(status=NeedStatus.IN_WORK)),
+        done=Count("pk", filter=Q(status=NeedStatus.DONE)),
+        rejected=Count("pk", filter=Q(status=NeedStatus.REJECTED)),
+        stale=Count("pk", filter=Q(status=NeedStatus.IN_WORK, request_date__lte=stale_before)),
+    )
+
+
 def status_counts(tables, organs, filters):
     counts = {key: 0 for key in STATUS_FILTERS}
-    stale_before = subtract_business_days_inclusive(timezone.localdate(), REQUEST_STALE_WORKDAYS + 1)
-    for table in tables:
-        if not table_matches_departments(table, filters):
-            continue
-        qs = filtered_queryset(table, organs, filters, with_state=False)
-        counts["all"] += qs.count()
-        counts["in_work"] += qs.filter(status=NeedStatus.IN_WORK).count()
-        counts["done"] += qs.filter(status=NeedStatus.DONE).count()
-        counts["rejected"] += qs.filter(status=NeedStatus.REJECTED).count()
-        counts["stale"] += qs.filter(status=NeedStatus.IN_WORK, request_date__lte=stale_before).count()
+    stale_before = stale_cutoff_date()
+    for table in matching_tables(tables, filters):
+        table_counts = table_status_counts(table, organs, filters, stale_before)
+        for key in counts:
+            counts[key] += table_counts.get(key) or 0
     return counts
 
 
-def object_completion_date(obj):
-    """Return the best known completion date for an executed request."""
-    for field_name in ("completed_at", "due_date"):
-        value = getattr(obj, field_name, None)
-        if value:
-            return value
-    content_type = ContentType.objects.get_for_model(obj._meta.model, for_concrete_model=False)
-    history = (
-        RequestStatusHistory.objects.filter(content_type=content_type, object_id=obj.pk, new_status=NeedStatus.DONE)
-        .order_by("-completed_at", "-changed_at", "-pk")
-        .first()
-    )
-    if history:
-        return history.completed_at or history.changed_at.date()
-    return None
-
-
-def object_rejected_date(obj):
-    """Return the date when a request was rejected, if it can be determined."""
-    content_type = ContentType.objects.get_for_model(obj._meta.model, for_concrete_model=False)
-    history = (
-        RequestStatusHistory.objects.filter(content_type=content_type, object_id=obj.pk, new_status=NeedStatus.REJECTED)
-        .order_by("-changed_at", "-pk")
-        .first()
-    )
-    return history.changed_at.date() if history else None
-
-
-def processing_days(obj):
-    request_date = getattr(obj, "request_date", None)
-    status = getattr(obj, "status", None)
-    if not request_date:
-        return None
-    if status == NeedStatus.IN_WORK:
-        end_date = timezone.localdate()
-    elif status == NeedStatus.DONE:
-        end_date = object_completion_date(obj)
-    elif status == NeedStatus.REJECTED:
-        end_date = object_rejected_date(obj)
-    else:
-        end_date = None
-    if not end_date:
-        return None
-    # Срок обработки считаем по рабочим дням Пн–Пт включительно.
-    # День поступления заявки входит в срок, поэтому "сегодня → сегодня" = 1 рабочий день.
-    return business_days_inclusive(request_date, end_date)
-
-
-def processing_caption(obj, days):
-    if days is None:
-        return ""
-    if getattr(obj, "status", None) == NeedStatus.IN_WORK:
-        return "в работе"
-    if getattr(obj, "status", None) == NeedStatus.DONE:
-        return "на исполнение"
-    if getattr(obj, "status", None) == NeedStatus.REJECTED:
-        return "до отклонения"
-    return ""
-
-
-def days_class(days):
-    if days is None:
-        return ""
-    if days > REQUEST_STALE_WORKDAYS:
-        return "is-danger"
-    if days > 7:
-        return "is-warning"
-    return "is-normal"
+def request_row(table, obj, departments):
+    days = processing_days(obj)
+    return {
+        "id": obj.pk,
+        "table_key": table["key"],
+        "number": request_number(obj),
+        "request_date": obj.request_date,
+        "request_date_display": obj.request_date.strftime("%d.%m.%Y") if obj.request_date else "—",
+        "organ": obj.territorial_organ.name,
+        "organ_id": obj.territorial_organ_id,
+        "department_slug": table["department"],
+        "department": departments.get(table["department"], table["department"]),
+        "department_icon": DEPARTMENT_ICONS.get(table["department"], "bi-folder2-open"),
+        "request_type": request_title(table, obj),
+        "status": obj.status,
+        "status_label": obj.get_status_display(),
+        "status_class": STATUS_BADGE_CLASSES.get(obj.status, ""),
+        "days": days,
+        "has_days": days is not None,
+        "days_class": days_class(days),
+        "days_caption": processing_caption(obj, days),
+        "detail_url": reverse("admin_request_detail", kwargs={"table_key": table["key"], "pk": obj.pk}),
+    }
 
 
 def request_rows(tables, organs, filters):
-    departments = {item.slug: item.name for item in Department.objects.filter(is_active=True)}
+    departments = department_name_map()
     rows = []
-    for table in tables:
-        if not table_matches_departments(table, filters):
-            continue
-        qs = filtered_queryset(table, organs, filters).order_by("-request_date", "-created_at", "-pk")
-        for obj in qs:
-            days = processing_days(obj)
-            rows.append(
-                {
-                    "id": obj.pk,
-                    "table_key": table["key"],
-                    "number": request_number(obj),
-                    "request_date": obj.request_date,
-                    "request_date_display": obj.request_date.strftime("%d.%m.%Y") if obj.request_date else "—",
-                    "organ": obj.territorial_organ.name,
-                    "organ_id": obj.territorial_organ_id,
-                    "department_slug": table["department"],
-                    "department": departments.get(table["department"], table["department"]),
-                    "department_icon": DEPARTMENT_ICONS.get(table["department"], "bi-folder2-open"),
-                    "request_type": request_title(table, obj),
-                    "status": obj.status,
-                    "status_label": obj.get_status_display(),
-                    "status_class": STATUS_BADGE_CLASSES.get(obj.status, ""),
-                    "days": days,
-                    "has_days": days is not None,
-                    "days_class": days_class(days),
-                    "days_caption": processing_caption(obj, days),
-                    "detail_url": reverse("admin_request_detail", kwargs={"table_key": table["key"], "pk": obj.pk}),
-                }
-            )
+    for table in matching_tables(tables, filters):
+        qs = filtered_queryset(table, organs, filters).order_by(*REQUEST_LIST_ORDERING)
+        rows.extend(request_row(table, obj, departments) for obj in qs)
     rows.sort(key=lambda item: (item["request_date"] or date.min, item["id"]), reverse=True)
     return rows
 
 
 def average_completion_days(tables, organs, filters):
     values = []
-    for table in tables:
-        if not table_matches_departments(table, filters):
-            continue
+    for table in matching_tables(tables, filters):
         qs = filtered_queryset(table, organs, filters, with_state=False).filter(status=NeedStatus.DONE)
         for obj in qs:
             days = processing_days(obj)
@@ -342,9 +187,8 @@ def request_kpis(counts, avg_completion_days):
             "hint": "по исполненным заявкам",
             "icon": "bi-stopwatch",
         },
-        {"label": "Зависшие", "value": counts.get("stale", 0), "hint": f"в работе более {REQUEST_STALE_WORKDAYS} рабочих дней", "icon": "bi-exclamation-triangle"},
+        {"label": "Зависшие", "value": counts.get("stale", 0), "hint": f"в работе более {get_request_stale_workdays()} рабочих дней", "icon": "bi-exclamation-triangle"},
     ]
-
 
 
 def active_filter_chips(filters, selected_organs_list, available_organs, departments):
@@ -372,23 +216,16 @@ def pagination_fields(request):
         value = request.GET.get(name, "")
         if value:
             fields.append({"name": name, "value": value})
-    for name in ("department", "state"):
+    for name in ("department", "state", "organ_ids"):
         for value in request.GET.getlist(name):
             if value:
                 fields.append({"name": name, "value": value})
-    for value in request.GET.getlist("organ_ids"):
-        if value:
-            fields.append({"name": "organ_ids", "value": value})
     if request.GET.get("organ_filter_empty") == "1":
         fields.append({"name": "organ_filter_empty", "value": "1"})
     return fields
 
 
-def build_requests_context(request):
-    tables = list(request_tables())
-    available_organs = available_organs_for_user(request.user)
-    organs = selected_organs(request, available_organs)
-    departments = department_options(tables)
+def build_request_filters(request, departments):
     filters = {
         "period": date_period_from_request(request),
         "departments": selected_departments(request, departments),
@@ -400,12 +237,40 @@ def build_requests_context(request):
     }
     filters["department"] = filters["departments"][0] if len(filters["departments"]) == 1 else ""
     filters["state"] = filters["states"][0] if len(filters["states"]) == 1 else "all"
+    return filters
+
+
+def build_status_tabs(request, counts, filters):
+    return [
+        {
+            "key": key,
+            "label": label,
+            "count": counts.get(key, 0),
+            "url": f"?{query_with(request, state=key)}",
+            "active": (not filters["states"] and key == "all") or filters["states"] == [key],
+        }
+        for key, label in STATUS_FILTERS.items()
+    ]
+
+
+def paginate_request_rows(request, rows, per_page):
+    paginator = Paginator(rows, per_page)
+    page = paginator.get_page(request.GET.get("page"))
+    return page, page.paginator.get_elided_page_range(page.number, on_each_side=1, on_ends=1)
+
+
+def build_requests_context(request):
+    tables = list(request_tables())
+    available_organs = available_organs_for_user(request.user)
+    organs = selected_organs(request, available_organs)
+    departments = department_options(tables)
+    filters = build_request_filters(request, departments)
     counts = status_counts(tables, organs, filters)
     avg_completion = average_completion_days(tables, organs, filters)
     rows = request_rows(tables, organs, filters)
-    paginator = Paginator(rows, filters["per_page"])
-    page = paginator.get_page(request.GET.get("page"))
+    page, page_links = paginate_request_rows(request, rows, filters["per_page"])
     selected_ids = {organ.pk for organ in organs}
+    department_labels = {item["slug"]: item["name"] for item in departments}
     return {
         "active_tab": "requests",
         "organs": available_organs,
@@ -414,24 +279,15 @@ def build_requests_context(request):
         "all_organs_selected": len(organs) == len(available_organs),
         "departments": departments,
         "filters": filters,
-        "status_tabs": [
-            {
-                "key": key,
-                "label": label,
-                "count": counts.get(key, 0),
-                "url": f"?{query_with(request, state=key)}",
-                "active": (not filters["states"] and key == "all") or filters["states"] == [key],
-            }
-            for key, label in STATUS_FILTERS.items()
-        ],
+        "status_tabs": build_status_tabs(request, counts, filters),
         "status_options": [(key, label) for key, label in STATUS_FILTERS.items() if key != "all"],
-        "department_label": multiselect_label(filters["departments"], "Все отделы", {item["slug"]: item["name"] for item in departments}),
+        "department_label": multiselect_label(filters["departments"], "Все отделы", department_labels),
         "state_label": multiselect_label(filters["states"], "Все статусы", STATUS_FILTERS),
         "per_page_label": f"{filters['per_page']} на странице",
         "per_page_options": [50, 100],
         "request_kpis": request_kpis(counts, avg_completion),
         "page": page,
-        "page_links": page.paginator.get_elided_page_range(page.number, on_each_side=1, on_ends=1),
+        "page_links": page_links,
         "total_count": page.paginator.count,
         "querystring": query_with(request),
         "pagination_url": reverse("admin_requests_panel"),
@@ -441,37 +297,21 @@ def build_requests_context(request):
     }
 
 
+def table_field_names(model):
+    return {field.name for field in model._meta.fields}
+
+
 def table_for_detail(table_key):
     table = TABLE_BY_KEY.get(table_key)
     if not table:
         return None
-    field_names = {field.name for field in table["model"]._meta.fields}
-    if not {"status", "request_date", "territorial_organ", "is_deleted"}.issubset(field_names):
+    if not REQUEST_DETAIL_REQUIRED_FIELDS.issubset(table_field_names(table["model"])):
         return None
     return table
 
 
-def field_label(table, field_name):
-    if field_name in COMPUTED_FIELD_LABELS:
-        return COMPUTED_FIELD_LABELS[field_name]
-    try:
-        return table["model"]._meta.get_field(field_name).verbose_name.capitalize()
-    except Exception:
-        return field_name.replace("_", " ").capitalize()
-
-
-def field_value(obj, field_name):
-    display = getattr(obj, f"get_{field_name}_display", None)
-    if callable(display):
-        return display()
-    value = getattr(obj, field_name, "")
-    if callable(value):
-        value = value()
-    if value is None or value == "":
-        return "—"
-    if hasattr(value, "strftime"):
-        return value.strftime("%d.%m.%Y")
-    return value
+def build_detail_fields(table, obj):
+    return [{"label": field_label(table, name), "value": field_value(obj, name)} for name in table.get("fields", [])]
 
 
 def build_request_detail_context(request, table_key, pk):
@@ -481,13 +321,10 @@ def build_request_detail_context(request, table_key, pk):
     obj = get_object_or_404(table["model"].objects.select_related("territorial_organ", "created_by", "updated_by"), pk=pk, is_deleted=False)
     if not can_view(request.user, obj.territorial_organ):
         raise Http404
-    departments = {item.slug: item.name for item in Department.objects.filter(is_active=True)}
+    departments = department_name_map()
     content_type = ContentType.objects.get_for_model(table["model"], for_concrete_model=False)
     history = RequestStatusHistory.objects.filter(content_type=content_type, object_id=obj.pk).select_related("changed_by")[:8]
     photo_count = RequestPhotoLink.objects.filter(content_type=content_type, object_id=obj.pk).count()
-    fields = []
-    for name in table.get("fields", []):
-        fields.append({"label": field_label(table, name), "value": field_value(obj, name)})
     days = processing_days(obj)
     return {
         "active_tab": "requests",
@@ -502,7 +339,7 @@ def build_request_detail_context(request, table_key, pk):
         "has_days": days is not None,
         "days_class": days_class(days),
         "days_caption": processing_caption(obj, days),
-        "fields": fields,
+        "fields": build_detail_fields(table, obj),
         "history": history,
         "photo_count": photo_count,
         "back_url": request.META.get("HTTP_REFERER") or reverse("admin_requests_panel"),

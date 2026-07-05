@@ -92,13 +92,7 @@
             <h2>Территориальные органы</h2>
             <span>Все территориальные органы по выбранному показателю</span>
           </div>
-          <select class="form-select form-select-sm admin-native-select" data-admin-org-metric aria-label="Показатель территориальных органов">
-            <option value="total">Всего заявок</option>
-            <option value="in_work" selected>В работе</option>
-            <option value="done">Исполнено</option>
-            <option value="rejected">Отклонено</option>
-            <option value="stale">Зависшие</option>
-          </select>
+          {% single_select options="total:Всего заявок|in_work:В работе|done:Исполнено|rejected:Отклонено|stale:Зависшие" selected_value="in_work" aria_label="Показатель территориальных органов" css_class="form-select form-select-sm admin-native-select" data_admin_org_metric=True %}
         </div>
         <div class="admin-bar-list" data-org-chart></div>
       </section>

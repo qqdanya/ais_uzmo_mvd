@@ -210,6 +210,75 @@ class AppFlowTests(TestCase):
         names = [item["name"] for item in response.json()["results"]]
         self.assertEqual(names[0], "Пылесос")
 
+    def test_tmc_product_suggest_requires_login(self):
+        response = self.client.get(reverse("tmc_product_suggest"), {"q": "стол"})
+
+        self.assertEqual(response.status_code, 302)
+
+    def test_operator_cannot_access_foreign_organ_direct_urls(self):
+        other_organ = TerritorialOrgan.objects.create(name="Foreign territorial organ", order_number=2)
+        self.user.profile.allowed_organs.set([self.organ])
+        foreign_request = TmcRequest.objects.create(
+            territorial_organ=other_organ,
+            created_by=self.user,
+            request_number="FOREIGN-1",
+            request_date="2026-06-27",
+            status="in_work",
+        )
+        TmcRequestItem.objects.create(request=foreign_request, name="Desk", quantity=1, unit="шт.")
+        buffer = BytesIO()
+        Image.new("RGB", (2, 2), "white").save(buffer, format="PNG")
+        foreign_photo = TerritorialOrganPhoto.objects.create(
+            territorial_organ=other_organ,
+            image=SimpleUploadedFile("foreign-organ.png", buffer.getvalue(), content_type="image/png"),
+            created_by=self.user,
+            updated_by=self.user,
+        )
+        self.client.login(username="operator", password="pass12345")
+
+        endpoints = [
+            reverse("table_data", args=[other_organ.pk, "tmc-requests"]),
+            reverse("record_create", args=[other_organ.pk, "tmc-requests"]),
+            reverse("request_photos", args=[other_organ.pk, "tmc-requests", foreign_request.pk]),
+            reverse("request_photos_download", args=[other_organ.pk, "tmc-requests", foreign_request.pk]),
+            reverse("request_photo_picker", args=[other_organ.pk]),
+            reverse("export_table", args=[other_organ.pk, "tmc-requests", "csv"]),
+            reverse("photos", args=[other_organ.pk]),
+            reverse("photo_download", args=[other_organ.pk, foreign_photo.pk]),
+        ]
+
+        for url in endpoints:
+            with self.subTest(url=url):
+                response = self.client.get(url, HTTP_HX_REQUEST="true")
+                self.assertEqual(response.status_code, 404)
+
+    def test_observer_can_view_table_but_cannot_write_records(self):
+        User = get_user_model()
+        observer = User.objects.create_user("observer", password="pass12345")
+        UserProfile.objects.create(user=observer, role=UserProfile.Role.OBSERVER)
+        request_obj = TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            created_by=self.user,
+            request_number="OBS-1",
+            request_date="2026-06-27",
+            status="in_work",
+        )
+        TmcRequestItem.objects.create(request=request_obj, name="Paper", quantity=1, unit="шт.")
+        self.client.login(username="observer", password="pass12345")
+
+        table_response = self.client.get(reverse("table_data", args=[self.organ.pk, "tmc-requests"]))
+        create_response = self.client.get(reverse("record_create", args=[self.organ.pk, "tmc-requests"]), HTTP_HX_REQUEST="true")
+        update_response = self.client.get(reverse("record_update", args=[self.organ.pk, "tmc-requests", request_obj.pk]), HTTP_HX_REQUEST="true")
+        delete_response = self.client.post(reverse("record_delete", args=[self.organ.pk, "tmc-requests", request_obj.pk]), HTTP_HX_REQUEST="true")
+
+        self.assertEqual(table_response.status_code, 200)
+        self.assertContains(table_response, "OBS-1")
+        self.assertNotContains(table_response, reverse("record_create", args=[self.organ.pk, "tmc-requests"]))
+        self.assertNotContains(table_response, reverse("record_update", args=[self.organ.pk, "tmc-requests", request_obj.pk]))
+        self.assertEqual(create_response.status_code, 404)
+        self.assertEqual(update_response.status_code, 404)
+        self.assertEqual(delete_response.status_code, 404)
+
     def test_tmc_request_can_attach_and_show_photos(self):
         photo = self.create_photo("request-photo.png")
         photo.description = "Repair evidence"
@@ -293,6 +362,88 @@ class AppFlowTests(TestCase):
         self.assertContains(response, f'data-request-linked-photo="{second.pk}"')
         self.assertNotContains(response, f'data-request-linked-photo="{first.pk}"')
         self.assertIn("requestPhotosChanged", response["HX-Trigger"])
+
+    def test_request_photos_ignore_photos_from_other_organ(self):
+        other_organ = TerritorialOrgan.objects.create(name="Other photo organ", order_number=2)
+        request_obj = TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            created_by=self.user,
+            updated_by=self.user,
+            request_number="15-CrossPhoto/TMC",
+            request_date="2026-06-27",
+            status="in_work",
+        )
+        TmcRequestItem.objects.create(request=request_obj, name="Desk", quantity=1, unit="шт.")
+        buffer = BytesIO()
+        Image.new("RGB", (2, 2), "white").save(buffer, format="PNG")
+        foreign_photo = TerritorialOrganPhoto.objects.create(
+            territorial_organ=other_organ,
+            image=SimpleUploadedFile("foreign-request-photo.png", buffer.getvalue(), content_type="image/png"),
+            description="Foreign evidence",
+            created_by=self.user,
+            updated_by=self.user,
+        )
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.post(
+            reverse("request_photos", args=[self.organ.pk, "tmc-requests", request_obj.pk]),
+            {"attached_photos": [str(foreign_photo.pk)]},
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(RequestPhotoLink.objects.filter(photo=foreign_photo, object_id=request_obj.pk).exists())
+        self.assertNotContains(response, "Foreign evidence")
+        self.assertContains(response, "К заявке фотографии не прикреплены")
+
+    def test_request_lightbox_groups_are_isolated_per_request(self):
+        first = TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            created_by=self.user,
+            request_number="15-Lightbox-1/TMC",
+            request_date="2026-06-27",
+            status="in_work",
+        )
+        second = TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            created_by=self.user,
+            request_number="15-Lightbox-2/TMC",
+            request_date="2026-06-28",
+            status="in_work",
+        )
+        TmcRequestItem.objects.create(request=first, name="Desk", quantity=1, unit="шт.")
+        TmcRequestItem.objects.create(request=second, name="Chair", quantity=1, unit="шт.")
+        first_photo = self.create_photo("first-lightbox.png")
+        second_photo = self.create_photo("second-lightbox.png")
+        content_type = ContentType.objects.get_for_model(TmcRequest, for_concrete_model=False)
+        RequestPhotoLink.objects.create(
+            territorial_organ=self.organ,
+            photo=first_photo,
+            content_type=content_type,
+            object_id=first.pk,
+            created_by=self.user,
+        )
+        RequestPhotoLink.objects.create(
+            territorial_organ=self.organ,
+            photo=second_photo,
+            content_type=content_type,
+            object_id=second.pk,
+            created_by=self.user,
+        )
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("table_data", args=[self.organ.pk, "tmc-requests"]))
+        content = response.content.decode()
+        first_group = f'request-{self.organ.pk}-tmc-requests-{first.pk}'
+        second_group = f'request-{self.organ.pk}-tmc-requests-{second.pk}'
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, f'data-lightbox-group="{first_group}"')
+        self.assertContains(response, f'data-lightbox-group="{second_group}"')
+        self.assertContains(response, "first-lightbox.png")
+        self.assertContains(response, "second-lightbox.png")
+        self.assertGreaterEqual(content.count(f'data-lightbox-group="{first_group}"'), 2)
+        self.assertGreaterEqual(content.count(f'data-lightbox-group="{second_group}"'), 2)
 
     def test_request_photo_picker_filters_paginates_and_keeps_selected(self):
         folder = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Evidence")

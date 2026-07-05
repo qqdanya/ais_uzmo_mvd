@@ -1,0 +1,31 @@
+      <section class="admin-section admin-employees-activity-section">
+        <div class="admin-section-head">
+          <div>
+            <h2>Активность сотрудников за 30 дней</h2>
+            <span>Активность сотрудников за последние 30 дней.</span>
+          </div>
+        </div>
+        {% if activity_chart %}
+          <div class="admin-employees-activity-chart" aria-label="Диаграмма активности сотрудников">
+            {% for item in activity_chart %}
+              <a class="admin-employee-activity-row" href="{{ item.detail_url }}">
+                <div class="admin-employee-activity-name">{{ item.name }}</div>
+                <div class="admin-employee-activity-bars">
+                  <div class="admin-employee-activity-line">
+                    <span>Заявки</span>
+                    <div class="admin-assets-bar-track">{% if item.created_requests %}<span style="width: {{ item.created_width|stringformat:'s' }}%;"></span>{% endif %}</div>
+                    <strong>{{ item.created_requests }}</strong>
+                  </div>
+                  <div class="admin-employee-activity-line">
+                    <span>Действия</span>
+                    <div class="admin-assets-bar-track">{% if item.actions %}<span style="width: {{ item.actions_width|stringformat:'s' }}%;"></span>{% endif %}</div>
+                    <strong>{{ item.actions }}</strong>
+                  </div>
+                </div>
+              </a>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="admin-empty admin-empty-compact"><i class="bi bi-bar-chart"></i><strong>Активности пока нет</strong><span>Диаграмма появится после создания заявок или действий в журнале.</span></div>
+        {% endif %}
+      </section>

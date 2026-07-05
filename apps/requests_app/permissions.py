@@ -21,7 +21,9 @@ def can_write(user, organ=None, department_slug=None):
         return False
     if department_slug:
         departments = profile.allowed_departments.all()
-        if not departments.exists() or not departments.filter(slug=department_slug).exists():
+        # Empty department list means no department restriction.
+        # If departments are explicitly assigned, operator can write only within them.
+        if departments.exists() and not departments.filter(slug=department_slug).exists():
             return False
     if organ is None:
         return True

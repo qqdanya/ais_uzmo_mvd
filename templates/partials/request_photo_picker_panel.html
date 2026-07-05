@@ -1,19 +1,10 @@
+{% load account_tags %}
 <div id="request-photo-filters" class="request-photo-filters" hx-get="{% url 'request_photo_picker' organ.pk %}{% if photo_picker_folder %}?photo_folder={{ photo_picker_folder }}{% endif %}" hx-target="closest [data-request-photo-panel]" hx-swap="innerHTML" hx-include="#request-photo-selected, #request-photo-search-input, #request-photo-sort-input" hx-trigger="input delay:500ms from:#request-photo-search-input, change from:#request-photo-sort-input">
   <div class="search-box request-photo-search">
     <i class="bi bi-search"></i>
     <input id="request-photo-search-input" class="form-control form-control-sm" name="photo_q" value="{{ photo_picker_query }}" placeholder="Поиск в текущей папке">
   </div>
-  <input id="request-photo-sort-input" type="hidden" name="photo_sort" value="{{ photo_picker_sort|default:'newest' }}">
-  <div class="custom-select custom-select-sm request-photo-sort-select" data-request-photo-sort-select>
-    <button class="custom-select-trigger" type="button" data-request-photo-sort-trigger aria-haspopup="listbox" aria-expanded="false" aria-label="Сортировка фотографий">
-      <span class="custom-select-value" data-request-photo-sort-label>{% if photo_picker_sort == "oldest" %}Сначала старые{% else %}Сначала новые{% endif %}</span>
-      <i class="bi bi-chevron-down"></i>
-    </button>
-    <div class="custom-select-menu" role="listbox">
-      <button class="custom-select-option {% if photo_picker_sort != 'oldest' %}is-selected{% endif %}" type="button" data-request-photo-sort-option data-value="newest" role="option" aria-selected="{% if photo_picker_sort != 'oldest' %}true{% else %}false{% endif %}">Сначала новые</button>
-      <button class="custom-select-option {% if photo_picker_sort == 'oldest' %}is-selected{% endif %}" type="button" data-request-photo-sort-option data-value="oldest" role="option" aria-selected="{% if photo_picker_sort == 'oldest' %}true{% else %}false{% endif %}">Сначала старые</button>
-    </div>
-  </div>
+  {% single_select id="request-photo-sort-input" name="photo_sort" options="newest:Сначала новые|oldest:Сначала старые" selected_value=photo_picker_sort aria_label="Сортировка фотографий" %}
 </div>
 <div id="request-photo-results">
   {% include "partials/request_photo_picker_results.html" %}

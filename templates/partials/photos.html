@@ -29,14 +29,8 @@
       <input id="photo-search-input" class="form-control form-control-sm" name="q" value="{{ photo_query }}" placeholder="Поиск по описанию, файлу и папке">
     </div>
     {% if photo_folder %}<input type="hidden" name="folder" value="{{ photo_folder }}">{% endif %}
-    <select class="form-select form-select-sm" name="sort" aria-label="Сортировка фотографий">
-      <option value="newest" {% if photo_sort != "oldest" %}selected{% endif %}>Сначала новые</option>
-      <option value="oldest" {% if photo_sort == "oldest" %}selected{% endif %}>Сначала старые</option>
-    </select>
-    <select class="form-select form-select-sm" name="order" aria-label="Порядок отображения">
-      <option value="folders" {% if photo_item_order != "photos" %}selected{% endif %}>Сначала папки</option>
-      <option value="photos" {% if photo_item_order == "photos" %}selected{% endif %}>Сначала фотографии</option>
-    </select>
+    {% single_select name="sort" options="newest:Сначала новые|oldest:Сначала старые" selected_value=photo_sort aria_label="Сортировка фотографий" %}
+    {% single_select name="order" options="folders:Сначала папки|photos:Сначала фотографии" selected_value=photo_item_order aria_label="Порядок отображения" %}
   </form>
 </div>
 <div id="photo-results" class="photo-browser photo-order-{{ photo_item_order }}" {% if can_upload_photos %}data-photo-dropzone data-photo-upload-url="{% url 'photo_bulk_upload' organ.pk %}{% if photo_folder %}?folder={{ photo_folder }}{% endif %}"{% endif %}>

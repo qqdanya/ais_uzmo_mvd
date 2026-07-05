@@ -131,8 +131,8 @@ class RequestNumberRegistry(models.Model):
             models.UniqueConstraint(fields=["content_type", "object_id"], name="unique_request_number_registry_object"),
         ]
         indexes = [
-            models.Index(fields=["territorial_organ", "department", "normalized_request_number"]),
-            models.Index(fields=["content_type", "object_id"]),
+            models.Index(fields=["territorial_organ", "department", "normalized_request_number"], name="requests_ap_territo_1edceb_idx"),
+            models.Index(fields=["content_type", "object_id"], name="requests_ap_content_39b5b7_idx"),
         ]
 
     def save(self, *args, **kwargs):

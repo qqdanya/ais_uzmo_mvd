@@ -1,0 +1,57 @@
+{% load account_tags %}
+      <form class="admin-section admin-employees-filter" method="get">
+        <div class="admin-section-head">
+          <div>
+            <h2>Фильтры</h2>
+            <span>Кастомные мультивыборы по ролям, активности, активации, отделам и территориальным органам</span>
+          </div>
+          <div class="admin-filter-actions">
+            <a class="btn btn-sm btn-outline-secondary" href="{{ reset_url }}"><i class="bi bi-arrow-counterclockwise"></i> Сбросить</a>
+            <button class="btn btn-sm btn-primary" type="submit"><i class="bi bi-funnel"></i> Применить</button>
+          </div>
+        </div>
+
+        <div class="admin-employees-filter-grid">
+          <label class="admin-filter-field admin-filter-field-search">
+            <span>Поиск сотрудника</span>
+            <input class="form-control form-control-sm admin-control" type="search" name="q" value="{{ filters.query }}" placeholder="ФИО или логин">
+          </label>
+
+          <div class="admin-filter-field">
+            <span>Роль</span>
+            {% admin_multiselect name="role" options=role_options selected_values=filters.roles current_label=filter_labels.roles empty_label="Все роли" %}
+          </div>
+
+          <div class="admin-filter-field">
+            <span>Активность</span>
+            {% admin_multiselect name="activity" options=activity_options selected_values=filters.activities current_label=filter_labels.activities empty_label="Любая активность" %}
+          </div>
+
+          <div class="admin-filter-field">
+            <span>Активация</span>
+            {% admin_multiselect name="activation" options=activation_options selected_values=filters.activations current_label=filter_labels.activations empty_label="Любой статус" %}
+          </div>
+
+          <div class="admin-filter-field">
+            <span>Отделы</span>
+            {% admin_multiselect name="department" options=departments selected_values=filters.departments current_label=filter_labels.departments empty_label="Все отделы" value_attr="slug" label_attr="name" %}
+          </div>
+
+          <div class="admin-filter-field">
+            <span>Территориальные органы</span>
+            {% admin_multiselect name="organ" options=organs selected_values=filters.organs current_label=filter_labels.organs empty_label="Все территориальные органы" value_attr="pk" label_attr="organ_full_name" menu_class="admin-multiselect-menu-wide" %}
+          </div>
+
+          <div class="admin-filter-field">
+            <span>На странице</span>
+            {% admin_multiselect name="per_page" options=per_page_options selected_value=filters.per_page current_label=filter_labels.per_page empty_label="50 на странице" input_type="radio" label_suffix="на странице" menu_class="admin-multiselect-menu-small" %}
+          </div>
+          <input type="hidden" name="view" value="{{ filters.view }}">
+        </div>
+
+        {% if active_filter_chips %}
+          <div class="admin-active-filter-row" aria-label="Активные фильтры">
+            {% for chip in active_filter_chips %}<span>{{ chip }}</span>{% endfor %}
+          </div>
+        {% endif %}
+      </form>

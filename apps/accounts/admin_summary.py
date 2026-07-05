@@ -3,7 +3,7 @@ from collections import Counter, defaultdict
 from datetime import timedelta
 
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Count, Min, Q
+from django.db.models import Count, Min
 from django.db.models.functions import TruncDate
 from django.utils import timezone
 from django.utils.dateparse import parse_date
@@ -13,20 +13,35 @@ from apps.requests_app.models import NeedStatus, RequestStatusHistory
 from apps.requests_app.permissions import can_view
 from apps.requests_app.registry import TABLES
 
+from .admin_common import request_number
+from .admin_thresholds import get_request_stale_workdays
 from .business_days import business_days_inclusive, subtract_business_days_inclusive
-from .admin_thresholds import REQUEST_STALE_WORKDAYS
 
 
+REQUEST_TABLE_REQUIRED_FIELDS = {"status", "request_date", "territorial_organ", "is_deleted"}
 COMPLETED_DATE_FIELDS = {
     "citsizi-equipment": "due_date",
     "tmc-requests": "due_date",
 }
-
 STATUS_LABELS = {
     NeedStatus.IN_WORK: "В работе",
     NeedStatus.DONE: "Исполнено",
     NeedStatus.REJECTED: "Отклонено",
 }
+
+
+def _table_field_names(model):
+    return {field.name for field in model._meta.fields}
+
+
+def _summary_table(table, department_slug):
+    model = table["model"]
+    return {
+        **table,
+        "department": table.get("department") or department_slug,
+        "field_names": _table_field_names(model),
+        "content_type": ContentType.objects.get_for_model(model, for_concrete_model=False),
+    }
 
 
 def request_tables():
@@ -37,10 +52,10 @@ def request_tables():
             model = table["model"]
             if model in seen:
                 continue
-            field_names = {field.name for field in model._meta.fields}
-            if {"status", "request_date", "territorial_organ", "is_deleted"}.issubset(field_names):
+            field_names = _table_field_names(model)
+            if REQUEST_TABLE_REQUIRED_FIELDS.issubset(field_names):
                 seen.add(model)
-                yield {**table, "department": table.get("department") or department_slug}
+                yield _summary_table(table, department_slug)
 
 
 def month_bounds(day):
@@ -75,8 +90,21 @@ def parse_period(request):
     }
 
 
+def serialize_period(period):
+    return {
+        "code": period["period"],
+        "date_from": period["date_from"].isoformat() if period["date_from"] else "",
+        "date_to": period["date_to"].isoformat() if period["date_to"] else "",
+        "label": period["label"],
+    }
+
+
 def available_organs_for_user(user):
-    organs = TerritorialOrgan.objects.filter(is_active=True, parent__isnull=True).prefetch_related("children").order_by("order_number", "name")
+    organs = (
+        TerritorialOrgan.objects.filter(is_active=True, parent__isnull=True)
+        .prefetch_related("children")
+        .order_by("order_number", "name")
+    )
     return [organ for organ in organs if can_view(user, organ)]
 
 
@@ -113,6 +141,14 @@ def apply_date_period(qs, field_name, period):
     return qs
 
 
+def period_from_days(days):
+    return {"period": "custom", "date_from": days[0], "date_to": days[-1]}
+
+
+def table_has_field(table, field_name):
+    return field_name in table["field_names"]
+
+
 def base_queryset(table, organs):
     return table["model"].objects.filter(is_deleted=False, territorial_organ__in=organs)
 
@@ -123,7 +159,7 @@ def content_type_for_model(model):
 
 def status_history_qs(table, qs, status, period=None):
     history = RequestStatusHistory.objects.filter(
-        content_type=content_type_for_model(table["model"]),
+        content_type=table.get("content_type") or content_type_for_model(table["model"]),
         object_id__in=qs.values("pk"),
         new_status=status,
     )
@@ -136,24 +172,29 @@ def has_status_history(table, qs, status):
     return status_history_qs(table, qs, status).exists()
 
 
+def completed_date_field(table):
+    field_name = COMPLETED_DATE_FIELDS.get(table["key"], "completed_at")
+    return field_name if table_has_field(table, field_name) else None
+
+
 def count_status_changed(table, qs, status, period):
     if has_status_history(table, qs, status):
         return status_history_qs(table, qs, status, period).values("object_id").distinct().count()
 
     # Fallback for imported/old rows without status history.
     if status == NeedStatus.DONE:
-        field_name = COMPLETED_DATE_FIELDS.get(table["key"], "completed_at")
-        if field_name in {field.name for field in table["model"]._meta.fields}:
+        field_name = completed_date_field(table)
+        if field_name:
             return apply_date_period(qs.filter(status=status), field_name, period).count()
     return apply_request_period(qs.filter(status=status), period).count()
 
 
-def period_day_labels(period, organs):
+def period_day_labels(period, organs, tables=None):
     if period["period"] != "all" and period["date_from"] and period["date_to"]:
         start, end = period["date_from"], period["date_to"]
     else:
         oldest_dates = []
-        for table in request_tables():
+        for table in tables or request_tables():
             value = base_queryset(table, organs).aggregate(oldest=Min("request_date")).get("oldest")
             if value:
                 oldest_dates.append(value)
@@ -205,8 +246,8 @@ def add_status_history_series(counter, table, qs, status, days):
 
     # Fallback for old rows without status history.
     if status == NeedStatus.DONE:
-        field_name = COMPLETED_DATE_FIELDS.get(table["key"], "completed_at")
-        if field_name in {field.name for field in table["model"]._meta.fields}:
+        field_name = completed_date_field(table)
+        if field_name:
             add_date_field_series(
                 counter,
                 qs.filter(status=status).exclude(**{f"{field_name}__isnull": True}),
@@ -216,9 +257,13 @@ def add_status_history_series(counter, table, qs, status, days):
     add_request_date_series(counter, qs.filter(status=status))
 
 
+def stale_cutoff_date():
+    return subtract_business_days_inclusive(timezone.localdate(), get_request_stale_workdays() + 1)
+
+
 def build_kpi(tables, organs, period):
     totals = Counter()
-    stale_before = subtract_business_days_inclusive(timezone.localdate(), REQUEST_STALE_WORKDAYS + 1)
+    stale_before = stale_cutoff_date()
     for table in tables:
         qs = base_queryset(table, organs)
         totals["total"] += apply_request_period(qs, period).count()
@@ -236,13 +281,14 @@ def build_kpi(tables, organs, period):
 
 
 def build_dynamics(tables, organs, period):
-    days = period_day_labels(period, organs)
+    days = period_day_labels(period, organs, tables=tables)
     incoming = Counter()
     done = Counter()
     rejected = Counter()
+    dynamics_period = period_from_days(days)
     for table in tables:
         qs = base_queryset(table, organs)
-        add_request_date_series(incoming, apply_request_period(qs, {"period": "custom", "date_from": days[0], "date_to": days[-1]}))
+        add_request_date_series(incoming, apply_request_period(qs, dynamics_period))
         add_status_history_series(done, table, qs, NeedStatus.DONE, days)
         add_status_history_series(rejected, table, qs, NeedStatus.REJECTED, days)
     return {
@@ -253,42 +299,51 @@ def build_dynamics(tables, organs, period):
     }
 
 
-def build_org_chart(tables, organs, period, metric="in_work"):
-    org_rows = {organ.pk: {"id": organ.pk, "name": organ.name, "value": 0} for organ in organs}
-    stale_before = subtract_business_days_inclusive(timezone.localdate(), REQUEST_STALE_WORKDAYS + 1)
-    for table in tables:
-        qs = base_queryset(table, organs)
-        if metric == "total":
-            grouped = apply_request_period(qs, period).values("territorial_organ_id").annotate(total=Count("pk"))
-        elif metric == "done":
-            # Prefer status history; fallback to completed/request date only for old rows without history.
-            if has_status_history(table, qs, NeedStatus.DONE):
-                object_ids = status_history_qs(table, qs, NeedStatus.DONE, period).values("object_id")
-                grouped = qs.filter(pk__in=object_ids).values("territorial_organ_id").annotate(total=Count("pk", distinct=True))
-            else:
-                grouped = apply_request_period(qs.filter(status=NeedStatus.DONE), period).values("territorial_organ_id").annotate(total=Count("pk"))
-        elif metric == "rejected":
-            if has_status_history(table, qs, NeedStatus.REJECTED):
-                object_ids = status_history_qs(table, qs, NeedStatus.REJECTED, period).values("object_id")
-                grouped = qs.filter(pk__in=object_ids).values("territorial_organ_id").annotate(total=Count("pk", distinct=True))
-            else:
-                grouped = apply_request_period(qs.filter(status=NeedStatus.REJECTED), period).values("territorial_organ_id").annotate(total=Count("pk"))
-        elif metric == "stale":
-            grouped = qs.filter(status=NeedStatus.IN_WORK, request_date__lte=stale_before).values("territorial_organ_id").annotate(total=Count("pk"))
-        else:
-            grouped = qs.filter(status=NeedStatus.IN_WORK).values("territorial_organ_id").annotate(total=Count("pk"))
-        for row in grouped:
-            if row["territorial_organ_id"] in org_rows:
-                org_rows[row["territorial_organ_id"]]["value"] += row["total"]
-    rows = sorted(org_rows.values(), key=lambda item: item["value"], reverse=True)
+def group_by_organ_for_metric(table, qs, period, metric, stale_before):
+    if metric == "total":
+        return apply_request_period(qs, period).values("territorial_organ_id").annotate(total=Count("pk"))
+    if metric == "done":
+        return group_by_organ_for_status(table, qs, period, NeedStatus.DONE)
+    if metric == "rejected":
+        return group_by_organ_for_status(table, qs, period, NeedStatus.REJECTED)
+    if metric == "stale":
+        return qs.filter(status=NeedStatus.IN_WORK, request_date__lte=stale_before).values("territorial_organ_id").annotate(total=Count("pk"))
+    return qs.filter(status=NeedStatus.IN_WORK).values("territorial_organ_id").annotate(total=Count("pk"))
+
+
+def group_by_organ_for_status(table, qs, period, status):
+    if has_status_history(table, qs, status):
+        object_ids = status_history_qs(table, qs, status, period).values("object_id")
+        return qs.filter(pk__in=object_ids).values("territorial_organ_id").annotate(total=Count("pk", distinct=True))
+    return apply_request_period(qs.filter(status=status), period).values("territorial_organ_id").annotate(total=Count("pk"))
+
+
+def add_percent(rows):
     max_value = max([row["value"] for row in rows], default=0) or 1
     for row in rows:
         row["percent"] = round(row["value"] * 100 / max_value)
     return rows
 
 
+def build_org_chart(tables, organs, period, metric="in_work"):
+    org_rows = {organ.pk: {"id": organ.pk, "name": organ.name, "value": 0} for organ in organs}
+    stale_before = stale_cutoff_date()
+    for table in tables:
+        qs = base_queryset(table, organs)
+        grouped = group_by_organ_for_metric(table, qs, period, metric, stale_before)
+        for row in grouped:
+            if row["territorial_organ_id"] in org_rows:
+                org_rows[row["territorial_organ_id"]]["value"] += row["total"]
+    rows = sorted(org_rows.values(), key=lambda item: item["value"], reverse=True)
+    return add_percent(rows)
+
+
+def active_departments_by_slug():
+    return {item.slug: item.name for item in Department.objects.filter(is_active=True)}
+
+
 def build_department_load(tables, organs):
-    departments = {item.slug: item.name for item in Department.objects.filter(is_active=True)}
+    departments = active_departments_by_slug()
     rows_by_department = defaultdict(int)
     for table in tables:
         rows_by_department[table["department"]] += base_queryset(table, organs).filter(status=NeedStatus.IN_WORK).count()
@@ -297,23 +352,21 @@ def build_department_load(tables, organs):
         for slug, value in rows_by_department.items()
     ]
     rows.sort(key=lambda item: item["value"], reverse=True)
-    max_value = max([row["value"] for row in rows], default=0) or 1
-    for row in rows:
-        row["percent"] = round(row["value"] * 100 / max_value)
-    return rows
-
-
-def request_number(obj):
-    return getattr(obj, "request_number", None) or str(obj.pk)
+    return add_percent(rows)
 
 
 def build_attention_requests(tables, organs, limit=10):
-    stale_before = subtract_business_days_inclusive(timezone.localdate(), REQUEST_STALE_WORKDAYS + 1)
+    stale_before = stale_cutoff_date()
     today = timezone.localdate()
-    departments = {item.slug: item.name for item in Department.objects.filter(is_active=True)}
+    departments = active_departments_by_slug()
     items = []
     for table in tables:
-        qs = base_queryset(table, organs).select_related("territorial_organ").filter(status=NeedStatus.IN_WORK, request_date__lte=stale_before).order_by("request_date", "pk")[:limit]
+        qs = (
+            base_queryset(table, organs)
+            .select_related("territorial_organ")
+            .filter(status=NeedStatus.IN_WORK, request_date__lte=stale_before)
+            .order_by("request_date", "pk")[:limit]
+        )
         for obj in qs:
             items.append(
                 {
@@ -331,37 +384,34 @@ def build_attention_requests(tables, organs, limit=10):
     return items[:limit]
 
 
-def build_summary_payload(request, metric="in_work"):
+def build_summary_payload(request, metric="in_work", *, available_organs=None, tables=None):
     period = parse_period(request)
-    available_organs = available_organs_for_user(request.user)
+    available_organs = available_organs if available_organs is not None else available_organs_for_user(request.user)
     organs = selected_organs(request, available_organs)
-    tables = list(request_tables())
-    kpi = build_kpi(tables, organs, period)
-    payload = {
-        "period": {
-            "code": period["period"],
-            "date_from": period["date_from"].isoformat() if period["date_from"] else "",
-            "date_to": period["date_to"].isoformat() if period["date_to"] else "",
-            "label": period["label"],
-        },
+    tables = tables if tables is not None else list(request_tables())
+    return {
+        "period": serialize_period(period),
         "selected_organs": [organ.pk for organ in organs],
         "selected_organs_count": len(organs),
-        "kpi": kpi,
+        "kpi": build_kpi(tables, organs, period),
         "dynamics": build_dynamics(tables, organs, period),
         "org_chart": build_org_chart(tables, organs, period, metric=metric),
         "department_load": build_department_load(tables, organs),
         "attention_requests": build_attention_requests(tables, organs),
-        "request_stale_workdays": int(REQUEST_STALE_WORKDAYS),
+        "request_stale_workdays": get_request_stale_workdays(),
     }
-    return payload
 
 
 def build_summary_context(request):
     available_organs = available_organs_for_user(request.user)
-    payload = build_summary_payload(request, metric=request.GET.get("org_metric", "in_work"))
+    payload = build_summary_payload(
+        request,
+        metric=request.GET.get("org_metric", "in_work"),
+        available_organs=available_organs,
+    )
     return {
         "organs": available_organs,
         "summary_payload": payload,
-        "request_stale_workdays": int(REQUEST_STALE_WORKDAYS),
+        "request_stale_workdays": get_request_stale_workdays(),
         "summary_org_metric": request.GET.get("org_metric", "in_work"),
     }

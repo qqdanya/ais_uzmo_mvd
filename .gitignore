@@ -1,28 +1,18 @@
-# Python
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Python / Django
 __pycache__/
 *.py[cod]
-*$py.class
-
-# Virtual environments
-.venv/
-venv/
-env/
-
-# Django/local runtime
-.env
+*.sqlite3
 db.sqlite3
 staticfiles/
 media/
 
-# IDE/editor
-.idea/
+# Local IDE / OS
 .vscode/
-
-# Logs and temporary files
-*.log
-*.tmp
-outputs/
-work/
-
-# Local executive-dashboard settings
-dashboard_thresholds.json
+.idea/
+.DS_Store
+Thumbs.db

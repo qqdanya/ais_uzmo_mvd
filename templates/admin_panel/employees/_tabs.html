@@ -1,0 +1,8 @@
+      <nav class="admin-status-tabs" aria-label="Быстрые срезы по сотрудникам">
+        {% for tab in view_tabs %}
+          <a class="admin-status-tab{% if tab.active %} active{% endif %}" href="{{ tab.url }}">
+            <span>{{ tab.label }}</span>
+            <strong data-employees-tab-count="{{ tab.key }}">{{ tab.count }}</strong>
+          </a>
+        {% endfor %}
+      </nav>

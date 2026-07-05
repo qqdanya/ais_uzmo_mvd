@@ -1,0 +1,5 @@
+<select{% if id %} id="{{ id }}"{% endif %}{% if name %} name="{{ name }}"{% endif %} class="{{ css_class }}"{% if aria_label %} aria-label="{{ aria_label }}"{% endif %}{% if data_admin_org_metric %} data-admin-org-metric{% endif %}{% if data_custom_select_skip %} data-custom-select-skip="true"{% endif %}>
+  {% for option in options %}
+    <option value="{{ option.value }}"{% if option.selected %} selected{% endif %}{% if option.disabled %} disabled{% endif %}>{{ option.label }}</option>
+  {% endfor %}
+</select>

@@ -1,0 +1,20 @@
+<div class="{{ root_class }}" data-admin-multiselect data-empty-label="{{ empty_label }}">
+  <button class="admin-multiselect-trigger" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+    <span data-admin-multiselect-label>{{ current_label }}</span>
+    <i class="bi bi-chevron-down"></i>
+  </button>
+  <div class="{{ menu_class }}">
+    {% if show_actions %}
+      <div class="admin-multiselect-actions">
+        <button type="button" data-admin-multiselect-select-all>Выбрать все</button>
+        <button type="button" data-admin-multiselect-clear>Снять все</button>
+      </div>
+    {% endif %}
+    {% for option in options %}
+      <label class="admin-multiselect-option">
+        <input type="{{ input_type }}" name="{{ name }}" value="{{ option.value }}" data-admin-multiselect-input {% if option.checked %}checked{% endif %}>
+        <span>{{ option.label }}</span>
+      </label>
+    {% endfor %}
+  </div>
+</div>

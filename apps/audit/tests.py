@@ -50,6 +50,9 @@ class AuditLogTests(TestCase):
         self.assertContains(response, "Журнал действий")
         self.assertContains(response, "audit-filters")
         self.assertContains(response, "audit-table")
+        self.assertContains(response, "data-admin-multiselect")
+        self.assertContains(response, "data-admin-multiselect-select-all")
+        self.assertContains(response, "data-admin-multiselect-clear")
         self.assertNotContains(response, "Поиск в журнале событий")
         self.assertContains(response, "записей найдено")
         self.assertContains(response, "Google Chrome / Windows")
@@ -106,7 +109,7 @@ class AuditLogTests(TestCase):
         self.assertContains(response, "Изменена запись «Заявка ТМЦ № 10/TMC»")
         self.assertNotContains(response, "Заявка тмц")
         self.assertContains(response, "Google Chrome / Windows")
-        self.assertContains(response, "Показать технические сведения")
+        self.assertContains(response, "Сведения о браузере")
         self.assertNotContains(response, "ID: 10")
 
     def test_audit_detail_displays_foreign_keys_dates_and_request_history(self):
@@ -308,6 +311,21 @@ class AuditLogTests(TestCase):
         self.assertContains(response, "Fresh")
         self.assertNotContains(response, "Old")
 
+    def test_audit_log_uses_shared_admin_multiselect_component(self):
+        self.create_log(object_repr="Shared component")
+        self.client.login(username="admin", password="pass12345")
+
+        response = self.client.get(reverse("audit_log"), {"action": AuditLog.Action.UPDATE})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'class="dropdown admin-multiselect audit-multiselect"')
+        self.assertContains(response, 'data-admin-multiselect-label')
+        self.assertContains(response, 'data-admin-multiselect-input')
+        self.assertContains(response, "Выбрать все")
+        self.assertContains(response, "Снять все")
+        self.assertContains(response, 'name="action" value="update" data-admin-multiselect-input checked')
+        self.assertNotContains(response, "audit-multiselect-trigger")
+
     def test_audit_log_filters_accept_multiple_checkbox_values(self):
         self.create_log(action=AuditLog.Action.CREATE, object_repr="Created")
         self.create_log(action=AuditLog.Action.UPDATE, object_repr="Updated")
@@ -322,8 +340,8 @@ class AuditLogTests(TestCase):
         self.assertContains(response, "Created")
         self.assertContains(response, "Updated")
         self.assertNotContains(response, "Deleted")
-        self.assertContains(response, 'name="action" value="create" checked')
-        self.assertContains(response, 'name="action" value="update" checked')
+        self.assertContains(response, 'name="action" value="create" data-admin-multiselect-input checked')
+        self.assertContains(response, 'name="action" value="update" data-admin-multiselect-input checked')
 
     def test_audit_log_filters_by_department_and_object_type(self):
         self.create_log(model_name="TmcRequest", object_repr="TMC request")
@@ -335,11 +353,11 @@ class AuditLogTests(TestCase):
         self.assertContains(department_response, "TMC request")
         self.assertNotContains(department_response, "Photo item")
         self.assertNotContains(department_response, "Folder item")
-        self.assertContains(department_response, 'name="department" value="tmc" checked')
+        self.assertContains(department_response, 'name="department" value="tmc" data-admin-multiselect-input checked')
         self.assertNotContains(department_response, 'name="department" value="photos"')
 
         object_response = self.client.get(reverse("audit_log"), {"object": "folder"})
         self.assertContains(object_response, "Folder item")
         self.assertNotContains(object_response, "TMC request")
         self.assertNotContains(object_response, "Photo item")
-        self.assertContains(object_response, 'name="object" value="folder" checked')
+        self.assertContains(object_response, 'name="object" value="folder" data-admin-multiselect-input checked')

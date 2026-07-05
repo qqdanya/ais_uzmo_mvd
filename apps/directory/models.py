@@ -1,10 +1,53 @@
+import mimetypes
 from pathlib import Path
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.core.validators import FileExtensionValidator
+from django.core.validators import FileExtensionValidator, MinValueValidator
+from PIL import Image, UnidentifiedImageError
 from django.db import models
 from django.db.models import Q
+
+
+ALLOWED_PHOTO_FORMAT_MIME_TYPES = {
+    "JPEG": "image/jpeg",
+    "PNG": "image/png",
+    "WEBP": "image/webp",
+}
+
+
+def detect_photo_content_mime_type(image):
+    if not image:
+        return ""
+
+    file_obj = getattr(image, "file", image)
+    original_position = None
+    if hasattr(file_obj, "tell"):
+        try:
+            original_position = file_obj.tell()
+        except (OSError, ValueError):
+            original_position = None
+
+    try:
+        if hasattr(file_obj, "seek"):
+            file_obj.seek(0)
+        with Image.open(file_obj) as opened_image:
+            image_format = (opened_image.format or "").upper()
+            opened_image.verify()
+        return ALLOWED_PHOTO_FORMAT_MIME_TYPES.get(image_format, "")
+    except (UnidentifiedImageError, OSError, ValueError):
+        return ""
+    finally:
+        if original_position is not None and hasattr(file_obj, "seek"):
+            try:
+                file_obj.seek(original_position)
+            except (OSError, ValueError):
+                pass
+
+
+def validate_photo_content(image):
+    if image and not detect_photo_content_mime_type(image):
+        raise ValidationError("Файл должен быть изображением JPG, PNG или WEBP.")
 
 
 def validate_photo_size(image):
@@ -15,7 +58,7 @@ def validate_photo_size(image):
 
 class TerritorialOrgan(models.Model):
     name = models.CharField("наименование", max_length=255, unique=True)
-    order_number = models.DecimalField("номер", max_digits=6, decimal_places=2, db_index=True)
+    order_number = models.DecimalField("номер", max_digits=6, decimal_places=2, db_index=True, validators=[MinValueValidator(0)])
     parent = models.ForeignKey("self", verbose_name="родитель", null=True, blank=True, on_delete=models.CASCADE, related_name="children")
     description = models.TextField("описание", blank=True)
     is_active = models.BooleanField("активен", default=True)
@@ -24,6 +67,7 @@ class TerritorialOrgan(models.Model):
         verbose_name = "территориальный орган"
         verbose_name_plural = "территориальные органы"
         ordering = ("order_number", "name")
+        constraints = [models.CheckConstraint(condition=Q(order_number__gte=0), name="territorial_organ_order_non_negative")]
         indexes = [models.Index(fields=["is_active", "order_number"])]
 
     def __str__(self):
@@ -91,9 +135,11 @@ class TerritorialOrganPhoto(models.Model):
     image = models.ImageField(
         "изображение",
         upload_to="territorial_organs/%Y/%m/",
-        validators=[FileExtensionValidator(["jpg", "jpeg", "png", "webp"]), validate_photo_size],
+        validators=[FileExtensionValidator(["jpg", "jpeg", "png", "webp"]), validate_photo_size, validate_photo_content],
     )
     original_filename = models.CharField("имя файла", max_length=255, blank=True, db_index=True)
+    file_size = models.PositiveBigIntegerField("размер файла, байт", default=0, editable=False, validators=[MinValueValidator(0)])
+    mime_type = models.CharField("MIME-тип", max_length=100, blank=True, editable=False, db_index=True)
     description = models.TextField("описание", blank=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name="создал", null=True, blank=True, on_delete=models.SET_NULL, related_name="created_photos")
     updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name="обновил", null=True, blank=True, on_delete=models.SET_NULL, related_name="updated_photos")
@@ -111,7 +157,26 @@ class TerritorialOrganPhoto(models.Model):
     def __str__(self):
         return f"{self.territorial_organ}: {self.created_at:%d.%m.%Y %H:%M}"
 
+    def update_file_metadata(self):
+        if not self.image:
+            self.original_filename = ""
+            self.file_size = 0
+            self.mime_type = ""
+            return
+
+        self.original_filename = Path(self.image.name).name
+        try:
+            self.file_size = self.image.size or 0
+        except (OSError, ValueError):
+            self.file_size = 0
+
+        content_type = detect_photo_content_mime_type(self.image)
+        if not content_type:
+            content_type = getattr(getattr(self.image, "file", None), "content_type", "")
+        if not content_type:
+            content_type = mimetypes.guess_type(self.image.name)[0] or ""
+        self.mime_type = content_type[:100]
+
     def save(self, *args, **kwargs):
-        if self.image:
-            self.original_filename = Path(self.image.name).name
+        self.update_file_metadata()
         super().save(*args, **kwargs)

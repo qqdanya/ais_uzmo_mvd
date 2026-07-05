@@ -116,7 +116,10 @@ class AccountFoundationTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "admin-command-page")
-        self.assertContains(response, 'hx-trigger="every 30s"')
+        self.assertContains(response, 'id="admin-panel-refresh"')
+        self.assertContains(response, f'data-summary-url="{reverse("admin_summary_data")}"')
+        self.assertContains(response, 'id="admin-summary-data"')
+        self.assertContains(response, '/static/js/admin_summary.js')
         self.assertContains(response, reverse("audit_log"))
         self.assertContains(response, reverse("admin:index"))
 

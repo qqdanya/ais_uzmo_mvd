@@ -12,10 +12,12 @@
       <i class="bi bi-sliders"></i>
       Настройки
     </a>
-    <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin:index' %}">
-      <i class="bi bi-database"></i>
-      Таблицы БД
-    </a>
+    {% if user.is_superuser %}
+      <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin:index' %}">
+        <i class="bi bi-database"></i>
+        Таблицы БД
+      </a>
+    {% endif %}
   </div>
 </div>
 

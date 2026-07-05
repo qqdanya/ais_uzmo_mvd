@@ -1,9 +1,7 @@
 from collections import Counter
 from datetime import date
-from statistics import mean
 
 from django.core.paginator import Paginator
-from django.db.models import Max
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
@@ -12,25 +10,33 @@ from django.utils import timezone
 from apps.directory.models import Department
 from apps.requests_app.models import NeedStatus
 
-from .admin_requests import (
+from .admin_common import (
     DEPARTMENT_ICONS,
     STATUS_BADGE_CLASSES,
+    add_status_counts,
     apply_period,
+    build_pagination_fields,
+    completion_average,
+    completion_display,
+    completion_values_for_queryset,
     date_period_from_request,
     days_class,
     department_options,
+    global_completion_average,
+    latest_request_date_for_queryset,
+    multiselect_label,
     processing_caption,
     processing_days,
     query_with,
-    multiselect_label,
     request_number,
+    request_status_counts,
     request_title,
     selected_per_page,
     selected_values,
 )
 from .admin_summary import available_organs_for_user, request_tables, selected_organs
 from .business_days import subtract_business_days_inclusive
-from .admin_thresholds import REQUEST_STALE_WORKDAYS
+from .admin_thresholds import get_request_stale_workdays
 
 
 DEPARTMENT_VIEW_FILTERS = {
@@ -104,40 +110,23 @@ def department_filtered_queryset(table, organs, filters, *, with_request_status=
     return qs
 
 
-def completion_values_for_queryset(qs):
-    values = []
-    for obj in qs.filter(status=NeedStatus.DONE):
-        days = processing_days(obj)
-        if days is not None:
-            values.append(days)
-    return values
-
-
-def latest_request_date_for_queryset(qs):
-    return qs.aggregate(latest=Max("request_date")).get("latest")
-
-
 def collect_department_stats(department, tables, organs, filters):
     stats = Counter()
     completion_values = []
     active_organ_ids = set()
     latest_date = None
-    stale_before = subtract_business_days_inclusive(timezone.localdate(), REQUEST_STALE_WORKDAYS + 1)
+    stale_before = filters["stale_before"]
 
     for table in tables_for_department(tables, department["slug"]):
         qs = department_filtered_queryset(table, organs, filters, with_request_status=True)
-        stats["total"] += qs.count()
-        stats["in_work"] += qs.filter(status=NeedStatus.IN_WORK).count()
-        stats["done"] += qs.filter(status=NeedStatus.DONE).count()
-        stats["rejected"] += qs.filter(status=NeedStatus.REJECTED).count()
-        stats["stale"] += qs.filter(status=NeedStatus.IN_WORK, request_date__lte=stale_before).count()
+        add_status_counts(stats, request_status_counts(qs, stale_before=stale_before))
         active_organ_ids.update(qs.values_list("territorial_organ_id", flat=True).distinct())
         completion_values.extend(completion_values_for_queryset(qs))
         candidate = latest_request_date_for_queryset(qs)
         if candidate and (latest_date is None or candidate > latest_date):
             latest_date = candidate
 
-    avg_completion = round(mean(completion_values), 1) if completion_values else None
+    avg_completion = completion_average(completion_values)
     return {
         "slug": department["slug"],
         "name": department["name"],
@@ -149,7 +138,7 @@ def collect_department_stats(department, tables, organs, filters):
         "stale": stats["stale"],
         "active_organs": len(active_organ_ids),
         "avg_completion": avg_completion,
-        "avg_completion_display": f"{str(avg_completion).replace('.', ',')} дн." if avg_completion is not None else "—",
+        "avg_completion_display": completion_display(avg_completion),
         "completion_days_total": sum(completion_values),
         "completion_days_count": len(completion_values),
         "latest_date": latest_date,
@@ -171,23 +160,19 @@ def row_matches_view(row, view):
 
 
 def sort_department_rows(rows, view):
+    default_key = lambda row: row["name"]
     if view == "best":
-        return sorted(rows, key=lambda row: (row["avg_completion"] is None, row["avg_completion"] or 0, -row["done"], row["name"]))
+        return sorted(rows, key=lambda row: (row["avg_completion"] is None, row["avg_completion"] or 0, -row["done"], default_key(row)))
     if view == "stale":
-        return sorted(rows, key=lambda row: (-row["stale"], -row["in_work"], row["name"]))
+        return sorted(rows, key=lambda row: (-row["stale"], -row["in_work"], default_key(row)))
     if view == "in_work":
-        return sorted(rows, key=lambda row: (-row["in_work"], -row["total"], row["name"]))
-    if view == "no_activity":
-        return sorted(rows, key=lambda row: row["name"])
-    return sorted(rows, key=lambda row: row["name"])
+        return sorted(rows, key=lambda row: (-row["in_work"], -row["total"], default_key(row)))
+    return sorted(rows, key=default_key)
 
 
-def global_completion_average(rows):
-    total = sum(row.get("completion_days_total", 0) for row in rows)
-    count = sum(row.get("completion_days_count", 0) for row in rows)
-    if not count:
-        return None
-    return round(total / count, 1)
+def visible_department_rows(rows, view):
+    rows = [row for row in rows if row_matches_view(row, view)]
+    return sort_department_rows(rows, view)
 
 
 def build_departments_kpis(visible_rows):
@@ -210,7 +195,7 @@ def build_departments_kpis(visible_rows):
         },
         {
             "label": "Средний срок",
-            "value": f"{str(avg_completion).replace('.', ',')} дн." if avg_completion is not None else "—",
+            "value": completion_display(avg_completion),
             "hint": "по исполненным заявкам",
             "icon": "bi-stopwatch",
         },
@@ -229,20 +214,12 @@ def department_view_counts(all_rows):
 
 
 def pagination_fields(request):
-    fields = []
-    for name in ("date_from", "date_to", "view", "q", "per_page"):
-        value = request.GET.get(name, "")
-        if value:
-            fields.append({"name": name, "value": value})
-    for value in request.GET.getlist("request_status"):
-        if value:
-            fields.append({"name": "request_status", "value": value})
-    for value in request.GET.getlist("organ_ids"):
-        if value:
-            fields.append({"name": "organ_ids", "value": value})
-    if request.GET.get("organ_filter_empty") == "1":
-        fields.append({"name": "organ_filter_empty", "value": "1"})
-    return fields
+    return build_pagination_fields(
+        request,
+        scalar_fields=("date_from", "date_to", "view", "q", "per_page"),
+        list_fields=("request_status", "organ_ids"),
+        flag_fields=("organ_filter_empty",),
+    )
 
 
 def active_filter_chips(filters, selected_organs_list, available_organs):
@@ -273,6 +250,7 @@ def build_filters(request):
         "view": selected_department_view(request),
         "query": (request.GET.get("q", "") or "").strip(),
         "per_page": selected_per_page(request),
+        "stale_before": subtract_business_days_inclusive(timezone.localdate(), get_request_stale_workdays() + 1),
     }
     filters["per_page_label"] = f"{filters['per_page']} на странице"
     return filters
@@ -286,7 +264,7 @@ def build_departments_context(request):
     filters = build_filters(request)
     visible_departments = filter_departments_by_search(departments, filters["query"])
     all_rows = [collect_department_stats(department, tables, organs, filters) for department in visible_departments]
-    visible_rows = sort_department_rows([row for row in all_rows if row_matches_view(row, filters["view"])], filters["view"])
+    visible_rows = visible_department_rows(all_rows, filters["view"])
     counts = department_view_counts(all_rows)
     paginator = Paginator(visible_rows, filters["per_page"])
     page = paginator.get_page(request.GET.get("page"))
@@ -332,18 +310,14 @@ def filter_detail_request_qs(qs, filters):
 def collect_organ_stats_for_department(organ, department, tables, filters):
     stats = Counter()
     completion_values = []
-    stale_before = subtract_business_days_inclusive(timezone.localdate(), REQUEST_STALE_WORKDAYS + 1)
+    stale_before = filters["stale_before"]
     for table in tables_for_department(tables, department["slug"]):
         qs = table["model"].objects.select_related("territorial_organ").filter(is_deleted=False, territorial_organ=organ)
         qs = apply_period(qs, filters["period"])
         qs = filter_detail_request_qs(qs, filters)
-        stats["total"] += qs.count()
-        stats["in_work"] += qs.filter(status=NeedStatus.IN_WORK).count()
-        stats["done"] += qs.filter(status=NeedStatus.DONE).count()
-        stats["rejected"] += qs.filter(status=NeedStatus.REJECTED).count()
-        stats["stale"] += qs.filter(status=NeedStatus.IN_WORK, request_date__lte=stale_before).count()
+        add_status_counts(stats, request_status_counts(qs, stale_before=stale_before))
         completion_values.extend(completion_values_for_queryset(qs))
-    avg_completion = round(mean(completion_values), 1) if completion_values else None
+    avg_completion = completion_average(completion_values)
     return {
         "organ": organ,
         "total": stats["total"],
@@ -352,7 +326,7 @@ def collect_organ_stats_for_department(organ, department, tables, filters):
         "rejected": stats["rejected"],
         "stale": stats["stale"],
         "avg_completion": avg_completion,
-        "avg_completion_display": f"{str(avg_completion).replace('.', ',')} дн." if avg_completion is not None else "—",
+        "avg_completion_display": completion_display(avg_completion),
         "organ_url": reverse("admin_organ_detail", kwargs={"pk": organ.pk}),
     }
 
@@ -365,22 +339,19 @@ def organ_rows_for_department(organs, department, tables, filters):
 
 def type_rows_for_department(department, tables, organs, filters):
     rows = []
-    stale_before = subtract_business_days_inclusive(timezone.localdate(), REQUEST_STALE_WORKDAYS + 1)
+    stale_before = filters["stale_before"]
     for table in tables_for_department(tables, department["slug"]):
         qs = department_filtered_queryset(table, organs, filters, with_request_status=True)
+        counts = request_status_counts(qs, stale_before=stale_before)
         completion_values = completion_values_for_queryset(qs)
-        avg_completion = round(mean(completion_values), 1) if completion_values else None
+        avg_completion = completion_average(completion_values)
         rows.append(
             {
                 "title": request_title(table, table["model"]()),
                 "key": table["key"],
-                "total": qs.count(),
-                "in_work": qs.filter(status=NeedStatus.IN_WORK).count(),
-                "done": qs.filter(status=NeedStatus.DONE).count(),
-                "rejected": qs.filter(status=NeedStatus.REJECTED).count(),
-                "stale": qs.filter(status=NeedStatus.IN_WORK, request_date__lte=stale_before).count(),
+                **counts,
                 "avg_completion": avg_completion,
-                "avg_completion_display": f"{str(avg_completion).replace('.', ',')} дн." if avg_completion is not None else "—",
+                "avg_completion_display": completion_display(avg_completion),
             }
         )
     return rows
@@ -446,7 +417,7 @@ def build_department_detail_context(request, department_slug):
             {"label": "Всего заявок", "value": department_row["total"], "hint": filters["period"]["label"], "icon": "bi-inboxes"},
             {"label": "В работе", "value": department_row["in_work"], "hint": "текущие заявки", "icon": "bi-hourglass-split"},
             {"label": "Исполнено", "value": department_row["done"], "hint": "по текущим фильтрам", "icon": "bi-check2-circle"},
-            {"label": "Зависшие", "value": department_row["stale"], "hint": f"более {REQUEST_STALE_WORKDAYS} рабочих дней", "icon": "bi-exclamation-triangle"},
+            {"label": "Зависшие", "value": department_row["stale"], "hint": f"более {get_request_stale_workdays()} рабочих дней", "icon": "bi-exclamation-triangle"},
             {"label": "Средний срок", "value": department_row["avg_completion_display"], "hint": "по исполненным заявкам", "icon": "bi-stopwatch"},
         ],
         "organ_rows": organ_rows_for_department(organs, department, tables, filters),

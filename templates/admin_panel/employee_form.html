@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static account_tags %}
 
 {% block title %}{{ title }} — Сотрудники{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260704-015">
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260705-009">
 {% endblock %}
 
 {% block content %}
@@ -72,20 +72,7 @@
 
               <div class="admin-filter-field{% if form.role.errors %} has-error{% endif %}">
                 <span>{{ form.role.label }}</span>
-                <div class="dropdown admin-multiselect admin-multiselect-single" data-admin-multiselect data-empty-label="Роль в системе">
-                  <button class="admin-multiselect-trigger" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
-                    <span data-admin-multiselect-label>{{ role_label }}</span>
-                    <i class="bi bi-chevron-down"></i>
-                  </button>
-                  <div class="dropdown-menu admin-multiselect-menu admin-multiselect-menu-small">
-                    {% for value, label in role_options %}
-                      <label class="admin-multiselect-option">
-                        <input type="radio" name="role" value="{{ value }}" data-admin-multiselect-input {% if selected_role == value %}checked{% endif %}>
-                        <span>{{ label }}</span>
-                      </label>
-                    {% endfor %}
-                  </div>
-                </div>
+                {% admin_multiselect name="role" options=role_options selected_value=selected_role current_label=role_label empty_label="Роль в системе" input_type="radio" menu_class="admin-multiselect-menu-small" %}
                 {% for error in form.role.errors %}<em>{{ error }}</em>{% endfor %}
               </div>
             </div>
@@ -95,28 +82,9 @@
         <div class="admin-employee-access-grid admin-employee-access-grid-redone">
           <section class="admin-employee-form-card admin-employee-rights-picker">
             <div class="admin-section-head admin-section-head-compact">
-              <div><h2>Отделы</h2><span>По умолчанию отделы не выбраны. Для полного доступа нажмите «Выбрать все».</span></div>
+              <div><h2>Отделы</h2><span>Если ничего не выбрано — доступ ко всем отделам.</span></div>
             </div>
-            <div class="dropdown admin-multiselect admin-multiselect-large" data-admin-multiselect data-empty-label="Отделы не выбраны">
-              <button class="admin-multiselect-trigger" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
-                <span data-admin-multiselect-label>{{ department_label }}</span>
-                <i class="bi bi-chevron-down"></i>
-              </button>
-              <div class="dropdown-menu admin-multiselect-menu admin-multiselect-menu-wide">
-                <div class="admin-multiselect-actions">
-                  <button type="button" data-admin-multiselect-select-all>Выбрать все</button>
-                  <button type="button" data-admin-multiselect-clear>Снять все</button>
-                </div>
-                {% for department in departments %}
-                  {% with department_id=department.pk|stringformat:"s" %}
-                    <label class="admin-multiselect-option">
-                      <input type="checkbox" name="allowed_departments" value="{{ department_id }}" data-admin-multiselect-input {% if department_id in selected_departments %}checked{% endif %}>
-                      <span>{{ department.name }}</span>
-                    </label>
-                  {% endwith %}
-                {% endfor %}
-              </div>
-            </div>
+            {% admin_multiselect name="allowed_departments" options=departments selected_values=selected_departments current_label=department_label empty_label="Все отделы" value_attr="pk" label_attr="name" root_class="admin-multiselect-large" menu_class="admin-multiselect-menu-wide" %}
             {% for error in form.allowed_departments.errors %}<em class="admin-form-error">{{ error }}</em>{% endfor %}
           </section>
 
@@ -124,26 +92,7 @@
             <div class="admin-section-head admin-section-head-compact">
               <div><h2>Территориальные органы</h2><span>Если ничего не выбрано — доступ ко всем территориальным органам.</span></div>
             </div>
-            <div class="dropdown admin-multiselect admin-multiselect-large" data-admin-multiselect data-empty-label="Все территориальные органы">
-              <button class="admin-multiselect-trigger" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
-                <span data-admin-multiselect-label>{{ organ_label }}</span>
-                <i class="bi bi-chevron-down"></i>
-              </button>
-              <div class="dropdown-menu admin-multiselect-menu admin-multiselect-menu-wide admin-multiselect-menu-organs">
-                <div class="admin-multiselect-actions">
-                  <button type="button" data-admin-multiselect-select-all>Выбрать все</button>
-                  <button type="button" data-admin-multiselect-clear>Снять все</button>
-                </div>
-                {% for organ in organs %}
-                  {% with organ_id=organ.pk|stringformat:"s" %}
-                    <label class="admin-multiselect-option">
-                      <input type="checkbox" name="allowed_organs" value="{{ organ_id }}" data-admin-multiselect-input {% if organ_id in selected_organs %}checked{% endif %}>
-                      <span>{{ organ.order_number|floatformat:"-2" }}. {{ organ.name }}</span>
-                    </label>
-                  {% endwith %}
-                {% endfor %}
-              </div>
-            </div>
+            {% admin_multiselect name="allowed_organs" options=organs selected_values=selected_organs current_label=organ_label empty_label="Все территориальные органы" value_attr="pk" label_attr="organ_full_name" root_class="admin-multiselect-large" menu_class="admin-multiselect-menu-wide admin-multiselect-menu-organs" %}
             {% for error in form.allowed_organs.errors %}<em class="admin-form-error">{{ error }}</em>{% endfor %}
           </section>
         </div>
