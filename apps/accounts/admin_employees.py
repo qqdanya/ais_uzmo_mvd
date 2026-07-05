@@ -163,13 +163,17 @@ def rights_summary(qs, total_count, noun, *, empty_label=None):
     return f"{len(items)} выбрано"
 
 
-def format_organs_summary(profile, total_organs):
+def format_organs_summary(profile, total_organs, user=None):
+    if user is not None and user.is_superuser:
+        return "Полный доступ"
     if not profile:
         return "—"
     return rights_summary(profile.allowed_organs.all(), total_organs, "территориальные органы")
 
 
-def format_departments_summary(profile, total_departments):
+def format_departments_summary(profile, total_departments, user=None):
+    if user is not None and user.is_superuser:
+        return "Полный доступ"
     if not profile:
         return "—"
     return rights_summary(profile.allowed_departments.all(), total_departments, "отделы", empty_label="Отделы не выбраны")
@@ -210,8 +214,8 @@ def employee_row(user, total_organs, total_departments):
         "last_seen": last_seen_display(profile),
         "activation_state": activation_state(user),
         "activation_label": activation_label(user),
-        "organs_summary": format_organs_summary(profile, total_organs),
-        "departments_summary": format_departments_summary(profile, total_departments),
+        "organs_summary": format_organs_summary(profile, total_organs, user),
+        "departments_summary": format_departments_summary(profile, total_departments, user),
         "detail_url": reverse("admin_employee_detail", kwargs={"pk": user.pk}),
         "edit_url": reverse("admin_employee_edit", kwargs={"pk": user.pk}),
     }
@@ -688,13 +692,14 @@ def employee_detail_context(request, pk):
         "last_seen": last_seen_display(profile),
         "activation_state": activation_state(user),
         "activation_label": activation_label(user),
-        "organs_summary": format_organs_summary(profile, total_organs),
-        "departments_summary": format_departments_summary(profile, total_departments),
+        "organs_summary": format_organs_summary(profile, total_organs, user),
+        "departments_summary": format_departments_summary(profile, total_departments, user),
         "allowed_organs": list(profile.allowed_organs.all()) if profile else [],
         "allowed_departments": list(profile.allowed_departments.all()) if profile else [],
-        "all_organs": not profile or not profile.allowed_organs.exists(),
-        "all_departments": bool(profile and profile.allowed_departments.count() == total_departments and total_departments),
-        "no_departments": not profile or not profile.allowed_departments.exists(),
+        "all_organs": bool(user.is_superuser or not profile or not profile.allowed_organs.exists()),
+        "all_departments": bool(user.is_superuser or (profile and profile.allowed_departments.count() == total_departments and total_departments)),
+        "no_departments": bool((not user.is_superuser) and (not profile or not profile.allowed_departments.exists())),
+        "has_full_access": user.is_superuser,
         "recent_logs": logs,
         "recent_actions": recent_actions,
         "recent_created_requests": recent_created_requests,

@@ -11,7 +11,7 @@ from types import SimpleNamespace
 from django.contrib.auth.decorators import login_required
 from django.contrib.contenttypes.models import ContentType
 from django.core.paginator import Paginator
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Count, Min, Q, Sum
 from django.http import FileResponse, Http404, JsonResponse, QueryDict
 from django.shortcuts import get_object_or_404, render
@@ -35,6 +35,7 @@ from .models import (
     CitsiziEquipment,
     FireDepartmentRequest,
     NeedStatus,
+    RequestNumberRegistry,
     RequestPhotoLink,
     RequestStatusHistory,
     TmcRequest,
@@ -43,6 +44,7 @@ from .models import (
     VehicleRepairRequest,
     TmcProduct,
     normalize_product_name,
+    normalize_request_number,
     ACTIVE_NEED_STATUS_CHOICES,
 )
 from .permissions import can_manage_photo_asset, can_view, can_write, user_primary_department
@@ -669,6 +671,68 @@ def request_content_type_for_object(obj):
     return ContentType.objects.get_for_model(obj, for_concrete_model=False)
 
 
+REQUEST_NUMBER_DUPLICATE_MESSAGE = "Заявка с таким номером уже существует для выбранного территориального органа и отдела."
+
+
+def request_number_conflict(organ, department, request_number, instance=None):
+    normalized = normalize_request_number(request_number)
+    if not normalized:
+        return None
+    qs = RequestNumberRegistry.objects.filter(
+        territorial_organ=organ,
+        department=department,
+        normalized_request_number=normalized,
+    )
+    if instance and instance.pk:
+        content_type = request_content_type_for_object(instance)
+        qs = qs.exclude(content_type=content_type, object_id=instance.pk)
+    return qs.select_related("territorial_organ", "content_type").first()
+
+
+def validate_request_number(form, organ, table, instance=None):
+    if "request_number" not in form.fields:
+        return True
+    request_number = form.cleaned_data.get("request_number")
+    cleaned_number = " ".join(str(request_number or "").split())
+    if cleaned_number:
+        form.cleaned_data["request_number"] = cleaned_number
+    conflict = request_number_conflict(organ, table["department"], cleaned_number, instance)
+    if conflict:
+        form.add_error("request_number", REQUEST_NUMBER_DUPLICATE_MESSAGE)
+        return False
+    return True
+
+
+def sync_request_number_registry(obj, department):
+    if not hasattr(obj, "request_number"):
+        return
+    request_number = " ".join(str(getattr(obj, "request_number", "") or "").split())
+    if not request_number:
+        remove_request_number_registry(obj)
+        return
+    if getattr(obj, "request_number", None) != request_number:
+        obj.request_number = request_number
+        obj.save(update_fields=["request_number", "updated_at"])
+    content_type = request_content_type_for_object(obj)
+    RequestNumberRegistry.objects.update_or_create(
+        content_type=content_type,
+        object_id=obj.pk,
+        defaults={
+            "territorial_organ": obj.territorial_organ,
+            "department": department,
+            "request_number": request_number,
+            "normalized_request_number": normalize_request_number(request_number),
+        },
+    )
+
+
+def remove_request_number_registry(obj):
+    if not obj or not getattr(obj, "pk", None):
+        return
+    content_type = request_content_type_for_object(obj)
+    RequestNumberRegistry.objects.filter(content_type=content_type, object_id=obj.pk).delete()
+
+
 def available_request_photos(organ):
     return (
         organ.photos.select_related("folder", "created_by")
@@ -690,6 +754,7 @@ def selected_request_photo_ids(instance):
             photo__is_deleted=False,
         )
         .filter(Q(photo__folder__isnull=True) | Q(photo__folder__is_deleted=False))
+        .order_by("created_at", "id")
         .values_list("photo_id", flat=True)
     )
 
@@ -697,16 +762,29 @@ def selected_request_photo_ids(instance):
 def request_photo_picker_context(request, organ, selected_ids):
     selected_ids = {int(value) for value in selected_ids if str(value).isdigit()}
     query = request.GET.get("photo_q", "").strip()
-    folder = request.GET.get("photo_folder", "").strip()
+    folder_value = request.GET.get("photo_folder", "").strip()
     sort = request.GET.get("photo_sort", "newest")
-    folders = organ.photo_folders.filter(is_deleted=False).order_by("name")
 
-    selected_photos = list(available_request_photos(organ).filter(pk__in=selected_ids))
-    qs = available_request_photos(organ).exclude(pk__in=selected_ids)
-    if folder == "__root__":
-        qs = qs.filter(folder__isnull=True)
-    elif folder.isdigit():
-        qs = qs.filter(folder_id=folder)
+    selected_folder = None
+    if folder_value.isdigit():
+        selected_folder = organ.photo_folders.filter(pk=folder_value, is_deleted=False).first()
+        if selected_folder is None:
+            folder_value = ""
+    else:
+        folder_value = ""
+
+    child_folders = (
+        organ.photo_folders.select_related("parent")
+        .filter(parent=selected_folder, is_deleted=False)
+        .annotate(
+            photo_count=Count("photos", filter=Q(photos__is_deleted=False)),
+            child_count=Count("children", filter=Q(children__is_deleted=False), distinct=True),
+        )
+        .order_by("name", "pk")
+    )
+
+    qs = available_request_photos(organ)
+    qs = qs.filter(folder=selected_folder) if selected_folder else qs.filter(folder__isnull=True)
     if query:
         query_normalized = query.casefold()
         qs = [photo for photo in qs if query_normalized in photo.description.casefold() or query_normalized in photo.original_filename.casefold()]
@@ -715,21 +793,29 @@ def request_photo_picker_context(request, organ, selected_ids):
         qs = qs.order_by("created_at", "pk") if sort == "oldest" else qs.order_by("-created_at", "-pk")
 
     page = Paginator(qs, REQUEST_PHOTO_PICKER_PAGE_SIZE).get_page(request.GET.get("photo_page"))
-    photos = selected_photos + list(page.object_list)
+    photos = list(page.object_list)
     for photo in photos:
         photo.is_attached_to_request = photo.pk in selected_ids
+
+    root_photo_count = organ.photos.filter(is_deleted=False, folder__isnull=True).count()
+    root_folder_count = organ.photo_folders.filter(is_deleted=False, parent__isnull=True).count()
+    folder_path_items = add_folder_content_counts(organ, folder_path(selected_folder))
+
     return {
         "available_photos": photos,
         "attached_photo_ids": selected_ids,
         "attached_photo_count": len(selected_ids),
         "photo_picker_page": page,
         "photo_picker_page_links": page.paginator.get_elided_page_range(page.number, on_each_side=1, on_ends=1),
-        "photo_picker_folders": folders,
         "photo_picker_query": query,
-        "photo_picker_folder": folder,
+        "photo_picker_folder": folder_value,
+        "photo_picker_selected_folder": selected_folder,
+        "photo_picker_folder_path": folder_path_items,
+        "photo_picker_child_folders": child_folders,
+        "photo_picker_root_photo_count": root_photo_count,
+        "photo_picker_root_folder_count": root_folder_count,
         "photo_picker_sort": sort,
     }
-
 
 def request_photo_form_context(request, organ, selected_ids):
     return request_photo_picker_context(request, organ, selected_ids)
@@ -807,20 +893,28 @@ def attach_request_photo_counts(objects, model, organs):
     if not objects:
         return
     content_type = request_content_type_for_model(model)
-    counts = dict(
-        RequestPhotoLink.objects.filter(
+    object_ids = [obj.pk for obj in objects]
+    links = list(
+        RequestPhotoLink.objects.select_related("photo", "photo__territorial_organ", "photo__created_by")
+        .filter(
             territorial_organ__in=organs,
             content_type=content_type,
-            object_id__in=[obj.pk for obj in objects],
+            object_id__in=object_ids,
             photo__is_deleted=False,
         )
         .filter(Q(photo__folder__isnull=True) | Q(photo__folder__is_deleted=False))
-        .values("object_id")
-        .annotate(total=Count("id"))
-        .values_list("object_id", "total")
+        .order_by("object_id", "created_at", "id")
     )
+    counts = {}
+    photos = {object_id: [] for object_id in object_ids}
+    for link in links:
+        counts[link.object_id] = counts.get(link.object_id, 0) + 1
+        photos.setdefault(link.object_id, []).append(link.photo)
     for obj in objects:
         obj.attached_photo_count = counts.get(obj.pk, 0)
+        obj.attached_photos = photos.get(obj.pk, [])
+        obj.attached_photo_previews = obj.attached_photos[:3]
+        obj.attached_photo_extra_count = max(obj.attached_photo_count - len(obj.attached_photo_previews), 0)
 
 
 XLSX_EXPORT_CONFIG = {
@@ -1307,48 +1401,54 @@ def tmc_record_form(request, organ, table, instance=None):
     selected_photo_ids = request.POST.getlist("attached_photos") if request.method == "POST" else selected_request_photo_ids(instance)
     if request.method == "POST":
         item_rows, item_errors = tmc_item_rows_from_request(request)
-        if form.is_valid() and not item_errors:
+        form_is_valid = form.is_valid()
+        number_is_valid = validate_request_number(form, organ, table, instance) if form_is_valid else False
+        if form_is_valid and number_is_valid and not item_errors:
             is_create = instance is None
-            with transaction.atomic():
-                obj = form.save(commit=False)
-                obj.territorial_organ = organ
-                if not obj.pk:
-                    obj.created_by = request.user
-                obj.updated_by = request.user
-                obj.save()
-                obj.items.all().delete()
-                new_item_rows = []
-                for row in item_rows:
-                    product, product_created = get_or_create_tmc_product(row["name"], row["unit"], row.get("product_id"))
-                    if product_created:
-                        write_audit(
-                            AuditLog.Action.CREATE,
-                            product,
-                            old_values=None,
-                            new_values={"audit_event": "tmc_product_created", **serialize_instance(product)},
-                            request=request,
+            try:
+                with transaction.atomic():
+                    obj = form.save(commit=False)
+                    obj.territorial_organ = organ
+                    if not obj.pk:
+                        obj.created_by = request.user
+                    obj.updated_by = request.user
+                    obj.save()
+                    sync_request_number_registry(obj, table["department"])
+                    obj.items.all().delete()
+                    new_item_rows = []
+                    for row in item_rows:
+                        product, product_created = get_or_create_tmc_product(row["name"], row["unit"], row.get("product_id"))
+                        if product_created:
+                            write_audit(
+                                AuditLog.Action.CREATE,
+                                product,
+                                old_values=None,
+                                new_values={"audit_event": "tmc_product_created", **serialize_instance(product)},
+                                request=request,
+                            )
+                        obj.items.create(product=product, name=product.name, quantity=row["quantity"], unit=row["unit"])
+                        new_item_rows.append({"name": product.name, "quantity": row["quantity"], "unit": row["unit"]})
+                    photo_changes = sync_request_photos(obj, selected_photo_ids, request.user)
+                    if is_create or old_status != obj.status:
+                        create_status_history(
+                            obj=obj,
+                            old_status=None if is_create else old_status,
+                            new_status=obj.status,
+                            completed_at=obj.due_date if obj.status == NeedStatus.DONE else None,
+                            changed_by=request.user,
+                            note="Создание заявки" if is_create else "Изменение статуса",
                         )
-                    obj.items.create(product=product, name=product.name, quantity=row["quantity"], unit=row["unit"])
-                    new_item_rows.append({"name": product.name, "quantity": row["quantity"], "unit": row["unit"]})
-                photo_changes = sync_request_photos(obj, selected_photo_ids, request.user)
-                if is_create or old_status != obj.status:
-                    create_status_history(
-                        obj=obj,
-                        old_status=None if is_create else old_status,
-                        new_status=obj.status,
-                        completed_at=obj.due_date if obj.status == NeedStatus.DONE else None,
-                        changed_by=request.user,
-                        note="Создание заявки" if is_create else "Изменение статуса",
-                    )
-                if not is_create and old_status != obj.status:
-                    write_status_change_audit_event(obj, old_status, obj.status, request)
-                if not is_create:
-                    write_tmc_item_audit_events(obj, old_item_rows, new_item_rows, request)
-                write_request_photo_audit_events(obj, photo_changes, request)
-            write_audit(AuditLog.Action.UPDATE if instance else AuditLog.Action.CREATE, obj, old_values=old_values, new_values=tmc_snapshot(obj), request=request)
-            response = table_data(request, organ.pk, table["key"])
-            response["HX-Trigger"] = htmx_triggers("Заявка сохранена.")
-            return response
+                    if not is_create and old_status != obj.status:
+                        write_status_change_audit_event(obj, old_status, obj.status, request)
+                    if not is_create:
+                        write_tmc_item_audit_events(obj, old_item_rows, new_item_rows, request)
+                    write_request_photo_audit_events(obj, photo_changes, request)
+                write_audit(AuditLog.Action.UPDATE if instance else AuditLog.Action.CREATE, obj, old_values=old_values, new_values=tmc_snapshot(obj), request=request)
+                response = table_data(request, organ.pk, table["key"])
+                response["HX-Trigger"] = htmx_triggers("Заявка сохранена.")
+                return response
+            except IntegrityError:
+                form.add_error("request_number", REQUEST_NUMBER_DUPLICATE_MESSAGE)
     context = {"form": form, "organ": organ, "table": table, "instance": instance, "item_rows": item_rows, "item_errors": item_errors, "show_request_photo_picker": True}
     context.update(request_photo_form_context(request, organ, selected_photo_ids))
     response = render(request, "partials/tmc_request_form.html", context)
@@ -1412,7 +1512,7 @@ def request_photos(request, organ_id, table_key, pk):
         RequestPhotoLink.objects.select_related("photo", "photo__folder", "photo__created_by")
         .filter(territorial_organ=organ, content_type=content_type, object_id=obj.pk, photo__is_deleted=False)
         .filter(Q(photo__folder__isnull=True) | Q(photo__folder__is_deleted=False))
-        .order_by("-created_at", "-id")
+        .order_by("created_at", "id")
     )
     selected_ids = [link.photo_id for link in links]
     context = {
@@ -1443,7 +1543,7 @@ def request_photos_download(request, organ_id, table_key, pk):
         RequestPhotoLink.objects.select_related("photo")
         .filter(territorial_organ=organ, content_type=content_type, object_id=obj.pk, photo__is_deleted=False)
         .filter(Q(photo__folder__isnull=True) | Q(photo__folder__is_deleted=False))
-        .order_by("photo__created_at", "photo_id")
+        .order_by("created_at", "id")
     )
     if not links.exists():
         raise Http404
@@ -1459,7 +1559,7 @@ def request_photo_picker(request, organ_id):
         raise Http404
     context = {"organ": organ}
     context.update(request_photo_picker_context(request, organ, request.GET.getlist("attached_photos")))
-    return render(request, "partials/request_photo_picker_results.html", context)
+    return render(request, "partials/request_photo_picker_panel.html", context)
 
 
 def tmc_xlsx_response(qs, organ, filename, is_multi_organ=False):
@@ -1832,38 +1932,45 @@ def record_form(request, organ_id, table_key, pk=None):
     old_status = instance.status if instance and table_key in STATUS_HISTORY_TABLES else None
     form = Form(request.POST or None, instance=instance)
     selected_photo_ids = request.POST.getlist("attached_photos") if request.method == "POST" else selected_request_photo_ids(instance)
-    if request.method == "POST" and form.is_valid():
-        is_create = instance is None
-        with transaction.atomic():
-            obj = form.save(commit=False)
-            obj.territorial_organ = organ
-            completion_field = completed_date_field(table_key)
-            if table_key in STATUS_HISTORY_TABLES and obj.status == NeedStatus.DONE and not getattr(obj, completion_field):
-                setattr(obj, completion_field, timezone.localdate())
-            if not obj.pk:
-                obj.created_by = request.user
-            obj.updated_by = request.user
-            obj.save()
-            photo_changes = {"added": set(), "removed": set()}
-            if table_key in REQUEST_PHOTO_TABLES:
-                photo_changes = sync_request_photos(obj, selected_photo_ids, request.user)
-            if table_key in STATUS_HISTORY_TABLES and (is_create or old_status != obj.status):
-                create_status_history(
-                    obj=obj,
-                    old_status=None if is_create else old_status,
-                    new_status=obj.status,
-                    completed_at=getattr(obj, completion_field) if obj.status == NeedStatus.DONE else None,
-                    changed_by=request.user,
-                    note="Создание заявки" if is_create else "Изменение статуса",
-                )
-            if table_key in STATUS_HISTORY_TABLES and not is_create and old_status != obj.status:
-                write_status_change_audit_event(obj, old_status, obj.status, request)
-            if table_key in REQUEST_PHOTO_TABLES:
-                write_request_photo_audit_events(obj, photo_changes, request)
-        write_audit(AuditLog.Action.UPDATE if instance else AuditLog.Action.CREATE, obj, old_values=old_values, new_values=serialize_instance(obj), request=request)
-        response = table_data(request, organ.pk, table_key)
-        response["HX-Trigger"] = htmx_triggers("Запись сохранена.")
-        return response
+    if request.method == "POST":
+        form_is_valid = form.is_valid()
+        number_is_valid = validate_request_number(form, organ, table, instance) if form_is_valid else False
+        if form_is_valid and number_is_valid:
+            is_create = instance is None
+            try:
+                with transaction.atomic():
+                    obj = form.save(commit=False)
+                    obj.territorial_organ = organ
+                    completion_field = completed_date_field(table_key)
+                    if table_key in STATUS_HISTORY_TABLES and obj.status == NeedStatus.DONE and not getattr(obj, completion_field):
+                        setattr(obj, completion_field, timezone.localdate())
+                    if not obj.pk:
+                        obj.created_by = request.user
+                    obj.updated_by = request.user
+                    obj.save()
+                    sync_request_number_registry(obj, table["department"])
+                    photo_changes = {"added": set(), "removed": set()}
+                    if table_key in REQUEST_PHOTO_TABLES:
+                        photo_changes = sync_request_photos(obj, selected_photo_ids, request.user)
+                    if table_key in STATUS_HISTORY_TABLES and (is_create or old_status != obj.status):
+                        create_status_history(
+                            obj=obj,
+                            old_status=None if is_create else old_status,
+                            new_status=obj.status,
+                            completed_at=getattr(obj, completion_field) if obj.status == NeedStatus.DONE else None,
+                            changed_by=request.user,
+                            note="Создание заявки" if is_create else "Изменение статуса",
+                        )
+                    if table_key in STATUS_HISTORY_TABLES and not is_create and old_status != obj.status:
+                        write_status_change_audit_event(obj, old_status, obj.status, request)
+                    if table_key in REQUEST_PHOTO_TABLES:
+                        write_request_photo_audit_events(obj, photo_changes, request)
+                write_audit(AuditLog.Action.UPDATE if instance else AuditLog.Action.CREATE, obj, old_values=old_values, new_values=serialize_instance(obj), request=request)
+                response = table_data(request, organ.pk, table_key)
+                response["HX-Trigger"] = htmx_triggers("Запись сохранена.")
+                return response
+            except IntegrityError:
+                form.add_error("request_number", REQUEST_NUMBER_DUPLICATE_MESSAGE)
     context = {"form": form, "organ": organ, "table": table, "instance": instance, "show_request_photo_picker": table_key in REQUEST_PHOTO_TABLES}
     if table_key in REQUEST_PHOTO_TABLES:
         context.update(request_photo_form_context(request, organ, selected_photo_ids))
@@ -1883,10 +1990,12 @@ def record_delete(request, organ_id, table_key, pk):
         raise Http404
     if request.method == "POST":
         old_values = serialize_instance(obj)
-        obj.is_deleted = True
-        obj.updated_by = request.user
-        obj.save(update_fields=["is_deleted", "updated_by", "updated_at"])
-        write_audit(AuditLog.Action.DELETE, obj, old_values=old_values, new_values=serialize_instance(obj), request=request)
+        with transaction.atomic():
+            obj.is_deleted = True
+            obj.updated_by = request.user
+            obj.save(update_fields=["is_deleted", "updated_by", "updated_at"])
+            remove_request_number_registry(obj)
+            write_audit(AuditLog.Action.DELETE, obj, old_values=old_values, new_values=serialize_instance(obj), request=request)
         response = table_data(request, organ.pk, table_key)
         response["HX-Trigger"] = htmx_triggers("Запись удалена.")
         return response

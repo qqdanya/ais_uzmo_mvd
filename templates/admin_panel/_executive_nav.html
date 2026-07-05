@@ -1,7 +1,7 @@
 <div class="admin-command-head admin-executive-head">
   <div>
-    <h1>Панель руководителя</h1>
-    <p>Оперативная аналитика по заявкам и материальному обеспечению</p>
+    <h1>Административная панель</h1>
+    <p>Сводная информация по заявкам, сотрудникам и материальной базе</p>
   </div>
   <div class="admin-command-actions">
     <a class="btn btn-sm btn-outline-primary" href="{% url 'audit_log' %}">
@@ -19,7 +19,7 @@
   </div>
 </div>
 
-<nav class="admin-top-tabs" aria-label="Разделы панели руководителя">
+<nav class="admin-top-tabs" aria-label="Разделы административной панели">
   <a class="admin-top-tab{% if active_tab == 'summary' %} active{% endif %}" href="{% url 'admin_panel' %}">
     <i class="bi bi-speedometer2"></i>
     Оперативная сводка

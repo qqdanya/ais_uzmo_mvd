@@ -14,6 +14,11 @@ def normalize_product_name(value):
     return re.sub(r"\s+", " ", value).strip()
 
 
+def normalize_request_number(value):
+    value = re.sub(r"\s+", " ", str(value or "").strip())
+    return value.replace("ё", "е").replace("Ё", "Е").casefold()
+
+
 class TrackableRequest(models.Model):
     territorial_organ = models.ForeignKey("directory.TerritorialOrgan", verbose_name="территориальный орган", on_delete=models.PROTECT, related_name="%(class)s_items", db_index=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name="создал", null=True, blank=True, on_delete=models.SET_NULL, related_name="%(class)s_created")
@@ -101,6 +106,42 @@ class TmcProduct(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class RequestNumberRegistry(models.Model):
+    territorial_organ = models.ForeignKey("directory.TerritorialOrgan", verbose_name="территориальный орган", on_delete=models.CASCADE, related_name="request_number_registry")
+    department = models.SlugField("отдел", max_length=80, db_index=True)
+    request_number = models.CharField("номер заявки", max_length=80)
+    normalized_request_number = models.CharField("нормализованный номер", max_length=80, db_index=True)
+    content_type = models.ForeignKey(ContentType, verbose_name="тип заявки", on_delete=models.CASCADE)
+    object_id = models.PositiveBigIntegerField("ID заявки")
+    request = GenericForeignKey("content_type", "object_id")
+    created_at = models.DateTimeField("создано", auto_now_add=True)
+    updated_at = models.DateTimeField("обновлено", auto_now=True)
+
+    class Meta:
+        verbose_name = "номер заявки"
+        verbose_name_plural = "Реестр номеров заявок"
+        ordering = ("territorial_organ__name", "department", "request_number")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["territorial_organ", "department", "normalized_request_number"],
+                name="unique_request_number_per_organ_department",
+            ),
+            models.UniqueConstraint(fields=["content_type", "object_id"], name="unique_request_number_registry_object"),
+        ]
+        indexes = [
+            models.Index(fields=["territorial_organ", "department", "normalized_request_number"]),
+            models.Index(fields=["content_type", "object_id"]),
+        ]
+
+    def save(self, *args, **kwargs):
+        self.request_number = re.sub(r"\s+", " ", str(self.request_number or "").strip())
+        self.normalized_request_number = normalize_request_number(self.request_number)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.territorial_organ} / {self.department} / № {self.request_number}"
 
 
 class RequestStatusHistory(models.Model):

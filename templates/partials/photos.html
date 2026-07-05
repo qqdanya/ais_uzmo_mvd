@@ -1,3 +1,4 @@
+{% load account_tags %}
 <div class="photo-head-panel">
   <div class="workspace-head">
     <div>
@@ -91,6 +92,8 @@
         <div class="folder-card-icon"><i class="bi bi-folder2-open"></i></div>
         <div class="folder-card-body">
           <strong>{{ folder.name }}</strong>
+          <span class="folder-card-meta"><i class="bi bi-person"></i> {{ folder.created_by|display_name }}</span>
+          <span class="folder-card-meta"><i class="bi bi-clock"></i> {{ folder.created_at|date:"d.m.Y H:i" }}</span>
         </div>
       </button>
       <div class="folder-card-footer">
@@ -115,7 +118,10 @@
   <article class="photo-card">
     <button class="photo-image" type="button" data-lightbox-photo data-src="{{ photo.image.url }}" data-download-url="{% url 'photo_download' organ.pk photo.pk %}" data-description="{{ photo.description }}" data-meta="{{ photo.created_at|date:'d.m.Y H:i' }} · {{ photo.created_by|default:'-' }}"><img src="{{ photo.image.url }}" alt="{{ photo.description|default:photo.original_filename }}"></button>
     <div class="photo-body">
-      <div class="small text-secondary">{{ photo.created_at|date:"d.m.Y H:i" }} · {{ photo.created_by|default:"-" }}</div>
+      <div class="photo-card-meta-list">
+        <span class="photo-card-meta"><i class="bi bi-person"></i> {{ photo.created_by|display_name }}</span>
+        <span class="photo-card-meta"><i class="bi bi-clock"></i> {{ photo.created_at|date:"d.m.Y H:i" }}</span>
+      </div>
       {% if photo.folder_path %}
         <nav class="photo-folder" aria-label="Путь к папке фотографии">
           <i class="bi bi-folder"></i>

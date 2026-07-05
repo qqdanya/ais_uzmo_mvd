@@ -284,7 +284,10 @@
               <td rowspan="{{ item_count }}" class="tmc-request-cell {% if forloop.parentloop.last %}tmc-bottom-span{% else %}tmc-group-span{% endif %}">{{ obj.request_number }}</td>
               <td rowspan="{{ item_count }}" class="tmc-request-cell {% if forloop.parentloop.last %}tmc-bottom-span{% else %}tmc-group-span{% endif %}">{{ obj.request_date|date:"d.m.Y" }}</td>
               <td rowspan="{{ item_count }}" class="status-cell tmc-request-cell tmc-boundary-right {% if forloop.parentloop.last %}tmc-bottom-span{% else %}tmc-group-span{% endif %}">{% status_badge obj %}</td>
-              <td rowspan="{{ item_count }}" class="tmc-boundary-right {% if forloop.parentloop.last %}tmc-bottom-span{% else %}tmc-group-span{% endif %}">{{ obj.comment }}</td>
+              <td rowspan="{{ item_count }}" class="tmc-boundary-right request-description-cell {% if forloop.parentloop.last %}tmc-bottom-span{% else %}tmc-group-span{% endif %}">
+                <div class="request-description-text">{{ obj.comment|default:"—" }}</div>
+                {% include "partials/request_photo_thumbnails.html" with obj=obj table=table %}
+              </td>
               <td rowspan="{{ item_count }}" class="tmc-actions-cell {% if forloop.parentloop.last %}tmc-bottom-span{% else %}tmc-group-span{% endif %}">
                 <div class="table-action-stack">
                 {% if obj.attached_photo_count %}
@@ -307,7 +310,10 @@
             <td class="tmc-request-cell">{{ obj.request_number }}</td>
             <td class="tmc-request-cell">{{ obj.request_date|date:"d.m.Y" }}</td>
             <td class="status-cell tmc-request-cell tmc-boundary-right">{% status_badge obj %}</td>
-            <td class="tmc-boundary-right">{{ obj.comment }}</td>
+            <td class="tmc-boundary-right request-description-cell">
+              <div class="request-description-text">{{ obj.comment|default:"—" }}</div>
+              {% include "partials/request_photo_thumbnails.html" with obj=obj table=table %}
+            </td>
             <td class="tmc-actions-cell">
               <div class="table-action-stack">
               {% if obj.attached_photo_count %}
@@ -346,7 +352,20 @@
       {% for obj in page.object_list %}
       <tr class="data-row {% row_class table.key obj %} {% if obj.is_deleted %}table-warning{% endif %}">
         {% if is_multi_organ %}<td>{{ obj.territorial_organ.name }}</td>{% endif %}
-        {% for field in fields %}<td{% if field.name == "status" %} class="status-cell"{% endif %}>{% if field.name == "status" %}{% status_badge obj %}{% elif table.key == "fire-extinguishers" and field.name == "expiry_date" %}{% expiry_date_cell obj %}{% else %}{{ obj|get_attr:field.name }}{% endif %}</td>{% endfor %}
+        {% for field in fields %}
+          <td{% if field.name == "status" %} class="status-cell"{% elif field.name == "comment" %} class="request-description-cell"{% endif %}>
+            {% if field.name == "status" %}
+              {% status_badge obj %}
+            {% elif table.key == "fire-extinguishers" and field.name == "expiry_date" %}
+              {% expiry_date_cell obj %}
+            {% elif field.name == "comment" %}
+              <div class="request-description-text">{{ obj|get_attr:field.name|default:"—" }}</div>
+              {% include "partials/request_photo_thumbnails.html" with obj=obj table=table %}
+            {% else %}
+              {{ obj|get_attr:field.name }}
+            {% endif %}
+          </td>
+        {% endfor %}
         <td class="table-row-actions">
           <div class="table-action-stack">
           {% if obj.attached_photo_count %}

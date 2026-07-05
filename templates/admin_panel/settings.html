@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Настройки — Панель руководителя{% endblock %}
+{% block title %}Настройки — Административная панель{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260704-015">
@@ -12,7 +12,7 @@
   <section class="panel admin-command-panel admin-executive-panel">
     {% include "admin_panel/_executive_nav.html" with active_tab="settings" %}
 
-    <section class="admin-settings-screen" aria-label="Настройки панели руководителя">
+    <section class="admin-settings-screen" aria-label="Настройки административной панели">
       <div class="admin-requests-hero admin-settings-hero">
         <div>
           <h2>Настройки</h2>
@@ -29,7 +29,7 @@
         <div class="admin-section-head">
           <div>
             <h2>Пороговые значения</h2>
-            <span>Изменения применяются сразу после сохранения, без миграций базы данных.</span>
+            <span>Изменения применяются сразу после сохранения.</span>
           </div>
           <div class="admin-filter-actions">
             <button class="btn btn-sm btn-outline-secondary" type="submit" name="reset" value="1">

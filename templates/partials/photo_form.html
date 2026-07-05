@@ -1,4 +1,4 @@
-{% load request_tags %}
+{% load request_tags account_tags %}
 <form method="post" enctype="multipart/form-data" hx-encoding="multipart/form-data" hx-post="{{ request.path }}" hx-target="#workspace" novalidate>
   <div class="modal-header">
     <h5 class="modal-title">{% if photo %}Редактирование фотографии{% else %}Добавление фотографии{% endif %}</h5>
@@ -15,7 +15,10 @@
           </button>
           <div class="photo-edit-preview-body">
             <strong data-single-file-name>{{ photo.original_filename|default:"Фотография" }}</strong>
-            <span data-single-file-meta data-single-file-owner="{{ photo.created_by|default:'-' }}">{{ photo.created_at|date:"d.m.Y H:i" }} · {{ photo.created_by|default:"-" }}</span>
+            <div class="photo-card-meta-list" data-single-file-meta data-single-file-owner="{{ photo.created_by|display_name }}">
+              <span class="photo-card-meta"><i class="bi bi-person"></i> {{ photo.created_by|display_name }}</span>
+              <span class="photo-card-meta" data-single-file-meta-time><i class="bi bi-clock"></i> {{ photo.created_at|date:"d.m.Y H:i" }}</span>
+            </div>
             {% if photo.description %}<p>{{ photo.description }}</p>{% endif %}
             <button class="btn btn-sm btn-outline-primary photo-edit-replace" type="button" data-single-file-button><i class="bi bi-image" aria-hidden="true"></i> Выбрать изображение</button>
             <div class="visually-hidden">{{ form.image }}</div>

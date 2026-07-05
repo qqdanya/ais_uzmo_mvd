@@ -17,7 +17,7 @@
         <div>
           <a class="admin-back-link" href="{{ back_url }}"><i class="bi bi-arrow-left"></i> Назад к материальной базе</a>
           <h2><i class="bi {{ category.icon }}"></i> {{ category.title }}</h2>
-          <p>{{ category.department_name }} · учитывается последняя запись по каждому территориальному органу</p>
+          <p>{{ category.department_name }} · актуальное состояние по территориальным органам</p>
         </div>
         <div class="admin-organ-detail-meta">
           <span>Данные есть: <strong>{{ summary.data_label }}</strong></span>
@@ -124,7 +124,7 @@
           <div class="admin-section-head">
             <div>
               <h2>Текущая ситуация по органам</h2>
-              <span>В таблице показана последняя запись по каждому территориальному органу. Данные старше {{ stale_days }} дней считаются устаревшими.</span>
+              <span>В таблице показано актуальное состояние по каждому территориальному органу.</span>
             </div>
           </div>
           {% if page.object_list %}
@@ -173,7 +173,7 @@
           <div class="admin-section-head">
             <div>
               <h2>Последние актуализации</h2>
-              <span>Исторические записи не влияют на текущие KPI, но помогают видеть динамику обновлений</span>
+              <span>История помогает отследить изменения по выбранной категории</span>
             </div>
           </div>
           {% if history_rows %}

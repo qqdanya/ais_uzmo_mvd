@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Сотрудники — Панель руководителя{% endblock %}
+{% block title %}Сотрудники — Административная панель{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260704-015">
@@ -52,7 +52,7 @@
         <div class="admin-section-head">
           <div>
             <h2>Активность сотрудников за 30 дней</h2>
-            <span>Сравнение созданных заявок и действий в журнале. Показываются до 10 самых активных сотрудников.</span>
+            <span>Активность сотрудников за последние 30 дней.</span>
           </div>
         </div>
         {% if activity_chart %}
@@ -241,7 +241,7 @@
         <div class="admin-section-head">
           <div>
             <h2>Список сотрудников</h2>
-            <span>Онлайн считается по heartbeat-запросам пользователей за последнюю минуту.</span>
+            <span>Роли, доступы и текущая активность сотрудников.</span>
           </div>
           <a class="btn btn-primary btn-sm" href="{{ create_url }}">
             <i class="bi bi-person-plus"></i>

@@ -72,3 +72,11 @@ class RequestPhotoLinkAdmin(admin.ModelAdmin):
     list_filter = ("territorial_organ", "content_type", "created_at")
     search_fields = ("photo__description", "photo__original_filename", "territorial_organ__name")
     readonly_fields = ("created_at",)
+
+
+@admin.register(models.RequestNumberRegistry)
+class RequestNumberRegistryAdmin(admin.ModelAdmin):
+    list_display = ("request_number", "territorial_organ", "department", "request", "updated_at")
+    list_filter = ("territorial_organ", "department", "content_type")
+    search_fields = ("request_number", "territorial_organ__name")
+    readonly_fields = ("normalized_request_number", "content_type", "object_id", "created_at", "updated_at")

@@ -14,28 +14,6 @@
     </button>
   </div>
   <div class="request-photo-picker" data-request-photo-panel hidden>
-    <div id="request-photo-filters" class="request-photo-filters" hx-get="{% url 'request_photo_picker' organ.pk %}" hx-target="#request-photo-results" hx-swap="innerHTML" hx-include="#request-photo-selected, #request-photo-filters" hx-trigger="input delay:500ms from:#request-photo-search-input, change">
-      <div class="search-box request-photo-search">
-        <i class="bi bi-search"></i>
-        <input id="request-photo-search-input" class="form-control form-control-sm" name="photo_q" value="{{ photo_picker_query }}" placeholder="Поиск по имени файла и описанию">
-      </div>
-      <select class="form-select form-select-sm" name="photo_folder" aria-label="Папка фотографии">
-        <option value="" {% if not photo_picker_folder %}selected{% endif %}>Все папки</option>
-        <option value="__root__" {% if photo_picker_folder == "__root__" %}selected{% endif %}>Корень</option>
-        {% for folder in photo_picker_folders %}
-          <option value="{{ folder.pk }}" {% if photo_picker_folder == folder.pk|stringformat:"s" %}selected{% endif %}>{{ folder.name }}</option>
-        {% endfor %}
-      </select>
-      <select class="form-select form-select-sm" name="photo_sort" aria-label="Сортировка фотографий">
-        <option value="newest" {% if photo_picker_sort != "oldest" %}selected{% endif %}>Сначала новые</option>
-        <option value="oldest" {% if photo_picker_sort == "oldest" %}selected{% endif %}>Сначала старые</option>
-      </select>
-    </div>
-    <div id="request-photo-results">
-      {% include "partials/request_photo_picker_results.html" %}
-    </div>
-    <div class="request-photo-picker-footer">
-      <button class="btn btn-sm btn-primary" type="button" data-request-photo-toggle>Готово</button>
-    </div>
+    {% include "partials/request_photo_picker_panel.html" %}
   </div>
 </div>

@@ -1,3 +1,4 @@
+{% load account_tags %}
 <form method="post" hx-post="{{ request.path }}" hx-target="#modal-content" data-request-photo-manage-form>
   <div class="modal-header">
     <h5 class="modal-title">Прикрепленные фотографии</h5>
@@ -31,16 +32,19 @@
         </div>
       </div>
 
-      <div class="request-linked-photos" data-request-linked-photos>
+      <div class="request-linked-photos" data-request-linked-photos data-lightbox-scope data-lightbox-group="request-{{ organ.pk }}-{{ table_key }}-{{ object.pk }}">
         {% for link in links %}
           {% with photo=link.photo %}
           <article class="request-linked-photo" data-request-linked-photo="{{ photo.pk }}">
-            <button class="photo-image" type="button" data-lightbox-photo data-src="{{ photo.image.url }}" data-download-url="{% url 'photo_download' organ.pk photo.pk %}" data-description="{{ photo.description|default:'Описание не добавлено' }}" data-meta="{{ photo.created_at|date:'d.m.Y H:i' }} · {{ photo.created_by|default:'-' }}">
+            <button class="photo-image" type="button" data-lightbox-photo data-lightbox-group="request-{{ organ.pk }}-{{ table_key }}-{{ object.pk }}" data-src="{{ photo.image.url }}" data-download-url="{% url 'photo_download' organ.pk photo.pk %}" data-description="{{ photo.description|default:'Описание не добавлено' }}" data-meta="{{ photo.created_at|date:'d.m.Y H:i' }} · {{ photo.created_by|default:'-' }}">
               <img src="{{ photo.image.url }}" alt="{{ photo.description|default:photo.original_filename }}">
             </button>
             <div class="request-linked-photo-body">
               <strong>{{ photo.original_filename|default:"Фотография" }}</strong>
-              <span>{{ photo.created_at|date:"d.m.Y H:i" }} · {{ photo.created_by|default:"-" }}</span>
+              <div class="photo-card-meta-list">
+                <span class="photo-card-meta"><i class="bi bi-person"></i> {{ photo.created_by|display_name }}</span>
+                <span class="photo-card-meta"><i class="bi bi-clock"></i> {{ photo.created_at|date:"d.m.Y H:i" }}</span>
+              </div>
               {% if photo.description %}<p>{{ photo.description }}</p>{% endif %}
               <div class="request-linked-photo-actions">
                 <a class="btn btn-sm btn-download" href="{% url 'photo_download' organ.pk photo.pk %}"><i class="bi bi-download"></i> Скачать</a>
@@ -58,29 +62,7 @@
 
       {% if can_write %}
         <div class="request-photo-picker" data-request-photo-panel hidden>
-          <div id="request-photo-filters" class="request-photo-filters" hx-get="{% url 'request_photo_picker' organ.pk %}" hx-target="#request-photo-results" hx-swap="innerHTML" hx-include="#request-photo-selected, #request-photo-filters" hx-trigger="input delay:500ms from:#request-photo-search-input, change">
-            <div class="search-box request-photo-search">
-              <i class="bi bi-search"></i>
-              <input id="request-photo-search-input" class="form-control form-control-sm" name="photo_q" value="{{ photo_picker_query }}" placeholder="Поиск по имени файла и описанию">
-            </div>
-            <select class="form-select form-select-sm" name="photo_folder" aria-label="Папка фотографии">
-              <option value="" {% if not photo_picker_folder %}selected{% endif %}>Все папки</option>
-              <option value="__root__" {% if photo_picker_folder == "__root__" %}selected{% endif %}>Корень</option>
-              {% for folder in photo_picker_folders %}
-                <option value="{{ folder.pk }}" {% if photo_picker_folder == folder.pk|stringformat:"s" %}selected{% endif %}>{{ folder.name }}</option>
-              {% endfor %}
-            </select>
-            <select class="form-select form-select-sm" name="photo_sort" aria-label="Сортировка фотографий">
-              <option value="newest" {% if photo_picker_sort != "oldest" %}selected{% endif %}>Сначала новые</option>
-              <option value="oldest" {% if photo_picker_sort == "oldest" %}selected{% endif %}>Сначала старые</option>
-            </select>
-          </div>
-          <div id="request-photo-results">
-            {% include "partials/request_photo_picker_results.html" %}
-          </div>
-          <div class="request-photo-picker-footer">
-            <button class="btn btn-sm btn-primary" type="button" data-request-photo-toggle>Готово</button>
-          </div>
+          {% include "partials/request_photo_picker_panel.html" %}
         </div>
       {% endif %}
     </div>

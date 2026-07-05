@@ -76,5 +76,5 @@ def handle_settings_post(request):
         return build_settings_context(values, errors)
 
     save_dashboard_thresholds(values)
-    messages.success(request, "Настройки панели руководителя сохранены.")
+    messages.success(request, "Настройки административной панели сохранены.")
     return None

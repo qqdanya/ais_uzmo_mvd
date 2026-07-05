@@ -60,7 +60,7 @@
         </article>
         <article class="admin-requests-kpi-card admin-employees-kpi-card">
           <span class="admin-requests-kpi-icon"><i class="bi bi-shield-check"></i></span>
-          <div><strong>{% if employee.is_superuser %}Руководитель{% else %}Рабочий доступ{% endif %}</strong><span>Системные права</span><small>{% if employee.is_superuser %}доступ к Таблицам БД{% else %}без технической панели{% endif %}</small></div>
+          <div><strong>{% if employee.is_superuser %}Руководитель{% else %}Рабочий доступ{% endif %}</strong><span>Уровень доступа</span><small>{% if employee.is_superuser %}полный административный доступ{% else %}стандартный доступ{% endif %}</small></div>
         </article>
       </section>
 
@@ -79,7 +79,9 @@
           <div class="admin-employee-rights-lists">
             <div>
               <h3>Отделы</h3>
-              {% if all_departments %}
+              {% if has_full_access %}
+                <span class="admin-employee-right-chip">Полный доступ</span>
+              {% elif all_departments %}
                 <span class="admin-employee-right-chip">Все отделы</span>
               {% elif no_departments %}
                 <span class="admin-employee-right-chip is-muted">Отделы не выбраны</span>
@@ -89,7 +91,9 @@
             </div>
             <div>
               <h3>Территориальные органы</h3>
-              {% if all_organs %}
+              {% if has_full_access %}
+                <span class="admin-employee-right-chip">Полный доступ</span>
+              {% elif all_organs %}
                 <span class="admin-employee-right-chip">Все территориальные органы</span>
               {% else %}
                 {% for organ in allowed_organs %}<span class="admin-employee-right-chip">{{ organ.order_number|floatformat:"-2" }}. {{ organ.name }}</span>{% endfor %}
