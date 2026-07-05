@@ -328,6 +328,10 @@ Bootstrap, Bootstrap Icons, HTMX and Chart.js are connected from local `static/v
 
 The admin search filters for organs, departments and assets now use ORM prefilter helpers instead of Python `.casefold()` scans over loaded objects. This keeps the existing UI behavior while making search safer for larger datasets.
 
+### Stage 43 note
+
+Admin and main table search now use one shared Cyrillic-friendly ORM helper from `apps/search_utils.py`. Requests, employees, organs, departments, assets, dashboard tables and photo search all rely on the same bounded case-variant logic, so local SQLite and production PostgreSQL behave more consistently for queries such as `другой`, `ДРУГОЙ` and `ДруГоЙ`.
+
 
 ### Stage 41 note
 

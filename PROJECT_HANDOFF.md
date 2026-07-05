@@ -1056,7 +1056,6 @@ Bootstrap, Bootstrap Icons, HTMX and Chart.js are connected from local `static/v
 
 - Replaced remaining `.casefold()` Python filtering in admin search helpers for assets, organs and departments.
 - Added shared helpers in `apps/accounts/admin_common.py`:
-  - `search_terms()`
   - `build_admin_search_q()`
   - `filter_model_objects_by_search()`
   - `filter_department_options_by_search()`
@@ -1106,5 +1105,22 @@ Suggested local checks:
 ```bash
 python manage.py check
 python manage.py test apps.accounts.tests_admin_panel.FrontendModuleSplitTests
+python manage.py test
+```
+
+## Stage 43 — unified Cyrillic search helpers
+
+- Added `apps/search_utils.py` as the shared search helper for admin panels and main dashboard tables.
+- Moved the bounded Cyrillic case-variant logic into one place: `search_query_variants()`, `build_text_search_q()`, `build_mixed_search_q()` and `apply_text_search()`.
+- Updated `apps/requests_app/services/table_filters.py` to use the shared helper instead of keeping a duplicate local implementation.
+- Updated admin requests and employees panels to use the same shared search logic as organs/departments/assets.
+- Updated request photo and photo asset search imports to use the shared helper directly.
+- Added regression tests for admin requests and employee search with Cyrillic case variants.
+
+Suggested local checks:
+
+```bash
+python manage.py check
+python manage.py test apps.accounts
 python manage.py test
 ```

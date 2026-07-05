@@ -7,6 +7,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date
 
 from apps.requests_app.models import ACTIVE_NEED_STATUS_CHOICES, CitsiziEquipment
+from apps.search_utils import apply_text_search, build_text_search_q, search_query_variants
 from apps.requests_app.services.table_config import REQUEST_TABLE_CONFIG
 
 
@@ -79,36 +80,12 @@ def request_table_date_filter_values(request, table_key, organs):
     return request_date_filter_values(request, REQUEST_TABLE_CONFIG[table_key]["model"], organs)
 
 
-def search_query_variants(query):
-    """Return DB-search variants that preserve common Cyrillic case-insensitive behaviour.
-
-    SQLite does not provide reliable case-insensitive LIKE for Cyrillic text,
-    while PostgreSQL handles __icontains better. Searching a small set of
-    Python-generated variants keeps the operation in SQL without falling back
-    to iterating over the whole queryset in Python.
-    """
-    query = (query or "").strip()
-    if not query:
-        return []
-    variants = {query, query.lower(), query.upper(), query.title(), query.capitalize(), query.casefold()}
-    return [variant for variant in variants if variant]
-
-
 def build_search_q(search_fields, query):
-    search_q = Q()
-    for variant in search_query_variants(query):
-        for field_name in search_fields:
-            search_q |= Q(**{f"{field_name}__icontains": variant})
-    return search_q
+    return build_text_search_q(search_fields, query)
 
 
 def apply_casefold_search(qs, search_fields, query, distinct=False):
-    query = (query or "").strip()
-    if not query:
-        return qs
-    search_q = build_search_q(search_fields, query)
-    qs = qs.filter(search_q) if search_q else qs.none()
-    return qs.distinct() if distinct else qs
+    return apply_text_search(qs, search_fields, query, distinct=distinct)
 
 
 def request_table_queryset(request, table_key, organs, include_status=False):

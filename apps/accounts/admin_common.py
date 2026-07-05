@@ -6,6 +6,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date
 
 from apps.directory.models import Department
+from apps.search_utils import build_mixed_search_q
 from apps.requests_app.models import NeedStatus, RequestStatusHistory
 
 from .admin_thresholds import get_request_stale_workdays
@@ -78,44 +79,14 @@ def multiselect_label(selected_values_list, empty_label, options):
     return f"{len(selected)} выбрано"
 
 
-def search_terms(query):
-    """Return safe text variants for case-insensitive admin search on SQLite/PostgreSQL.
-
-    SQLite does not reliably handle non-ASCII case-insensitive LIKE, so we keep
-    a small set of case variants while still letting the database do the
-    filtering instead of iterating through full Python object lists.
-    """
-    value = (query or "").strip()
-    if not value:
-        return []
-    variants = {
-        value,
-        value.lower(),
-        value.upper(),
-        value.title(),
-        value.capitalize(),
-        value.casefold(),
-    }
-    return [item for item in variants if item]
-
-
 def build_admin_search_q(text_fields, query, *, numeric_fields=()):
     """Build an ORM search condition for admin list filters.
 
-    `text_fields` are searched with icontains over a bounded set of case
-    variants. `numeric_fields` are matched exactly when the query is numeric.
+    Admin panels and dashboard tables use the same bounded set of search
+    variants, so Cyrillic search behaves consistently on SQLite and PostgreSQL.
+    `numeric_fields` are matched exactly when the query is numeric.
     """
-    condition = Q()
-    for term in search_terms(query):
-        for field_name in text_fields:
-            condition |= Q(**{f"{field_name}__icontains": term})
-
-    value = (query or "").strip()
-    if value.isdigit():
-        number = int(value)
-        for field_name in numeric_fields:
-            condition |= Q(**{field_name: number})
-    return condition
+    return build_mixed_search_q(text_fields, query, numeric_fields=numeric_fields)
 
 
 def filter_model_objects_by_search(objects, query, *, text_fields, numeric_fields=()):
