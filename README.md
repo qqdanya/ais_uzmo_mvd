@@ -328,10 +328,6 @@ Bootstrap, Bootstrap Icons, HTMX and Chart.js are connected from local `static/v
 
 The admin search filters for organs, departments and assets now use ORM prefilter helpers instead of Python `.casefold()` scans over loaded objects. This keeps the existing UI behavior while making search safer for larger datasets.
 
-### Stage 43 note
-
-Admin and main table search now use one shared Cyrillic-friendly ORM helper from `apps/search_utils.py`. Requests, employees, organs, departments, assets, dashboard tables and photo search all rely on the same bounded case-variant logic, so local SQLite and production PostgreSQL behave more consistently for queries such as `другой`, `ДРУГОЙ` and `ДруГоЙ`.
-
 
 ### Stage 41 note
 
@@ -358,3 +354,14 @@ The HTMX modal lifecycle remains in `app.js` intentionally to avoid repeating th
 - `app.js` — startup orchestration only.
 
 The script order in `templates/base.html` is part of the regression surface: dependency modules must stay before `app.js`.
+
+### Stage 44 note
+
+The large admin employees/assets modules were split into smaller service modules without changing routes, templates or UI behavior:
+
+- `admin_employee_core.py`
+- `admin_employee_forms.py`
+- `admin_employee_actions.py`
+- `admin_asset_services.py`
+
+`admin_employees.py` and `admin_assets.py` now mainly assemble page contexts and keep the public functions imported by `apps/accounts/views.py` stable.

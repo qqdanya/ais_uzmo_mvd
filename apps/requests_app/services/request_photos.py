@@ -4,10 +4,10 @@ from django.db.models import Count, Q
 from apps.audit.models import AuditLog
 from apps.audit.utils import write_audit
 from apps.directory.models import TerritorialOrganPhoto
-from apps.search_utils import search_query_variants
 
 from ..models import RequestPhotoLink
 from .request_numbers import request_content_type_for_model, request_content_type_for_object
+from .table_filters import search_query_variants
 
 
 REQUEST_PHOTO_PICKER_PAGE_SIZE = 12

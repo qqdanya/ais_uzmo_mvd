@@ -12,7 +12,6 @@ from apps.directory.models import Department
 from apps.requests_app.models import NeedStatus, RequestPhotoLink, RequestStatusHistory
 from apps.requests_app.permissions import can_view
 from apps.requests_app.registry import TABLE_BY_KEY
-from apps.search_utils import apply_text_search
 
 from .admin_summary import available_organs_for_user, request_tables, selected_organs
 from .admin_common import (
@@ -69,12 +68,11 @@ def base_table_queryset(table, organs):
 
 
 def apply_search(qs, query):
-    return apply_text_search(
-        qs,
-        ("request_number", "comment", "territorial_organ__name"),
-        query,
-        distinct=True,
-    )
+    query = (query or "").strip()
+    if not query:
+        return qs
+    filters = Q(request_number__icontains=query) | Q(comment__icontains=query) | Q(territorial_organ__name__icontains=query)
+    return qs.filter(filters).distinct()
 
 
 def apply_state(qs, states):

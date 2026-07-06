@@ -3,8 +3,9 @@ from django.db.models import Count, Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 
+from apps.requests_app.services.table_filters import search_query_variants
+
 from apps.directory.models import TerritorialOrganPhoto, TerritorialOrganPhotoFolder
-from apps.search_utils import search_query_variants
 
 from ..permissions import can_manage_photo_asset, can_write, user_primary_department
 from .request_photos import add_folder_content_counts, folder_path, folder_path_from_map, photo_search_q

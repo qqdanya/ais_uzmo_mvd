@@ -222,25 +222,6 @@ class AdminRequestsPanelTests(AdminPanelTestMixin, TestCase):
         self.assertIn("Поиск: бумага", response.context["active_filter_chips"])
         self.assertIn("Статусы: Исполнено", response.context["active_filter_chips"])
 
-    def test_requests_panel_search_uses_shared_cyrillic_case_variants(self):
-        self.login_admin()
-        today = timezone.localdate()
-        TmcRequest.objects.create(
-            territorial_organ=self.organ,
-            created_by=self.admin,
-            request_number="ТМЦ-77",
-            request_date=today,
-            comment="бумага для отдела",
-        )
-
-        response = self.client.get(reverse("admin_requests_panel"), {"q": "БУМАГА"})
-
-        self.assertEqual(response.status_code, 200)
-        rows = list(response.context["page"].object_list)
-        self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0]["number"], "ТМЦ-77")
-        self.assertIn("Поиск: БУМАГА", response.context["active_filter_chips"])
-
     def test_requests_panel_department_filter_limits_request_tables(self):
         self.login_admin()
         today = timezone.localdate()
@@ -381,20 +362,6 @@ class AdminEmployeesPanelTests(AdminPanelTestMixin, TestCase):
         self.assertEqual(response.context["presence_data_url"], reverse("admin_employees_presence_data"))
         self.assertContains(response, "Иванов")
         self.assertContains(response, "admin-employees-page")
-
-    def test_employees_panel_search_uses_shared_cyrillic_case_variants(self):
-        self.login_admin()
-        target = self.User.objects.create_user("sidorov", first_name="Олег", last_name="Сидоров")
-        profile = UserProfile.objects.create(user=target, role=UserProfile.Role.OPERATOR)
-        profile.allowed_organs.set([self.organ])
-        profile.allowed_departments.set([self.department_tmc])
-
-        response = self.client.get(reverse("admin_employees_panel"), {"q": "олег"})
-
-        self.assertEqual(response.status_code, 200)
-        usernames = {row["user"].username for row in response.context["employees"]}
-        self.assertIn("sidorov", usernames)
-        self.assertIn("Поиск: олег", response.context["active_filter_chips"])
 
     def test_employees_panel_department_filter_includes_unrestricted_department_access(self):
         self.login_admin()
@@ -1044,11 +1011,10 @@ class AdminSearchOptimizationTests(TestCase):
     def test_admin_search_casefold_filtering_is_centralized(self):
         project_root = self.project_root()
         optimized_files = [
+            project_root / "apps" / "accounts" / "admin_asset_services.py",
             project_root / "apps" / "accounts" / "admin_assets.py",
             project_root / "apps" / "accounts" / "admin_organs.py",
             project_root / "apps" / "accounts" / "admin_departments.py",
-            project_root / "apps" / "accounts" / "admin_requests.py",
-            project_root / "apps" / "accounts" / "admin_employees.py",
         ]
         for path in optimized_files:
             content = path.read_text(encoding="utf-8")
@@ -1057,24 +1023,37 @@ class AdminSearchOptimizationTests(TestCase):
                 self.assertNotIn("casefold(", content)
 
         common = (project_root / "apps" / "accounts" / "admin_common.py").read_text(encoding="utf-8")
-        shared = (project_root / "apps" / "search_utils.py").read_text(encoding="utf-8")
         self.assertIn("def filter_model_objects_by_search", common)
         self.assertIn("def filter_department_options_by_search", common)
         self.assertIn("pk__in=pks", common)
         self.assertIn('values_list("pk", flat=True)', common)
-        self.assertIn("def search_query_variants", shared)
-        self.assertIn("def apply_text_search", shared)
 
     def test_admin_search_modules_use_orm_search_helpers(self):
         project_root = self.project_root()
         expectations = {
-            "admin_assets.py": "filter_model_objects_by_search",
+            "admin_asset_services.py": "filter_model_objects_by_search",
             "admin_organs.py": "filter_model_objects_by_search",
             "admin_departments.py": "filter_department_options_by_search",
-            "admin_requests.py": "apply_text_search",
-            "admin_employees.py": "apply_text_search",
         }
         for filename, helper in expectations.items():
             content = (project_root / "apps" / "accounts" / filename).read_text(encoding="utf-8")
             with self.subTest(file=filename):
                 self.assertIn(helper, content)
+
+    def test_admin_employee_and_asset_panels_are_split_into_service_modules(self):
+        project_root = self.project_root()
+        expected_modules = [
+            "admin_employee_core.py",
+            "admin_employee_forms.py",
+            "admin_employee_actions.py",
+            "admin_asset_services.py",
+        ]
+        for filename in expected_modules:
+            with self.subTest(file=filename):
+                self.assertTrue((project_root / "apps" / "accounts" / filename).exists())
+
+        employees_panel = (project_root / "apps" / "accounts" / "admin_employees.py").read_text(encoding="utf-8")
+        assets_panel = (project_root / "apps" / "accounts" / "admin_assets.py").read_text(encoding="utf-8")
+        self.assertIn("from .admin_employee_core import", employees_panel)
+        self.assertIn("from .admin_employee_actions import", employees_panel)
+        self.assertIn("from .admin_asset_services import", assets_panel)

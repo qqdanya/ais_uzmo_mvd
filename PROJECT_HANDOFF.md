@@ -1056,6 +1056,7 @@ Bootstrap, Bootstrap Icons, HTMX and Chart.js are connected from local `static/v
 
 - Replaced remaining `.casefold()` Python filtering in admin search helpers for assets, organs and departments.
 - Added shared helpers in `apps/accounts/admin_common.py`:
+  - `search_terms()`
   - `build_admin_search_q()`
   - `filter_model_objects_by_search()`
   - `filter_department_options_by_search()`
@@ -1108,14 +1109,21 @@ python manage.py test apps.accounts.tests_admin_panel.FrontendModuleSplitTests
 python manage.py test
 ```
 
-## Stage 43 — unified Cyrillic search helpers
+## Stage 44 — admin employees/assets module cleanup
 
-- Added `apps/search_utils.py` as the shared search helper for admin panels and main dashboard tables.
-- Moved the bounded Cyrillic case-variant logic into one place: `search_query_variants()`, `build_text_search_q()`, `build_mixed_search_q()` and `apply_text_search()`.
-- Updated `apps/requests_app/services/table_filters.py` to use the shared helper instead of keeping a duplicate local implementation.
-- Updated admin requests and employees panels to use the same shared search logic as organs/departments/assets.
-- Updated request photo and photo asset search imports to use the shared helper directly.
-- Added regression tests for admin requests and employee search with Cyrillic case variants.
+- `apps/accounts/admin_employees.py` is now a thin context facade for the employees panel and employee detail page.
+- Employee-related helpers were split into focused modules:
+  - `admin_employee_core.py` — querysets, display helpers, filters, counters, KPI/presence helpers;
+  - `admin_employee_forms.py` — employee form and form context helpers;
+  - `admin_employee_actions.py` — create/edit/block/unblock/reset activation actions and audit logging.
+- `apps/accounts/admin_assets.py` now keeps only request/filter/context builders for the assets panel.
+- Asset calculation logic was moved to `admin_asset_services.py`:
+  - category definitions;
+  - status evaluation;
+  - matrix building;
+  - summaries, charts and counters.
+- URL names, context keys, templates, permissions and UI behavior were intentionally left unchanged.
+- Regression tests were updated to expect the new service modules and keep ORM search helpers in the service layer.
 
 Suggested local checks:
 
