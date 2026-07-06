@@ -129,6 +129,10 @@ function showToastFromHtmxTrigger(event) {
   showToast(detail.message, detail.level || "success");
 }
 
+function refreshTableAfterRequestPhotosChanged() {
+  refreshCurrentTableArea();
+}
+
 function registerHtmxLifecycle() {
   const body = document.body;
   if (!body) return;
@@ -209,6 +213,7 @@ function registerHtmxLifecycle() {
 
   body.addEventListener("modal:close", closeModalFromHtmxTrigger);
   body.addEventListener("toast", showToastFromHtmxTrigger);
+  body.addEventListener("requestPhotosChanged", refreshTableAfterRequestPhotosChanged);
 
   body.addEventListener("htmx:swapError", () => {
     resetHtmxLoading();
