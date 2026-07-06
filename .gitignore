@@ -3,6 +3,9 @@
 .env.*
 !.env.example
 !.env.production.example
+.venv/
+venv/
+env/
 
 # Python / Django
 __pycache__/
