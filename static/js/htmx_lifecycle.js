@@ -116,6 +116,19 @@ function registerModalLifecycle() {
   });
 }
 
+
+function closeModalFromHtmxTrigger() {
+  const modalElement = document.getElementById("modal-root");
+  if (!modalElement) return;
+  const modal = bootstrap.Modal.getInstance(modalElement) || bootstrap.Modal.getOrCreateInstance(modalElement);
+  modal.hide();
+}
+
+function showToastFromHtmxTrigger(event) {
+  const detail = event.detail || {};
+  showToast(detail.message, detail.level || "success");
+}
+
 function registerHtmxLifecycle() {
   const body = document.body;
   if (!body) return;
@@ -193,6 +206,9 @@ function registerHtmxLifecycle() {
   });
 
   body.addEventListener("htmx:abort", resetHtmxLoading);
+
+  body.addEventListener("modal:close", closeModalFromHtmxTrigger);
+  body.addEventListener("toast", showToastFromHtmxTrigger);
 
   body.addEventListener("htmx:swapError", () => {
     resetHtmxLoading();

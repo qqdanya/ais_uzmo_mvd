@@ -950,7 +950,7 @@ class FrontendModuleSplitTests(TestCase):
             "request_photo_picker.js": ["function syncRequestPhotoPicker", "function detachRequestPhoto"],
             "layout_panels.js": ["function syncHeaderHeight", "function applyCollapsedPanels"],
             "table_interactions.js": ["function filterCurrentTable", "function focusCurrentSearch", "function closeOpenModal"],
-            "htmx_lifecycle.js": ["function registerHtmxLifecycle", "htmx:afterSwap", "bootstrap.Modal.getOrCreateInstance(document.getElementById(\"modal-root\")).show()"],
+            "htmx_lifecycle.js": ["function registerHtmxLifecycle", "htmx:afterSwap", "bootstrap.Modal.getOrCreateInstance(document.getElementById(\"modal-root\")).show()", "modal:close", "function showToastFromHtmxTrigger"],
             "app_events.js": ["function registerAppEventHandlers", "data-organ-mode", "data-request-photo-toggle"],
         }
         for module_name, fragments in expected_fragments.items():
@@ -1000,6 +1000,9 @@ class FrontendModuleSplitTests(TestCase):
 
         self.assertIn('htmx:afterSwap', htmx_js)
         self.assertIn('bootstrap.Modal.getOrCreateInstance(document.getElementById("modal-root")).show()', htmx_js)
+        self.assertIn('body.addEventListener("modal:close", closeModalFromHtmxTrigger)', htmx_js)
+        self.assertIn('body.addEventListener("toast", showToastFromHtmxTrigger)', htmx_js)
+        self.assertIn('showToast(detail.message, detail.level || "success")', htmx_js)
         self.assertIn("initTooltips();", htmx_js)
         self.assertIn("window.initTooltips = initTooltips", toasts_js)
 
