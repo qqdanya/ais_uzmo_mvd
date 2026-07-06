@@ -1,69 +1,151 @@
 # АИС учёта заявок на материальное обеспечение
 
-Веб-приложение на Django для учёта заявок, сведений по материальной базе, фотографий территориальных органов и действий пользователей. Система предназначена для сотрудников ФКУ ЦХиСО ГУ МВД России по Красноярскому краю и включает пользовательский рабочий экран, административную панель, журнал действий и управление сотрудниками.
+Веб-приложение на Django для учёта заявок, сведений о материальной базе, фотографий территориальных органов и действий пользователей.
 
-## Основные возможности
+Система предназначена для внутреннего использования сотрудниками ФКУ ЦХиСО ГУ МВД России по Красноярскому краю.
 
-- Авторизация, активация учётных записей и управление сотрудниками.
+## Возможности
+
+- Авторизация пользователей и активация учётных записей.
 - Разграничение доступа по ролям, территориальным органам и отделам.
 - Учёт заявок по направлениям: ТМЦ, транспорт, пожарная безопасность, антитеррор, ЦИТСиЗИ, УОТО.
-- Уникальность номера заявки в рамках территориального органа и отдела.
+- Контроль уникальности номера заявки в рамках территориального органа и отдела.
 - Статусы заявок: «В работе», «Исполнена», «Отклонена».
 - История изменения статусов и журнал действий пользователей.
-- Фотографии территориальных органов: папки, загрузка, просмотр, прикрепление к заявкам.
-- Административная панель: оперативная сводка, заявки, территориальные органы, отделы, материальная база, сотрудники, настройки.
-- Настраиваемые пороги для зависших заявок и устаревших сведений материальной базы.
+- Загрузка, хранение, просмотр и прикрепление фотографий к заявкам.
 - Экспорт данных и подготовка архивов фотографий.
-
-Кодовая структура: `apps/requests_app/views.py` оставлен тонким контроллером; основная логика таблиц, экспорта, форм и фотографий вынесена в `apps/requests_app/services/`.
-Журнал действий также разделён: `apps/audit/views.py` оставлен тонким контроллером, а фильтры, подготовка отображения и контекст страницы вынесены в `apps/audit/services/`.
+- Административная панель для управления сотрудниками, правами, справочниками, заявками и настройками.
 
 ## Технологии
 
-- Python, Django
-- Django Templates, HTMX
-- Bootstrap 5, Bootstrap Icons
-- SQLite для локальной разработки
-- PostgreSQL через `DATABASE_URL` для сервера
-- Pillow для изображений
-- openpyxl для Excel-экспорта
-- gunicorn и whitenoise для production-запуска
+- Python 3.12+ / Django 5.2
+- PostgreSQL для серверного развёртывания
+- SQLite для локальной проверки и разработки
+- Django Templates, HTMX, Bootstrap 5
+- Pillow, openpyxl
+- Gunicorn, Nginx, WhiteNoise
 
-## Быстрый запуск локально
+## Структура проекта
 
-```bash
+```text
+apps/
+  accounts/       административная панель, сотрудники, права, справочники
+  audit/          журнал действий пользователей
+  directory/      фотографии и папки территориальных органов
+  requests_app/   заявки, таблицы, статусы, ТМЦ, экспорт
+config/           настройки Django и маршрутизация проекта
+docs/             инструкции по запуску, развёртыванию и сопровождению
+scripts/          служебные скрипты проверки и загрузки vendor static
+templates/        HTML-шаблоны
+static/           CSS, JavaScript и локальные vendor-библиотеки
+```
+
+## Документация
+
+| Документ | Назначение |
+|---|---|
+| [`docs/RUN_WINDOWS.md`](docs/RUN_WINDOWS.md) | Локальный запуск и проверка на Windows |
+| [`docs/DEPLOY_LINUX.md`](docs/DEPLOY_LINUX.md) | Развёртывание на Linux-сервере с PostgreSQL, Gunicorn и Nginx |
+| [`docs/DEPLOY_CHECKLIST.md`](docs/DEPLOY_CHECKLIST.md) | Краткий чеклист перед тестовым или боевым запуском |
+| [`docs/QA_CHECKLIST.md`](docs/QA_CHECKLIST.md) | Ручная проверка после установки |
+| [`docs/MAINTENANCE.md`](docs/MAINTENANCE.md) | Обновление, бэкапы, логи и сопровождение |
+| [`docs/VENDOR_STATIC.md`](docs/VENDOR_STATIC.md) | Локальные Bootstrap, Bootstrap Icons, HTMX и Chart.js |
+
+## Быстрый запуск на Windows для проверки
+
+```powershell
 python -m venv .venv
-.venv\Scripts\activate
+.\.venv\Scripts\activate
+python -m pip install --upgrade pip
 pip install -r requirements.txt
 copy .env.example .env
 python manage.py migrate
 python manage.py seed_initial_data
-python manage.py runserver
+python manage.py test --parallel 4
+python manage.py runserver 127.0.0.1:8000
 ```
 
-После запуска откройте:
+После запуска открыть:
 
 ```text
 http://127.0.0.1:8000/
 ```
 
+Подробная инструкция: [`docs/RUN_WINDOWS.md`](docs/RUN_WINDOWS.md).
+
+## Серверное развёртывание
+
+Рекомендуемый production-вариант:
+
+```text
+Linux-сервер + PostgreSQL + Gunicorn + Nginx + HTTPS
+```
+
+Основной порядок:
+
+1. Подготовить Linux-сервер и системного пользователя.
+2. Установить Python, PostgreSQL, Nginx и системные зависимости.
+3. Создать PostgreSQL-базу и пользователя базы.
+4. Склонировать проект из приватного репозитория.
+5. Создать `.env` из `.env.production.example`.
+6. Установить зависимости из `requirements.txt`.
+7. Выполнить миграции, начальное заполнение и сбор static-файлов.
+8. Настроить Gunicorn через systemd.
+9. Настроить Nginx и HTTPS.
+10. Пройти чеклист проверки.
+
+Подробная инструкция: [`docs/DEPLOY_LINUX.md`](docs/DEPLOY_LINUX.md).
+
 ## Переменные окружения
 
-Скопируйте `.env.example` в `.env` и задайте значения:
+Для локального запуска используется шаблон:
+
+```text
+.env.example
+```
+
+Для сервера используется шаблон:
+
+```text
+.env.production.example
+```
+
+Реальный файл `.env` содержит секреты и не должен попадать в Git или релизный архив.
+
+Минимальные production-переменные:
 
 ```env
-SECRET_KEY=change-me
-DEBUG=True
-ALLOWED_HOSTS=127.0.0.1,localhost
-DATABASE_URL=sqlite:///db.sqlite3
-CSRF_TRUSTED_ORIGINS=
-SUPERUSER_USERNAME=admin
-SUPERUSER_EMAIL=admin@example.com
-SUPERUSER_PASSWORD=admin12345
+SECRET_KEY=long-random-secret
+DEBUG=False
+ALLOWED_HOSTS=example.ru,www.example.ru
+CSRF_TRUSTED_ORIGINS=https://example.ru,https://www.example.ru
+DATABASE_URL=postgres://uzmo_user:strong-password@127.0.0.1:5432/uzmo_db
 MEDIA_ROOT=media
 ```
 
-Для сервера обязательно используйте собственный `SECRET_KEY`, `DEBUG=False`, корректный `ALLOWED_HOSTS` и PostgreSQL.
+## Зависимости
+
+В проекте используются два файла зависимостей:
+
+```text
+requirements.in   прямые зависимости проекта
+requirements.txt  lock-файл с точными версиями, созданный через pip-compile
+```
+
+Для установки на рабочей станции или сервере использовать:
+
+```bash
+pip install -r requirements.txt
+```
+
+Обновление зависимостей выполняет разработчик в отдельной ветке:
+
+```bash
+pip install pip-tools
+pip-compile requirements.in --output-file=requirements.txt
+pip install -r requirements.txt
+python manage.py test --parallel 4
+```
 
 ## Начальные данные
 
@@ -71,297 +153,59 @@ MEDIA_ROOT=media
 python manage.py seed_initial_data
 ```
 
-Команда создаёт:
-
-- отделы;
-- 37 территориальных органов;
-- подчинённые подразделения;
-- начального руководителя, если заданы `SUPERUSER_USERNAME`, `SUPERUSER_EMAIL`, `SUPERUSER_PASSWORD`.
+Команда создаёт отделы, территориальные органы, подчинённые подразделения и начального руководителя, если в `.env` заданы `SUPERUSER_USERNAME`, `SUPERUSER_EMAIL`, `SUPERUSER_PASSWORD`.
 
 Повторный запуск команды не создаёт дубликаты.
 
-## Роли пользователей
+## Основные адреса
 
-- **Руководитель** — главный аккаунт с полным доступом.
-- **Администратор** — доступ к административной панели и управлению данными в рамках выданных прав.
-- **Оператор** — создание и редактирование записей по доступным органам и отделам.
-- **Наблюдатель** — просмотр данных без изменения.
+| Адрес | Назначение |
+|---|---|
+| `/` | Пользовательский рабочий экран |
+| `/control/` | Административная панель |
+| `/audit/` | Журнал действий |
+| `/admin/` | Стандартная Django admin-панель |
 
-Права сотрудника настраиваются в разделе:
-
-```text
-Административная панель → Сотрудники
-```
-
-## Административная панель
-
-Административная панель доступна по адресу:
-
-```text
-/control/
-```
-
-В ней доступны разделы:
-
-- оперативная сводка;
-- заявки;
-- территориальные органы;
-- отделы;
-- материальная база;
-- сотрудники;
-- настройки;
-- журнал действий;
-- таблицы БД.
-
-## Фотографии и папки
-
-В разделе фотографий можно:
-
-- создавать папки;
-- загружать фотографии;
-- редактировать описание;
-- скачивать отдельные фотографии, папки и общий архив;
-- прикреплять фотографии к заявкам;
-- просматривать изображения в lightbox.
-
-При прикреплении фотографий к заявке используется навигация по папкам, поэтому большой список папок не перегружает форму.
-
-## Номера заявок
-
-Номер заявки уникален в рамках связки:
-
-```text
-территориальный орган + отдел + номер заявки
-```
-
-Например, номер `15` может одновременно существовать в разных отделах или разных территориальных органах, но не может повторяться внутри одного органа и одного отдела.
-
-После обновления проекта необходимо применить миграции:
+## Проверка перед передачей или развёртыванием
 
 ```bash
-python manage.py migrate
-```
-
-
-## Исправление после stage 13
-
-После прогона `python manage.py test apps.requests_app` исправлены два регресса стабилизационного этапа:
-
-- оператор без явно заданных отделов снова считается не ограниченным по отделам; если отделы назначены явно, доступ ограничивается только ими;
-- в picker прикрепления фотографий уже выбранные фотографии остаются видимыми даже при поиске/фильтре по папке.
-
-## Stage 14: стабилизация административной панели
-
-Добавлен отдельный набор regression-тестов для кастомной административной панели:
-
-```text
-apps/accounts/tests_admin_panel.py
-```
-
-Проверяется:
-
-- доступность основных страниц `/control/` для администратора;
-- запрет `/control/` для обычного оператора;
-- JSON endpoint оперативной сводки;
-- вкладка сотрудников, фильтр поиска, live presence payload;
-- создание сотрудника без пароля с кодом активации и правами;
-- блокировка, разблокировка и сброс активации сотрудника;
-- вкладка материальной базы, карточки категорий и stale-состояние;
-- сохранение и валидация порогов административной панели через отдельный временный JSON-файл.
-
-Для проверки этого этапа отдельно:
-
-```bash
-python manage.py test apps.accounts
-```
-
-## Проверка перед запуском
-
-```bash
-python manage.py makemigrations --check
-python manage.py migrate
 python manage.py check
-python manage.py test
-```
-
-После крупных рефакторингов можно дополнительно запускать лёгкую статическую проверку, которая не требует Django и ловит потерянные импорты между модулями, а также незакрытые базовые блоки Django-шаблонов:
-
-```bash
+python manage.py makemigrations --check --dry-run
+python manage.py test --parallel 4
 python scripts/refactor_static_check.py
 ```
 
-Также желательно пройти основной пользовательский сценарий:
-
-1. Войти под руководителем.
-2. Создать сотрудника.
-3. Активировать учётную запись сотрудника.
-4. Создать заявку.
-5. Прикрепить к заявке фотографии.
-6. Изменить статус заявки.
-7. Проверить административную панель.
-8. Проверить журнал действий.
-9. Проверить настройки порогов.
-
-## Production
-
-Пример `.env` для сервера:
-
-```env
-DEBUG=False
-ALLOWED_HOSTS=example.ru
-DATABASE_URL=postgres://user:password@db:5432/material_requests
-SECRET_KEY=long-random-secret
-CSRF_TRUSTED_ORIGINS=https://example.ru
-MEDIA_ROOT=media
-```
-
-Подготовка static-файлов и запуск:
+Для production-настроек:
 
 ```bash
-set DJANGO_SETTINGS_MODULE=config.settings_prod
-python manage.py collectstatic
-python manage.py migrate
-gunicorn config.wsgi:application
-```
-
-Для production рекомендуется отдавать `MEDIA_ROOT` через Nginx или отдельное файловое хранилище.
-
-## Что не коммитить
-
-Файл `.gitignore` уже исключает локальные и runtime-файлы:
-
-- `.env`
-- `db.sqlite3`
-- `media/`
-- `staticfiles/`
-- `dashboard_thresholds.json`
-- `__pycache__/`
-
-Перед отправкой в репозиторий проверьте:
-
-```bash
-git status
-```
-
-## Дополнительное исправление после прогона тестов stage 13
-
-После повторного запуска `python manage.py test apps.requests_app` исправлены оставшиеся регрессы:
-
-- история статусов снова создаётся при смене статуса заявки после `ModelForm.is_valid()`; сервис сохранения теперь сравнивает новое состояние с сохранённой в БД версией объекта, потому что Django ModelForm мутирует instance до вызова `save()`;
-- поиск в picker прикрепления фотографий из корня снова ищет по всей библиотеке фотографий органа, включая фотографии внутри папок, а выбранные фотографии всё равно остаются видимыми.
-
-## Stage 21
-
-Stage 21 — технический refactor-pass раздела сотрудников кастомной админ-панели:
-
-- оптимизированы KPI и счётчики вкладок сотрудников;
-- фильтрация сотрудников разложена на более мелкие функции;
-- pagination hidden fields переиспользуют общий helper;
-- отображение пустого `allowed_departments` приведено к фактической логике прав: это полный доступ по отделам, а не отсутствие доступа;
-- добавлены regression-тесты для фильтра отдела и карточки сотрудника.
-
-## Stage 35 — структура тестов requests_app
-
-Тесты `requests_app` больше не лежат одним файлом на 2500+ строк. Они разделены на тематические модули:
-
-- `apps/requests_app/tests_core.py`
-- `apps/requests_app/tests_tmc.py`
-- `apps/requests_app/tests_tables.py`
-- `apps/requests_app/tests_photos.py`
-- `apps/requests_app/tests_seed.py`
-- `apps/requests_app/tests_refactor_safety.py`
-
-Полный запуск:
-
-```bash
-python manage.py test apps.requests_app
-```
-
-Точечный запуск, например:
-
-```bash
-python manage.py test apps.requests_app.tests_photos
-python manage.py test apps.requests_app.tests_tmc
-```
-
-## Stage 36–37 — runtime ignore files and table template split
-
-Runtime dashboard threshold files are ignored by Git:
-
-- `dashboard_thresholds.json`
-- `dashboard_thresholds.json.tmp`
-
-The large table partial has been split. `templates/partials/table_data.html` now delegates to focused partials in `templates/partials/table/`, including toolbar, active filters, summary, actions, pagination, and row variants.
-
-## Stage 38 — production readiness checklist
-
-Добавлены отдельные production-материалы:
-
-- `.env.production.example` — шаблон переменных окружения для сервера;
-- `docs/DEPLOY_CHECKLIST.md` — чеклист деплоя, security-check, static/media, HTTPS-cookie, CDN и dependency lock.
-
-Перед тестовым деплоем используйте:
-
-```bash
-cp .env.production.example .env
 python manage.py check --deploy --settings=config.settings_prod
 python manage.py makemigrations --check --dry-run --settings=config.settings_prod
-python manage.py migrate --settings=config.settings_prod
-python manage.py collectstatic --noinput --settings=config.settings_prod
-python manage.py test
 ```
 
-Точный `requirements.lock.txt` лучше создавать только из проверенного чистого окружения:
+## Что нельзя хранить в репозитории и передавать в релизном архиве
 
-```bash
-python -m pip freeze > requirements.lock.txt
+```text
+.env
+.env.local
+.env.prod
+db.sqlite3
+*.sqlite3
+media/
+staticfiles/
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+*.zip
+dashboard_thresholds.json
+dashboard_thresholds.json.tmp
+.idea/
+.vscode/
 ```
 
-Не создавайте lock-файл из рабочей машины, где установлены лишние пакеты.
-
-
-## Stage 39 — local vendor static
-
-Bootstrap, Bootstrap Icons, HTMX and Chart.js are connected from local `static/vendor/` files instead of CDN. Bootstrap Icons require local `bootstrap-icons.woff` and `bootstrap-icons.woff2` next to `bootstrap-icons.css`. See `docs/VENDOR_STATIC.md`.
-
-### Stage 40 note
-
-The admin search filters for organs, departments and assets now use ORM prefilter helpers instead of Python `.casefold()` scans over loaded objects. This keeps the existing UI behavior while making search safer for larger datasets.
-
-
-### Stage 41 note
-
-`static/js/app.js` was reduced conservatively by moving two self-contained behaviors into focused frontend modules:
-
-- `static/js/presence_ping.js` — authenticated user heartbeat;
-- `static/js/admin_org_filter.js` — admin organ filter checkbox summary and empty-selection marker.
-
-The HTMX modal lifecycle remains in `app.js` intentionally to avoid repeating the previous modal regression.
-
-### Stage 42 note
-
-`static/js/app.js` is now a small application bootstrap. The former 1200+ line file was split into focused frontend modules:
-
-- `app_storage.js` — storage keys and shared storage/date helpers;
-- `app_dom_utils.js` — small DOM/input helpers;
-- `table_state.js` — persisted table tab/filter state;
-- `organ_navigation.js` — territorial organ and department navigation;
-- `request_photo_picker.js` — request photo attachment picker;
-- `layout_panels.js` — header/footer sizing and collapsed navigation panels;
-- `table_interactions.js` — table search, row hover and modal/search shortcuts;
-- `htmx_lifecycle.js` — HTMX loading/errors and Bootstrap modal lifecycle;
-- `app_events.js` — delegated UI event handlers;
-- `app.js` — startup orchestration only.
-
-The script order in `templates/base.html` is part of the regression surface: dependency modules must stay before `app.js`.
-
-### Stage 44 note
-
-The large admin employees/assets modules were split into smaller service modules without changing routes, templates or UI behavior:
-
-- `admin_employee_core.py`
-- `admin_employee_forms.py`
-- `admin_employee_actions.py`
-- `admin_asset_services.py`
-
-`admin_employees.py` and `admin_assets.py` now mainly assemble page contexts and keep the public functions imported by `apps/accounts/views.py` stable.
+Миграции Django, `requirements.in`, `requirements.txt`, `.env.example`, `.env.production.example`, `static/vendor/` и документацию удалять не нужно.

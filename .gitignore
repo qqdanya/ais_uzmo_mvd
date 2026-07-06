@@ -24,3 +24,13 @@ Thumbs.db
 # Local runtime settings
 dashboard_thresholds.json
 dashboard_thresholds.json.tmp
+
+# Test / coverage
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Logs / archives
+*.log
+*.zip

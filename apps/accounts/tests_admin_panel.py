@@ -752,8 +752,8 @@ class ProductionReadinessDocsTests(TestCase):
             "DATABASE_URL",
             "SESSION_COOKIE_SECURE",
             "CSRF_COOKIE_SECURE",
-            "CDN",
-            "requirements.lock.txt",
+            "static/vendor/",
+            "pip-compile requirements.in --output-file=requirements.txt",
             "X-Accel-Redirect",
         ]:
             with self.subTest(required_text=required_text):

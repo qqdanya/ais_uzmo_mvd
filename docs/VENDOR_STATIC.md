@@ -1,17 +1,17 @@
-# Vendor static assets
+# Локальные frontend-библиотеки
 
-The project uses pinned frontend vendor versions:
+Проект не зависит от CDN в рабочем интерфейсе. Bootstrap, Bootstrap Icons, HTMX и Chart.js хранятся локально в `static/vendor/`.
 
-- Bootstrap `5.3.3`
-- Bootstrap Icons `1.11.3`
-- HTMX `1.9.12`
-- Chart.js `4.4.3`
+## Зафиксированные версии
 
-For production, the frontend runtime libraries are served locally from `static/vendor/` so the application does not depend on CDN availability.
+| Библиотека | Версия |
+|---|---:|
+| Bootstrap | 5.3.3 |
+| Bootstrap Icons | 1.11.3 |
+| HTMX | 1.9.12 |
+| Chart.js | 4.4.3 |
 
-## Localized assets
-
-These files are expected in the repository/static tree:
+## Ожидаемые файлы
 
 ```text
 static/vendor/bootstrap/bootstrap.min.css
@@ -23,31 +23,30 @@ static/vendor/htmx/htmx.min.js
 static/vendor/chartjs/chart.umd.min.js
 ```
 
-The templates use these local paths via `{% static %}`.
+Эти файлы должны оставаться в репозитории. Не удалять `static/vendor/` перед развёртыванием.
 
-## Download pinned assets
+## Повторная загрузка vendor-файлов
 
-From the project root, with internet access, run:
+При наличии доступа в интернет из корня проекта выполнить:
 
 ```bash
 python scripts/download_vendor_static.py
 python scripts/download_bootstrap_icons.py
 ```
 
-The scripts download the exact pinned versions into `static/vendor/`.
+Скрипты скачивают именно те версии, которые ожидает проект.
 
-## Verification
-
-Run:
+## Проверка
 
 ```bash
 python manage.py collectstatic --dry-run --noinput
-python manage.py test
+python manage.py test --parallel 4
 ```
 
-Also check in the browser:
+В браузере проверить:
 
-- Bootstrap modals open;
-- HTMX requests work;
-- the admin summary chart renders;
-- Bootstrap Icons are visible.
+- стили Bootstrap применяются;
+- модальные окна открываются;
+- Bootstrap Icons отображаются;
+- HTMX-запросы работают;
+- график оперативной сводки отображается.

@@ -1,50 +1,33 @@
-# Production deploy checklist
+# Чеклист перед развёртыванием
 
-Этот чеклист нужен для тестовой или боевой установки проекта на сервер. Он не заменяет README, а фиксирует порядок безопасной проверки перед запуском.
+Краткий список проверок перед тестовым или боевым запуском. Подробная Linux-инструкция находится в `docs/DEPLOY_LINUX.md`, локальный запуск на Windows — в `docs/RUN_WINDOWS.md`.
 
-## 1. Подготовка окружения
+## 1. Окружение
 
-1. Создать виртуальное окружение.
-2. Установить зависимости:
+- Создано виртуальное окружение `.venv`.
+- Зависимости установлены из lock-файла:
 
 ```bash
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-3. Скопировать production-шаблон окружения:
+- Реальный `.env` создан из `.env.production.example` и не попадает в Git.
+- Для сервера используется `DEBUG=False`.
 
-```bash
-cp .env.production.example .env
-```
-
-4. В `.env` обязательно заменить значения:
+## 2. Обязательные production-переменные
 
 ```env
 SECRET_KEY=...
 DEBUG=False
-ALLOWED_HOSTS=...
-DATABASE_URL=postgres://...
-CSRF_TRUSTED_ORIGINS=https://...
+ALLOWED_HOSTS=example.ru,www.example.ru
+CSRF_TRUSTED_ORIGINS=https://example.ru,https://www.example.ru
+DATABASE_URL=postgres://uzmo_user:strong-password@127.0.0.1:5432/uzmo_db
+MEDIA_ROOT=media
 SECURE_SSL_REDIRECT=True
-SUPERUSER_PASSWORD=...
+SESSION_COOKIE_SECURE=True
+CSRF_COOKIE_SECURE=True
 ```
-
-Реальный `.env` нельзя коммитить в Git.
-
-## 2. Проверки Django
-
-Перед запуском сервера выполнить:
-
-```bash
-python manage.py check --deploy --settings=config.settings_prod
-python manage.py makemigrations --check --dry-run --settings=config.settings_prod
-python manage.py migrate --settings=config.settings_prod
-python manage.py collectstatic --noinput --settings=config.settings_prod
-python manage.py test
-```
-
-Если `check --deploy` показывает предупреждения, их нужно разобрать до публичного запуска.
 
 ## 3. PostgreSQL
 
@@ -53,103 +36,125 @@ Production должен использовать PostgreSQL через `DATABASE
 Проверить:
 
 - база создана;
-- пользователь базы имеет права на эту базу;
-- `python manage.py migrate --settings=config.settings_prod` проходит без ошибок;
-- после миграций работает `python manage.py seed_initial_data --settings=config.settings_prod`, если нужны начальные справочники.
+- пользователь базы имеет права на базу и schema `public`;
+- `migrate --settings=config.settings_prod` проходит без ошибок;
+- `seed_initial_data --settings=config.settings_prod` выполнен, если нужны начальные справочники.
 
-## 4. Static files
+## 4. Команды проверки
 
-В проекте используется WhiteNoise и `CompressedManifestStaticFilesStorage`, поэтому перед запуском обязательно:
+```bash
+python manage.py check --deploy --settings=config.settings_prod
+python manage.py makemigrations --check --dry-run --settings=config.settings_prod
+python manage.py migrate --settings=config.settings_prod
+python manage.py collectstatic --noinput --settings=config.settings_prod
+python manage.py test --parallel 4
+python scripts/refactor_static_check.py
+```
+
+## 5. Static и vendor-файлы
+
+Перед запуском обязательно выполнить:
 
 ```bash
 python manage.py collectstatic --noinput --settings=config.settings_prod
 ```
 
-Проверить, что папка `staticfiles/` создана на сервере и не коммитится в Git.
+Проект использует локальные vendor-файлы в `static/vendor/`, а не CDN. Подробности в `docs/VENDOR_STATIC.md`.
 
-## 5. Media files
+Проверить наличие:
 
-Фотографии находятся в `MEDIA_ROOT`. Для production важно не открыть `media/` без проверки прав, если доступ к фотографиям должен зависеть от территориального органа или роли.
-
-Безопасный вариант для будущего production hardening:
-
-- Django-view проверяет права пользователя;
-- Nginx отдаёт файл только после разрешения Django, например через `X-Accel-Redirect`.
-
-Если media временно отдаются напрямую, это нужно считать осознанным ограничением тестового стенда.
-
-## 6. HTTPS и cookies
-
-В `config.settings_prod` включены:
-
-```python
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
-SECURE_SSL_REDIRECT = True
-SECURE_HSTS_SECONDS = 31536000
+```text
+static/vendor/bootstrap/bootstrap.min.css
+static/vendor/bootstrap/bootstrap.bundle.min.js
+static/vendor/bootstrap-icons/bootstrap-icons.css
+static/vendor/bootstrap-icons/fonts/bootstrap-icons.woff
+static/vendor/bootstrap-icons/fonts/bootstrap-icons.woff2
+static/vendor/htmx/htmx.min.js
+static/vendor/chartjs/chart.umd.min.js
 ```
 
-Это корректно только при настроенном HTTPS. Если HTTPS завершается на Nginx, убедиться, что прокидывается заголовок:
+## 6. Media files
+
+Фотографии находятся в `MEDIA_ROOT`.
+
+Для тестового стенда media можно отдавать через Nginx напрямую. Если доступ к файлам должен строго зависеть от роли или территориального органа, безопасный production-вариант — отдавать файлы через Django-проверку прав и Nginx `X-Accel-Redirect`.
+
+## 7. HTTPS и cookies
+
+В production-настройках используются защищённые cookies:
+
+```text
+SESSION_COOKIE_SECURE=True
+CSRF_COOKIE_SECURE=True
+SECURE_SSL_REDIRECT=True
+```
+
+Поэтому для полноценного production нужен HTTPS. Если HTTPS завершается на Nginx, должен прокидываться заголовок:
 
 ```text
 X-Forwarded-Proto: https
 ```
 
-## 7. Vendor static / CDN-зависимости
+## 8. Файлы, которых не должно быть в релизе
 
-Bootstrap CSS/JS, Bootstrap Icons, HTMX и Chart.js подключаются из локального `static/vendor/`. Для Bootstrap Icons обязательно хранить рядом `bootstrap-icons.css` и папку `fonts/`; подробности в `docs/VENDOR_STATIC.md`.
-
-## 8. Файлы, которые не должны попасть в Git
-
-Проверить перед коммитом и деплоем:
-
-```bash
-git status --short
+```text
+.env
+.env.local
+.env.prod
+db.sqlite3
+*.sqlite3
+media/
+staticfiles/
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+*.zip
+dashboard_thresholds.json
+dashboard_thresholds.json.tmp
+.idea/
+.vscode/
 ```
-
-В репозитории не должно быть:
-
-- `.env`;
-- `db.sqlite3`;
-- `media/`;
-- `staticfiles/`;
-- `dashboard_thresholds.json`;
-- `dashboard_thresholds.json.tmp`;
-- `__pycache__/`;
-- `*.pyc`.
 
 ## 9. Dependency lock
 
-Текущий `requirements.txt` задаёт совместимые диапазоны зависимостей. Перед настоящим production-релизом желательно зафиксировать точные версии из проверенного окружения:
+В проекте используются:
 
-```bash
-python -m pip freeze > requirements.lock.txt
+```text
+requirements.in   прямые зависимости проекта
+requirements.txt  lock-файл с точными версиями, созданный через pip-compile
 ```
 
-После этого установить проект на чистой машине и прогнать:
+На сервере устанавливать зависимости только так:
 
 ```bash
-pip install -r requirements.lock.txt
-python manage.py test
+pip install -r requirements.txt
 ```
 
-Не создавайте lock-файл из непроверенного окружения, где установлены лишние пакеты.
+Для обновления lock-файла разработчик использует:
+
+```bash
+pip install pip-tools
+pip-compile requirements.in --output-file=requirements.txt
+pip install -r requirements.txt
+python manage.py test --parallel 4
+```
+
 
 ## 10. Smoke-test в браузере
 
-После запуска проверить вручную:
+После запуска пройти `docs/QA_CHECKLIST.md`. Минимально проверить:
 
-1. Вход под Руководителем.
-2. `/control/` и разделы админ-панели.
+1. Вход под руководителем.
+2. `/control/` и основные разделы административной панели.
 3. Создание и редактирование заявки.
 4. Прикрепление фотографий к заявке.
-5. Загрузка фотографии и отказ для поддельного `.jpg`.
+5. Экспорт данных.
 6. Журнал действий.
-7. `/admin/` доступен только Руководителю.
-8. Оператор не видит чужие органы/отделы.
-9. Наблюдатель не может изменять данные.
-
-
-## Vendor static assets
-
-Vendor static details are documented in `docs/VENDOR_STATIC.md`.
+7. Доступы оператора и наблюдателя.
+8. `/admin/` доступен только уполномоченному пользователю.
