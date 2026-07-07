@@ -1232,6 +1232,19 @@ class AdminTrashPanelTests(AdminPanelTestMixin, TestCase):
         self.assertIn("css/admin.css' %}?v=20260707-002", trash_template)
 
 
+
+    def test_admin_open_buttons_do_not_use_eye_icons(self):
+        project_root = Path(__file__).resolve().parents[2]
+        template_root = project_root / "templates" / "admin_panel"
+        offenders = []
+        for template_path in template_root.rglob("*.html"):
+            content = template_path.read_text(encoding="utf-8")
+            if '<i class="bi bi-eye"></i>' in content and "Открыть" in content:
+                compact = " ".join(content.split())
+                if 'bi bi-eye"></i> Открыть' in compact:
+                    offenders.append(str(template_path.relative_to(project_root)))
+        self.assertEqual(offenders, [])
+
     def test_trash_request_rows_have_open_button_and_deleted_detail_view(self):
         self.login_admin()
         request_obj = TmcRequest.objects.create(

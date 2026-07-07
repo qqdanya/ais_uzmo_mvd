@@ -232,6 +232,23 @@ class AuditLogTests(TestCase):
         self.assertContains(response, "Фотография «building.jpg»")
         self.assertNotContains(response, "Изменена фотография «building.jpg»")
 
+    def test_photo_restore_event_is_human_readable(self):
+        log = self.create_log(
+            model_name="TerritorialOrganPhoto",
+            object_repr='Изменена фотография "restore.jpg"',
+            old_values={"is_deleted": "True"},
+            new_values={"audit_event": "photo_restored_from_trash", "is_deleted": "False", "original_filename": "restore.jpg"},
+        )
+        self.client.login(username="admin", password="pass12345")
+
+        response = self.client.get(reverse("audit_log"))
+        detail_response = self.client.get(reverse("audit_detail", args=[log.pk]), HTTP_HX_REQUEST="true")
+
+        self.assertContains(response, "Фотография восстановлена")
+        self.assertContains(response, "Фотография «restore.jpg»")
+        self.assertNotContains(response, "Изменена фотография «restore.jpg»")
+        self.assertContains(detail_response, '<strong class="audit-action audit-action-update">Фотография восстановлена</strong>', html=True)
+
     def test_audit_event_summaries_use_clear_names(self):
         self.create_log(action=AuditLog.Action.DELETE, object_repr="Deleted request")
         self.create_log(

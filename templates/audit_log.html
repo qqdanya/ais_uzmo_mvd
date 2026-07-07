@@ -59,7 +59,7 @@
               <td class="audit-time audit-center-cell">{{ log.created_at|date:"d.m.Y H:i:s" }}</td>
               {% if show_user_column %}
                 <td class="audit-user-cell audit-center-cell">
-                  <strong>{{ log.user|display_name }}</strong>
+                  {{ log.user|display_name }}
                 </td>
               {% endif %}
               <td class="audit-event">
@@ -74,7 +74,7 @@
                 {% endif %}
               </td>
               <td class="audit-center-cell">
-                <strong>{{ log.ip_address|default:"IP не указан" }}</strong>
+                {{ log.ip_address|default:"IP не указан" }}
                 <span class="audit-muted audit-platform">{{ log.browser_summary }}</span>
               </td>
               <td class="actions-cell">

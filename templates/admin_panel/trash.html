@@ -90,7 +90,7 @@
                       <td>{{ row.updated_at|date:"d.m.Y H:i" }}{% if row.updated_by %}<small class="d-block text-muted">{{ row.updated_by.get_full_name|default:row.updated_by.username }}</small>{% endif %}</td>
                       <td class="admin-trash-action-cell">
                         <div class="admin-trash-actions">
-                          <a class="btn btn-sm btn-outline-primary" href="{{ row.detail_url }}"><i class="bi bi-eye"></i> Открыть</a>
+                          <a class="btn btn-sm btn-outline-primary" href="{{ row.detail_url }}">Открыть</a>
                           <form method="post" action="{{ row.restore_url }}" class="admin-inline-action-form">{% csrf_token %}<button class="btn btn-sm btn-outline-primary" type="submit"><i class="bi bi-arrow-counterclockwise"></i> Восстановить</button></form>
                         </div>
                       </td>

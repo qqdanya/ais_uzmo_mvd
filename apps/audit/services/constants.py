@@ -44,6 +44,7 @@ AUDIT_EVENT_SUMMARIES = {
     "request_status_changed": "Изменен статус заявки",
     "request_photos_attached": "Прикреплены фотографии к заявке",
     "request_photos_detached": "Откреплены фотографии от заявки",
+    "photo_restored_from_trash": "Фотография восстановлена",
     "tmc_item_added": "Добавлена позиция ТМЦ",
     "tmc_item_removed": "Удалена позиция ТМЦ",
     "tmc_item_quantity_changed": "Изменено количество ТМЦ",
