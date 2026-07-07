@@ -1022,6 +1022,24 @@ class FrontendModuleSplitTests(TestCase):
         self.assertIn(".app-confirm-dialog", modals_css)
         self.assertIn(".app-confirm-details", modals_css)
 
+    def test_floating_navigation_tooltip_can_align_left(self):
+        project_root = Path(__file__).resolve().parents[2]
+        dashboard_template = (project_root / "templates" / "dashboard" / "index.html").read_text(encoding="utf-8")
+        base_css = (project_root / "static" / "css" / "app" / "base.css").read_text(encoding="utf-8")
+
+        self.assertIn("navigation-float-toggle", dashboard_template)
+        self.assertIn('data-tooltip-align="left"', dashboard_template)
+        self.assertIn('[data-tooltip-align="left"][data-css-tooltip]::after', base_css)
+        self.assertIn('[data-tooltip-align="left"][data-css-tooltip]::before', base_css)
+        self.assertIn("left: 0", base_css)
+        self.assertIn("left: 12px", base_css)
+        self.assertIn("right: auto", base_css)
+        self.assertIn("z-index: 2101", base_css)
+        self.assertIn("width: 9px", base_css)
+        self.assertIn("height: 9px", base_css)
+        self.assertIn("transform: translateY(2px) rotate(45deg)", base_css)
+        self.assertIn("transform: translateY(0) rotate(45deg)", base_css)
+
     def test_htmx_modal_lifecycle_dependencies_are_stable_after_module_split(self):
         htmx_js = self.read_static_js("htmx_lifecycle.js")
         toasts_js = self.read_static_js("toasts.js")
