@@ -8,10 +8,10 @@ from django.urls import reverse
 from django.utils import timezone
 
 from apps.directory.models import Department
-from apps.requests_app.models import NeedStatus
 
 from .admin_common import (
     DEPARTMENT_ICONS,
+    REQUEST_STATUS_FILTERS,
     STATUS_BADGE_CLASSES,
     add_status_counts,
     apply_period,
@@ -21,6 +21,7 @@ from .admin_common import (
     completion_values_for_queryset,
     date_period_from_request,
     days_class,
+    filter_by_request_statuses,
     filter_department_options_by_search,
     department_options,
     global_completion_average,
@@ -32,8 +33,9 @@ from .admin_common import (
     request_number,
     request_status_counts,
     request_title,
+    row_matches_view,
     selected_per_page,
-    selected_values,
+    selected_request_statuses,
 )
 from .admin_summary import available_organs_for_user, request_tables, selected_organs
 from .business_days import subtract_business_days_inclusive
@@ -48,27 +50,10 @@ DEPARTMENT_VIEW_FILTERS = {
     "best": "Лучшие по срокам",
 }
 
-REQUEST_STATUS_FILTERS = {
-    "all": "Все статусы",
-    "in_work": "В работе",
-    "done": "Исполнено",
-    "rejected": "Отклонено",
-}
-
-REQUEST_STATUS_TO_MODEL_STATUS = {
-    "in_work": NeedStatus.IN_WORK,
-    "done": NeedStatus.DONE,
-    "rejected": NeedStatus.REJECTED,
-}
-
 
 def selected_department_view(request):
     value = request.GET.get("view", "all")
     return value if value in DEPARTMENT_VIEW_FILTERS else "all"
-
-
-def selected_request_statuses(request):
-    return selected_values(request, "request_status", REQUEST_STATUS_FILTERS.keys())
 
 
 def selected_department_slug(request, departments):
@@ -96,10 +81,7 @@ def tables_for_department(tables, department_slug):
 def department_filtered_queryset(table, organs, filters, *, with_request_status=True):
     qs = table["model"].objects.select_related("territorial_organ").filter(is_deleted=False, territorial_organ__in=organs)
     qs = apply_period(qs, filters["period"])
-    statuses = filters.get("request_statuses") or []
-    if with_request_status and statuses:
-        qs = qs.filter(status__in=[REQUEST_STATUS_TO_MODEL_STATUS[item] for item in statuses if item in REQUEST_STATUS_TO_MODEL_STATUS])
-    return qs
+    return filter_by_request_statuses(qs, filters, with_request_status=with_request_status)
 
 
 def collect_department_stats(department, tables, organs, filters):
@@ -137,18 +119,6 @@ def collect_department_stats(department, tables, organs, filters):
         "latest_display": latest_date.strftime("%d.%m.%Y") if latest_date else "—",
         "detail_url": reverse("admin_department_detail", kwargs={"department_slug": department["slug"]}),
     }
-
-
-def row_matches_view(row, view):
-    if view == "in_work":
-        return row["in_work"] > 0
-    if view == "stale":
-        return row["stale"] > 0
-    if view == "no_activity":
-        return row["total"] == 0
-    if view == "best":
-        return row["total"] > 0 and row["avg_completion"] is not None
-    return True
 
 
 def sort_department_rows(rows, view):
@@ -292,13 +262,6 @@ def build_departments_context(request):
     }
 
 
-def filter_detail_request_qs(qs, filters):
-    statuses = filters.get("request_statuses") or []
-    if statuses:
-        qs = qs.filter(status__in=[REQUEST_STATUS_TO_MODEL_STATUS[item] for item in statuses if item in REQUEST_STATUS_TO_MODEL_STATUS])
-    return qs
-
-
 def collect_organ_stats_for_department(organ, department, tables, filters):
     stats = Counter()
     completion_values = []
@@ -306,7 +269,7 @@ def collect_organ_stats_for_department(organ, department, tables, filters):
     for table in tables_for_department(tables, department["slug"]):
         qs = table["model"].objects.select_related("territorial_organ").filter(is_deleted=False, territorial_organ=organ)
         qs = apply_period(qs, filters["period"])
-        qs = filter_detail_request_qs(qs, filters)
+        qs = filter_by_request_statuses(qs, filters)
         add_status_counts(stats, request_status_counts(qs, stale_before=stale_before))
         completion_values.extend(completion_values_for_queryset(qs))
     avg_completion = completion_average(completion_values)

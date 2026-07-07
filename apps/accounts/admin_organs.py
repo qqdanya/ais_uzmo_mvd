@@ -8,11 +8,11 @@ from django.urls import reverse
 from django.utils import timezone
 
 from apps.directory.models import Department, TerritorialOrgan, TerritorialOrganPhoto
-from apps.requests_app.models import NeedStatus
 from apps.requests_app.permissions import can_view
 
 from .admin_common import (
     DEPARTMENT_ICONS,
+    REQUEST_STATUS_FILTERS,
     STATUS_BADGE_CLASSES,
     add_status_counts,
     apply_period,
@@ -22,6 +22,7 @@ from .admin_common import (
     completion_values_for_queryset,
     date_period_from_request,
     days_class,
+    filter_by_request_statuses,
     filter_model_objects_by_search,
     department_options,
     global_completion_average,
@@ -33,7 +34,9 @@ from .admin_common import (
     request_number,
     request_status_counts,
     request_title,
+    row_matches_view,
     selected_per_page,
+    selected_request_statuses,
     selected_values,
 )
 from .admin_summary import available_organs_for_user, request_tables
@@ -49,28 +52,10 @@ ORGAN_VIEW_FILTERS = {
     "best": "Лучшие по срокам",
 }
 
-REQUEST_STATUS_FILTERS = {
-    "all": "Все статусы",
-    "in_work": "В работе",
-    "done": "Исполнено",
-    "rejected": "Отклонено",
-}
-
-
-REQUEST_STATUS_TO_MODEL_STATUS = {
-    "in_work": NeedStatus.IN_WORK,
-    "done": NeedStatus.DONE,
-    "rejected": NeedStatus.REJECTED,
-}
-
 
 def selected_organs_view(request):
     value = request.GET.get("view", "all")
     return value if value in ORGAN_VIEW_FILTERS else "all"
-
-
-def selected_request_statuses(request):
-    return selected_values(request, "request_status", REQUEST_STATUS_FILTERS.keys())
 
 
 def selected_departments(request, options):
@@ -93,10 +78,7 @@ def filter_organs_by_search(organs, query):
 def org_filtered_queryset(table, organ, filters, *, with_request_status=True):
     qs = table["model"].objects.select_related("territorial_organ").filter(is_deleted=False, territorial_organ=organ)
     qs = apply_period(qs, filters["period"])
-    statuses = filters.get("request_statuses") or []
-    if with_request_status and statuses:
-        qs = qs.filter(status__in=[REQUEST_STATUS_TO_MODEL_STATUS[item] for item in statuses if item in REQUEST_STATUS_TO_MODEL_STATUS])
-    return qs
+    return filter_by_request_statuses(qs, filters, with_request_status=with_request_status)
 
 
 def iter_tables(tables, filters):
@@ -137,18 +119,6 @@ def collect_organ_stats(organ, tables, filters):
         "latest_display": latest_date.strftime("%d.%m.%Y") if latest_date else "—",
         "detail_url": reverse("admin_organ_detail", kwargs={"pk": organ.pk}),
     }
-
-
-def row_matches_view(row, view):
-    if view == "in_work":
-        return row["in_work"] > 0
-    if view == "stale":
-        return row["stale"] > 0
-    if view == "no_activity":
-        return row["total"] == 0
-    if view == "best":
-        return row["total"] > 0 and row["avg_completion"] is not None
-    return True
 
 
 def sort_organ_rows(rows, view):

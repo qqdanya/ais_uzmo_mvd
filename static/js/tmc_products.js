@@ -31,7 +31,11 @@ function renderTmcProductSuggestions(input, results) {
     button.dataset.productId = product.id;
     button.dataset.productName = product.name;
     button.dataset.productUnit = product.unit || "шт.";
-    button.innerHTML = `<span>${product.name}</span><small>${product.unit || "шт."}</small>`;
+    const nameEl = document.createElement("span");
+    nameEl.textContent = product.name;
+    const unitEl = document.createElement("small");
+    unitEl.textContent = product.unit || "шт.";
+    button.append(nameEl, unitEl);
     box.append(button);
   });
   box.hidden = false;

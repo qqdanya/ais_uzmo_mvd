@@ -225,6 +225,7 @@ class VehicleRepairRequest(TrackableRequest):
         verbose_name = "заявка на ремонт автотранспорта"
         verbose_name_plural = "Заявки на ремонт автотранспорта"
         ordering = ("-request_date",)
+        indexes = [models.Index(fields=["territorial_organ", "request_date", "status"])]
 
     def __str__(self):
         return f"Заявка на ремонт № {self.request_number}"
@@ -240,6 +241,7 @@ class VehicleFuelRequest(TrackableRequest):
         verbose_name = "заявка на ГСМ"
         verbose_name_plural = "Заявки на ГСМ"
         ordering = ("-request_date",)
+        indexes = [models.Index(fields=["territorial_organ", "request_date", "status"])]
 
     def __str__(self):
         return f"Заявка на ГСМ № {self.request_number}"
@@ -322,6 +324,7 @@ class FireDepartmentRequest(TrackableRequest):
         verbose_name = "заявка пожарной безопасности"
         verbose_name_plural = "Заявки пожарной безопасности"
         ordering = ("-request_date",)
+        indexes = [models.Index(fields=["territorial_organ", "request_date", "status"])]
 
     def __str__(self):
         return f"Заявка № {self.request_number}"
@@ -337,6 +340,7 @@ class AntiTerrorMeasure(TrackableRequest):
         verbose_name = "антитеррористическая укрепленность"
         verbose_name_plural = "Антитеррористическая укрепленность"
         ordering = ("-request_date", "-created_at")
+        indexes = [models.Index(fields=["territorial_organ", "request_date", "status"])]
 
     def __str__(self):
         return f"Акт обследования № {self.request_number}" if self.request_number else "Акт обследования"
@@ -403,6 +407,7 @@ class BuildingRepairRequest(TrackableRequest):
         verbose_name = "текущий ремонт"
         verbose_name_plural = "Текущий ремонт зданий, помещений, сооружений / Заявка"
         ordering = ("-request_date",)
+        indexes = [models.Index(fields=["territorial_organ", "request_date", "status"])]
 
     def __str__(self):
         return f"Заявка текущего ремонта № {self.request_number}"

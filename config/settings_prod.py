@@ -1,7 +1,6 @@
 from .settings import *  # noqa
 
 DEBUG = False
-SECRET_KEY = env("SECRET_KEY")  # noqa: F405
 SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=True)  # noqa: F405
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True

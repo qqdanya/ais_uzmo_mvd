@@ -21,6 +21,19 @@ STATUS_BADGE_CLASSES = {
     NeedStatus.REJECTED: "status-rejected",
 }
 
+REQUEST_STATUS_FILTERS = {
+    "all": "Все статусы",
+    "in_work": "В работе",
+    "done": "Исполнено",
+    "rejected": "Отклонено",
+}
+
+REQUEST_STATUS_TO_MODEL_STATUS = {
+    "in_work": NeedStatus.IN_WORK,
+    "done": NeedStatus.DONE,
+    "rejected": NeedStatus.REJECTED,
+}
+
 DEPARTMENT_ICONS = {
     "tmc": "bi-box-seam",
     "transport": "bi-truck",
@@ -67,6 +80,31 @@ def selected_values(request, name, allowed_values, *, drop_all=True):
         if value in allowed and value not in result:
             result.append(value)
     return result
+
+
+def selected_request_statuses(request):
+    return selected_values(request, "request_status", REQUEST_STATUS_FILTERS.keys())
+
+
+def row_matches_view(row, view):
+    """Match a department/organ summary row against a dashboard view tab."""
+    if view == "in_work":
+        return row["in_work"] > 0
+    if view == "stale":
+        return row["stale"] > 0
+    if view == "no_activity":
+        return row["total"] == 0
+    if view == "best":
+        return row["total"] > 0 and row["avg_completion"] is not None
+    return True
+
+
+def filter_by_request_statuses(qs, filters, *, with_request_status=True):
+    """Apply the shared request-status filter used by department/organ dashboards."""
+    statuses = filters.get("request_statuses") or []
+    if with_request_status and statuses:
+        qs = qs.filter(status__in=[REQUEST_STATUS_TO_MODEL_STATUS[item] for item in statuses if item in REQUEST_STATUS_TO_MODEL_STATUS])
+    return qs
 
 
 def multiselect_label(selected_values_list, empty_label, options):
@@ -220,11 +258,46 @@ def add_status_counts(total_counts, counts):
         total_counts[key] += counts.get(key, 0)
 
 
+def _own_completion_date(obj):
+    for field_name in ("completed_at", "due_date"):
+        value = getattr(obj, field_name, None)
+        if value:
+            return value
+    return None
+
+
+def _bulk_history_completion_dates(objects):
+    """Batch-fetch the best RequestStatusHistory completion date per object.
+
+    Avoids one RequestStatusHistory query per row (the previous per-object
+    object_completion_date() call) when completed_at/due_date is missing.
+    """
+    if not objects:
+        return {}
+    content_type = ContentType.objects.get_for_model(objects[0]._meta.model, for_concrete_model=False)
+    history_qs = RequestStatusHistory.objects.filter(
+        content_type=content_type,
+        object_id__in=[obj.pk for obj in objects],
+        new_status=NeedStatus.DONE,
+    ).order_by("object_id", "-completed_at", "-changed_at", "-pk")
+    dates = {}
+    for history in history_qs:
+        if history.object_id not in dates:
+            dates[history.object_id] = history.completed_at or history.changed_at.date()
+    return dates
+
+
 def completion_values_for_queryset(qs):
     """Return processing-day values for completed requests in a queryset."""
+    done_objects = list(qs.filter(status=NeedStatus.DONE))
+    missing = [obj for obj in done_objects if _own_completion_date(obj) is None]
+    history_dates = _bulk_history_completion_dates(missing)
     values = []
-    for obj in qs.filter(status=NeedStatus.DONE):
-        days = processing_days(obj)
+    for obj in done_objects:
+        end_date = _own_completion_date(obj) or history_dates.get(obj.pk)
+        if not end_date:
+            continue
+        days = business_days_inclusive(obj.request_date, end_date)
         if days is not None:
             values.append(days)
     return values
