@@ -304,7 +304,9 @@ class PhotoAssetTests(RequestAppTestCase):
         fire_profile = UserProfile.objects.create(user=fire_user, role=UserProfile.Role.OPERATOR)
         transport_profile = UserProfile.objects.create(user=transport_user, role=UserProfile.Role.OPERATOR)
         fire_profile.allowed_departments.set([fire_department])
+        fire_profile.allowed_organs.set([self.organ])
         transport_profile.allowed_departments.set([transport_department])
+        transport_profile.allowed_organs.set([self.organ])
         folder = TerritorialOrganPhotoFolder.objects.create(
             territorial_organ=self.organ,
             name="Fire folder",
@@ -370,6 +372,7 @@ class PhotoAssetTests(RequestAppTestCase):
         fire_profile = UserProfile.objects.create(user=fire_user, role=UserProfile.Role.OPERATOR)
         self.user.profile.allowed_departments.set([transport_department])
         fire_profile.allowed_departments.set([fire_department])
+        fire_profile.allowed_organs.set([self.organ])
         foreign_folder = TerritorialOrganPhotoFolder.objects.create(
             territorial_organ=self.organ,
             name="Foreign folder",
@@ -406,7 +409,9 @@ class PhotoAssetTests(RequestAppTestCase):
         fire_department = Department.objects.create(name="Fire", slug="fire", order_number=2)
         transport_department = Department.objects.create(name="Transport", slug="transport", order_number=3)
         fire_user = User.objects.create_user("fire-move-owner", password="pass12345")
-        UserProfile.objects.create(user=fire_user, role=UserProfile.Role.OPERATOR).allowed_departments.set([fire_department])
+        fire_profile = UserProfile.objects.create(user=fire_user, role=UserProfile.Role.OPERATOR)
+        fire_profile.allowed_departments.set([fire_department])
+        fire_profile.allowed_organs.set([self.organ])
         self.user.profile.allowed_departments.set([transport_department])
         foreign_folder = TerritorialOrganPhotoFolder.objects.create(
             territorial_organ=self.organ,

@@ -3,6 +3,7 @@ import shutil
 import tempfile
 from io import BytesIO
 from datetime import timedelta
+from decimal import Decimal
 from pathlib import Path
 
 from PIL import Image
@@ -423,7 +424,7 @@ class AdminEmployeesPanelTests(AdminPanelTestMixin, TestCase):
         self.assertContains(response, "Иванов")
         self.assertContains(response, "admin-employees-page")
 
-    def test_employees_panel_department_filter_includes_unrestricted_department_access(self):
+    def test_employees_panel_department_filter_excludes_empty_department_access(self):
         self.login_admin()
         unrestricted = self.User.objects.create_user("all_depts", first_name="Анна", last_name="Всеотделы")
         unrestricted_profile = UserProfile.objects.create(user=unrestricted, role=UserProfile.Role.OPERATOR)
@@ -438,11 +439,11 @@ class AdminEmployeesPanelTests(AdminPanelTestMixin, TestCase):
 
         self.assertEqual(response.status_code, 200)
         usernames = {row["user"].username for row in response.context["employees"]}
-        self.assertIn("all_depts", usernames)
+        self.assertNotIn("all_depts", usernames)
         self.assertNotIn("transport_only", usernames)
         self.assertIn("Отделы: ТМЦ", response.context["active_filter_chips"])
 
-    def test_employee_empty_department_permissions_are_displayed_as_full_department_access(self):
+    def test_employee_empty_department_permissions_are_displayed_as_no_department_access(self):
         self.login_admin()
         target = self.User.objects.create_user("all_department_access", first_name="Артём", last_name="Полный")
         profile = UserProfile.objects.create(user=target, role=UserProfile.Role.OPERATOR)
@@ -451,10 +452,10 @@ class AdminEmployeesPanelTests(AdminPanelTestMixin, TestCase):
         response = self.client.get(reverse("admin_employee_detail", kwargs={"pk": target.pk}))
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["departments_summary"], "Все отделы")
-        self.assertTrue(response.context["all_departments"])
-        self.assertFalse(response.context["no_departments"])
-        self.assertContains(response, "Все отделы")
+        self.assertEqual(response.context["departments_summary"], "Отделы не выбраны")
+        self.assertFalse(response.context["all_departments"])
+        self.assertTrue(response.context["no_departments"])
+        self.assertContains(response, "Отделы не выбраны")
 
     def test_employee_create_creates_unactivated_user_with_permissions_and_audit(self):
         self.login_admin()
@@ -516,6 +517,128 @@ class AdminEmployeesPanelTests(AdminPanelTestMixin, TestCase):
         self.admin.refresh_from_db()
         self.assertRedirects(reset_response, reverse("admin_employee_detail", kwargs={"pk": self.admin.pk}))
         self.assertTrue(self.admin.has_usable_password())
+
+
+    def test_employee_create_form_defaults_all_organs_and_add_button(self):
+        self.login_admin()
+
+        response = self.client.get(reverse("admin_employee_create"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["submit_label"], "Добавить сотрудника")
+        self.assertEqual(
+            set(response.context["selected_organs"]),
+            {str(self.organ.pk), str(self.other_organ.pk)},
+        )
+        self.assertContains(response, "Добавить сотрудника")
+        self.assertNotContains(response, "Создать сотрудника")
+
+    def test_employee_create_form_renders_decimal_organ_numbers_without_scientific_notation(self):
+        self.login_admin()
+        TerritorialOrgan.objects.create(name="Десятый орган", order_number=Decimal("10.00"))
+
+        response = self.client.get(reverse("admin_employee_create"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "10. Десятый орган")
+        self.assertNotContains(response, "1E+1. Десятый орган")
+
+    def test_employee_create_form_exposes_existing_usernames_for_auto_login(self):
+        self.login_admin()
+        self.User.objects.create_user("petrov")
+
+        response = self.client.get(reverse("admin_employee_create"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="employee-existing-usernames"')
+        self.assertIn("petrov", response.context["existing_usernames"])
+
+    def test_employee_create_requires_first_and_last_name(self):
+        self.login_admin()
+
+        response = self.client.post(
+            reverse("admin_employee_create"),
+            {
+                "username": "nameless",
+                "role": UserProfile.Role.OPERATOR,
+                "allowed_organs": [str(self.organ.pk)],
+                "is_active": "on",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFormError(response.context["form"], "last_name", "Укажите фамилию сотрудника.")
+        self.assertFormError(response.context["form"], "first_name", "Укажите имя сотрудника.")
+        self.assertFalse(self.User.objects.filter(username="nameless").exists())
+
+    def test_employee_create_generates_unique_transliterated_username(self):
+        self.login_admin()
+        self.User.objects.create_user("petrov")
+        self.User.objects.create_user("petrov_pavel")
+
+        response = self.client.post(
+            reverse("admin_employee_create"),
+            {
+                "last_name": "Петров",
+                "first_name": "Павел",
+                "middle_name": "Иванович",
+                "username": "petrov",
+                "username_auto": "True",
+                "role": UserProfile.Role.OPERATOR,
+                "allowed_departments": [str(self.department_tmc.pk)],
+                "allowed_organs": [str(self.organ.pk)],
+                "is_active": "on",
+            },
+        )
+
+        user = self.User.objects.get(username="petrov_pavel_ivanovich")
+        self.assertRedirects(response, reverse("admin_employee_detail", kwargs={"pk": user.pk}))
+        self.assertEqual(user.last_name, "Петров")
+        self.assertEqual(user.first_name, "Павел")
+
+    def test_employee_username_script_uses_existing_usernames_before_adding_name_parts(self):
+        script = Path("static/js/employee_form.js").read_text(encoding="utf-8")
+
+        self.assertIn("employee-existing-usernames", script)
+        self.assertIn("const candidates = [last];", script)
+        self.assertIn("const available = candidates.find((candidate) => !taken.has(candidate));", script)
+        self.assertNotIn("if (first && middle) return `${last}_${first}_${middle}`;", script)
+
+    def test_employee_role_dropdown_closes_after_radio_choice(self):
+        script = Path("static/js/admin_multiselect.js").read_text(encoding="utf-8")
+
+        self.assertIn('input.type === "radio"', script)
+        self.assertIn("bootstrap.Dropdown.getOrCreateInstance(trigger).hide()", script)
+
+    def test_superuser_can_delete_employee_from_database(self):
+        self.login_admin()
+        target = self.User.objects.create_user("delete_me", first_name="Денис", last_name="Удаляемый")
+        UserProfile.objects.create(user=target, role=UserProfile.Role.OPERATOR)
+
+        response = self.client.post(reverse("admin_employee_action", kwargs={"pk": target.pk}), {"action": "delete"})
+
+        self.assertRedirects(response, reverse("admin_employees_panel"))
+        self.assertFalse(self.User.objects.filter(pk=target.pk).exists())
+        self.assertTrue(
+            AuditLog.objects.filter(
+                action=AuditLog.Action.DELETE,
+                model_name="User",
+                object_id=str(target.pk),
+                new_values__audit_event="employee_deleted",
+            ).exists()
+        )
+
+    def test_regular_admin_cannot_delete_employee_from_database(self):
+        regular_admin = self.User.objects.create_user("regular_admin", password="pass12345")
+        UserProfile.objects.create(user=regular_admin, role=UserProfile.Role.ADMIN)
+        target = self.User.objects.create_user("delete_denied")
+        UserProfile.objects.create(user=target, role=UserProfile.Role.OPERATOR)
+        self.client.login(username="regular_admin", password="pass12345")
+
+        response = self.client.post(reverse("admin_employee_action", kwargs={"pk": target.pk}), {"action": "delete"})
+
+        self.assertRedirects(response, reverse("admin_employee_detail", kwargs={"pk": target.pk}))
+        self.assertTrue(self.User.objects.filter(pk=target.pk).exists())
 
     def test_employee_presence_data_updates_kpis_and_rows(self):
         self.login_admin()

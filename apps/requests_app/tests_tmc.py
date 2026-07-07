@@ -318,6 +318,7 @@ class TmcRequestTests(RequestAppTestCase):
 
     def test_tmc_table_supports_multi_organ_summary_mode(self):
         other_organ = TerritorialOrgan.objects.create(name="Other territorial organ", order_number=2)
+        self.user.profile.allowed_organs.add(other_organ)
         first = TmcRequest.objects.create(territorial_organ=self.organ, request_number="40/TMC", request_date="2026-06-20", status="in_work", comment="Office")
         second = TmcRequest.objects.create(territorial_organ=other_organ, request_number="41/TMC", request_date="2026-06-21", status="in_work", comment="Office")
         TmcRequestItem.objects.create(request=first, name="Бумага А4", quantity=5, unit="пач.")
@@ -340,6 +341,7 @@ class TmcRequestTests(RequestAppTestCase):
 
     def test_department_panel_preserves_multi_organ_querystring(self):
         other_organ = TerritorialOrgan.objects.create(name="Other territorial organ", order_number=2)
+        self.user.profile.allowed_organs.add(other_organ)
         self.client.login(username="operator", password="pass12345")
 
         response = self.client.get(
@@ -352,7 +354,8 @@ class TmcRequestTests(RequestAppTestCase):
         self.assertContains(response, f"organ_ids={other_organ.pk}")
 
     def test_department_panel_restores_requested_table_and_filters(self):
-        Department.objects.create(name="Transport", slug="transport", order_number=2)
+        transport = Department.objects.create(name="Transport", slug="transport", order_number=2)
+        self.user.profile.allowed_departments.add(transport)
         self.client.login(username="operator", password="pass12345")
 
         response = self.client.get(
@@ -367,6 +370,7 @@ class TmcRequestTests(RequestAppTestCase):
 
     def test_multi_organ_summary_keeps_row_actions_for_writable_organs(self):
         other_organ = TerritorialOrgan.objects.create(name="Other territorial organ", order_number=2)
+        self.user.profile.allowed_organs.add(other_organ)
         first = TmcRequest.objects.create(territorial_organ=self.organ, request_number="42/TMC", request_date="2026-06-20", status="in_work")
         second = TmcRequest.objects.create(territorial_organ=other_organ, request_number="43/TMC", request_date="2026-06-21", status="in_work")
         TmcRequestItem.objects.create(request=first, name="Paper", quantity=5, unit="pcs")
@@ -386,6 +390,7 @@ class TmcRequestTests(RequestAppTestCase):
 
     def test_tmc_table_can_group_products_across_selected_organs(self):
         other_organ = TerritorialOrgan.objects.create(name="Other territorial organ", order_number=2)
+        self.user.profile.allowed_organs.add(other_organ)
         first = TmcRequest.objects.create(territorial_organ=self.organ, request_number="44/TMC", request_date="2026-06-20", status="in_work")
         second = TmcRequest.objects.create(territorial_organ=other_organ, request_number="45/TMC", request_date="2026-06-21", status="in_work")
         third = TmcRequest.objects.create(territorial_organ=other_organ, request_number="46/TMC", request_date="2026-06-22", status="done")
@@ -435,6 +440,7 @@ class TmcRequestTests(RequestAppTestCase):
 
     def test_tmc_table_can_group_by_territorial_organs_when_multiple_selected(self):
         other_organ = TerritorialOrgan.objects.create(name="Other territorial organ", order_number=2)
+        self.user.profile.allowed_organs.add(other_organ)
         first = TmcRequest.objects.create(territorial_organ=self.organ, request_number="51/TMC", request_date="2026-06-20", status="in_work")
         second = TmcRequest.objects.create(territorial_organ=other_organ, request_number="52/TMC", request_date="2026-06-21", status="in_work")
         third = TmcRequest.objects.create(territorial_organ=other_organ, request_number="53/TMC", request_date="2026-06-22", status="done")
@@ -475,6 +481,7 @@ class TmcRequestTests(RequestAppTestCase):
 
     def test_tmc_table_can_group_by_request_date(self):
         other_organ = TerritorialOrgan.objects.create(name="Other territorial organ", order_number=2)
+        self.user.profile.allowed_organs.add(other_organ)
         first = TmcRequest.objects.create(territorial_organ=self.organ, request_number="57/TMC", request_date="2026-06-20", status="in_work")
         second = TmcRequest.objects.create(territorial_organ=other_organ, request_number="58/TMC", request_date="2026-06-20", status="in_work")
         third = TmcRequest.objects.create(territorial_organ=other_organ, request_number="59/TMC", request_date="2026-06-21", status="done")
@@ -636,6 +643,7 @@ class TmcRequestTests(RequestAppTestCase):
 
     def test_tmc_xlsx_export_includes_organ_column_for_multi_organ_mode(self):
         other_organ = TerritorialOrgan.objects.create(name="Other territorial organ", order_number=2)
+        self.user.profile.allowed_organs.add(other_organ)
         first = TmcRequest.objects.create(territorial_organ=self.organ, request_number="28/TMC", request_date="2026-06-20", status="in_work")
         second = TmcRequest.objects.create(territorial_organ=other_organ, request_number="29/TMC", request_date="2026-06-21", status="done")
         TmcRequestItem.objects.create(request=first, name="Бумага А4", quantity=5, unit="пач.")
@@ -665,6 +673,7 @@ class TmcRequestTests(RequestAppTestCase):
 
     def test_tmc_grouped_xlsx_export_matches_grouped_table(self):
         other_organ = TerritorialOrgan.objects.create(name="Other territorial organ", order_number=2)
+        self.user.profile.allowed_organs.add(other_organ)
         first = TmcRequest.objects.create(territorial_organ=self.organ, request_number="48/TMC", request_date="2026-06-20", status="in_work")
         second = TmcRequest.objects.create(territorial_organ=other_organ, request_number="49/TMC", request_date="2026-06-21", status="in_work")
         TmcRequestItem.objects.create(request=first, name="Бумага А4", quantity=5, unit="пач.")
@@ -702,6 +711,7 @@ class TmcRequestTests(RequestAppTestCase):
 
     def test_tmc_organ_grouped_csv_export_matches_grouped_table(self):
         other_organ = TerritorialOrgan.objects.create(name="Other territorial organ", order_number=2)
+        self.user.profile.allowed_organs.add(other_organ)
         first = TmcRequest.objects.create(territorial_organ=self.organ, request_number="55/TMC", request_date="2026-06-20", status="in_work")
         second = TmcRequest.objects.create(territorial_organ=other_organ, request_number="56/TMC", request_date="2026-06-21", status="in_work")
         TmcRequestItem.objects.create(request=first, name="Бумага А4", quantity=5, unit="пач.")
@@ -721,6 +731,7 @@ class TmcRequestTests(RequestAppTestCase):
 
     def test_tmc_date_grouped_csv_export_matches_grouped_table(self):
         other_organ = TerritorialOrgan.objects.create(name="Other territorial organ", order_number=2)
+        self.user.profile.allowed_organs.add(other_organ)
         first = TmcRequest.objects.create(territorial_organ=self.organ, request_number="60/TMC", request_date="2026-06-20", status="in_work")
         second = TmcRequest.objects.create(territorial_organ=other_organ, request_number="61/TMC", request_date="2026-06-20", status="in_work")
         TmcRequestItem.objects.create(request=first, name="Бумага А4", quantity=5, unit="пач.")

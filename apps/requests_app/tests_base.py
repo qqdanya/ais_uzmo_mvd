@@ -47,9 +47,11 @@ class RequestAppTestCase(TestCase):
     def setUp(self):
         User = get_user_model()
         self.user = User.objects.create_user("operator", password="pass12345")
-        UserProfile.objects.create(user=self.user, role=UserProfile.Role.OPERATOR)
+        self.profile = UserProfile.objects.create(user=self.user, role=UserProfile.Role.OPERATOR)
         self.organ = TerritorialOrgan.objects.create(name="Test territorial organ", order_number=1)
         self.department = Department.objects.create(name="TMC", slug="tmc", order_number=1)
+        self.profile.allowed_organs.set([self.organ])
+        self.profile.allowed_departments.set([self.department])
 
     def status_history(self, obj):
         content_type = ContentType.objects.get_for_model(obj, for_concrete_model=False)

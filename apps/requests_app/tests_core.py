@@ -74,7 +74,8 @@ class CoreAccessTests(RequestAppTestCase):
     def test_observer_can_view_table_but_cannot_write_records(self):
         User = get_user_model()
         observer = User.objects.create_user("observer", password="pass12345")
-        UserProfile.objects.create(user=observer, role=UserProfile.Role.OBSERVER)
+        observer_profile = UserProfile.objects.create(user=observer, role=UserProfile.Role.OBSERVER)
+        observer_profile.allowed_organs.set([self.organ])
         request_obj = TmcRequest.objects.create(
             territorial_organ=self.organ,
             created_by=self.user,
@@ -100,7 +101,7 @@ class CoreAccessTests(RequestAppTestCase):
 
     def test_operator_can_write_only_assigned_departments(self):
         transport = Department.objects.create(name="Transport", slug="transport", order_number=2)
-        self.user.profile.allowed_departments.add(transport)
+        self.user.profile.allowed_departments.set([transport])
         request_obj = TmcRequest.objects.create(territorial_organ=self.organ, request_number="43/TMC", request_date="2026-06-20", status="in_work")
         TmcRequestItem.objects.create(request=request_obj, name="Paper", quantity=5, unit="pcs")
         self.client.login(username="operator", password="pass12345")

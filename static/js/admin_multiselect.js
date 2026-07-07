@@ -31,7 +31,14 @@ function updateAllAdminMultiselectLabels() {
 document.addEventListener("change", (event) => {
   const input = event.target.closest("[data-admin-multiselect-input]");
   if (!input) return;
-  updateAdminMultiselectLabel(input.closest("[data-admin-multiselect]"));
+  const root = input.closest("[data-admin-multiselect]");
+  updateAdminMultiselectLabel(root);
+  if (input.type === "radio" && root && root.classList.contains("admin-multiselect-single")) {
+    const trigger = root.querySelector("[data-bs-toggle='dropdown']");
+    if (trigger && window.bootstrap && bootstrap.Dropdown) {
+      bootstrap.Dropdown.getOrCreateInstance(trigger).hide();
+    }
+  }
 });
 
 document.addEventListener("click", (event) => {

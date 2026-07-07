@@ -56,10 +56,11 @@ def _format_admin_select_number(value: Any) -> str:
     if value is None:
         return ""
     if isinstance(value, Decimal):
-        value = value.normalize()
-    text = str(value)
-    if text.endswith(".0"):
-        return text[:-2]
+        text = format(value.normalize(), "f")
+    else:
+        text = str(value)
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
     return text
 
 

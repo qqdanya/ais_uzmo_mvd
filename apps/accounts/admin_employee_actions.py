@@ -60,9 +60,19 @@ def edit_employee(request, pk):
 def handle_employee_action(request, pk):
     user = get_object_or_404(get_user_model(), pk=pk)
     action = request.POST.get("action")
-    if user.pk == request.user.pk and action in {"block", "reset_activation"}:
-        messages.error(request, "Нельзя заблокировать или сбросить активацию собственной учетной записи.")
+    if user.pk == request.user.pk and action in {"block", "reset_activation", "delete"}:
+        messages.error(request, "Нельзя выполнить это действие над собственной учетной записью.")
         return redirect("admin_employee_detail", pk=user.pk)
+    if action == "delete":
+        if not request.user.is_superuser:
+            messages.error(request, "Удалить сотрудника из базы данных может только руководитель.")
+            return redirect("admin_employee_detail", pk=user.pk)
+        username = user.username
+        display_name = employee_display_name(user)
+        write_employee_audit(request, user, AuditLog.Action.DELETE, "employee_deleted", {"username": username})
+        user.delete()
+        messages.success(request, f"Сотрудник {display_name} удален из базы данных.")
+        return redirect("admin_employees_panel")
     profile, _ = UserProfile.objects.get_or_create(user=user)
     if action == "block":
         user.is_active = False

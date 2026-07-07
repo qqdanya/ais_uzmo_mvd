@@ -334,6 +334,7 @@ class DepartmentTableTests(RequestAppTestCase):
 
     def test_request_tables_support_date_and_organ_grouping(self):
         other_organ = TerritorialOrgan.objects.create(name="Other territorial organ", order_number=2)
+        self.user.profile.allowed_organs.add(other_organ)
         VehicleRepairRequest.objects.create(territorial_organ=self.organ, request_number="R-30", request_date="2026-06-20", status="in_work", comment="Diagnostics")
         VehicleRepairRequest.objects.create(territorial_organ=other_organ, request_number="R-31", request_date="2026-06-20", status="done", comment="Diagnostics")
         VehicleRepairRequest.objects.create(territorial_organ=other_organ, request_number="R-32", request_date="2026-06-21", status="rejected", comment="Oil")
@@ -475,6 +476,7 @@ class DepartmentTableTests(RequestAppTestCase):
 
     def test_state_snapshot_tables_show_current_records_by_default_and_history_on_request(self):
         other_organ = TerritorialOrgan.objects.create(name="Second territorial organ", order_number=2)
+        self.user.profile.allowed_organs.add(other_organ)
         FireExtinguisher.objects.create(territorial_organ=self.organ, state_date="2026-06-01", required_count=10, available_count=6, expiry_date="2026-07-10", writeoff_count=1)
         FireExtinguisher.objects.create(territorial_organ=self.organ, state_date="2026-07-01", required_count=10, available_count=8, expiry_date="2026-12-31", writeoff_count=0)
         FireExtinguisher.objects.create(territorial_organ=other_organ, state_date="2026-07-02", required_count=12, available_count=9, expiry_date="2026-08-01", writeoff_count=1)
@@ -516,6 +518,7 @@ class DepartmentTableTests(RequestAppTestCase):
     def test_fire_extinguishers_can_filter_sort_and_export_by_expiry(self):
         today = timezone.localdate()
         other_organ = TerritorialOrgan.objects.create(name="Second territorial organ", order_number=2)
+        self.user.profile.allowed_organs.add(other_organ)
         FireExtinguisher.objects.create(territorial_organ=self.organ, state_date=today, required_count=10, available_count=8, expiry_date=today + timedelta(days=10), writeoff_count=1)
         FireExtinguisher.objects.create(territorial_organ=self.organ, state_date=today, required_count=5, available_count=5, expiry_date=today + timedelta(days=90), writeoff_count=0)
         FireExtinguisher.objects.create(territorial_organ=other_organ, state_date=today, required_count=12, available_count=7, expiry_date=today - timedelta(days=5), writeoff_count=2)
@@ -698,7 +701,8 @@ class DepartmentTableTests(RequestAppTestCase):
         included = BuildingRepairRequest.objects.create(territorial_organ=self.organ, request_number="B-1", request_date="2026-06-20", status="in_work", comment="Roof")
         excluded = BuildingRepairRequest.objects.create(territorial_organ=self.organ, request_number="B-2", request_date="2026-06-20", status="done", comment="Roof")
         self.create_status_history_entry(included)
-        Department.objects.create(name="UOTO", slug="uoto", order_number=2)
+        uoto_department = Department.objects.create(name="UOTO", slug="uoto", order_number=2)
+        self.user.profile.allowed_departments.add(uoto_department)
         self.client.login(username="operator", password="pass12345")
 
         panel = self.client.get(reverse("department_tables", args=[self.organ.pk, "uoto"]))

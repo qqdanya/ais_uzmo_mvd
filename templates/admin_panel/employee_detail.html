@@ -4,7 +4,7 @@
 {% block title %}{{ display_name }} — Сотрудники{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260707-002">
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260707-003">
 {% endblock %}
 
 {% block content %}
@@ -95,6 +95,8 @@
                 <span class="admin-employee-right-chip">Полный доступ</span>
               {% elif all_organs %}
                 <span class="admin-employee-right-chip">Все территориальные органы</span>
+              {% elif no_organs %}
+                <span class="admin-employee-right-chip is-muted">Территориальные органы не выбраны</span>
               {% else %}
                 {% for organ in allowed_organs %}<span class="admin-employee-right-chip">{{ organ.order_number|floatformat:"-2" }}. {{ organ.name }}</span>{% endfor %}
               {% endif %}
@@ -119,7 +121,14 @@
               {% csrf_token %}
               <button class="btn btn-outline-primary" type="submit" name="action" value="reset_activation"{% if is_self %} disabled title="Нельзя сбросить активацию себе"{% endif %}><i class="bi bi-arrow-clockwise"></i> Сбросить активацию</button>
             </form>
-            <p>Удаление сотрудников не используется: блокировка сохраняет историю действий и связи с заявками.</p>
+            {% if request.user.is_superuser and not is_self %}
+              <form method="post" action="{% url 'admin_employee_action' employee.pk %}" data-confirm-title="Удаление сотрудника" data-confirm-message="Сотрудник будет удален из базы данных. Связанные заявки и события журнала останутся в системе без привязки к учетной записи." data-confirm-details="{{ display_name }} · {{ employee.username }}" data-confirm-confirm-label="Удалить сотрудника" data-confirm-variant="danger">
+                {% csrf_token %}
+                <button class="btn btn-outline-danger" type="submit" name="action" value="delete"><i class="bi bi-trash3"></i> Удалить из базы</button>
+              </form>
+            {% else %}
+              <p>Для обычных администраторов доступна блокировка. Безвозвратное удаление может выполнить только руководитель.</p>
+            {% endif %}
           </div>
         </section>
       </div>

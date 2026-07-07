@@ -54,4 +54,5 @@ AUDIT_EVENT_SUMMARIES = {
     "employee_blocked": "Сотрудник заблокирован",
     "employee_unblocked": "Сотрудник разблокирован",
     "employee_activation_reset": "Сброшена активация сотрудника",
+    "employee_deleted": "Сотрудник удален из базы данных",
 }

@@ -149,8 +149,8 @@ def role_badge_class(user):
 def rights_summary(qs, total_count, noun, *, empty_label=None):
     items = list(qs)
     if not items:
-        return empty_label or f"Все {noun}"
-    if len(items) == total_count:
+        return empty_label or "Доступ не выбран"
+    if total_count and len(items) == total_count:
         return f"Все {noun}"
     if len(items) == 1:
         return str(items[0])
@@ -162,7 +162,7 @@ def format_organs_summary(profile, total_organs, user=None):
         return "Полный доступ"
     if not profile:
         return "—"
-    return rights_summary(profile.allowed_organs.all(), total_organs, "территориальные органы")
+    return rights_summary(profile.allowed_organs.all(), total_organs, "территориальные органы", empty_label="Территориальные органы не выбраны")
 
 
 def format_departments_summary(profile, total_departments, user=None):
@@ -170,7 +170,7 @@ def format_departments_summary(profile, total_departments, user=None):
         return "Полный доступ"
     if not profile:
         return "—"
-    return rights_summary(profile.allowed_departments.all(), total_departments, "отделы")
+    return rights_summary(profile.allowed_departments.all(), total_departments, "отделы", empty_label="Отделы не выбраны")
 
 
 def has_all_departments_access(user, profile, total_departments):
@@ -179,7 +179,7 @@ def has_all_departments_access(user, profile, total_departments):
     if not profile:
         return False
     selected_count = profile.allowed_departments.count()
-    return selected_count == 0 or bool(total_departments and selected_count == total_departments)
+    return bool(total_departments and selected_count == total_departments)
 
 
 def has_all_organs_access(user, profile):
@@ -187,7 +187,7 @@ def has_all_organs_access(user, profile):
         return True
     if not profile:
         return False
-    return not profile.allowed_organs.exists()
+    return bool(profile.allowed_organs.exists()) and profile.allowed_organs.count() == top_level_organs().count()
 
 
 def activation_state(user):
@@ -307,13 +307,10 @@ def apply_employee_access_filters(users, filters):
     if filters["roles"]:
         users = users.filter(profile__role__in=filters["roles"])
     if filters["departments"]:
-        users = users.filter(
-            Q(profile__allowed_departments__slug__in=filters["departments"])
-            | Q(profile__allowed_departments__isnull=True)
-        )
+        users = users.filter(profile__allowed_departments__slug__in=filters["departments"])
     if filters["organs"]:
         organ_ids = [int(value) for value in filters["organs"]]
-        users = users.filter(Q(profile__allowed_organs__pk__in=organ_ids) | Q(profile__allowed_organs__isnull=True))
+        users = users.filter(profile__allowed_organs__pk__in=organ_ids)
     return users
 
 

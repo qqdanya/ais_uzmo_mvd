@@ -1,4 +1,5 @@
 from apps.accounts.models import UserProfile
+from apps.directory.models import Department
 
 
 def role_for(user):
@@ -19,16 +20,17 @@ def can_write(user, organ=None, department_slug=None):
     profile = getattr(user, "profile", None)
     if not profile:
         return False
+    departments = profile.allowed_departments.all()
+    if not departments.exists():
+        return False
     if department_slug:
-        departments = profile.allowed_departments.all()
-        # Empty department list means no department restriction.
-        # If departments are explicitly assigned, operator can write only within them.
-        if departments.exists() and not departments.filter(slug=department_slug).exists():
+        department_exists = Department.objects.filter(slug=department_slug, is_active=True).exists()
+        if department_exists and not departments.filter(slug=department_slug).exists():
             return False
     if organ is None:
         return True
     allowed = profile.allowed_organs.all()
-    return not allowed.exists() or allowed.filter(pk=organ.pk).exists()
+    return allowed.filter(pk=organ.pk).exists()
 
 
 def writable_department_ids(user):
@@ -65,7 +67,7 @@ def can_view(user, organ=None):
     if organ is None:
         return user.is_authenticated
     profile = getattr(user, "profile", None)
-    if not profile or profile.role == UserProfile.Role.OBSERVER:
-        return True
+    if not profile:
+        return False
     allowed = profile.allowed_organs.all()
-    return not allowed.exists() or allowed.filter(pk=organ.pk).exists()
+    return allowed.filter(pk=organ.pk).exists()

@@ -99,7 +99,7 @@ def scoped_organ_queryset(user):
         return organs
     organ_ids = profile_organ_ids(user)
     if not organ_ids:
-        return organs
+        return organs.none()
     return organs.filter(pk__in=organ_ids)
 
 
@@ -130,6 +130,8 @@ def scope_logs_for_user(logs, user):
         logs = logs.filter(user=user)
     if organ_ids:
         logs = logs.filter(Q(territorial_organ__isnull=True) | Q(territorial_organ_id__in=organ_ids))
+    else:
+        logs = logs.filter(territorial_organ__isnull=True)
     return logs
 
 

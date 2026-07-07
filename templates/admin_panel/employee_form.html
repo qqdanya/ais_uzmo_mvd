@@ -4,7 +4,7 @@
 {% block title %}{{ title }} — Сотрудники{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260707-002">
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260707-003">
 {% endblock %}
 
 {% block content %}
@@ -66,6 +66,7 @@
               <label class="admin-filter-field{% if form.username.errors %} has-error{% endif %}">
                 <span>{{ form.username.label }}</span>
                 {{ form.username }}
+                {{ form.username_auto }}
                 {% if form.username.help_text %}<small>{{ form.username.help_text }}</small>{% endif %}
                 {% for error in form.username.errors %}<em>{{ error }}</em>{% endfor %}
               </label>
@@ -82,17 +83,17 @@
         <div class="admin-employee-access-grid admin-employee-access-grid-redone">
           <section class="admin-employee-form-card admin-employee-rights-picker">
             <div class="admin-section-head admin-section-head-compact">
-              <div><h2>Отделы</h2><span>Если ничего не выбрано — доступ ко всем отделам.</span></div>
+              <div><h2>Отделы</h2><span>Если ничего не выбрано — доступа к отделам нет.</span></div>
             </div>
-            {% admin_multiselect name="allowed_departments" options=departments selected_values=selected_departments current_label=department_label empty_label="Все отделы" value_attr="pk" label_attr="name" root_class="admin-multiselect-large" menu_class="admin-multiselect-menu-wide" %}
+            {% admin_multiselect name="allowed_departments" options=departments selected_values=selected_departments current_label=department_label empty_label="Отделы не выбраны" value_attr="pk" label_attr="name" root_class="admin-multiselect-large" menu_class="admin-multiselect-menu-wide" %}
             {% for error in form.allowed_departments.errors %}<em class="admin-form-error">{{ error }}</em>{% endfor %}
           </section>
 
           <section class="admin-employee-form-card admin-employee-rights-picker">
             <div class="admin-section-head admin-section-head-compact">
-              <div><h2>Территориальные органы</h2><span>Если ничего не выбрано — доступ ко всем территориальным органам.</span></div>
+              <div><h2>Территориальные органы</h2><span>Если ничего не выбрано — доступа к территориальным органам нет.</span></div>
             </div>
-            {% admin_multiselect name="allowed_organs" options=organs selected_values=selected_organs current_label=organ_label empty_label="Все территориальные органы" value_attr="pk" label_attr="organ_full_name" root_class="admin-multiselect-large" menu_class="admin-multiselect-menu-wide admin-multiselect-menu-organs" %}
+            {% admin_multiselect name="allowed_organs" options=organs selected_values=selected_organs current_label=organ_label empty_label="Территориальные органы не выбраны" value_attr="pk" label_attr="organ_full_name" root_class="admin-multiselect-large" menu_class="admin-multiselect-menu-wide admin-multiselect-menu-organs" %}
             {% for error in form.allowed_organs.errors %}<em class="admin-form-error">{{ error }}</em>{% endfor %}
           </section>
         </div>
@@ -111,4 +112,9 @@
     </section>
   </section>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+{{ existing_usernames|json_script:"employee-existing-usernames" }}
+<script src="{% static 'js/employee_form.js' %}?v=20260707-002"></script>
 {% endblock %}

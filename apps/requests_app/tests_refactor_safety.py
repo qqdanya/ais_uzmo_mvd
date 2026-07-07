@@ -3,7 +3,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from apps.accounts.models import UserProfile
-from apps.directory.models import TerritorialOrgan
+from apps.directory.models import Department, TerritorialOrgan
 from apps.requests_app.models import RequestNumberRegistry, TmcRequest, VehicleFuelRequest, VehicleRepairRequest
 from apps.requests_app.services.request_numbers import REQUEST_NUMBER_DUPLICATE_MESSAGE
 
@@ -14,9 +14,13 @@ class RequestNumberRegistryRegressionTests(TestCase):
     def setUp(self):
         User = get_user_model()
         self.user = User.objects.create_user("operator", password="pass12345")
-        UserProfile.objects.create(user=self.user, role=UserProfile.Role.OPERATOR)
+        self.profile = UserProfile.objects.create(user=self.user, role=UserProfile.Role.OPERATOR)
         self.organ = TerritorialOrgan.objects.create(name="Main territorial organ", order_number=1)
         self.other_organ = TerritorialOrgan.objects.create(name="Other territorial organ", order_number=2)
+        self.department_tmc = Department.objects.create(name="TMC", slug="tmc", order_number=1)
+        self.department_transport = Department.objects.create(name="Transport", slug="transport", order_number=2)
+        self.profile.allowed_organs.set([self.organ, self.other_organ])
+        self.profile.allowed_departments.set([self.department_tmc, self.department_transport])
         self.client.login(username="operator", password="pass12345")
 
     def post_vehicle_repair(self, organ, request_number, **overrides):
@@ -203,8 +207,12 @@ class ThinViewRegressionSmokeTests(TestCase):
     def setUp(self):
         User = get_user_model()
         self.user = User.objects.create_user("operator", password="pass12345")
-        UserProfile.objects.create(user=self.user, role=UserProfile.Role.OPERATOR)
+        self.profile = UserProfile.objects.create(user=self.user, role=UserProfile.Role.OPERATOR)
         self.organ = TerritorialOrgan.objects.create(name="Main territorial organ", order_number=1)
+        self.department_tmc = Department.objects.create(name="TMC", slug="tmc", order_number=1)
+        self.department_transport = Department.objects.create(name="Transport", slug="transport", order_number=2)
+        self.profile.allowed_organs.set([self.organ])
+        self.profile.allowed_departments.set([self.department_tmc, self.department_transport])
         self.client.login(username="operator", password="pass12345")
 
     def test_main_refactored_table_endpoints_render_without_server_error(self):
