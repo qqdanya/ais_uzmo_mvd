@@ -1,14 +1,20 @@
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
 from apps.directory.models import Department, TerritorialOrgan
 
+from .forms import ACTIVATION_MAX_ATTEMPTS
 from .models import UserProfile
 
 
 class AccountFoundationTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.addCleanup(cache.clear)
+
     def test_profile_display_name_uses_last_name_and_initials(self):
         User = get_user_model()
         user = User.objects.create_user("petrov", first_name="Алексей", last_name="Петров", password="pass12345")
@@ -40,6 +46,29 @@ class AccountFoundationTests(TestCase):
         profile.refresh_from_db()
         self.assertTrue(user.check_password("StrongPass12345"))
         self.assertEqual(profile.activation_code, "")
+
+    def test_activation_locks_out_after_too_many_wrong_codes(self):
+        User = get_user_model()
+        user = User.objects.create_user("bruteforced", first_name="Иван", last_name="Иванов")
+        user.set_unusable_password()
+        user.save(update_fields=["password"])
+        UserProfile.objects.create(user=user, role=UserProfile.Role.OPERATOR, activation_code="123456")
+
+        payload = {
+            "username": "bruteforced",
+            "activation_code": "000000",
+            "password1": "StrongPass12345",
+            "password2": "StrongPass12345",
+        }
+        for _ in range(ACTIVATION_MAX_ATTEMPTS):
+            response = self.client.post(reverse("account_activate"), payload)
+            self.assertContains(response, "Неверный код активации.")
+
+        response = self.client.post(reverse("account_activate"), {**payload, "activation_code": "123456"})
+
+        self.assertContains(response, "Слишком много попыток активации")
+        user.refresh_from_db()
+        self.assertFalse(user.has_usable_password())
 
     def test_profile_generates_activation_code_for_unusable_password(self):
         User = get_user_model()

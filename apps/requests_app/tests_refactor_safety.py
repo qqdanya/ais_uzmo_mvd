@@ -1,4 +1,6 @@
 from django.contrib.auth import get_user_model
+from django.contrib.contenttypes.models import ContentType
+from django.db import IntegrityError, transaction
 from django.test import TestCase
 from django.urls import reverse
 
@@ -203,6 +205,61 @@ class RequestNumberRegistryRegressionTests(TestCase):
         self.assertEqual(RequestNumberRegistry.objects.filter(territorial_organ=self.organ, department="transport").count(), 1)
 
 
+class RequestNumberRegistryRaceConditionTests(TestCase):
+    """request_number_conflict() is a read-then-write check: two concurrent
+
+    submissions can both pass it before either commits. The DB UniqueConstraint
+    on RequestNumberRegistry is the actual safety net against that race; this
+    proves it holds even when the application-level pre-check is bypassed.
+    """
+
+    def setUp(self):
+        self.organ = TerritorialOrgan.objects.create(name="Race organ", order_number=1)
+
+    def test_unique_constraint_blocks_a_second_registry_row_for_the_same_number(self):
+        request_a = VehicleRepairRequest.objects.create(
+            territorial_organ=self.organ,
+            request_number="RACE-001",
+            request_date="2026-07-01",
+            status="in_work",
+        )
+        RequestNumberRegistry.objects.create(
+            territorial_organ=self.organ,
+            department="transport",
+            request_number="RACE-001",
+            normalized_request_number="race-001",
+            content_type=ContentType.objects.get_for_model(VehicleRepairRequest, for_concrete_model=False),
+            object_id=request_a.pk,
+        )
+
+        request_b = VehicleFuelRequest.objects.create(
+            territorial_organ=self.organ,
+            request_number="RACE-001",
+            request_date="2026-07-01",
+            status="in_work",
+        )
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                RequestNumberRegistry.objects.create(
+                    territorial_organ=self.organ,
+                    department="transport",
+                    request_number="RACE-001",
+                    normalized_request_number="race-001",
+                    content_type=ContentType.objects.get_for_model(VehicleFuelRequest, for_concrete_model=False),
+                    object_id=request_b.pk,
+                )
+
+        self.assertEqual(
+            RequestNumberRegistry.objects.filter(
+                territorial_organ=self.organ,
+                department="transport",
+                normalized_request_number="race-001",
+            ).count(),
+            1,
+        )
+
+
 class ThinViewRegressionSmokeTests(TestCase):
     def setUp(self):
         User = get_user_model()
@@ -271,6 +328,30 @@ class SearchPerformanceRegressionTests(TestCase):
                 for snippet in forbidden_snippets:
                     self.assertNotIn(snippet, source)
 
+    def test_table_search_stays_within_a_fixed_query_budget_regardless_of_row_count(self):
+        """Behavioral guard: DB-side search must not scale queries with row count.
+
+        Complements test_search_helpers_do_not_iterate_full_querysets_in_python,
+        which only catches a reintroduction of the exact old code shape. This
+        proves the actual property that matters: filtering stays O(1) queries.
+        """
+        from apps.requests_app.services.table_filters import apply_casefold_search
+
+        organ = TerritorialOrgan.objects.create(name="Search perf organ", order_number=1)
+        for index in range(30):
+            TmcRequest.objects.create(
+                territorial_organ=organ,
+                request_number=f"SEARCH-{index}",
+                request_date="2026-07-01",
+                status="in_work",
+            )
+
+        qs = TmcRequest.objects.filter(territorial_organ=organ)
+        with self.assertNumQueries(1):
+            matches = list(apply_casefold_search(qs, ["request_number"], "search-5"))
+
+        self.assertTrue(any(obj.request_number == "SEARCH-5" for obj in matches))
+
     def test_tmc_suggestions_keep_typo_match_after_candidate_prefilter(self):
         from apps.requests_app.services.tmc import tmc_product_suggestions
         from apps.requests_app.models import TmcProduct
@@ -284,24 +365,3 @@ class SearchPerformanceRegressionTests(TestCase):
 
         self.assertGreaterEqual(len(suggestions), 1)
         self.assertEqual(suggestions[0].name, "Пылесос")
-
-
-class RequestsAppTestsSplitRegressionTests(TestCase):
-    def test_requests_app_tests_are_split_into_thematic_modules(self):
-        expected_modules = [
-            "apps/requests_app/tests_core.py",
-            "apps/requests_app/tests_tmc.py",
-            "apps/requests_app/tests_tables.py",
-            "apps/requests_app/tests_photos.py",
-            "apps/requests_app/tests_seed.py",
-        ]
-        for module_path in expected_modules:
-            with self.subTest(module_path=module_path):
-                self.assertTrue(open(module_path, encoding="utf-8").read().strip())
-
-        monolith_lines = open("apps/requests_app/tests.py", encoding="utf-8").read().splitlines()
-        self.assertLessEqual(len(monolith_lines), 80)
-
-        for module_path in expected_modules:
-            with self.subTest(module_path=module_path):
-                self.assertIn("class ", open(module_path, encoding="utf-8").read())

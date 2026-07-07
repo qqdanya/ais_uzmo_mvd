@@ -64,6 +64,8 @@ ORGANS = [
     ("37", "Отдел МВД России по Эвенкийскому району", ["Пункт полиции № 1 (с. Байкит)", "Пункт полиции № 2 (с. Ванавара)"]),
 ]
 
+KNOWN_PLACEHOLDER_SUPERUSER_PASSWORDS = {"admin12345", "change-me-before-deploy"}
+
 
 class Command(BaseCommand):
     help = "Создает начальные отделы, территориальные органы и суперпользователя из env."
@@ -94,5 +96,10 @@ class Command(BaseCommand):
                 user.save(update_fields=["password"])
             UserProfile.objects.get_or_create(user=user, defaults={"role": UserProfile.Role.ADMIN})
             self.stdout.write(self.style.SUCCESS(f"Суперпользователь готов: {username}"))
+            if password in KNOWN_PLACEHOLDER_SUPERUSER_PASSWORDS:
+                self.stdout.write(self.style.WARNING(
+                    "SUPERUSER_PASSWORD совпадает с примером из .env.example/.env.production.example. "
+                    "Смените пароль суперпользователя и удалите SUPERUSER_PASSWORD из .env перед вводом в эксплуатацию."
+                ))
 
         self.stdout.write(self.style.SUCCESS("Начальные данные загружены без дублей."))
