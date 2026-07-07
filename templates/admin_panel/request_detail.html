@@ -4,18 +4,18 @@
 {% block title %}Заявка {{ request_number }} — Административная панель{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260705-009">
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260705-016">
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid py-3 admin-command-page admin-requests-page">
   <section class="panel admin-command-panel admin-executive-panel">
-    {% include "admin_panel/_executive_nav.html" with active_tab="requests" %}
+    {% include "admin_panel/_executive_nav.html" with active_tab=active_tab %}
 
     <section class="admin-request-detail-screen" aria-label="Карточка заявки">
       <div class="admin-request-detail-head">
         <div>
-          <a class="admin-back-link" href="{{ back_url }}"><i class="bi bi-arrow-left"></i> Назад к реестру</a>
+          <a class="admin-back-link" href="{{ back_url }}"><i class="bi bi-arrow-left"></i> {% if is_deleted_detail %}Назад в корзину{% else %}Назад к реестру{% endif %}</a>
           <h2>{{ request_title }} № {{ request_number }}</h2>
           <p>{{ object.territorial_organ.name }} · {{ department_name }}</p>
         </div>
@@ -29,6 +29,13 @@
           {% endif %}
         </div>
       </div>
+
+      {% if is_deleted_detail %}
+        <div class="alert alert-warning admin-deleted-record-alert" role="alert">
+          <i class="bi bi-trash3"></i>
+          Эта запись находится в корзине. Её можно просмотреть, но нельзя редактировать, пока она не будет восстановлена.
+        </div>
+      {% endif %}
 
       <div class="admin-request-detail-grid">
         <section class="admin-section">

@@ -318,7 +318,12 @@ def build_request_detail_context(request, table_key, pk):
     table = table_for_detail(table_key)
     if not table:
         raise Http404
-    obj = get_object_or_404(table["model"].objects.select_related("territorial_organ", "created_by", "updated_by"), pk=pk, is_deleted=False)
+    show_deleted = request.GET.get("deleted") == "1"
+    obj = get_object_or_404(
+        table["model"].objects.select_related("territorial_organ", "created_by", "updated_by"),
+        pk=pk,
+        is_deleted=show_deleted,
+    )
     if not can_view(request.user, obj.territorial_organ):
         raise Http404
     departments = department_name_map()
@@ -327,7 +332,7 @@ def build_request_detail_context(request, table_key, pk):
     photo_count = RequestPhotoLink.objects.filter(content_type=content_type, object_id=obj.pk).count()
     days = processing_days(obj)
     return {
-        "active_tab": "requests",
+        "active_tab": "trash" if show_deleted else "requests",
         "table": table,
         "object": obj,
         "request_number": request_number(obj),
@@ -342,6 +347,7 @@ def build_request_detail_context(request, table_key, pk):
         "fields": build_detail_fields(table, obj),
         "history": history,
         "photo_count": photo_count,
-        "back_url": request.META.get("HTTP_REFERER") or reverse("admin_requests_panel"),
-        "edit_url": reverse("record_update", kwargs={"organ_id": obj.territorial_organ_id, "table_key": table_key, "pk": obj.pk}),
+        "back_url": request.META.get("HTTP_REFERER") or (reverse("admin_trash_panel") + "?section=requests" if show_deleted else reverse("admin_requests_panel")),
+        "is_deleted_detail": show_deleted,
+        "edit_url": "" if show_deleted else reverse("record_update", kwargs={"organ_id": obj.territorial_organ_id, "table_key": table_key, "pk": obj.pk}),
     }

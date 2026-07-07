@@ -236,6 +236,8 @@
   border-right: 1px solid #c6dbe9;
   border-bottom: 1px solid #c6dbe9;
   vertical-align: middle;
+  background-clip: padding-box;
+  transition: background-color .14s var(--motion-smooth), border-color .14s var(--motion-smooth);
 }
 .admin-requests-table th:last-child,
 .admin-requests-table td:last-child {
@@ -248,7 +250,16 @@
   background: #e5f1fa;
   color: var(--navy);
   font-size: .76rem;
+  text-align: center;
   white-space: nowrap;
+}
+.admin-requests-table td:last-child {
+  text-align: center;
+}
+.admin-requests-table td:last-child .btn,
+.admin-requests-table td:last-child .admin-inline-action-form,
+.admin-requests-table td:last-child .admin-table-action-stack {
+  justify-content: center;
 }
 .admin-requests-table tbody tr:hover td {
   background: #f4faff;

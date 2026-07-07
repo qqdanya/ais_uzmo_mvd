@@ -3,14 +3,16 @@ import shutil
 import tempfile
 from pathlib import Path
 
+from PIL import Image
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
 from apps.audit.models import AuditLog
-from apps.directory.models import Department, TerritorialOrgan
-from apps.requests_app.models import FireExtinguisher, NeedStatus, TmcRequest, VehicleRepairRequest
+from apps.directory.models import Department, TerritorialOrgan, TerritorialOrganPhoto, TerritorialOrganPhotoFolder
+from apps.requests_app.models import FireExtinguisher, NeedStatus, RequestNumberRegistry, RequestPhotoLink, TmcRequest, VehicleRepairRequest
 
 from .admin_thresholds import _THRESHOLDS_CACHE, get_dashboard_thresholds
 from .models import UserProfile
@@ -1062,3 +1064,311 @@ class AdminSearchOptimizationTests(TestCase):
         self.assertIn("from .admin_employee_core import", employees_panel)
         self.assertIn("from .admin_employee_actions import", employees_panel)
         self.assertIn("from .admin_asset_services import", assets_panel)
+
+
+class AdminTrashPanelTests(AdminPanelTestMixin, TestCase):
+    def setUp(self):
+        super().setUp()
+        self.media_root = tempfile.mkdtemp()
+        self.override = override_settings(MEDIA_ROOT=self.media_root)
+        self.override.enable()
+        self.addCleanup(self.override.disable)
+        self.addCleanup(shutil.rmtree, self.media_root, ignore_errors=True)
+
+    def uploaded_image(self, filename="trash.png"):
+        buffer = tempfile.SpooledTemporaryFile()
+        Image.new("RGB", (4, 4), "white").save(buffer, format="PNG")
+        buffer.seek(0)
+        return SimpleUploadedFile(filename, buffer.read(), content_type="image/png")
+
+    def test_trash_panel_is_available_to_admin(self):
+        self.login_admin()
+
+        response = self.client.get(reverse("admin_trash_panel"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["active_tab"], "trash")
+        self.assertContains(response, "Корзина удаленных объектов")
+        self.assertContains(response, "admin-top-tab admin-top-tab-separated active")
+
+    def test_trash_tab_has_separate_right_alignment_and_card_spacing_styles(self):
+        project_root = Path(__file__).resolve().parents[2]
+        base_css = (project_root / "static" / "css" / "admin" / "base.css").read_text(encoding="utf-8")
+        trash_css = (project_root / "static" / "css" / "admin" / "trash.css").read_text(encoding="utf-8")
+
+        self.assertIn(".admin-top-tab-separated", base_css)
+        self.assertIn("margin-left: auto", base_css)
+        self.assertIn(".admin-trash-screen", trash_css)
+        self.assertIn("display: grid", trash_css)
+        self.assertIn("gap: 12px", trash_css)
+        self.assertIn(".admin-trash-filter-row", trash_css)
+        self.assertIn("display: flex", trash_css)
+        self.assertIn("flex: 1 1 320px", trash_css)
+        self.assertIn(".admin-trash-filter-actions", trash_css)
+        self.assertIn("flex: 0 0 auto", trash_css)
+        self.assertIn(".admin-trash-action-cell", trash_css)
+        self.assertIn("vertical-align: middle", trash_css)
+        self.assertIn("justify-content: center", trash_css)
+        self.assertIn(".admin-trash-folder-node", trash_css)
+        self.assertIn(".admin-trash-folder-child-list", trash_css)
+        self.assertIn("margin-left: calc(var(--tree-depth, 0) * 18px)", trash_css)
+
+    def test_admin_tables_have_centered_headers_and_smooth_hover(self):
+        project_root = Path(__file__).resolve().parents[2]
+        requests_css = (project_root / "static" / "css" / "admin" / "requests.css").read_text(encoding="utf-8")
+        admin_css = (project_root / "static" / "css" / "admin.css").read_text(encoding="utf-8")
+        trash_template = (project_root / "templates" / "admin_panel" / "trash.html").read_text(encoding="utf-8")
+
+        self.assertIn(".admin-requests-table thead th", requests_css)
+        self.assertIn("text-align: center", requests_css)
+        self.assertIn("transition: background-color .14s var(--motion-smooth), border-color .14s var(--motion-smooth)", requests_css)
+        self.assertIn(".admin-requests-table td:last-child", requests_css)
+        self.assertIn("justify-content: center", requests_css)
+        self.assertIn("admin/requests.css?v=20260705-016", admin_css)
+        self.assertIn("admin/trash.css?v=20260705-016", admin_css)
+        self.assertIn("css/admin.css' %}?v=20260705-016", trash_template)
+
+
+    def test_trash_request_rows_have_open_button_and_deleted_detail_view(self):
+        self.login_admin()
+        request_obj = TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            created_by=self.admin,
+            updated_by=self.admin,
+            request_number="ТМЦ-OPEN",
+            request_date=timezone.localdate(),
+            comment="Удалённая запись для просмотра",
+            is_deleted=True,
+        )
+
+        response = self.client.get(reverse("admin_trash_panel") + "?section=requests")
+
+        self.assertEqual(response.status_code, 200)
+        detail_url = reverse("admin_request_detail", kwargs={"table_key": "tmc-requests", "pk": request_obj.pk}) + "?deleted=1"
+        self.assertContains(response, f'href="{detail_url}"')
+        self.assertContains(response, "Открыть")
+        self.assertContains(response, "admin-trash-action-cell")
+
+        detail_response = self.client.get(detail_url)
+
+        self.assertEqual(detail_response.status_code, 200)
+        self.assertEqual(detail_response.context["active_tab"], "trash")
+        self.assertTrue(detail_response.context["is_deleted_detail"])
+        self.assertContains(detail_response, "Эта запись находится в корзине")
+        self.assertContains(detail_response, "Назад в корзину")
+        self.assertNotContains(detail_response, "Назад к реестру")
+        self.assertContains(detail_response, "Удалённая запись для просмотра")
+
+    def test_trash_request_rows_show_department_display_name(self):
+        self.login_admin()
+        self.department_transport.name = "Автотранспортное хозяйство"
+        self.department_transport.save(update_fields=["name"])
+        VehicleRepairRequest.objects.create(
+            territorial_organ=self.organ,
+            created_by=self.admin,
+            updated_by=self.admin,
+            request_number="АТХ-404",
+            request_date=timezone.localdate(),
+            is_deleted=True,
+        )
+
+        response = self.client.get(reverse("admin_trash_panel") + "?section=requests")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Автотранспортное хозяйство")
+        self.assertNotContains(response, ">transport</span>")
+
+    def test_trash_photo_rows_show_lightbox_thumbnail(self):
+        self.login_admin()
+        parent = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Акты", created_by=self.admin, updated_by=self.admin, is_deleted=True)
+        child = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, parent=parent, name="Проверка", created_by=self.admin, updated_by=self.admin, is_deleted=True)
+        photo = TerritorialOrganPhoto.objects.create(
+            territorial_organ=self.organ,
+            folder=child,
+            image=self.uploaded_image("trash-preview.png"),
+            description="Фото для предпросмотра",
+            created_by=self.admin,
+            updated_by=self.admin,
+            is_deleted=True,
+        )
+
+        response = self.client.get(reverse("admin_trash_panel") + "?section=photos")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "admin-trash-photo-thumb")
+        self.assertContains(response, "data-lightbox-photo")
+        self.assertContains(response, photo.image.url)
+        self.assertContains(response, "Фото для предпросмотра")
+        self.assertContains(response, "Акты / Проверка")
+        self.assertNotContains(response, ">Корень / Акты / Проверка<")
+
+    def test_trash_folder_rows_show_mini_browser_with_deleted_photos(self):
+        self.login_admin()
+        folder = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Удалённый объект", created_by=self.admin, updated_by=self.admin, is_deleted=True)
+        child = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, parent=folder, name="Вложенный акт", created_by=self.admin, updated_by=self.admin, is_deleted=True)
+        grandchild = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, parent=child, name="Глубокая папка", created_by=self.admin, updated_by=self.admin, is_deleted=True)
+        photo = TerritorialOrganPhoto.objects.create(
+            territorial_organ=self.organ,
+            folder=grandchild,
+            image=self.uploaded_image("nested-preview.png"),
+            created_by=self.admin,
+            updated_by=self.admin,
+            is_deleted=True,
+        )
+
+        response = self.client.get(reverse("admin_trash_panel") + "?section=folders")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["folder_page"].paginator.count, 1)
+        self.assertContains(response, "admin-trash-folder-node")
+        self.assertContains(response, "admin-trash-folder-child-list")
+        self.assertContains(response, "Вложенный акт")
+        self.assertContains(response, "Глубокая папка")
+        self.assertContains(response, 'style="--tree-depth: 1;"')
+        self.assertContains(response, 'style="--tree-depth: 2;"')
+        self.assertContains(response, "Фотографии в этой папке")
+        self.assertNotContains(response, "Фотографии в дереве папки")
+        self.assertContains(response, f'data-lightbox-group="trash-folder-{grandchild.pk}"')
+        self.assertContains(response, photo.image.url)
+        self.assertContains(response, "nested-preview.png")
+        self.assertContains(response, "Удалить папку")
+        self.assertNotContains(response, ">Очистить</button>")
+
+
+    def test_trash_restore_child_folder_warning_uses_visible_alert(self):
+        self.login_admin()
+        folder = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Родитель", created_by=self.admin, updated_by=self.admin, is_deleted=True)
+        child = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, parent=folder, name="Подпапка", created_by=self.admin, updated_by=self.admin, is_deleted=True)
+
+        response = self.client.post(reverse("admin_trash_restore_folder", kwargs={"pk": child.pk}), follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "alert-danger")
+        self.assertContains(response, "Нельзя восстановить папку: сначала восстановите родительскую папку.")
+
+    def test_trash_restores_deleted_request_and_registry_number(self):
+        self.login_admin()
+        request_obj = TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            created_by=self.admin,
+            updated_by=self.admin,
+            request_number="ТМЦ-777",
+            request_date=timezone.localdate(),
+            is_deleted=True,
+        )
+        self.assertFalse(RequestNumberRegistry.objects.exists())
+
+        response = self.client.post(reverse("admin_trash_restore_request", kwargs={"table_key": "tmc-requests", "pk": request_obj.pk}))
+
+        self.assertEqual(response.status_code, 302)
+        request_obj.refresh_from_db()
+        self.assertFalse(request_obj.is_deleted)
+        self.assertTrue(RequestNumberRegistry.objects.filter(object_id=request_obj.pk, request_number="ТМЦ-777").exists())
+        self.assertTrue(AuditLog.objects.filter(model_name="TmcRequest", object_id=str(request_obj.pk), new_values__audit_event="request_restored_from_trash").exists())
+
+    def test_trash_restores_deleted_photo(self):
+        self.login_admin()
+        photo = TerritorialOrganPhoto.objects.create(
+            territorial_organ=self.organ,
+            image=self.uploaded_image("restore.png"),
+            created_by=self.admin,
+            updated_by=self.admin,
+            is_deleted=True,
+        )
+
+        response = self.client.post(reverse("admin_trash_restore_photo", kwargs={"pk": photo.pk}))
+
+        self.assertEqual(response.status_code, 302)
+        photo.refresh_from_db()
+        self.assertFalse(photo.is_deleted)
+        self.assertTrue(AuditLog.objects.filter(model_name="TerritorialOrganPhoto", object_id=str(photo.pk), new_values__audit_event="photo_restored_from_trash").exists())
+
+    def test_trash_permanently_deletes_soft_deleted_photo_file_for_leader(self):
+        self.login_admin()
+        photo = TerritorialOrganPhoto.objects.create(
+            territorial_organ=self.organ,
+            image=self.uploaded_image("purge.png"),
+            created_by=self.admin,
+            updated_by=self.admin,
+            is_deleted=True,
+        )
+        file_path = Path(photo.image.path)
+        self.assertTrue(file_path.exists())
+        request_obj = TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            created_by=self.admin,
+            request_number="ТМЦ-778",
+            request_date=timezone.localdate(),
+        )
+        RequestPhotoLink.objects.create(territorial_organ=self.organ, photo=photo, request=request_obj, created_by=self.admin)
+
+        response = self.client.post(reverse("admin_trash_purge_photo", kwargs={"pk": photo.pk}))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(TerritorialOrganPhoto.objects.filter(pk=photo.pk).exists())
+        self.assertFalse(file_path.exists())
+        self.assertFalse(RequestPhotoLink.objects.filter(photo_id=photo.pk).exists())
+        self.assertTrue(AuditLog.objects.filter(model_name="TerritorialOrganPhoto", object_id=str(photo.pk), new_values__audit_event="photo_file_permanently_deleted").exists())
+
+    def test_profile_admin_cannot_permanently_delete_photo_file(self):
+        profile_admin = self.User.objects.create_user("profile_admin", password="pass12345", is_staff=False)
+        UserProfile.objects.create(user=profile_admin, role=UserProfile.Role.ADMIN)
+        self.client.login(username="profile_admin", password="pass12345")
+        photo = TerritorialOrganPhoto.objects.create(
+            territorial_organ=self.organ,
+            image=self.uploaded_image("forbidden.png"),
+            created_by=self.admin,
+            updated_by=self.admin,
+            is_deleted=True,
+        )
+
+        response = self.client.post(reverse("admin_trash_purge_photo", kwargs={"pk": photo.pk}))
+
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(TerritorialOrganPhoto.objects.filter(pk=photo.pk).exists())
+
+    def test_trash_restores_deleted_folder_tree_with_photos(self):
+        self.login_admin()
+        folder = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Удалённая папка", created_by=self.admin, updated_by=self.admin, is_deleted=True)
+        child = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, parent=folder, name="Вложенная", created_by=self.admin, updated_by=self.admin, is_deleted=True)
+        photo = TerritorialOrganPhoto.objects.create(
+            territorial_organ=self.organ,
+            folder=child,
+            image=self.uploaded_image("nested.png"),
+            created_by=self.admin,
+            updated_by=self.admin,
+            is_deleted=True,
+        )
+
+        response = self.client.post(reverse("admin_trash_restore_folder", kwargs={"pk": folder.pk}))
+
+        self.assertEqual(response.status_code, 302)
+        folder.refresh_from_db()
+        child.refresh_from_db()
+        photo.refresh_from_db()
+        self.assertFalse(folder.is_deleted)
+        self.assertFalse(child.is_deleted)
+        self.assertFalse(photo.is_deleted)
+        self.assertTrue(AuditLog.objects.filter(model_name="TerritorialOrganPhotoFolder", object_id=str(folder.pk), new_values__audit_event="photo_folder_tree_restored_from_trash").exists())
+
+    def test_trash_permanently_deletes_deleted_folder_tree_and_files_for_leader(self):
+        self.login_admin()
+        folder = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Очистить", created_by=self.admin, updated_by=self.admin, is_deleted=True)
+        photo = TerritorialOrganPhoto.objects.create(
+            territorial_organ=self.organ,
+            folder=folder,
+            image=self.uploaded_image("folder-purge.png"),
+            created_by=self.admin,
+            updated_by=self.admin,
+            is_deleted=True,
+        )
+        file_path = Path(photo.image.path)
+        self.assertTrue(file_path.exists())
+
+        response = self.client.post(reverse("admin_trash_purge_folder", kwargs={"pk": folder.pk}))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(TerritorialOrganPhotoFolder.objects.filter(pk=folder.pk).exists())
+        self.assertFalse(TerritorialOrganPhoto.objects.filter(pk=photo.pk).exists())
+        self.assertFalse(file_path.exists())
+        self.assertTrue(AuditLog.objects.filter(model_name="TerritorialOrganPhotoFolder", object_id=str(folder.pk), new_values__audit_event="photo_folder_tree_permanently_deleted").exists())

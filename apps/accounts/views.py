@@ -22,6 +22,15 @@ from .admin_organs import build_organ_detail_context, build_organs_context
 from .admin_requests import build_request_detail_context, build_requests_context
 from .admin_settings import build_settings_context, handle_settings_post
 from .admin_summary import build_summary_context, build_summary_payload
+from .admin_trash import (
+    add_action_message,
+    build_trash_context,
+    permanently_delete_folder_tree,
+    permanently_delete_photo,
+    restore_folder_tree,
+    restore_photo,
+    restore_request_record,
+)
 from .forms import AccountActivationForm
 from .models import UserProfile
 
@@ -255,6 +264,47 @@ def admin_threshold_settings(request):
         if context is None:
             return redirect("admin_threshold_settings")
     return render(request, "admin_panel/settings.html", context or build_settings_context())
+
+
+
+@admin_required
+def admin_trash_panel(request):
+    return render(request, "admin_panel/trash.html", build_trash_context(request))
+
+
+@admin_required
+@require_POST
+def admin_trash_restore_request(request, table_key, pk):
+    add_action_message(request, restore_request_record(request, table_key, pk))
+    return redirect("admin_trash_panel")
+
+
+@admin_required
+@require_POST
+def admin_trash_restore_photo(request, pk):
+    add_action_message(request, restore_photo(request, pk))
+    return redirect("admin_trash_panel")
+
+
+@admin_required
+@require_POST
+def admin_trash_purge_photo(request, pk):
+    add_action_message(request, permanently_delete_photo(request, pk))
+    return redirect("admin_trash_panel")
+
+
+@admin_required
+@require_POST
+def admin_trash_restore_folder(request, pk):
+    add_action_message(request, restore_folder_tree(request, pk))
+    return redirect("admin_trash_panel")
+
+
+@admin_required
+@require_POST
+def admin_trash_purge_folder(request, pk):
+    add_action_message(request, permanently_delete_folder_tree(request, pk))
+    return redirect("admin_trash_panel")
 
 
 @admin_required

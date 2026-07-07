@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Корзина — Административная панель{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260705-016">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3 admin-command-page admin-trash-page">
+  <section class="panel admin-command-panel admin-executive-panel">
+    {% include "admin_panel/_executive_nav.html" with active_tab="trash" %}
+
+    <section class="admin-trash-screen" aria-label="Корзина удаленных объектов">
+      <div class="admin-requests-hero admin-trash-hero">
+        <div>
+          <h2>Корзина удаленных объектов</h2>
+          <p>Мягко удалённые записи не отображаются в рабочих таблицах, но остаются в системе. Здесь их можно восстановить; безвозвратная очистка файлов доступна только руководителю.</p>
+        </div>
+        <div class="admin-requests-total">
+          <span>Удалённых объектов</span>
+          <strong>{{ counts.requests|add:counts.photos|add:counts.folders }}</strong>
+        </div>
+      </div>
+
+      {% if messages %}
+        <div class="admin-message-stack" aria-live="polite">
+          {% for message in messages %}
+            <div class="alert {% if 'error' in message.tags %}alert-danger{% elif 'success' in message.tags %}alert-success{% elif 'warning' in message.tags %}alert-warning{% else %}alert-info{% endif %} mb-2">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      <section class="admin-assets-kpi admin-trash-kpi" aria-label="Сводка корзины">
+        <article class="admin-requests-kpi-card admin-assets-kpi-card">
+          <span class="admin-requests-kpi-icon"><i class="bi bi-inboxes"></i></span>
+          <div><strong>{{ counts.requests }}</strong><span>Записей таблиц</span><small>доступно восстановление</small></div>
+        </article>
+        <article class="admin-requests-kpi-card admin-assets-kpi-card">
+          <span class="admin-requests-kpi-icon"><i class="bi bi-images"></i></span>
+          <div><strong>{{ counts.photos }}</strong><span>Фотографий</span><small>можно восстановить или очистить файл</small></div>
+        </article>
+        <article class="admin-requests-kpi-card admin-assets-kpi-card">
+          <span class="admin-requests-kpi-icon"><i class="bi bi-folder2-open"></i></span>
+          <div><strong>{{ counts.folders }}</strong><span>Папок фотоархива</span><small>восстановление дерева папки</small></div>
+        </article>
+      </section>
+
+      <nav class="admin-status-tabs" aria-label="Разделы корзины">
+        <a class="admin-status-tab{% if section == 'all' %} active{% endif %}" href="{% url 'admin_trash_panel' %}{% if query %}?q={{ query|urlencode }}{% endif %}"><span>Все</span><strong>{{ counts.requests|add:counts.photos|add:counts.folders }}</strong></a>
+        <a class="admin-status-tab{% if section == 'requests' %} active{% endif %}" href="{% url 'admin_trash_panel' %}?section=requests{% if query %}&q={{ query|urlencode }}{% endif %}"><span>Записи таблиц</span><strong>{{ counts.requests }}</strong></a>
+        <a class="admin-status-tab{% if section == 'photos' %} active{% endif %}" href="{% url 'admin_trash_panel' %}?section=photos{% if query %}&q={{ query|urlencode }}{% endif %}"><span>Фотографии</span><strong>{{ counts.photos }}</strong></a>
+        <a class="admin-status-tab{% if section == 'folders' %} active{% endif %}" href="{% url 'admin_trash_panel' %}?section=folders{% if query %}&q={{ query|urlencode }}{% endif %}"><span>Папки</span><strong>{{ counts.folders }}</strong></a>
+      </nav>
+
+      <form class="admin-section admin-assets-filter admin-trash-filter" method="get">
+        <div class="admin-section-head">
+          <div>
+            <h2>Фильтр</h2>
+            <span>Поиск по номеру, названию органа, папке, файлу или описанию</span>
+          </div>
+        </div>
+        <input type="hidden" name="section" value="{{ section }}">
+        <div class="admin-trash-filter-row">
+          <label class="admin-filter-field admin-filter-field-search admin-trash-filter-search">
+            <span>Поиск</span>
+            <input class="form-control form-control-sm" type="search" name="q" value="{{ query }}" placeholder="Например: номер заявки, IMG_001, ОП №1">
+          </label>
+          <div class="admin-filter-actions admin-trash-filter-actions">
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_trash_panel' %}"><i class="bi bi-arrow-counterclockwise"></i> Сбросить</a>
+            <button class="btn btn-sm btn-primary" type="submit"><i class="bi bi-search"></i> Найти</button>
+          </div>
+        </div>
+      </form>
+
+      {% if section == 'all' or section == 'requests' %}
+        <section class="admin-section admin-requests-table-section">
+          <div class="admin-section-head"><div><h2>Удалённые записи таблиц</h2><span>Для заявок и табличных записей доступно безопасное восстановление. Окончательное удаление из БД не выполняется.</span></div></div>
+          {% if request_page.object_list %}
+            <div class="admin-requests-table-wrap">
+              <table class="admin-requests-table">
+                <thead><tr><th>Запись</th><th>Территориальный орган</th><th>Отдел</th><th>Удалено/изменено</th><th>Действия</th></tr></thead>
+                <tbody>
+                  {% for row in request_page.object_list %}
+                    <tr>
+                      <td><strong>{{ row.title }}{% if row.number %} № {{ row.number }}{% endif %}</strong>{% if row.detail %}<small class="d-block text-muted">{{ row.detail|truncatechars:90 }}</small>{% endif %}</td>
+                      <td>{{ row.organ.name }}</td>
+                      <td><span class="admin-department-pill"><i class="bi {{ row.department_icon }}"></i>{{ row.department }}</span></td>
+                      <td>{{ row.updated_at|date:"d.m.Y H:i" }}{% if row.updated_by %}<small class="d-block text-muted">{{ row.updated_by.get_full_name|default:row.updated_by.username }}</small>{% endif %}</td>
+                      <td class="admin-trash-action-cell">
+                        <div class="admin-trash-actions">
+                          <a class="btn btn-sm btn-outline-primary" href="{{ row.detail_url }}"><i class="bi bi-eye"></i> Открыть</a>
+                          <form method="post" action="{{ row.restore_url }}" class="admin-inline-action-form">{% csrf_token %}<button class="btn btn-sm btn-outline-primary" type="submit"><i class="bi bi-arrow-counterclockwise"></i> Восстановить</button></form>
+                        </div>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            <div class="admin-pagination-row"><span>Показано {{ request_page.start_index }}–{{ request_page.end_index }} из {{ request_page.paginator.count }}</span>{% include "partials/pagination.html" with pagination_page=request_page pagination_links=request_page_links pagination_base_url=request.path pagination_querystring=request_querystring pagination_mode="link" pagination_nav_class="admin-requests-pagination table-pagination" pagination_aria_label="Страницы удалённых записей" %}</div>
+          {% else %}
+            <div class="admin-empty admin-empty-compact"><i class="bi bi-inbox"></i><strong>Удалённых записей таблиц нет</strong></div>
+          {% endif %}
+        </section>
+      {% endif %}
+
+      {% if section == 'all' or section == 'photos' %}
+        <section class="admin-section admin-requests-table-section">
+          <div class="admin-section-head"><div><h2>Удалённые фотографии</h2><span>Восстановление возвращает фотографию в фотоархив. Безвозвратная очистка удаляет файл с сервера и запись из базы.</span></div></div>
+          {% if photo_page.object_list %}
+            <div class="admin-requests-table-wrap">
+              <table class="admin-requests-table">
+                <thead><tr><th>Файл</th><th>Территориальный орган</th><th>Папка</th><th>Связей с заявками</th><th>Удалено/изменено</th><th>Действия</th></tr></thead>
+                <tbody>
+                  {% for photo in photo_page.object_list %}
+                    <tr>
+                      <td>
+                        <div class="admin-trash-photo-cell" data-lightbox-scope>
+                          {% if photo.image %}
+                            <button class="admin-trash-photo-thumb" type="button" data-lightbox-photo data-lightbox-group="trash-photos" data-src="{{ photo.image.url }}" data-download-url="{{ photo.image.url }}" data-description="{{ photo.description|default:'Описание не добавлено' }}" data-meta="{{ photo.updated_at|date:'d.m.Y H:i' }} · {{ photo.updated_by|default:'-' }}" aria-label="Открыть удалённую фотографию {{ photo.original_filename|default:photo.image.name }}">
+                              <img src="{{ photo.image.url }}" alt="{{ photo.description|default:photo.original_filename }}" loading="lazy">
+                            </button>
+                          {% else %}
+                            <span class="admin-trash-photo-thumb admin-trash-photo-thumb-empty"><i class="bi bi-image"></i></span>
+                          {% endif %}
+                          <span class="admin-trash-photo-text"><strong>{{ photo.original_filename|default:photo.image.name }}</strong>{% if photo.description %}<small class="d-block text-muted">{{ photo.description|truncatechars:90 }}</small>{% endif %}</span>
+                        </div>
+                      </td>
+                      <td>{{ photo.territorial_organ.name }}</td>
+                      <td>{% if photo.trash_folder_path %}{{ photo.trash_folder_path }}{% else %}<span class="text-muted">Без папки</span>{% endif %}</td>
+                      <td>{{ photo.link_count }}</td>
+                      <td>{{ photo.updated_at|date:"d.m.Y H:i" }}{% if photo.updated_by %}<small class="d-block text-muted">{{ photo.updated_by.get_full_name|default:photo.updated_by.username }}</small>{% endif %}</td>
+                      <td class="admin-trash-action-cell">
+                        <div class="admin-trash-actions">
+                          <form method="post" action="{% url 'admin_trash_restore_photo' photo.pk %}" class="admin-inline-action-form">{% csrf_token %}<button class="btn btn-sm btn-outline-primary" type="submit"><i class="bi bi-arrow-counterclockwise"></i> Восстановить</button></form>
+                          {% if is_leader %}
+                            <form method="post" action="{% url 'admin_trash_purge_photo' photo.pk %}" class="admin-inline-action-form" onsubmit="return confirm('Безвозвратно удалить фотографию и файл с сервера?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger" type="submit"><i class="bi bi-trash3"></i> Удалить файл</button></form>
+                          {% endif %}
+                        </div>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            <div class="admin-pagination-row"><span>Показано {{ photo_page.start_index }}–{{ photo_page.end_index }} из {{ photo_page.paginator.count }}</span>{% include "partials/pagination.html" with pagination_page=photo_page pagination_links=photo_page_links pagination_base_url=request.path pagination_querystring=photo_querystring pagination_mode="link" pagination_nav_class="admin-requests-pagination table-pagination" pagination_aria_label="Страницы удалённых фотографий" %}</div>
+          {% else %}
+            <div class="admin-empty admin-empty-compact"><i class="bi bi-images"></i><strong>Удалённых фотографий нет</strong></div>
+          {% endif %}
+        </section>
+      {% endif %}
+
+      {% if section == 'all' or section == 'folders' %}
+        <section class="admin-section admin-requests-table-section">
+          <div class="admin-section-head"><div><h2>Удалённые папки фотоархива</h2><span>Восстановление возвращает папку, вложенные папки и удалённые фотографии внутри дерева.</span></div></div>
+          {% if folder_page.object_list %}
+            <div class="admin-requests-table-wrap">
+              <table class="admin-requests-table">
+                <thead><tr><th>Папка</th><th>Территориальный орган</th><th>Родительская папка</th><th>Содержимое</th><th>Удалено/изменено</th><th>Действия</th></tr></thead>
+                <tbody>
+                  {% for folder in folder_page.object_list %}
+                    <tr>
+                      <td>
+                        {% include "admin_panel/_trash_folder_node.html" with node=folder.trash_tree_node %}
+                      </td>
+                      <td>{{ folder.territorial_organ.name }}</td>
+                      <td>{% if folder.parent %}{{ folder.parent.name }}{% else %}<span class="text-muted">Корневая папка</span>{% endif %}</td>
+                      <td>{{ folder.trash_tree_photo_count }} фото · {{ folder.trash_tree_folder_count }} влож. папок</td>
+                      <td>{{ folder.updated_at|date:"d.m.Y H:i" }}{% if folder.updated_by %}<small class="d-block text-muted">{{ folder.updated_by.get_full_name|default:folder.updated_by.username }}</small>{% endif %}</td>
+                      <td class="admin-trash-action-cell">
+                        <div class="admin-trash-actions">
+                          <form method="post" action="{% url 'admin_trash_restore_folder' folder.pk %}" class="admin-inline-action-form">{% csrf_token %}<button class="btn btn-sm btn-outline-primary" type="submit"><i class="bi bi-arrow-counterclockwise"></i> Восстановить</button></form>
+                          {% if is_leader %}
+                            <form method="post" action="{% url 'admin_trash_purge_folder' folder.pk %}" class="admin-inline-action-form" onsubmit="return confirm('Безвозвратно удалить папку, вложенные папки и файлы фотографий?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger" type="submit"><i class="bi bi-trash3"></i> Удалить папку</button></form>
+                          {% endif %}
+                        </div>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            <div class="admin-pagination-row"><span>Показано {{ folder_page.start_index }}–{{ folder_page.end_index }} из {{ folder_page.paginator.count }}</span>{% include "partials/pagination.html" with pagination_page=folder_page pagination_links=folder_page_links pagination_base_url=request.path pagination_querystring=folder_querystring pagination_mode="link" pagination_nav_class="admin-requests-pagination table-pagination" pagination_aria_label="Страницы удалённых папок" %}</div>
+          {% else %}
+            <div class="admin-empty admin-empty-compact"><i class="bi bi-folder2-open"></i><strong>Удалённых папок нет</strong></div>
+          {% endif %}
+        </section>
+      {% endif %}
+    </section>
+  </section>
+</div>
+{% endblock %}
