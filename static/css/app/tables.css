@@ -381,6 +381,21 @@
 .data-table tbody tr.is-group-hover > td {
   background: #eaf6ff;
 }
+
+.data-table .table-date-cell {
+  min-width: 6.6rem;
+  overflow-wrap: normal;
+  word-break: keep-all;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.data-table .table-date-value {
+  display: inline-block;
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: keep-all;
+  font-variant-numeric: tabular-nums;
+}
 .table-vehicle-inventory thead th,
 .table-vehicle-repair thead th,
 .table-vehicle-fuel thead th,

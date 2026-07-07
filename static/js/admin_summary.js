@@ -395,6 +395,9 @@
     items.forEach((item) => {
       const row = document.createElement("article");
       row.className = "admin-attention-row";
+      const detailUrl = item.detail_url
+        ? `<a class="btn btn-sm btn-outline-primary admin-attention-link" href="${escapeHtml(item.detail_url)}"><i class="bi bi-box-arrow-up-right"></i> Открыть</a>`
+        : "";
       row.innerHTML = `
         <div class="admin-attention-main">
           <strong>${escapeHtml(item.title || `Заявка № ${item.number}`)}</strong>
@@ -404,6 +407,7 @@
           <span>${escapeHtml(item.request_date)}</span>
           <strong>${formatNumber(item.days)} дн.</strong>
         </div>
+        ${detailUrl}
       `;
       target.append(row);
     });

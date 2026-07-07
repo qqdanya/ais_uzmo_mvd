@@ -5,6 +5,7 @@ from datetime import timedelta
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Count, Min
 from django.db.models.functions import TruncDate
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 
@@ -378,6 +379,7 @@ def build_attention_requests(tables, organs, limit=10):
                     "organ": obj.territorial_organ.name,
                     "request_date": obj.request_date.strftime("%d.%m.%Y"),
                     "days": business_days_inclusive(obj.request_date, today),
+                    "detail_url": reverse("admin_request_detail", kwargs={"table_key": table["key"], "pk": obj.pk}),
                 }
             )
     items.sort(key=lambda item: item["days"], reverse=True)

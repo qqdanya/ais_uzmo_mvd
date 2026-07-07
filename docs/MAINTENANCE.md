@@ -66,6 +66,18 @@ tar -czf media_$(date +%Y-%m-%d).tar.gz /home/ais/apps/ais_uzmo/media
 
 Для полноценного восстановления нужны и дамп PostgreSQL, и копия `media/`.
 
+После обновления старого проекта до версии с серверными миниатюрами фотографий запустить генерацию thumbnail-файлов для уже загруженных изображений:
+
+```bash
+python manage.py generate_photo_thumbnails
+```
+
+Если нужно пересоздать миниатюры заново, использовать:
+
+```bash
+python manage.py generate_photo_thumbnails --force
+```
+
 ## 5. Начальные данные
 
 ```bash

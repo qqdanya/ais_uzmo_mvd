@@ -11,7 +11,7 @@
       {% if photo.image %}
         <article class="photo-edit-preview mb-3" data-single-file-picker>
           <button class="photo-image" type="button" data-lightbox-photo data-src="{{ photo.image.url }}" data-download-url="{% url 'photo_download' organ.pk photo.pk %}" data-description="{{ photo.description }}" data-meta="{{ photo.created_at|date:'d.m.Y H:i' }} · {{ photo.created_by|default:'-' }}">
-            <img src="{{ photo.image.url }}" alt="{{ photo.description|default:photo.original_filename }}" data-single-file-preview>
+            <img src="{{ photo.thumbnail_medium_url }}" alt="{{ photo.description|default:photo.original_filename }}" loading="lazy" decoding="async" data-single-file-preview>
           </button>
           <div class="photo-edit-preview-body">
             <strong data-single-file-name>{{ photo.original_filename|default:"Фотография" }}</strong>

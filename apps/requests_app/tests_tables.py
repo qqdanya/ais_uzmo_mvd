@@ -30,6 +30,38 @@ class DepartmentTableTests(RequestAppTestCase):
         self.assertNotContains(response, reverse("tmc_status_history", args=[self.organ.pk, request_without_history.pk]))
         self.assertContains(response, reverse("tmc_status_history", args=[self.organ.pk, request_with_history.pk]))
 
+
+    def test_table_date_cells_do_not_wrap_date_text(self):
+        TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            request_number="20/TMC",
+            request_date="2026-07-06",
+            status="in_work",
+        )
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("table_data", args=[self.organ.pk, "tmc-requests"]))
+
+        self.assertContains(response, 'class="tmc-request-cell table-date-cell', html=False)
+        self.assertContains(response, '<span class="table-date-value">06.07.2026</span>', html=False)
+
+    def test_created_status_history_label_is_capitalized(self):
+        request_obj = TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            request_number="21/TMC",
+            request_date="2026-07-06",
+            status="in_work",
+        )
+        history = RequestStatusHistory.objects.create(
+            content_type=ContentType.objects.get_for_model(request_obj, for_concrete_model=False),
+            object_id=request_obj.pk,
+            old_status=None,
+            new_status="in_work",
+            changed_by=self.user,
+        )
+
+        self.assertEqual(str(history), "Создана -> В работе")
+
     def test_citsizi_filter_by_equipment_type(self):
         CitsiziEquipment.objects.create(territorial_organ=self.organ, request_number="C-1", request_date="2026-06-20", equipment_type="communication", quantity=1)
         CitsiziEquipment.objects.create(territorial_organ=self.organ, request_number="C-2", request_date="2026-06-20", equipment_type="computing", quantity=1)

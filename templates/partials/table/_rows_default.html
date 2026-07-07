@@ -9,7 +9,7 @@
       <tr class="data-row {% row_class table.key obj %} {% if obj.is_deleted %}table-warning{% endif %}">
         {% if is_multi_organ %}<td>{{ obj.territorial_organ.name }}</td>{% endif %}
         {% for field in fields %}
-          <td{% if field.name == "status" %} class="status-cell"{% elif field.name == "comment" %} class="request-description-cell"{% endif %}>
+          <td class="{% table_cell_class field %}">
             {% if field.name == "status" %}
               {% status_badge obj %}
             {% elif table.key == "fire-extinguishers" and field.name == "expiry_date" %}
@@ -17,6 +17,8 @@
             {% elif field.name == "comment" %}
               <div class="request-description-text">{{ obj|get_attr:field.name|default:"—" }}</div>
               {% include "partials/request_photo_thumbnails.html" with obj=obj table=table %}
+            {% elif field|is_date_field %}
+              {% with value=obj|get_attr:field.name %}<span class="table-date-value">{% if value %}{{ value|date:"d.m.Y" }}{% else %}—{% endif %}</span>{% endwith %}
             {% else %}
               {{ obj|get_attr:field.name }}
             {% endif %}

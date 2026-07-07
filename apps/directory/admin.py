@@ -33,7 +33,7 @@ class TerritorialOrganPhotoAdmin(admin.ModelAdmin):
     def preview(self, obj):
         if not obj.image:
             return "-"
-        return format_html('<img src="{}" class="admin-preview-image">', obj.image.url)
+        return format_html('<img src="{}" class="admin-preview-image">', obj.thumbnail_small_url)
 
     preview.short_description = "preview"
 

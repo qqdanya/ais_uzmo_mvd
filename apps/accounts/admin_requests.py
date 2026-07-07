@@ -329,7 +329,14 @@ def build_request_detail_context(request, table_key, pk):
     departments = department_name_map()
     content_type = ContentType.objects.get_for_model(table["model"], for_concrete_model=False)
     history = RequestStatusHistory.objects.filter(content_type=content_type, object_id=obj.pk).select_related("changed_by")[:8]
-    photo_count = RequestPhotoLink.objects.filter(content_type=content_type, object_id=obj.pk).count()
+    photo_links = list(
+        RequestPhotoLink.objects.select_related("photo", "photo__territorial_organ", "photo__created_by")
+        .filter(content_type=content_type, object_id=obj.pk, photo__is_deleted=False)
+        .filter(Q(photo__folder__isnull=True) | Q(photo__folder__is_deleted=False))
+        .order_by("created_at", "id")
+    )
+    attached_photos = [link.photo for link in photo_links if link.photo and link.photo.image]
+    photo_count = len(attached_photos)
     days = processing_days(obj)
     return {
         "active_tab": "trash" if show_deleted else "requests",
@@ -347,6 +354,7 @@ def build_request_detail_context(request, table_key, pk):
         "fields": build_detail_fields(table, obj),
         "history": history,
         "photo_count": photo_count,
+        "attached_photos": attached_photos,
         "back_url": request.META.get("HTTP_REFERER") or (reverse("admin_trash_panel") + "?section=requests" if show_deleted else reverse("admin_requests_panel")),
         "is_deleted_detail": show_deleted,
         "edit_url": "" if show_deleted else reverse("record_update", kwargs={"organ_id": obj.territorial_organ_id, "table_key": table_key, "pk": obj.pk}),

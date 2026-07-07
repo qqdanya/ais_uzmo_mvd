@@ -27,7 +27,7 @@
             <td class="tmc-boundary-right">{{ item.quantity }} {{ item.unit }}</td>
             {% if forloop.first %}
               <td rowspan="{{ item_count }}" class="tmc-request-cell {% if forloop.parentloop.last %}tmc-bottom-span{% else %}tmc-group-span{% endif %}">{{ obj.request_number }}</td>
-              <td rowspan="{{ item_count }}" class="tmc-request-cell {% if forloop.parentloop.last %}tmc-bottom-span{% else %}tmc-group-span{% endif %}">{{ obj.request_date|date:"d.m.Y" }}</td>
+              <td rowspan="{{ item_count }}" class="tmc-request-cell table-date-cell {% if forloop.parentloop.last %}tmc-bottom-span{% else %}tmc-group-span{% endif %}"><span class="table-date-value">{{ obj.request_date|date:"d.m.Y" }}</span></td>
               <td rowspan="{{ item_count }}" class="status-cell tmc-request-cell tmc-boundary-right {% if forloop.parentloop.last %}tmc-bottom-span{% else %}tmc-group-span{% endif %}">{% status_badge obj %}</td>
               <td rowspan="{{ item_count }}" class="tmc-boundary-right request-description-cell {% if forloop.parentloop.last %}tmc-bottom-span{% else %}tmc-group-span{% endif %}">
                 <div class="request-description-text">{{ obj.comment|default:"—" }}</div>
@@ -53,7 +53,7 @@
             <td>-</td>
             <td class="tmc-boundary-right">-</td>
             <td class="tmc-request-cell">{{ obj.request_number }}</td>
-            <td class="tmc-request-cell">{{ obj.request_date|date:"d.m.Y" }}</td>
+            <td class="tmc-request-cell table-date-cell"><span class="table-date-value">{{ obj.request_date|date:"d.m.Y" }}</span></td>
             <td class="status-cell tmc-request-cell tmc-boundary-right">{% status_badge obj %}</td>
             <td class="tmc-boundary-right request-description-cell">
               <div class="request-description-text">{{ obj.comment|default:"—" }}</div>

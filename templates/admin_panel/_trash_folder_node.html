@@ -17,7 +17,7 @@
           {% for photo in node.photos %}
             {% if photo.image %}
               <button class="admin-trash-folder-photo" type="button" data-lightbox-photo data-lightbox-group="trash-folder-{{ node.folder.pk }}" data-src="{{ photo.image.url }}" data-download-url="{{ photo.image.url }}" data-description="{{ photo.description|default:'Описание не добавлено' }}" data-meta="{{ node.folder.name }} · {{ photo.updated_at|date:'d.m.Y H:i' }}" aria-label="Открыть удалённую фотографию {{ photo.original_filename|default:photo.image.name }}">
-                <img src="{{ photo.image.url }}" alt="{{ photo.description|default:photo.original_filename }}" loading="lazy">
+                <img src="{{ photo.thumbnail_small_url }}" alt="{{ photo.description|default:photo.original_filename }}" loading="lazy" decoding="async">
               </button>
             {% endif %}
           {% endfor %}

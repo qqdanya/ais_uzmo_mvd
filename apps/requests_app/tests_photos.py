@@ -49,6 +49,33 @@ class PhotoAssetTests(RequestAppTestCase):
         with zipfile.ZipFile(BytesIO(archive_data)) as archive:
             self.assertTrue(any(name.endswith(".png") for name in archive.namelist()))
 
+
+    def test_table_request_photo_thumbnails_stay_compact(self):
+        request_obj = TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            created_by=self.user,
+            updated_by=self.user,
+            request_number="15-Compact/TMC",
+            request_date="2026-06-27",
+            status="in_work",
+            comment="Compact thumbnails",
+        )
+        TmcRequestItem.objects.create(request=request_obj, name="Desk", quantity=1, unit="шт.")
+        photos = [self.create_photo(f"compact-{index}.png") for index in range(5)]
+        for photo in photos:
+            RequestPhotoLink.objects.create(territorial_organ=self.organ, photo=photo, request=request_obj, created_by=self.user)
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("table_data", args=[self.organ.pk, "tmc-requests"]))
+        content = response.content.decode()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "request-photo-thumbnails")
+        self.assertEqual(content.count("request-photo-thumbnail-hidden"), 2)
+        self.assertContains(response, "+2")
+        self.assertNotContains(response, "data-request-photo-thumbnails")
+        self.assertNotContains(response, "data-request-photo-thumbnail-item")
+
     def test_request_photos_modal_can_replace_attached_photos(self):
         first = self.create_photo("first-proof.png")
         first.description = "First proof"

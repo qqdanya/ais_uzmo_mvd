@@ -162,7 +162,7 @@ class RequestStatusHistory(models.Model):
         indexes = [models.Index(fields=["content_type", "object_id", "-changed_at"])]
 
     def __str__(self):
-        old_status = self.get_old_status_display() if self.old_status else "создана"
+        old_status = self.get_old_status_display() if self.old_status else "Создана"
         return f"{old_status} -> {self.get_new_status_display()}"
 
 

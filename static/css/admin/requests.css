@@ -736,3 +736,54 @@
   vertical-align: 0;
 }
 
+
+.admin-detail-photo-row dd {
+  display: grid;
+  gap: 8px;
+}
+.admin-request-photo-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--ink);
+}
+.admin-request-photo-summary strong {
+  font-size: 1.05rem;
+  line-height: 1;
+}
+.admin-request-photo-summary span {
+  color: var(--muted);
+  font-size: .82rem;
+  font-weight: 700;
+}
+.admin-request-photo-thumbnails {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.admin-request-photo-thumb {
+  width: 74px;
+  height: 74px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #c9dceb;
+  border-radius: 12px;
+  background: #f4f9fd;
+  transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+.admin-request-photo-thumb:hover,
+.admin-request-photo-thumb:focus-visible {
+  transform: translateY(-1px);
+  border-color: #78b6df;
+  box-shadow: 0 8px 18px rgba(20, 95, 150, .16);
+  outline: none;
+}
+.admin-request-photo-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}

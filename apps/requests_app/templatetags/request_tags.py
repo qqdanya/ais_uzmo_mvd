@@ -44,6 +44,27 @@ def expiry_date_cell(obj):
 
 
 @register.filter
+def is_date_field(field):
+    get_internal_type = getattr(field, "get_internal_type", None)
+    if not callable(get_internal_type):
+        return False
+    return get_internal_type() in {"DateField", "DateTimeField"}
+
+
+@register.simple_tag
+def table_cell_class(field):
+    classes = []
+    field_name = getattr(field, "name", "")
+    if field_name == "status":
+        classes.append("status-cell")
+    elif field_name == "comment":
+        classes.append("request-description-cell")
+    if is_date_field(field):
+        classes.append("table-date-cell")
+    return " ".join(classes)
+
+
+@register.filter
 def model_fields(model):
     return [field for field in model._meta.fields if field.name not in {"id", "is_deleted"}]
 

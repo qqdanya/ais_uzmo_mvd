@@ -13,7 +13,7 @@
     <tbody>
       {% for row in page.object_list %}
       <tr class="data-row">
-        <td>{{ row.request__request_date|default:row.request_date|date:"d.m.Y" }}</td>
+        <td class="table-date-cell"><span class="table-date-value">{{ row.request__request_date|default:row.request_date|date:"d.m.Y" }}</span></td>
         <td class="text-center">{{ row.request_count }}</td>
         <td class="text-center">{{ row.organ_count }}</td>
         {% if is_tmc_grouped %}<td class="text-center">{{ row.position_count }}</td><td class="text-center">{{ row.total_quantity }}</td>{% endif %}

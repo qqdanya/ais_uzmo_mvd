@@ -1,6 +1,8 @@
 import json
 import shutil
 import tempfile
+from io import BytesIO
+from datetime import timedelta
 from pathlib import Path
 
 from PIL import Image
@@ -97,6 +99,28 @@ class AdminPanelEndpointTests(AdminPanelTestMixin, TestCase):
         self.assertIn("request_stale_workdays", payload)
         for key in ("total", "in_work", "done", "rejected", "stale"):
             self.assertIn(key, payload["kpi"])
+
+
+    def test_attention_requests_include_detail_url(self):
+        self.login_admin()
+        stale_date = timezone.localdate() - timedelta(days=45)
+        request_obj = TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            created_by=self.admin,
+            request_number="99",
+            request_date=stale_date,
+            status=NeedStatus.IN_WORK,
+        )
+
+        response = self.client.get(reverse("admin_summary_data"))
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["attention_requests"])
+        self.assertEqual(
+            payload["attention_requests"][0]["detail_url"],
+            reverse("admin_request_detail", kwargs={"table_key": "tmc-requests", "pk": request_obj.pk}),
+        )
 
     def test_summary_data_respects_selected_organ_filter(self):
         self.login_admin()
@@ -223,6 +247,40 @@ class AdminRequestsPanelTests(AdminPanelTestMixin, TestCase):
         self.assertIn(f"Орган: {self.organ.name}", response.context["active_filter_chips"])
         self.assertIn("Поиск: бумага", response.context["active_filter_chips"])
         self.assertIn("Статусы: Исполнено", response.context["active_filter_chips"])
+
+
+    def test_request_detail_shows_linked_photo_thumbnails(self):
+        self.login_admin()
+        request_obj = TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            created_by=self.admin,
+            updated_by=self.admin,
+            request_number="ТМЦ-ФОТО",
+            request_date=timezone.localdate(),
+            status=NeedStatus.IN_WORK,
+            comment="Заявка с фотографией",
+        )
+        buffer = BytesIO()
+        Image.new("RGB", (4, 4), "white").save(buffer, format="PNG")
+        photo = TerritorialOrganPhoto.objects.create(
+            territorial_organ=self.organ,
+            image=SimpleUploadedFile("detail-proof.png", buffer.getvalue(), content_type="image/png"),
+            description="Фотография заявки",
+            created_by=self.admin,
+            updated_by=self.admin,
+        )
+        RequestPhotoLink.objects.create(territorial_organ=self.organ, photo=photo, request=request_obj, created_by=self.admin)
+
+        response = self.client.get(reverse("admin_request_detail", kwargs={"table_key": "tmc-requests", "pk": request_obj.pk}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["photo_count"], 1)
+        self.assertEqual(len(response.context["attached_photos"]), 1)
+        self.assertContains(response, "1")
+        self.assertContains(response, "фотография прикреплена")
+        self.assertContains(response, "admin-request-photo-thumbnails")
+        self.assertContains(response, "admin-request-photo-thumb")
+        self.assertContains(response, "detail-proof")
 
     def test_requests_panel_department_filter_limits_request_tables(self):
         self.login_admin()
@@ -1168,9 +1226,10 @@ class AdminTrashPanelTests(AdminPanelTestMixin, TestCase):
         self.assertIn("transition: background-color .14s var(--motion-smooth), border-color .14s var(--motion-smooth)", requests_css)
         self.assertIn(".admin-requests-table td:last-child", requests_css)
         self.assertIn("justify-content: center", requests_css)
-        self.assertIn("admin/requests.css?v=20260705-016", admin_css)
+        self.assertIn("admin/base.css?v=20260707-001", admin_css)
+        self.assertIn("admin/requests.css?v=20260707-001", admin_css)
         self.assertIn("admin/trash.css?v=20260705-016", admin_css)
-        self.assertIn("css/admin.css' %}?v=20260705-016", trash_template)
+        self.assertIn("css/admin.css' %}?v=20260707-002", trash_template)
 
 
     def test_trash_request_rows_have_open_button_and_deleted_detail_view(self):

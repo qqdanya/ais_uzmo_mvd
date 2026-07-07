@@ -444,7 +444,7 @@
 .admin-attention-row {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 10px;
   align-items: center;
   padding: 10px;
@@ -492,6 +492,14 @@
   color: #725500;
   font-size: .8rem;
 }
+.admin-attention-link {
+  justify-self: end;
+  white-space: nowrap;
+}
+.admin-attention-link i {
+  margin-right: 4px;
+}
+
 .admin-command-page.is-loading-summary .admin-summary-screen {
   opacity: .72;
   pointer-events: none;
@@ -529,6 +537,9 @@
   }
   .admin-attention-date {
     justify-items: start;
+  }
+  .admin-attention-link {
+    justify-self: start;
   }
 }
 
