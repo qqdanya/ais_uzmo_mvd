@@ -136,7 +136,7 @@
                         <div class="admin-trash-actions">
                           <form method="post" action="{% url 'admin_trash_restore_photo' photo.pk %}" class="admin-inline-action-form">{% csrf_token %}<button class="btn btn-sm btn-outline-primary" type="submit"><i class="bi bi-arrow-counterclockwise"></i> Восстановить</button></form>
                           {% if is_leader %}
-                            <form method="post" action="{% url 'admin_trash_purge_photo' photo.pk %}" class="admin-inline-action-form" onsubmit="return confirm('Безвозвратно удалить фотографию и файл с сервера?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger" type="submit"><i class="bi bi-trash3"></i> Удалить файл</button></form>
+                            <form method="post" action="{% url 'admin_trash_purge_photo' photo.pk %}" class="admin-inline-action-form" data-confirm-title="Безвозвратное удаление фотографии" data-confirm-message="Фотография и файл будут удалены с сервера без возможности восстановления." data-confirm-details="{{ photo.original_filename|default:photo.image.name }}" data-confirm-confirm-label="Удалить файл" data-confirm-variant="danger">{% csrf_token %}<button class="btn btn-sm btn-outline-danger" type="submit"><i class="bi bi-trash3"></i> Удалить файл</button></form>
                           {% endif %}
                         </div>
                       </td>
@@ -173,7 +173,7 @@
                         <div class="admin-trash-actions">
                           <form method="post" action="{% url 'admin_trash_restore_folder' folder.pk %}" class="admin-inline-action-form">{% csrf_token %}<button class="btn btn-sm btn-outline-primary" type="submit"><i class="bi bi-arrow-counterclockwise"></i> Восстановить</button></form>
                           {% if is_leader %}
-                            <form method="post" action="{% url 'admin_trash_purge_folder' folder.pk %}" class="admin-inline-action-form" onsubmit="return confirm('Безвозвратно удалить папку, вложенные папки и файлы фотографий?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger" type="submit"><i class="bi bi-trash3"></i> Удалить папку</button></form>
+                            <form method="post" action="{% url 'admin_trash_purge_folder' folder.pk %}" class="admin-inline-action-form" data-confirm-title="Безвозвратное удаление папки" data-confirm-message="Папка, вложенные папки и файлы фотографий будут удалены с сервера без возможности восстановления." data-confirm-details="{{ folder.name }} · {{ folder.trash_tree_photo_count }} фото · {{ folder.trash_tree_folder_count }} влож. папок" data-confirm-confirm-label="Удалить папку" data-confirm-variant="danger">{% csrf_token %}<button class="btn btn-sm btn-outline-danger" type="submit"><i class="bi bi-trash3"></i> Удалить папку</button></form>
                           {% endif %}
                         </div>
                       </td>

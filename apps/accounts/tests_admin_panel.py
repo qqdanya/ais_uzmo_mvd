@@ -887,6 +887,9 @@ class FrontendModuleSplitTests(TestCase):
             "updateAdminFilterOrgBox",
             "initAdminFilterOrgBoxes",
         ],
+        "confirm_dialog.js": [
+            "ConfirmDialog",
+        ],
     }
 
     app_modules = [
@@ -978,6 +981,7 @@ class FrontendModuleSplitTests(TestCase):
             "js/presence_ping.js",
             "js/admin_org_filter.js",
             "js/toasts.js",
+            "js/confirm_dialog.js",
             "js/photo_upload.js",
             "js/tmc_products.js",
             "js/download_preparing.js",
@@ -995,6 +999,28 @@ class FrontendModuleSplitTests(TestCase):
         for previous, current in zip(script_order, script_order[1:]):
             with self.subTest(order=f"{previous} before {current}"):
                 self.assertLess(base_html.index(previous), base_html.index(current))
+
+    def test_confirm_dialog_replaces_native_browser_confirm(self):
+        project_root = Path(__file__).resolve().parents[2]
+        base_html = (project_root / "templates" / "base.html").read_text(encoding="utf-8")
+        trash_template = (project_root / "templates" / "admin_panel" / "trash.html").read_text(encoding="utf-8")
+        confirm_js = self.read_static_js("confirm_dialog.js")
+        modals_css = (project_root / "static" / "css" / "app" / "modals-audit.css").read_text(encoding="utf-8")
+
+        self.assertIn("js/confirm_dialog.js", base_html)
+        self.assertLess(base_html.index("js/toasts.js"), base_html.index("js/confirm_dialog.js"))
+        self.assertLess(base_html.index("js/confirm_dialog.js"), base_html.index("js/photo_upload.js"))
+        self.assertNotIn('onsubmit="return confirm', trash_template)
+        self.assertNotIn("confirm('", trash_template)
+        self.assertIn("data-confirm-message", trash_template)
+        self.assertIn('data-confirm-title="Безвозвратное удаление фотографии"', trash_template)
+        self.assertIn('data-confirm-title="Безвозвратное удаление папки"', trash_template)
+        self.assertIn("const ConfirmDialog", confirm_js)
+        self.assertIn('document.addEventListener("submit", handleSubmit, true)', confirm_js)
+        self.assertIn("app-confirm-dialog", confirm_js)
+        self.assertIn("window.ConfirmDialog = ConfirmDialog", confirm_js)
+        self.assertIn(".app-confirm-dialog", modals_css)
+        self.assertIn(".app-confirm-details", modals_css)
 
     def test_htmx_modal_lifecycle_dependencies_are_stable_after_module_split(self):
         htmx_js = self.read_static_js("htmx_lifecycle.js")
