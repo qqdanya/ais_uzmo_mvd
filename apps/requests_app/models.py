@@ -168,7 +168,10 @@ class RequestStatusHistory(RequestLinkMixin):
         verbose_name = "изменение статуса заявки"
         verbose_name_plural = "История статусов заявок"
         ordering = ("-changed_at", "-id")
-        indexes = [models.Index(fields=["content_type", "object_id", "-changed_at"])]
+        indexes = [
+            models.Index(fields=["content_type", "object_id", "-changed_at"]),
+            models.Index(fields=["content_type", "new_status", "changed_at"]),
+        ]
 
     def __str__(self):
         old_status = self.get_old_status_display() if self.old_status else "Создана"

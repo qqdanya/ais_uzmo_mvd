@@ -2,7 +2,7 @@
 
 from datetime import timedelta
 
-from django.db.models import Min, OuterRef, Q, Subquery
+from django.db.models import Min, Q
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 
@@ -44,15 +44,22 @@ def state_snapshot_queryset(request, table_key, qs):
     if state_snapshot_mode(request, table_key) == "history":
         return qs
 
-    latest_id_for_organ = (
-        qs.model.objects.filter(
-            pk__in=qs.values("pk"),
-            territorial_organ_id=OuterRef("territorial_organ_id"),
-        )
-        .order_by("-state_date", "-created_at", "-pk")
-        .values("pk")[:1]
-    )
-    return qs.filter(pk=Subquery(latest_id_for_organ)).order_by("territorial_organ__name", "-state_date", "-created_at")
+    # A correlated Subquery/OuterRef "latest row per organ" here is extremely
+    # slow (SQLite re-evaluates the correlated subquery, sort and all, per
+    # organ, and Paginator triggers it again for .count()). The number of
+    # distinct organs is always small and bounded, so a single ordered scan
+    # plus a Python-side "first row per organ" pick is far cheaper and
+    # produces the identical result, since sorting by
+    # (territorial_organ_id, -state_date, -created_at, -pk) groups each
+    # organ's rows together with its best match first.
+    latest_pks = []
+    seen_organs = set()
+    ordered = qs.order_by("territorial_organ_id", "-state_date", "-created_at", "-pk").values_list("territorial_organ_id", "pk")
+    for organ_id, pk in ordered:
+        if organ_id not in seen_organs:
+            seen_organs.add(organ_id)
+            latest_pks.append(pk)
+    return qs.filter(pk__in=latest_pks).order_by("territorial_organ__name", "-state_date", "-created_at")
 
 
 def request_date_filter_defaults(model, organs):

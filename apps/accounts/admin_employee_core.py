@@ -438,22 +438,44 @@ def employee_request_models():
             yield model
 
 
-def created_requests_count(user, since=None):
-    total = 0
+def created_requests_counts_by_user(users, since=None):
+    """Grouped counterpart of created_requests_count: one query per model instead of one per (user, model) pair.
+
+    Looping created_requests_count() once per employee turns O(employees) into
+    O(employees * request_models) queries on the employees list/activity chart.
+    Grouping by created_by inside one query per model keeps it at O(request_models).
+    """
+    user_ids = [user.pk for user in users]
+    totals = {user_id: 0 for user_id in user_ids}
     for model in employee_request_models():
-        qs = model.objects.filter(is_deleted=False, created_by=user)
+        qs = model.objects.filter(is_deleted=False, created_by_id__in=user_ids)
         if since:
             qs = qs.filter(created_at__gte=since)
-        total += qs.count()
-    return total
+        for row in qs.values("created_by_id").annotate(total=Count("pk")):
+            created_by_id = row["created_by_id"]
+            if created_by_id in totals:
+                totals[created_by_id] += row["total"]
+    return totals
+
+
+def created_requests_count(user, since=None):
+    return created_requests_counts_by_user([user], since=since)[user.pk]
 
 
 def employee_activity_stats(users, days=30):
     since = timezone.now() - timedelta(days=days)
+    users = list(users)
+    created_counts = created_requests_counts_by_user(users, since=since)
+    action_counts = dict(
+        AuditLog.objects.filter(user_id__in=[user.pk for user in users], created_at__gte=since)
+        .values("user_id")
+        .annotate(total=Count("pk"))
+        .values_list("user_id", "total")
+    )
     rows = []
     for user in users:
-        created_requests = created_requests_count(user, since=since)
-        actions = AuditLog.objects.filter(user=user, created_at__gte=since).count()
+        created_requests = created_counts.get(user.pk, 0)
+        actions = action_counts.get(user.pk, 0)
         if not created_requests and not actions:
             continue
         rows.append(
