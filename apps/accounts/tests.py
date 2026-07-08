@@ -5,7 +5,7 @@ from django.utils import timezone
 
 from apps.directory.models import Department, TerritorialOrgan
 
-from .forms import ACTIVATION_MAX_ATTEMPTS
+from .forms import ACTIVATION_MAX_ATTEMPTS, LOGIN_MAX_ATTEMPTS
 from .models import UserProfile
 
 
@@ -64,6 +64,30 @@ class AccountFoundationTests(TestCase):
         self.assertContains(response, "Слишком много попыток активации")
         user.refresh_from_db()
         self.assertFalse(user.has_usable_password())
+
+    def test_login_locks_out_after_too_many_wrong_passwords(self):
+        User = get_user_model()
+        user = User.objects.create_user("loginbrute", password="CorrectPass123")
+        UserProfile.objects.create(user=user, role=UserProfile.Role.OPERATOR)
+
+        for _ in range(LOGIN_MAX_ATTEMPTS):
+            response = self.client.post(reverse("login"), {"username": "loginbrute", "password": "wrong-password"})
+            self.assertFalse(response.wsgi_request.user.is_authenticated)
+
+        response = self.client.post(reverse("login"), {"username": "loginbrute", "password": "CorrectPass123"})
+
+        self.assertIn("Слишком много попыток входа", str(response.context["form"].errors))
+        self.assertFalse(response.wsgi_request.user.is_authenticated)
+
+    def test_login_succeeds_normally_below_the_attempt_limit(self):
+        User = get_user_model()
+        user = User.objects.create_user("normallogin", password="CorrectPass123")
+        UserProfile.objects.create(user=user, role=UserProfile.Role.OPERATOR)
+
+        self.client.post(reverse("login"), {"username": "normallogin", "password": "wrong-password"})
+        response = self.client.post(reverse("login"), {"username": "normallogin", "password": "CorrectPass123"})
+
+        self.assertTrue(response.wsgi_request.user.is_authenticated)
 
     def test_profile_generates_activation_code_for_unusable_password(self):
         User = get_user_model()

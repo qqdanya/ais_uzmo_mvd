@@ -1,35 +1,18 @@
-from datetime import timedelta
-
 from django import forms
 from django.contrib.auth import get_user_model
+from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
-from django.utils import timezone
 
-from .models import ActivationAttempt
+from .lockout import clear_failed_attempts, record_failed_attempt, recent_failed_attempts
+from .models import ActivationAttempt, LoginAttempt
 
 
 ACTIVATION_MAX_ATTEMPTS = 5
 ACTIVATION_LOCKOUT_SECONDS = 15 * 60
 
-
-def _recent_failed_attempts(username):
-    """Return the failed-attempt count for username within the lockout window.
-
-    Opportunistically prunes expired rows so the table stays bounded without
-    needing a separate cleanup job.
-    """
-    cutoff = timezone.now() - timedelta(seconds=ACTIVATION_LOCKOUT_SECONDS)
-    ActivationAttempt.objects.filter(attempted_at__lt=cutoff).delete()
-    return ActivationAttempt.objects.filter(username__iexact=username).count()
-
-
-def _record_failed_attempt(username):
-    ActivationAttempt.objects.create(username=username)
-
-
-def _clear_failed_attempts(username):
-    ActivationAttempt.objects.filter(username__iexact=username).delete()
+LOGIN_MAX_ATTEMPTS = 5
+LOGIN_LOCKOUT_SECONDS = 15 * 60
 
 
 class AccountActivationForm(forms.Form):
@@ -67,13 +50,13 @@ class AccountActivationForm(forms.Form):
         if self.user.has_usable_password():
             raise ValidationError("Учетная запись уже активирована. Используйте обычный вход в систему.")
 
-        if _recent_failed_attempts(username) >= ACTIVATION_MAX_ATTEMPTS:
+        if recent_failed_attempts(ActivationAttempt, username, ACTIVATION_LOCKOUT_SECONDS) >= ACTIVATION_MAX_ATTEMPTS:
             raise ValidationError("Слишком много попыток активации. Повторите позже.")
 
         if not profile.activation_code or profile.activation_code.upper() != activation_code:
-            _record_failed_attempt(username)
+            record_failed_attempt(ActivationAttempt, username)
             raise ValidationError("Неверный код активации.")
-        _clear_failed_attempts(username)
+        clear_failed_attempts(ActivationAttempt, username)
 
         if password1 != password2:
             self.add_error("password2", "Пароли не совпадают.")
@@ -88,3 +71,23 @@ class AccountActivationForm(forms.Form):
         profile.activation_code = ""
         profile.save(update_fields=["activation_code"])
         return self.user
+
+
+class RateLimitedAuthenticationForm(AuthenticationForm):
+    """Standard Django login form with a DB-backed lockout on repeated failures."""
+
+    def clean(self):
+        username = (self.cleaned_data.get("username") or "").strip()
+        if username and recent_failed_attempts(LoginAttempt, username, LOGIN_LOCKOUT_SECONDS) >= LOGIN_MAX_ATTEMPTS:
+            raise ValidationError("Слишком много попыток входа. Повторите позже.", code="too_many_attempts")
+
+        try:
+            cleaned = super().clean()
+        except ValidationError:
+            if username:
+                record_failed_attempt(LoginAttempt, username)
+            raise
+
+        if username:
+            clear_failed_attempts(LoginAttempt, username)
+        return cleaned

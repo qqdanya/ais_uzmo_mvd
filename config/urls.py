@@ -4,6 +4,7 @@ from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.urls import include, path
 
+from apps.accounts.forms import RateLimitedAuthenticationForm
 from apps.accounts.views import activate_account, admin_asset_category_detail, admin_asset_organ_detail, admin_asset_organ_summary, admin_assets_panel, admin_department_detail, admin_departments_panel, admin_employee_action, admin_employee_create, admin_employee_detail, admin_employee_edit, admin_employees_panel, admin_employees_presence_data, admin_organ_detail, admin_organs_panel, admin_panel, admin_request_detail, admin_requests_panel, admin_summary_data, admin_threshold_settings, admin_trash_panel, admin_trash_purge_folder, admin_trash_purge_photo, admin_trash_restore_folder, admin_trash_restore_photo, admin_trash_restore_request, presence_ping
 
 urlpatterns = [
@@ -33,7 +34,7 @@ urlpatterns = [
     path("control/trash/photos/<int:pk>/purge/", admin_trash_purge_photo, name="admin_trash_purge_photo"),
     path("control/trash/folders/<int:pk>/restore/", admin_trash_restore_folder, name="admin_trash_restore_folder"),
     path("control/trash/folders/<int:pk>/purge/", admin_trash_purge_folder, name="admin_trash_purge_folder"),
-    path("accounts/login/", auth_views.LoginView.as_view(), name="login"),
+    path("accounts/login/", auth_views.LoginView.as_view(authentication_form=RateLimitedAuthenticationForm), name="login"),
     path("accounts/activate/", activate_account, name="account_activate"),
     path("accounts/presence/", presence_ping, name="presence_ping"),
     path("accounts/logout/", auth_views.LogoutView.as_view(), name="logout"),

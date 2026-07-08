@@ -75,10 +75,10 @@ class UserProfile(models.Model):
         super().save(*args, **kwargs)
 
 
-class ActivationAttempt(models.Model):
-    """A failed account-activation code guess, used to rate-limit brute force.
+class FailedAttempt(models.Model):
+    """Shared shape for brute-force lockout counters (login, activation, ...).
 
-    Stored in the DB rather than the cache framework so the lockout is shared
+    Stored in the DB rather than the cache framework so a lockout is shared
     across all gunicorn worker processes instead of counting independently
     per worker.
     """
@@ -87,5 +87,16 @@ class ActivationAttempt(models.Model):
     attempted_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        abstract = True
+
+
+class ActivationAttempt(FailedAttempt):
+    class Meta:
         verbose_name = "Попытка активации"
         verbose_name_plural = "Попытки активации"
+
+
+class LoginAttempt(FailedAttempt):
+    class Meta:
+        verbose_name = "Попытка входа"
+        verbose_name_plural = "Попытки входа"
