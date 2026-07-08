@@ -18,6 +18,7 @@ from .admin_common import (
     DEPARTMENT_ICONS,
     STATUS_BADGE_CLASSES,
     apply_period,
+    completion_values_for_queryset,
     date_period_from_request,
     days_class,
     department_options,
@@ -154,24 +155,54 @@ def request_row(table, obj, departments):
     }
 
 
-def request_rows(tables, organs, filters):
-    departments = department_name_map()
-    rows = []
+def request_row_index(tables, organs, filters):
+    """Cheap (request_date, pk, table_key) tuples for every matching row.
+
+    Sorting/paginating this lightweight index first means the expensive part
+    of building a row (request_row(), including a possible RequestStatusHistory
+    lookup via processing_days()) only runs for the rows on the current page,
+    instead of for every matching request across the system's whole history.
+
+    Sort key must match the original request_rows() ordering exactly:
+    (request_date, pk), descending, with ties broken by a stable sort over
+    the same table-iteration order (pk is not globally unique across tables,
+    so a (request_date, pk) tie across two different tables is possible).
+    """
+    index = []
     for table in matching_tables(tables, filters):
-        qs = filtered_queryset(table, organs, filters).order_by(*REQUEST_LIST_ORDERING)
-        rows.extend(request_row(table, obj, departments) for obj in qs)
-    rows.sort(key=lambda item: (item["request_date"] or date.min, item["id"]), reverse=True)
+        qs = filtered_queryset(table, organs, filters)
+        for pk, request_date in qs.values_list("pk", "request_date"):
+            index.append((request_date or date.min, pk, table["key"]))
+    index.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    return index
+
+
+def hydrate_request_rows(tables_by_key, index_rows):
+    """Build full display rows for a (page-sized) slice of request_row_index()."""
+    departments = department_name_map()
+    pks_by_table = {}
+    for _, pk, table_key in index_rows:
+        pks_by_table.setdefault(table_key, []).append(pk)
+
+    objects_by_table = {}
+    for table_key, pks in pks_by_table.items():
+        table = tables_by_key[table_key]
+        qs = table["model"].objects.select_related("territorial_organ").filter(pk__in=pks)
+        objects_by_table[table_key] = {obj.pk: obj for obj in qs}
+
+    rows = []
+    for _, pk, table_key in index_rows:
+        obj = objects_by_table[table_key].get(pk)
+        if obj:
+            rows.append(request_row(tables_by_key[table_key], obj, departments))
     return rows
 
 
 def average_completion_days(tables, organs, filters):
     values = []
     for table in matching_tables(tables, filters):
-        qs = filtered_queryset(table, organs, filters, with_state=False).filter(status=NeedStatus.DONE)
-        for obj in qs:
-            days = processing_days(obj)
-            if days is not None:
-                values.append(days)
+        qs = filtered_queryset(table, organs, filters, with_state=False)
+        values.extend(completion_values_for_queryset(qs))
     if not values:
         return None
     return round(sum(values) / len(values), 1)
@@ -253,9 +284,11 @@ def build_status_tabs(request, counts, filters):
     ]
 
 
-def paginate_request_rows(request, rows, per_page):
-    paginator = Paginator(rows, per_page)
+def paginate_request_index(request, index_rows, tables, per_page):
+    paginator = Paginator(index_rows, per_page)
     page = paginator.get_page(request.GET.get("page"))
+    tables_by_key = {table["key"]: table for table in tables}
+    page.object_list = hydrate_request_rows(tables_by_key, list(page.object_list))
     return page, page.paginator.get_elided_page_range(page.number, on_each_side=1, on_ends=1)
 
 
@@ -267,8 +300,8 @@ def build_requests_context(request):
     filters = build_request_filters(request, departments)
     counts = status_counts(tables, organs, filters)
     avg_completion = average_completion_days(tables, organs, filters)
-    rows = request_rows(tables, organs, filters)
-    page, page_links = paginate_request_rows(request, rows, filters["per_page"])
+    index_rows = request_row_index(tables, organs, filters)
+    page, page_links = paginate_request_index(request, index_rows, tables, filters["per_page"])
     selected_ids = {organ.pk for organ in organs}
     department_labels = {item["slug"]: item["name"] for item in departments}
     return {

@@ -178,8 +178,10 @@ def completed_date_field(table):
     return field_name if table_has_field(table, field_name) else None
 
 
-def count_status_changed(table, qs, status, period):
-    if has_status_history(table, qs, status):
+def count_status_changed(table, qs, status, period, has_history=None):
+    if has_history is None:
+        has_history = has_status_history(table, qs, status)
+    if has_history:
         return status_history_qs(table, qs, status, period).values("object_id").distinct().count()
 
     # Fallback for imported/old rows without status history.
@@ -234,9 +236,11 @@ def add_request_date_series(counter, qs):
     add_date_field_series(counter, qs, "request_date")
 
 
-def add_status_history_series(counter, table, qs, status, days):
+def add_status_history_series(counter, table, qs, status, days, has_history=None):
     day_set = set(days)
-    if has_status_history(table, qs, status):
+    if has_history is None:
+        has_history = has_status_history(table, qs, status)
+    if has_history:
         history = status_history_qs(table, qs, status)
         if day_set:
             history = history.filter(changed_at__date__gte=days[0], changed_at__date__lte=days[-1])
@@ -262,15 +266,17 @@ def stale_cutoff_date():
     return subtract_business_days_inclusive(timezone.localdate(), get_request_stale_workdays() + 1)
 
 
-def build_kpi(tables, organs, period):
+def build_kpi(tables, organs, period, history_flags=None):
     totals = Counter()
     stale_before = stale_cutoff_date()
     for table in tables:
         qs = base_queryset(table, organs)
         totals["total"] += apply_request_period(qs, period).count()
         totals["in_work"] += qs.filter(status=NeedStatus.IN_WORK).count()
-        totals["done"] += count_status_changed(table, qs, NeedStatus.DONE, period)
-        totals["rejected"] += count_status_changed(table, qs, NeedStatus.REJECTED, period)
+        done_flag = history_flags.get((table["key"], NeedStatus.DONE)) if history_flags else None
+        rejected_flag = history_flags.get((table["key"], NeedStatus.REJECTED)) if history_flags else None
+        totals["done"] += count_status_changed(table, qs, NeedStatus.DONE, period, done_flag)
+        totals["rejected"] += count_status_changed(table, qs, NeedStatus.REJECTED, period, rejected_flag)
         totals["stale"] += qs.filter(status=NeedStatus.IN_WORK, request_date__lte=stale_before).count()
     return {
         "total": totals["total"],
@@ -281,7 +287,7 @@ def build_kpi(tables, organs, period):
     }
 
 
-def build_dynamics(tables, organs, period):
+def build_dynamics(tables, organs, period, history_flags=None):
     days = period_day_labels(period, organs, tables=tables)
     incoming = Counter()
     done = Counter()
@@ -289,9 +295,11 @@ def build_dynamics(tables, organs, period):
     dynamics_period = period_from_days(days)
     for table in tables:
         qs = base_queryset(table, organs)
+        done_flag = history_flags.get((table["key"], NeedStatus.DONE)) if history_flags else None
+        rejected_flag = history_flags.get((table["key"], NeedStatus.REJECTED)) if history_flags else None
         add_request_date_series(incoming, apply_request_period(qs, dynamics_period))
-        add_status_history_series(done, table, qs, NeedStatus.DONE, days)
-        add_status_history_series(rejected, table, qs, NeedStatus.REJECTED, days)
+        add_status_history_series(done, table, qs, NeedStatus.DONE, days, done_flag)
+        add_status_history_series(rejected, table, qs, NeedStatus.REJECTED, days, rejected_flag)
     return {
         "labels": [day.strftime("%d.%m") for day in days],
         "incoming": [incoming[day] for day in days],
@@ -300,20 +308,22 @@ def build_dynamics(tables, organs, period):
     }
 
 
-def group_by_organ_for_metric(table, qs, period, metric, stale_before):
+def group_by_organ_for_metric(table, qs, period, metric, stale_before, has_history=None):
     if metric == "total":
         return apply_request_period(qs, period).values("territorial_organ_id").annotate(total=Count("pk"))
     if metric == "done":
-        return group_by_organ_for_status(table, qs, period, NeedStatus.DONE)
+        return group_by_organ_for_status(table, qs, period, NeedStatus.DONE, has_history)
     if metric == "rejected":
-        return group_by_organ_for_status(table, qs, period, NeedStatus.REJECTED)
+        return group_by_organ_for_status(table, qs, period, NeedStatus.REJECTED, has_history)
     if metric == "stale":
         return qs.filter(status=NeedStatus.IN_WORK, request_date__lte=stale_before).values("territorial_organ_id").annotate(total=Count("pk"))
     return qs.filter(status=NeedStatus.IN_WORK).values("territorial_organ_id").annotate(total=Count("pk"))
 
 
-def group_by_organ_for_status(table, qs, period, status):
-    if has_status_history(table, qs, status):
+def group_by_organ_for_status(table, qs, period, status, has_history=None):
+    if has_history is None:
+        has_history = has_status_history(table, qs, status)
+    if has_history:
         object_ids = status_history_qs(table, qs, status, period).values("object_id")
         return qs.filter(pk__in=object_ids).values("territorial_organ_id").annotate(total=Count("pk", distinct=True))
     return apply_request_period(qs.filter(status=status), period).values("territorial_organ_id").annotate(total=Count("pk"))
@@ -326,12 +336,13 @@ def add_percent(rows):
     return rows
 
 
-def build_org_chart(tables, organs, period, metric="in_work"):
+def build_org_chart(tables, organs, period, metric="in_work", history_flags=None):
     org_rows = {organ.pk: {"id": organ.pk, "name": organ.name, "value": 0} for organ in organs}
     stale_before = stale_cutoff_date()
     for table in tables:
         qs = base_queryset(table, organs)
-        grouped = group_by_organ_for_metric(table, qs, period, metric, stale_before)
+        has_history = history_flags.get((table["key"], metric)) if history_flags and metric in (NeedStatus.DONE, NeedStatus.REJECTED) else None
+        grouped = group_by_organ_for_metric(table, qs, period, metric, stale_before, has_history)
         for row in grouped:
             if row["territorial_organ_id"] in org_rows:
                 org_rows[row["territorial_organ_id"]]["value"] += row["total"]
@@ -386,18 +397,36 @@ def build_attention_requests(tables, organs, limit=10):
     return items[:limit]
 
 
+def status_history_flags(tables, organs):
+    """Precompute has_status_history() once per (table, status) pair.
+
+    build_kpi, build_dynamics and build_org_chart each independently ask "does
+    this table have any RequestStatusHistory rows for this status" for the
+    same (table, organs) scope. The answer only depends on table/organs/status,
+    not on period, so computing it once here and passing it down avoids
+    repeating the same exists() query 2-3x per table on every summary load.
+    """
+    flags = {}
+    for table in tables:
+        qs = base_queryset(table, organs)
+        for status in (NeedStatus.DONE, NeedStatus.REJECTED):
+            flags[(table["key"], status)] = has_status_history(table, qs, status)
+    return flags
+
+
 def build_summary_payload(request, metric="in_work", *, available_organs=None, tables=None):
     period = parse_period(request)
     available_organs = available_organs if available_organs is not None else available_organs_for_user(request.user)
     organs = selected_organs(request, available_organs)
     tables = tables if tables is not None else list(request_tables())
+    history_flags = status_history_flags(tables, organs)
     return {
         "period": serialize_period(period),
         "selected_organs": [organ.pk for organ in organs],
         "selected_organs_count": len(organs),
-        "kpi": build_kpi(tables, organs, period),
-        "dynamics": build_dynamics(tables, organs, period),
-        "org_chart": build_org_chart(tables, organs, period, metric=metric),
+        "kpi": build_kpi(tables, organs, period, history_flags),
+        "dynamics": build_dynamics(tables, organs, period, history_flags),
+        "org_chart": build_org_chart(tables, organs, period, metric=metric, history_flags=history_flags),
         "department_load": build_department_load(tables, organs),
         "attention_requests": build_attention_requests(tables, organs),
         "request_stale_workdays": get_request_stale_workdays(),

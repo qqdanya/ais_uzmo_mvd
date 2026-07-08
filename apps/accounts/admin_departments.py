@@ -18,6 +18,7 @@ from .admin_common import (
     build_pagination_fields,
     completion_average,
     completion_display,
+    completion_values_by_organ_for_queryset,
     completion_values_for_queryset,
     date_period_from_request,
     days_class,
@@ -32,6 +33,7 @@ from .admin_common import (
     query_with,
     request_number,
     request_status_counts,
+    request_status_counts_by_organ,
     request_title,
     row_matches_view,
     selected_per_page,
@@ -262,32 +264,60 @@ def build_departments_context(request):
     }
 
 
-def collect_organ_stats_for_department(organ, department, tables, filters):
-    stats = Counter()
-    completion_values = []
+def all_organ_stats_for_department(organs, department, tables, filters):
+    """Build one stats row per organ in O(tables_for_department) queries instead of O(organs * tables).
+
+    Same structural fix as admin_organs.collect_all_organ_stats: looping
+    collect_organ_stats_for_department() once per organ meant e.g. 37 organs x
+    1-2 department tables x 3 queries each on every department-detail page
+    load. Grouping by territorial_organ inside one query per table gets the
+    same numbers independent of how many organs are selected.
+    """
     stale_before = filters["stale_before"]
+    buckets = {organ.pk: {"stats": Counter(), "completion_values": []} for organ in organs}
+
     for table in tables_for_department(tables, department["slug"]):
-        qs = table["model"].objects.select_related("territorial_organ").filter(is_deleted=False, territorial_organ=organ)
+        qs = table["model"].objects.filter(is_deleted=False, territorial_organ__in=organs)
         qs = apply_period(qs, filters["period"])
         qs = filter_by_request_statuses(qs, filters)
-        add_status_counts(stats, request_status_counts(qs, stale_before=stale_before))
-        completion_values.extend(completion_values_for_queryset(qs))
-    avg_completion = completion_average(completion_values)
-    return {
-        "organ": organ,
-        "total": stats["total"],
-        "in_work": stats["in_work"],
-        "done": stats["done"],
-        "rejected": stats["rejected"],
-        "stale": stats["stale"],
-        "avg_completion": avg_completion,
-        "avg_completion_display": completion_display(avg_completion),
-        "organ_url": reverse("admin_organ_detail", kwargs={"pk": organ.pk}),
-    }
+
+        counts_by_organ = request_status_counts_by_organ(qs, stale_before=stale_before)
+        for organ_id, counts in counts_by_organ.items():
+            bucket = buckets.get(organ_id)
+            if bucket is not None:
+                add_status_counts(bucket["stats"], counts)
+
+        completion_by_organ = completion_values_by_organ_for_queryset(qs)
+        for organ_id, values in completion_by_organ.items():
+            bucket = buckets.get(organ_id)
+            if bucket is not None:
+                bucket["completion_values"].extend(values)
+
+    rows = {}
+    for organ in organs:
+        bucket = buckets[organ.pk]
+        avg_completion = completion_average(bucket["completion_values"])
+        rows[organ.pk] = {
+            "organ": organ,
+            "total": bucket["stats"]["total"],
+            "in_work": bucket["stats"]["in_work"],
+            "done": bucket["stats"]["done"],
+            "rejected": bucket["stats"]["rejected"],
+            "stale": bucket["stats"]["stale"],
+            "avg_completion": avg_completion,
+            "avg_completion_display": completion_display(avg_completion),
+            "organ_url": reverse("admin_organ_detail", kwargs={"pk": organ.pk}),
+        }
+    return rows
+
+
+def collect_organ_stats_for_department(organ, department, tables, filters):
+    return all_organ_stats_for_department([organ], department, tables, filters)[organ.pk]
 
 
 def organ_rows_for_department(organs, department, tables, filters):
-    rows = [collect_organ_stats_for_department(organ, department, tables, filters) for organ in organs]
+    stats_by_organ = all_organ_stats_for_department(organs, department, tables, filters)
+    rows = [stats_by_organ[organ.pk] for organ in organs]
     rows = [row for row in rows if row["total"] > 0 or row["stale"] > 0 or row["in_work"] > 0]
     return sorted(rows, key=lambda row: (-row["total"], -row["in_work"], row["organ"].order_number, row["organ"].name))
 

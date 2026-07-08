@@ -252,6 +252,28 @@ def request_status_counts(qs, *, stale_before=None):
     return {key: counts.get(key) or 0 for key in ("total", "in_work", "done", "rejected", "stale")}
 
 
+def request_status_counts_by_organ(qs, *, stale_before=None):
+    """Grouped counterpart of request_status_counts: one query, one row per organ.
+
+    Used where a caller needs a per-organ breakdown across many organs (e.g.
+    the organs dashboard) instead of calling request_status_counts once per
+    organ, which turns O(organs) queries into O(1).
+    """
+    aggregations = {
+        "total": Count("pk"),
+        "in_work": Count("pk", filter=Q(status=NeedStatus.IN_WORK)),
+        "done": Count("pk", filter=Q(status=NeedStatus.DONE)),
+        "rejected": Count("pk", filter=Q(status=NeedStatus.REJECTED)),
+    }
+    if stale_before is not None:
+        aggregations["stale"] = Count("pk", filter=Q(status=NeedStatus.IN_WORK, request_date__lte=stale_before))
+    rows = qs.values("territorial_organ").annotate(**aggregations)
+    return {
+        row["territorial_organ"]: {key: row.get(key) or 0 for key in ("total", "in_work", "done", "rejected", "stale")}
+        for row in rows
+    }
+
+
 def add_status_counts(total_counts, counts):
     """Add request counters from one table to a mutable totals mapping."""
     for key in ("total", "in_work", "done", "rejected", "stale"):
@@ -303,6 +325,27 @@ def completion_values_for_queryset(qs):
     return values
 
 
+def completion_values_by_organ_for_queryset(qs):
+    """Same batching as completion_values_for_queryset, grouped by territorial_organ_id.
+
+    Lets a caller compute per-organ completion stats across a multi-organ
+    queryset with one pass (one "done" query + one batched history query per
+    table), instead of calling completion_values_for_queryset once per organ.
+    """
+    done_objects = list(qs.filter(status=NeedStatus.DONE))
+    missing = [obj for obj in done_objects if _own_completion_date(obj) is None]
+    history_dates = _bulk_history_completion_dates(missing)
+    values_by_organ = {}
+    for obj in done_objects:
+        end_date = _own_completion_date(obj) or history_dates.get(obj.pk)
+        if not end_date:
+            continue
+        days = business_days_inclusive(obj.request_date, end_date)
+        if days is not None:
+            values_by_organ.setdefault(obj.territorial_organ_id, []).append(days)
+    return values_by_organ
+
+
 def completion_average(values):
     return round(mean(values), 1) if values else None
 
@@ -313,6 +356,12 @@ def completion_display(value):
 
 def latest_request_date_for_queryset(qs):
     return qs.aggregate(latest=Max("request_date")).get("latest")
+
+
+def latest_request_dates_by_organ(qs):
+    """Grouped counterpart of latest_request_date_for_queryset: one query, one row per organ."""
+    rows = qs.values("territorial_organ").annotate(latest=Max("request_date"))
+    return {row["territorial_organ"]: row["latest"] for row in rows}
 
 
 def global_completion_average(rows):

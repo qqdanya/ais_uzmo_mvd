@@ -20,6 +20,7 @@ from .admin_common import (
     completion_average,
     completion_display,
     completion_values_for_queryset,
+    completion_values_by_organ_for_queryset,
     date_period_from_request,
     days_class,
     filter_by_request_statuses,
@@ -27,12 +28,14 @@ from .admin_common import (
     department_options,
     global_completion_average,
     latest_request_date_for_queryset,
+    latest_request_dates_by_organ,
     multiselect_label,
     processing_caption,
     processing_days,
     query_with,
     request_number,
     request_status_counts,
+    request_status_counts_by_organ,
     request_title,
     row_matches_view,
     selected_per_page,
@@ -81,6 +84,12 @@ def org_filtered_queryset(table, organ, filters, *, with_request_status=True):
     return filter_by_request_statuses(qs, filters, with_request_status=with_request_status)
 
 
+def all_organs_filtered_queryset(table, organs, filters, *, with_request_status=True):
+    qs = table["model"].objects.filter(is_deleted=False, territorial_organ__in=organs)
+    qs = apply_period(qs, filters["period"])
+    return filter_by_request_statuses(qs, filters, with_request_status=with_request_status)
+
+
 def iter_tables(tables, filters):
     for table in tables:
         departments = filters.get("departments") or []
@@ -89,20 +98,7 @@ def iter_tables(tables, filters):
         yield table
 
 
-def collect_organ_stats(organ, tables, filters):
-    stats = Counter()
-    completion_values = []
-    latest_date = None
-    stale_before = filters["stale_before"]
-
-    for table in iter_tables(tables, filters):
-        qs = org_filtered_queryset(table, organ, filters, with_request_status=True)
-        add_status_counts(stats, request_status_counts(qs, stale_before=stale_before))
-        completion_values.extend(completion_values_for_queryset(qs))
-        candidate = latest_request_date_for_queryset(qs)
-        if candidate and (latest_date is None or candidate > latest_date):
-            latest_date = candidate
-
+def organ_stats_row(organ, stats, completion_values, latest_date):
     avg_completion = completion_average(completion_values)
     return {
         "organ": organ,
@@ -119,6 +115,49 @@ def collect_organ_stats(organ, tables, filters):
         "latest_display": latest_date.strftime("%d.%m.%Y") if latest_date else "—",
         "detail_url": reverse("admin_organ_detail", kwargs={"pk": organ.pk}),
     }
+
+
+def collect_all_organ_stats(organs, tables, filters):
+    """Build one stats row per organ in O(tables) queries instead of O(organs * tables).
+
+    Looping collect_organ_stats() once per organ (the previous approach) means
+    e.g. 37 organs x 12 tables x ~3 queries each = 700+ queries for the organs
+    dashboard. Grouping by territorial_organ inside one query per table gets
+    the same numbers in roughly 2-3 queries per table, regardless of how many
+    organs are selected.
+    """
+    stale_before = filters["stale_before"]
+    buckets = {organ.pk: {"stats": Counter(), "completion_values": [], "latest_date": None} for organ in organs}
+
+    for table in iter_tables(tables, filters):
+        qs = all_organs_filtered_queryset(table, organs, filters, with_request_status=True)
+
+        counts_by_organ = request_status_counts_by_organ(qs, stale_before=stale_before)
+        for organ_id, counts in counts_by_organ.items():
+            bucket = buckets.get(organ_id)
+            if bucket is not None:
+                add_status_counts(bucket["stats"], counts)
+
+        completion_by_organ = completion_values_by_organ_for_queryset(qs)
+        for organ_id, values in completion_by_organ.items():
+            bucket = buckets.get(organ_id)
+            if bucket is not None:
+                bucket["completion_values"].extend(values)
+
+        latest_by_organ = latest_request_dates_by_organ(qs)
+        for organ_id, latest in latest_by_organ.items():
+            bucket = buckets.get(organ_id)
+            if bucket is not None and latest and (bucket["latest_date"] is None or latest > bucket["latest_date"]):
+                bucket["latest_date"] = latest
+
+    return {
+        organ.pk: organ_stats_row(organ, buckets[organ.pk]["stats"], buckets[organ.pk]["completion_values"], buckets[organ.pk]["latest_date"])
+        for organ in organs
+    }
+
+
+def collect_organ_stats(organ, tables, filters):
+    return collect_all_organ_stats([organ], tables, filters)[organ.pk]
 
 
 def sort_organ_rows(rows, view):
@@ -212,7 +251,8 @@ def build_organs_context(request):
     departments = department_options(tables)
     filters = build_filters(request, departments)
     organs = filter_organs_by_search(base_organs_for_user(request.user), filters["query"])
-    all_rows = [collect_organ_stats(organ, tables, filters) for organ in organs]
+    stats_by_organ = collect_all_organ_stats(organs, tables, filters)
+    all_rows = [stats_by_organ[organ.pk] for organ in organs]
     visible_rows = visible_organ_rows(all_rows, filters["view"])
     counts = org_view_counts(all_rows)
     paginator = Paginator(visible_rows, filters["per_page"])
