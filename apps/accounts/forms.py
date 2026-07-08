@@ -1,16 +1,35 @@
+from datetime import timedelta
+
 from django import forms
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
-from django.core.cache import cache
 from django.core.exceptions import ValidationError
+from django.utils import timezone
+
+from .models import ActivationAttempt
 
 
 ACTIVATION_MAX_ATTEMPTS = 5
 ACTIVATION_LOCKOUT_SECONDS = 15 * 60
 
 
-def _activation_attempts_key(username):
-    return f"activation_attempts:{username.lower()}"
+def _recent_failed_attempts(username):
+    """Return the failed-attempt count for username within the lockout window.
+
+    Opportunistically prunes expired rows so the table stays bounded without
+    needing a separate cleanup job.
+    """
+    cutoff = timezone.now() - timedelta(seconds=ACTIVATION_LOCKOUT_SECONDS)
+    ActivationAttempt.objects.filter(attempted_at__lt=cutoff).delete()
+    return ActivationAttempt.objects.filter(username__iexact=username).count()
+
+
+def _record_failed_attempt(username):
+    ActivationAttempt.objects.create(username=username)
+
+
+def _clear_failed_attempts(username):
+    ActivationAttempt.objects.filter(username__iexact=username).delete()
 
 
 class AccountActivationForm(forms.Form):
@@ -48,14 +67,13 @@ class AccountActivationForm(forms.Form):
         if self.user.has_usable_password():
             raise ValidationError("Учетная запись уже активирована. Используйте обычный вход в систему.")
 
-        attempts_key = _activation_attempts_key(username)
-        if cache.get(attempts_key, 0) >= ACTIVATION_MAX_ATTEMPTS:
+        if _recent_failed_attempts(username) >= ACTIVATION_MAX_ATTEMPTS:
             raise ValidationError("Слишком много попыток активации. Повторите позже.")
 
         if not profile.activation_code or profile.activation_code.upper() != activation_code:
-            cache.set(attempts_key, cache.get(attempts_key, 0) + 1, ACTIVATION_LOCKOUT_SECONDS)
+            _record_failed_attempt(username)
             raise ValidationError("Неверный код активации.")
-        cache.delete(attempts_key)
+        _clear_failed_attempts(username)
 
         if password1 != password2:
             self.add_error("password2", "Пароли не совпадают.")

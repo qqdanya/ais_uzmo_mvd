@@ -108,14 +108,26 @@ class TmcProduct(models.Model):
         return self.name
 
 
-class RequestNumberRegistry(models.Model):
+class RequestLinkMixin(models.Model):
+    """Shared generic-relation triplet linking a row to any request model.
+
+    RequestNumberRegistry, RequestStatusHistory and RequestPhotoLink all
+    point at an arbitrary request row via (content_type, object_id).
+    """
+
+    content_type = models.ForeignKey(ContentType, verbose_name="тип заявки", on_delete=models.CASCADE)
+    object_id = models.PositiveBigIntegerField("ID заявки")
+    request = GenericForeignKey("content_type", "object_id")
+
+    class Meta:
+        abstract = True
+
+
+class RequestNumberRegistry(RequestLinkMixin):
     territorial_organ = models.ForeignKey("directory.TerritorialOrgan", verbose_name="территориальный орган", on_delete=models.CASCADE, related_name="request_number_registry")
     department = models.SlugField("отдел", max_length=80, db_index=True)
     request_number = models.CharField("номер заявки", max_length=80)
     normalized_request_number = models.CharField("нормализованный номер", max_length=80, db_index=True)
-    content_type = models.ForeignKey(ContentType, verbose_name="тип заявки", on_delete=models.CASCADE)
-    object_id = models.PositiveBigIntegerField("ID заявки")
-    request = GenericForeignKey("content_type", "object_id")
     created_at = models.DateTimeField("создано", auto_now_add=True)
     updated_at = models.DateTimeField("обновлено", auto_now=True)
 
@@ -144,10 +156,7 @@ class RequestNumberRegistry(models.Model):
         return f"{self.territorial_organ} / {self.department} / № {self.request_number}"
 
 
-class RequestStatusHistory(models.Model):
-    content_type = models.ForeignKey(ContentType, verbose_name="тип заявки", on_delete=models.CASCADE)
-    object_id = models.PositiveBigIntegerField("ID заявки")
-    request = GenericForeignKey("content_type", "object_id")
+class RequestStatusHistory(RequestLinkMixin):
     old_status = models.CharField("предыдущий статус", max_length=20, choices=NeedStatus.choices, null=True, blank=True)
     new_status = models.CharField("новый статус", max_length=20, choices=NeedStatus.choices)
     completed_at = models.DateField("дата исполнения", null=True, blank=True)
@@ -166,12 +175,9 @@ class RequestStatusHistory(models.Model):
         return f"{old_status} -> {self.get_new_status_display()}"
 
 
-class RequestPhotoLink(models.Model):
+class RequestPhotoLink(RequestLinkMixin):
     territorial_organ = models.ForeignKey("directory.TerritorialOrgan", verbose_name="территориальный орган", on_delete=models.CASCADE, related_name="request_photo_links")
     photo = models.ForeignKey("directory.TerritorialOrganPhoto", verbose_name="фотография", on_delete=models.CASCADE, related_name="request_links")
-    content_type = models.ForeignKey(ContentType, verbose_name="тип заявки", on_delete=models.CASCADE)
-    object_id = models.PositiveBigIntegerField("ID заявки")
-    request = GenericForeignKey("content_type", "object_id")
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name="создал", null=True, blank=True, on_delete=models.SET_NULL, related_name="created_request_photo_links")
     created_at = models.DateTimeField("создано", auto_now_add=True, db_index=True)
 
@@ -215,33 +221,41 @@ class VehicleInventory(TrackableRequest):
             raise ValidationError(errors)
 
 
-class VehicleRepairRequest(TrackableRequest):
+class SimpleStatusRequest(TrackableRequest):
+    """Shared shape for the request tables that are just number/date/status/completed_at.
+
+    VehicleRepairRequest, VehicleFuelRequest, FireDepartmentRequest and
+    BuildingRepairRequest all use this exact shape. AntiTerrorMeasure looks
+    similar but differs enough (default+indexed request_date, different
+    status label, two-field ordering, conditional __str__) that forcing it
+    into this base would mean overriding almost every field, so it stays
+    separate.
+    """
+
     request_number = models.CharField("номер", max_length=80)
     request_date = models.DateField("дата")
     status = models.CharField("исполнение заявки", max_length=20, choices=NeedStatus.choices, default=NeedStatus.IN_WORK, db_index=True)
     completed_at = models.DateField("дата исполнения заявки", null=True, blank=True)
 
     class Meta:
-        verbose_name = "заявка на ремонт автотранспорта"
-        verbose_name_plural = "Заявки на ремонт автотранспорта"
+        abstract = True
         ordering = ("-request_date",)
         indexes = [models.Index(fields=["territorial_organ", "request_date", "status"])]
+
+
+class VehicleRepairRequest(SimpleStatusRequest):
+    class Meta(SimpleStatusRequest.Meta):
+        verbose_name = "заявка на ремонт автотранспорта"
+        verbose_name_plural = "Заявки на ремонт автотранспорта"
 
     def __str__(self):
         return f"Заявка на ремонт № {self.request_number}"
 
 
-class VehicleFuelRequest(TrackableRequest):
-    request_number = models.CharField("номер", max_length=80)
-    request_date = models.DateField("дата")
-    status = models.CharField("исполнение заявки", max_length=20, choices=NeedStatus.choices, default=NeedStatus.IN_WORK, db_index=True)
-    completed_at = models.DateField("дата исполнения заявки", null=True, blank=True)
-
-    class Meta:
+class VehicleFuelRequest(SimpleStatusRequest):
+    class Meta(SimpleStatusRequest.Meta):
         verbose_name = "заявка на ГСМ"
         verbose_name_plural = "Заявки на ГСМ"
-        ordering = ("-request_date",)
-        indexes = [models.Index(fields=["territorial_organ", "request_date", "status"])]
 
     def __str__(self):
         return f"Заявка на ГСМ № {self.request_number}"
@@ -314,17 +328,10 @@ class SecurityAlarm(TrackableRequest):
             raise ValidationError(errors)
 
 
-class FireDepartmentRequest(TrackableRequest):
-    request_number = models.CharField("номер", max_length=80)
-    request_date = models.DateField("дата")
-    status = models.CharField("исполнение заявки", max_length=20, choices=NeedStatus.choices, default=NeedStatus.IN_WORK, db_index=True)
-    completed_at = models.DateField("дата исполнения заявки", null=True, blank=True)
-
-    class Meta:
+class FireDepartmentRequest(SimpleStatusRequest):
+    class Meta(SimpleStatusRequest.Meta):
         verbose_name = "заявка пожарной безопасности"
         verbose_name_plural = "Заявки пожарной безопасности"
-        ordering = ("-request_date",)
-        indexes = [models.Index(fields=["territorial_organ", "request_date", "status"])]
 
     def __str__(self):
         return f"Заявка № {self.request_number}"
@@ -397,17 +404,12 @@ class ServiceHousing(TrackableRequest):
             raise ValidationError(errors)
 
 
-class BuildingRepairRequest(TrackableRequest):
-    request_number = models.CharField("номер", max_length=80)
-    request_date = models.DateField("дата")
-    status = models.CharField("исполнение заявки", max_length=20, choices=NeedStatus.choices, default=NeedStatus.IN_WORK, db_index=True)
+class BuildingRepairRequest(SimpleStatusRequest):
     completed_at = models.DateField("дата исполнения", null=True, blank=True)
 
-    class Meta:
+    class Meta(SimpleStatusRequest.Meta):
         verbose_name = "текущий ремонт"
         verbose_name_plural = "Текущий ремонт зданий, помещений, сооружений / Заявка"
-        ordering = ("-request_date",)
-        indexes = [models.Index(fields=["territorial_organ", "request_date", "status"])]
 
     def __str__(self):
         return f"Заявка текущего ремонта № {self.request_number}"

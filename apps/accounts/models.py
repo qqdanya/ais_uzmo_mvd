@@ -73,3 +73,19 @@ class UserProfile(models.Model):
         if self.user_id and self.needs_activation:
             self.ensure_activation_code()
         super().save(*args, **kwargs)
+
+
+class ActivationAttempt(models.Model):
+    """A failed account-activation code guess, used to rate-limit brute force.
+
+    Stored in the DB rather than the cache framework so the lockout is shared
+    across all gunicorn worker processes instead of counting independently
+    per worker.
+    """
+
+    username = models.CharField(max_length=150, db_index=True)
+    attempted_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Попытка активации"
+        verbose_name_plural = "Попытки активации"

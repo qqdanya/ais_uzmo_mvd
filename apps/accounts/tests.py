@@ -1,5 +1,4 @@
 from django.contrib.auth import get_user_model
-from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -11,10 +10,6 @@ from .models import UserProfile
 
 
 class AccountFoundationTests(TestCase):
-    def setUp(self):
-        cache.clear()
-        self.addCleanup(cache.clear)
-
     def test_profile_display_name_uses_last_name_and_initials(self):
         User = get_user_model()
         user = User.objects.create_user("petrov", first_name="Алексей", last_name="Петров", password="pass12345")

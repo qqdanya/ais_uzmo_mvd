@@ -1,30 +1,20 @@
 import mimetypes
-from hashlib import blake2b
-from io import BytesIO
 from pathlib import Path
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.core.files.base import ContentFile
 from django.core.validators import FileExtensionValidator, MinValueValidator
-from PIL import Image, ImageOps, UnidentifiedImageError
+from PIL import Image, UnidentifiedImageError
 from django.db import models
 from django.db.models import Q
+
+from apps.directory.services import thumbnails
 
 
 ALLOWED_PHOTO_FORMAT_MIME_TYPES = {
     "JPEG": "image/jpeg",
     "PNG": "image/png",
     "WEBP": "image/webp",
-}
-
-PHOTO_THUMBNAIL_SIZES = {
-    "small": (160, 160),
-    "medium": (640, 480),
-}
-PHOTO_THUMBNAIL_FIELDS = {
-    "small": "thumbnail_small",
-    "medium": "thumbnail_medium",
 }
 
 
@@ -213,63 +203,11 @@ class TerritorialOrganPhoto(models.Model):
             content_type = mimetypes.guess_type(self.image.name)[0] or ""
         self.mime_type = content_type[:100]
 
-    def thumbnail_storage_name(self, kind):
-        source = Path(self.image.name)
-        digest = blake2b(f"{self.pk}:{self.image.name}:{kind}".encode("utf-8"), digest_size=8).hexdigest()
-        stem = source.stem[:80] or f"photo-{self.pk}"
-        return f"territorial_organs/thumbnails/{kind}/{stem}-{digest}.jpg"
-
-    def _build_thumbnail_content(self, kind):
-        size = PHOTO_THUMBNAIL_SIZES[kind]
-        self.image.open("rb")
-        try:
-            with Image.open(self.image) as source_image:
-                image = ImageOps.exif_transpose(source_image)
-                image.thumbnail(size, Image.Resampling.LANCZOS)
-                if image.mode not in {"RGB", "L"}:
-                    background = Image.new("RGB", image.size, "white")
-                    if image.mode in {"RGBA", "LA"}:
-                        background.paste(image, mask=image.getchannel("A"))
-                    else:
-                        background.paste(image.convert("RGB"))
-                    image = background
-                elif image.mode != "RGB":
-                    image = image.convert("RGB")
-                buffer = BytesIO()
-                image.save(buffer, format="JPEG", quality=82, optimize=True, progressive=True)
-                return ContentFile(buffer.getvalue())
-        finally:
-            self.image.close()
-
     def ensure_thumbnails(self, *, force=False, save=True):
-        if not self.pk or not self.image:
-            return False
-        changed = False
-        for kind, field_name in PHOTO_THUMBNAIL_FIELDS.items():
-            field = getattr(self, field_name)
-            if field and not force:
-                continue
-            old_name = field.name if field else ""
-            if old_name:
-                field.storage.delete(old_name)
-            try:
-                content = self._build_thumbnail_content(kind)
-            except (OSError, ValueError, UnidentifiedImageError):
-                continue
-            field.save(self.thumbnail_storage_name(kind), content, save=False)
-            changed = True
-        if changed and save:
-            type(self).objects.filter(pk=self.pk).update(
-                thumbnail_small=self.thumbnail_small.name,
-                thumbnail_medium=self.thumbnail_medium.name,
-            )
-        return changed
+        return thumbnails.ensure_thumbnails(self, force=force, save=save)
 
     def delete_thumbnail_files(self):
-        for field_name in PHOTO_THUMBNAIL_FIELDS.values():
-            field = getattr(self, field_name)
-            if field:
-                field.delete(save=False)
+        thumbnails.delete_thumbnail_files(self)
 
     def delete_files(self, *, include_original=False):
         self.delete_thumbnail_files()
