@@ -78,7 +78,11 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / env("MEDIA_ROOT", default="media")
-DATA_UPLOAD_MAX_NUMBER_FILES = None
+# Bulk photo upload must accept 300+ files in a single request even without
+# the JS batching (locked by test_photo_bulk_upload_accepts_more_than_300_files),
+# so 500 keeps that working while still bounding what a malicious or broken
+# client can post in one request (previously unlimited).
+DATA_UPLOAD_MAX_NUMBER_FILES = 500
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 LOGIN_URL = "login"
@@ -97,3 +101,15 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "app": {"format": "[{asctime}] {levelname} {name}: {message}", "style": "{"},
+    },
+    "handlers": {
+        "console": {"class": "logging.StreamHandler", "formatter": "app"},
+    },
+    "root": {"handlers": ["console"], "level": "INFO"},
+}
