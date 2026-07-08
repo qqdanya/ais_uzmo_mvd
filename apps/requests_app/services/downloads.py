@@ -1,6 +1,8 @@
 import csv
 import os
+import shutil
 import tempfile
+import time
 import zipfile
 from pathlib import Path, PurePosixPath
 
@@ -103,16 +105,24 @@ def photos_zip_response(photos, filename, archive_path_builder=None):
     temp.close()
     used_names = set()
     try:
-        with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as zip_file:
+        # ZIP_STORED instead of ZIP_DEFLATED: uploads are restricted to
+        # JPEG/PNG/WebP, which are already compressed, so deflate burns CPU on
+        # every download for a ~0% size gain and is the main reason large
+        # archives risk the gunicorn request timeout.
+        with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_STORED) as zip_file:
             for index, photo in enumerate(photos, start=1):
                 if not photo.image:
                     continue
                 source_name = photo_download_name(photo)
                 relative_name = archive_path_builder(photo, source_name) if archive_path_builder else f"{index:03d}-{source_name}"
                 archive_name = unique_archive_name(relative_name, photo.pk, used_names)
+                member = zipfile.ZipInfo(archive_name, date_time=time.localtime(time.time())[:6])
+                member.external_attr = 0o600 << 16
                 try:
-                    with photo.image.open("rb") as file_handle:
-                        zip_file.writestr(archive_name, file_handle.read())
+                    # Chunked copy keeps memory flat instead of loading each
+                    # photo fully into memory via file_handle.read().
+                    with photo.image.open("rb") as file_handle, zip_file.open(member, "w") as target:
+                        shutil.copyfileobj(file_handle, target, 256 * 1024)
                 except FileNotFoundError:
                     continue
     except Exception:
