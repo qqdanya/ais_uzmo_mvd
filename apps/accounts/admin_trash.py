@@ -148,28 +148,51 @@ def _deleted_folders(organs, query=""):
     return qs.order_by("-updated_at", "-pk")
 
 
-def _build_deleted_folder_tree(root_folder, photos_per_folder=8):
-    folder_ids = _deleted_folder_descendant_ids(root_folder)
-    folders = (
+def _deleted_folder_ids_for_roots(root_ids):
+    # Same breadth-first walk as _deleted_folder_descendant_ids, but for all
+    # root folders on a trash page at once - one query per tree-depth level
+    # for the whole page instead of one per folder.
+    all_ids = set(root_ids)
+    pending = list(root_ids)
+    while pending:
+        child_ids = list(TerritorialOrganPhotoFolder.objects.filter(parent_id__in=pending).values_list("pk", flat=True))
+        new_ids = [child_id for child_id in child_ids if child_id not in all_ids]
+        if not new_ids:
+            break
+        all_ids.update(new_ids)
+        pending = new_ids
+    return all_ids
+
+
+def _attach_folder_tree_previews(folder_page, photos_per_folder=8):
+    root_folders = list(folder_page.object_list)
+    if not root_folders:
+        return folder_page
+
+    root_ids = {folder.pk for folder in root_folders}
+    all_ids = _deleted_folder_ids_for_roots(root_ids)
+
+    descendant_folders = (
         TerritorialOrganPhotoFolder.objects.select_related("parent")
-        .filter(pk__in=folder_ids)
+        .filter(pk__in=all_ids)
         .only("id", "parent_id", "name", "territorial_organ_id")
         .order_by("name", "pk")
     )
-    folder_by_id = {folder.pk: folder for folder in folders}
-    root_folder = folder_by_id.get(root_folder.pk, root_folder)
+    folder_by_id = {folder.pk: folder for folder in descendant_folders}
+    for root in root_folders:
+        folder_by_id[root.pk] = root
 
     children_by_parent = {}
-    for folder in folders:
-        if folder.pk == root_folder.pk:
+    for folder in folder_by_id.values():
+        if folder.pk in root_ids:
             continue
         children_by_parent.setdefault(folder.parent_id, []).append(folder)
 
-    photos_by_folder = {folder_id: [] for folder_id in folder_ids}
-    photo_counts_by_folder = {folder_id: 0 for folder_id in folder_ids}
+    photos_by_folder = {folder_id: [] for folder_id in all_ids}
+    photo_counts_by_folder = {folder_id: 0 for folder_id in all_ids}
     photos = (
         TerritorialOrganPhoto.objects.select_related("folder", "created_by", "updated_by")
-        .filter(territorial_organ=root_folder.territorial_organ, folder_id__in=folder_ids, is_deleted=True)
+        .filter(folder_id__in=all_ids, is_deleted=True)
         .order_by("folder__name", "-updated_at", "-pk")
     )
     for photo in photos:
@@ -195,12 +218,8 @@ def _build_deleted_folder_tree(root_folder, photos_per_folder=8):
             "subtree_folder_count": subtree_folder_count,
         }
 
-    return build_node(root_folder)
-
-
-def _attach_folder_tree_previews(folder_page):
-    for folder in folder_page.object_list:
-        tree = _build_deleted_folder_tree(folder)
+    for folder in root_folders:
+        tree = build_node(folder_by_id.get(folder.pk, folder))
         folder.trash_tree_node = tree
         folder.trash_tree_folder_count = tree["subtree_folder_count"]
         folder.trash_tree_photo_count = tree["subtree_photo_count"]

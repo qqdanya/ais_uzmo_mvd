@@ -1,4 +1,13 @@
+from django.core.exceptions import ImproperlyConfigured
+
 from .settings import *  # noqa
+
+if "postgresql" not in DATABASES["default"]["ENGINE"]:  # noqa: F405
+    raise ImproperlyConfigured(
+        "config.settings_prod requires PostgreSQL (set DATABASE_URL to a postgres:// URL). "
+        f"Got engine {DATABASES['default']['ENGINE']!r} - if DATABASE_URL is unset in production .env, "  # noqa: F405
+        "this silently falls back to SQLite instead of failing loudly."
+    )
 
 DEBUG = False
 SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=True)  # noqa: F405

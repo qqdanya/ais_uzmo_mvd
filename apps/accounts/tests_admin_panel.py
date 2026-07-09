@@ -812,6 +812,29 @@ class AdminAssetsPanelTests(AdminPanelTestMixin, TestCase):
         self.assertEqual(category_response.context["summary"]["stale_count"], 1)
         self.assertEqual(detail_response.context["cell"]["status"], "stale")
 
+    def test_asset_organ_detail_history_is_bounded(self):
+        # Regression test: build_asset_organ_detail_context used to load the
+        # entire state-snapshot history for an organ/category with no limit
+        # or pagination - years of periodic submissions could return
+        # hundreds of rows onto one unpaginated page.
+        self.login_admin()
+        today = timezone.localdate()
+        for index in range(60):
+            FireExtinguisher.objects.create(
+                territorial_organ=self.organ,
+                created_by=self.admin,
+                state_date=today - timezone.timedelta(days=index),
+                required_count=10,
+                available_count=10,
+                expiry_date=today + timezone.timedelta(days=365),
+                writeoff_count=0,
+            )
+
+        response = self.client.get(reverse("admin_asset_organ_detail", kwargs={"category_key": "fire-extinguishers", "organ_id": self.organ.pk}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertLessEqual(len(response.context["history_rows"]), 50)
+
     def test_assets_panel_filters_by_category_status_and_search(self):
         self.login_admin()
         today = timezone.localdate()
@@ -1770,6 +1793,50 @@ class AdminTrashPanelTests(AdminPanelTestMixin, TestCase):
         self.assertContains(response, "Удалить папку")
         self.assertNotContains(response, ">Очистить</button>")
 
+    def test_trash_folder_tree_previews_do_not_scale_per_root_folder(self):
+        # Regression test: _attach_folder_tree_previews used to walk each
+        # root folder's descendant tree independently (one query per
+        # tree-depth level, per folder, plus a folders query and a photos
+        # query per folder). It's now batched across the whole trash page,
+        # so the query count for building tree previews should stay flat
+        # as the number of root folders on the page grows, not multiply.
+        self.login_admin()
+
+        def make_root_with_children(index):
+            root = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name=f"Корень {index}", created_by=self.admin, updated_by=self.admin, is_deleted=True)
+            child = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, parent=root, name=f"Подпапка {index}", created_by=self.admin, updated_by=self.admin, is_deleted=True)
+            TerritorialOrganPhoto.objects.create(territorial_organ=self.organ, folder=child, image=self.uploaded_image(f"leaf-{index}.png"), created_by=self.admin, updated_by=self.admin, is_deleted=True)
+
+        for index in range(3):
+            make_root_with_children(index)
+        def folder_tree_query_count(queries_context):
+            return len(
+                [
+                    q
+                    for q in queries_context.captured_queries
+                    if "directory_territorialorganphotofolder" in q["sql"].lower() or "directory_territorialorganphoto" in q["sql"].lower()
+                ]
+            )
+
+        with CaptureQueriesContext(connection) as few_queries:
+            response = self.client.get(reverse("admin_trash_panel") + "?section=folders")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["folder_page"].paginator.count, 3)
+        few_count = folder_tree_query_count(few_queries)
+
+        for index in range(3, 15):
+            make_root_with_children(index)
+        with CaptureQueriesContext(connection) as many_queries:
+            response = self.client.get(reverse("admin_trash_panel") + "?section=folders")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["folder_page"].paginator.count, 15)
+        many_count = folder_tree_query_count(many_queries)
+
+        # Same page size (TRASH_PAGE_SIZE=30 covers both 3 and 15 root folders
+        # in a single page), so a flat batched implementation issues the same
+        # number of folder/photo queries regardless of how many roots are on
+        # that page - isolated from unrelated session-save noise.
+        self.assertEqual(few_count, many_count)
 
     def test_trash_restore_child_folder_warning_uses_visible_alert(self):
         self.login_admin()

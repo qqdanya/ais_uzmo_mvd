@@ -214,7 +214,7 @@ def audit_has_filters(request, date_from, date_to, show_user_filter=True, show_d
 
 def filtered_logs(request, logs=None, show_user_filter=True, show_department_filter=True):
     if logs is None:
-        logs = AuditLog.objects.select_related("user", "territorial_organ").all()
+        logs = AuditLog.objects.select_related("user", "user__profile", "territorial_organ").all()
     users = audit_filter_values(request, "user") if show_user_filter else []
     actions = audit_filter_values(request, "action")
     organs = audit_filter_values(request, "organ")

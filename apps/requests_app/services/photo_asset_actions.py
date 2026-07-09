@@ -141,26 +141,41 @@ def resolve_bulk_upload_folder(request, organ, current_folder):
     return folder, current_folder, True
 
 
+BULK_PHOTO_BATCH_SIZE = 50
+
+
+def _chunked(items, size):
+    items = list(items)
+    for start in range(0, len(items), size):
+        yield items[start : start + size]
+
+
 def bulk_create_photos(request, organ, folder):
     files = request.FILES.getlist("images")
     descriptions = request.POST.getlist("descriptions")
     errors = []
     created = 0
     folder_queryset = manageable_photo_folders_queryset(request.user, organ)
-    for index, image in enumerate(files):
-        data = {"description": descriptions[index] if index < len(descriptions) else ""}
-        if folder:
-            data["folder"] = folder.pk
-        form = TerritorialOrganPhotoForm(data, {"image": image}, organ=organ, folder_queryset=folder_queryset)
-        if form.is_valid():
-            obj = form.save(commit=False)
-            obj.territorial_organ = organ
-            assign_photo_asset_author(obj, request.user)
-            obj.save()
-            write_audit(AuditLog.Action.CREATE, obj, old_values=None, new_values=serialize_instance(obj), request=request)
-            created += 1
-        else:
-            errors.append(f"{image.name}: {form.errors.as_text()}")
+    # Batched in groups rather than one atomic() for all files (up to 500 per
+    # request) or one per file - bounds how long a single transaction holds
+    # the DB write lock while still cutting commit overhead well below
+    # one-per-file.
+    for batch in _chunked(enumerate(files), BULK_PHOTO_BATCH_SIZE):
+        with transaction.atomic():
+            for index, image in batch:
+                data = {"description": descriptions[index] if index < len(descriptions) else ""}
+                if folder:
+                    data["folder"] = folder.pk
+                form = TerritorialOrganPhotoForm(data, {"image": image}, organ=organ, folder_queryset=folder_queryset)
+                if form.is_valid():
+                    obj = form.save(commit=False)
+                    obj.territorial_organ = organ
+                    assign_photo_asset_author(obj, request.user)
+                    obj.save()
+                    write_audit(AuditLog.Action.CREATE, obj, old_values=None, new_values=serialize_instance(obj), request=request)
+                    created += 1
+                else:
+                    errors.append(f"{image.name}: {form.errors.as_text()}")
     return created, errors
 
 

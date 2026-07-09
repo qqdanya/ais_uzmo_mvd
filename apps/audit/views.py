@@ -26,7 +26,7 @@ def audit_log(request):
 def my_audit_log(request):
     logs = filtered_logs(
         request,
-        logs=scope_logs_for_user(AuditLog.objects.select_related("user", "territorial_organ").all(), request.user),
+        logs=scope_logs_for_user(AuditLog.objects.select_related("user", "user__profile", "territorial_organ").all(), request.user),
         show_user_filter=True,
         show_department_filter=True,
     )
@@ -45,7 +45,7 @@ def my_audit_log(request):
 
 @login_required
 def audit_detail(request, pk):
-    log = prepare_log(get_object_or_404(AuditLog.objects.select_related("user", "territorial_organ"), pk=pk))
+    log = prepare_log(get_object_or_404(AuditLog.objects.select_related("user", "user__profile", "territorial_organ"), pk=pk))
     if not user_can_view_log(request.user, log):
         raise Http404
     return render(request, "partials/audit_detail.html", {"log": log})

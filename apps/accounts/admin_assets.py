@@ -257,6 +257,9 @@ def build_asset_organ_summary_context(request, organ_id):
     }
 
 
+ASSET_ORGAN_DETAIL_HISTORY_LIMIT = 50
+
+
 def build_asset_organ_detail_context(request, category_key, organ_id):
     category = get_asset_category(category_key)
     organ = get_object_or_404(TerritorialOrgan, pk=organ_id, is_active=True)
@@ -266,7 +269,7 @@ def build_asset_organ_detail_context(request, category_key, organ_id):
     rows = build_asset_matrix([organ], [category])
     cell = rows[0]["cells"][0] if rows else None
     history = []
-    qs = category["model"].objects.filter(is_deleted=False, territorial_organ=organ).order_by("-state_date", "-created_at", "-pk")
+    qs = category["model"].objects.filter(is_deleted=False, territorial_organ=organ).order_by("-state_date", "-created_at", "-pk")[:ASSET_ORGAN_DETAIL_HISTORY_LIMIT]
     for obj in qs:
         history.append(
             {

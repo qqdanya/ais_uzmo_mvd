@@ -86,6 +86,28 @@ class AuditLogTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertLessEqual(len(queries.captured_queries), 55)
 
+    def test_audit_log_does_not_reload_user_profile_per_row(self):
+        # Regression test: templates/audit_log.html calls log.user|display_name
+        # per row, which reads user.profile - without user__profile in
+        # select_related, that's one extra accounts_userprofile SELECT per
+        # row. Other profile queries happen on this page regardless of row
+        # count (the logged-in admin's own profile, throttled presence
+        # tracking, the user-filter dropdown) - isolate the one query that
+        # actually joins audit_auditlog to accounts_userprofile, which must
+        # stay a single joined SELECT no matter how many rows are on the page.
+        for index in range(30):
+            self.create_log(object_id=str(index), object_repr=f"Запись {index}")
+        self.client.login(username="admin", password="pass12345")
+
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get(reverse("audit_log"), {"date_from": "", "date_to": ""})
+
+        self.assertEqual(response.status_code, 200)
+        joined_profile_queries = [
+            q for q in queries.captured_queries if "audit_auditlog" in q["sql"].lower() and "accounts_userprofile" in q["sql"].lower()
+        ]
+        self.assertEqual(len(joined_profile_queries), 1)
+
     def test_admin_index_links_to_full_audit_log(self):
         User = get_user_model()
         staff = User.objects.create_superuser("staff", password="pass12345")
