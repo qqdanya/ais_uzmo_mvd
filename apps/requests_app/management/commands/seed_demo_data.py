@@ -268,17 +268,17 @@ class Command(BaseCommand):
         self.stats = Counter()
 
         if options["clear"]:
-            with transaction.atomic():
-                self._clear_demo_data(organs, user)
+            self._clear_demo_data(organs, user)
 
-        # One transaction per organ rather than one for the whole run - on
-        # SQLite that write lock would otherwise be held for the entire
-        # generation (which can take minutes for a large run), starving any
-        # other request (session saves, presence pings) trying to write
-        # during that window and surfacing as "database is locked".
+        # Each department section for each organ gets its own short
+        # transaction rather than one per organ (let alone one for the whole
+        # run) - with a large requests-per-table range, even one organ's
+        # worth of writes can take long enough to hold SQLite's write lock
+        # past any other request's busy timeout (session saves on every
+        # request, thanks to SESSION_SAVE_EVERY_REQUEST, are themselves
+        # writes and will collide with this just as easily as a real write).
         for index, organ in enumerate(organs, start=1):
-            with transaction.atomic():
-                self._seed_organ(organ, user)
+            self._seed_organ(organ, user)
             if progress_callback:
                 progress_callback(index, len(organs))
 
@@ -330,12 +330,16 @@ class Command(BaseCommand):
         return products
 
     def _seed_organ(self, organ, user):
-        self._seed_tmc(organ, user)
-        self._seed_transport(organ, user)
-        self._seed_fire(organ, user)
-        self._seed_antiterror(organ, user)
-        self._seed_citsizi(organ, user)
-        self._seed_uoto(organ, user)
+        for step in (
+            self._seed_tmc,
+            self._seed_transport,
+            self._seed_fire,
+            self._seed_antiterror,
+            self._seed_citsizi,
+            self._seed_uoto,
+        ):
+            with transaction.atomic():
+                step(organ, user)
 
     def _pick_status(self):
         return self.rng.choices(STATUS_CHOICES, weights=STATUS_WEIGHTS, k=1)[0]
@@ -665,15 +669,19 @@ class Command(BaseCommand):
             # A large demo run can produce thousands of ids - a single
             # pk__in with all of them at once can exceed SQLite's per-
             # statement variable limit ("too many SQL variables"), so
-            # every pk__in/object_id__in lookup here is chunked.
+            # every pk__in/object_id__in lookup here is chunked. Each chunk
+            # is also its own short transaction (see the comment on the
+            # per-organ seeding loop above for why).
             for chunk in _chunked(object_ids):
-                RequestStatusHistory.objects.filter(content_type=content_type, object_id__in=chunk).delete()
-                RequestNumberRegistry.objects.filter(content_type=content_type, object_id__in=chunk).delete()
-                model.objects.filter(pk__in=chunk).delete()
+                with transaction.atomic():
+                    RequestStatusHistory.objects.filter(content_type=content_type, object_id__in=chunk).delete()
+                    RequestNumberRegistry.objects.filter(content_type=content_type, object_id__in=chunk).delete()
+                    model.objects.filter(pk__in=chunk).delete()
             self.stats[f"Удалено: {model._meta.verbose_name_plural}"] += len(object_ids)
 
         for model in (VehicleInventory, FireExtinguisher, FireAlarm, SecurityAlarm, ServiceHousing):
-            deleted, _ = model.objects.filter(territorial_organ__in=organs, created_by=user).delete()
+            with transaction.atomic():
+                deleted, _ = model.objects.filter(territorial_organ__in=organs, created_by=user).delete()
             self.stats[f"Удалено: {model._meta.verbose_name_plural}"] += deleted
 
     def _request_number(self, prefix, organ, index):

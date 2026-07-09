@@ -103,5 +103,13 @@ def dev_seed_start(request):
 
 @admin_required
 def dev_seed_progress(request):
+    # This is polled every 1.5s while a generation is running and never
+    # touches request.session itself - but SESSION_SAVE_EVERY_REQUEST=True
+    # makes SessionMiddleware re-save it after every request regardless,
+    # which is itself a write that can collide with the generator's own
+    # writes on SQLite. That write is genuinely pointless here (nothing
+    # about the session changed), so skip it instead of fighting the
+    # generator for the write lock every single poll.
+    request.session.save = lambda *args, **kwargs: None
     state = cache.get(PROGRESS_CACHE_KEY) or IDLE_PROGRESS
     return JsonResponse(state)

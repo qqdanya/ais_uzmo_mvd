@@ -81,8 +81,18 @@
 
   function pollProgress(onDone) {
     const timer = setInterval(async () => {
-      const response = await fetch("/dev/seed/progress/");
-      const state = await response.json();
+      // Every request re-saves the session (SESSION_SAVE_EVERY_REQUEST), so
+      // a poll can occasionally collide with the generator's own writes and
+      // come back as a transient error instead of the expected JSON - skip
+      // this tick and let the next one (1.5s later) pick progress back up.
+      let state;
+      try {
+        const response = await fetch("/dev/seed/progress/");
+        if (!response.ok) return;
+        state = await response.json();
+      } catch (error) {
+        return;
+      }
       setProgress(state.done, state.total || 1);
       if (state.finished) {
         clearInterval(timer);
@@ -94,7 +104,7 @@
         }
         onDone?.();
       }
-    }, 600);
+    }, 1500);
   }
 
   function initForm() {
