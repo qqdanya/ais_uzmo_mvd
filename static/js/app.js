@@ -8,11 +8,12 @@ function initApp() {
   autoDismissAlerts();
   applyCollapsedPanels();
 
+  applyDashboardUrlState();
   const restoredOrganCount = restoreCheckedOrgans();
   const savedOrganId = storedValue(ORGAN_STORAGE_KEY);
-  const organ = savedOrganId
-    ? findOrganById(savedOrganId)
-    : document.querySelector(".organ-item[data-organ-id]");
+  // Fall back to the first organ when the remembered/linked one is not in
+  // this user's list (revoked access, deactivated organ, foreign deep link).
+  const organ = findOrganById(savedOrganId) || document.querySelector(".organ-item[data-organ-id]");
 
   if (organ) {
     setActiveOrgan(organ);

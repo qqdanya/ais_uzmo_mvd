@@ -129,6 +129,7 @@ function registerAppEventHandlers() {
     if (departmentSlug) {
       storeValue(departmentTableStorageKey(departmentSlug), tab.dataset.tableKey);
       tab.setAttribute("hx-get", tableUrlWithSavedState(tab));
+      syncDashboardUrl();
     }
   }, true);
   

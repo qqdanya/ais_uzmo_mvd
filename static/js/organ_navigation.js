@@ -32,6 +32,7 @@ function checkedOrganIds() {
 
 function storeCheckedOrganIds() {
   storeValue(MULTI_ORGANS_KEY, checkedOrganIds().join(","));
+  syncDashboardUrl();
 }
 
 function selectedOrganQueryString() {
@@ -118,6 +119,7 @@ function setOrganMode(mode) {
     renderMultiOrganInfo();
   }
   syncOrganModeButtons();
+  syncDashboardUrl();
 }
 
 function loadDepartment(department) {
@@ -129,12 +131,18 @@ function loadDepartment(department) {
     const query = departmentRequestQuery(departmentSlug);
     renderMultiOrganInfo();
     if (!baseOrganId || !organQuery) {
+      clearActiveDepartment();
       document.getElementById("workspace").innerHTML = '<div class="empty-state">Выберите хотя бы один территориальный орган</div>';
+      syncDashboardUrl();
       return;
     }
     storeValue(departmentStorageKey("multi"), departmentSlug);
+    // Highlight here rather than in every caller, so the department panel
+    // always matches whatever the workspace is actually showing.
+    setActiveDepartment(department);
     const url = `/organs/${baseOrganId}/departments/${departmentSlug}/${query ? `?${query}` : ""}`;
     window.htmx.ajax("GET", url, { target: "#workspace", swap: "innerHTML" });
+    syncDashboardUrl();
     return;
   }
   if (!window.selectedOrgan) {
@@ -143,9 +151,11 @@ function loadDepartment(department) {
   }
   if (!window.selectedOrgan) return;
   storeValue(departmentStorageKey(window.selectedOrgan), departmentSlug);
+  setActiveDepartment(department);
   const query = departmentRequestQuery(departmentSlug);
   const url = `/organs/${window.selectedOrgan}/departments/${departmentSlug}/${query ? `?${query}` : ""}`;
   window.htmx.ajax("GET", url, { target: "#workspace", swap: "innerHTML" });
+  syncDashboardUrl();
 }
 
 function setActiveOrgan(organ) {
@@ -169,6 +179,69 @@ function setActiveDepartment(department) {
   }
   department.classList.add("active");
   department.setAttribute("aria-current", "true");
+}
+
+// Deep-linking: mirror the dashboard navigation state into the URL query
+// (?organ= / ?organs= / ?department= / ?table=) so views can be shared,
+// bookmarked and survive refresh. URL params are applied by writing into the
+// same localStorage keys the existing restore logic already reads, so
+// restoring a link reuses the normal boot path instead of a parallel one.
+// ?organs=all means "every organ available to the viewer" — it stays correct
+// when new organs appear and keeps the address bar short. Partial lists use
+// "-" as the separator because URLSearchParams percent-encodes commas.
+const DASHBOARD_URL_PARAMS = ["organ", "organs", "department", "table"];
+const DASHBOARD_SLUG_PATTERN = /^[\w-]+$/;
+
+function allOrganCheckboxValues() {
+  return Array.from(document.querySelectorAll("[data-organ-checkbox]")).map((input) => input.value);
+}
+
+function applyDashboardUrlState() {
+  if (window.location.pathname !== "/") return;
+  const params = new URLSearchParams(window.location.search);
+  const organsParam = params.get("organs") || "";
+  const organs = organsParam === "all"
+    ? allOrganCheckboxValues()
+    : organsParam.split(/[-,]/).filter((id) => /^\d+$/.test(id));
+  const organ = /^\d+$/.test(params.get("organ") || "") ? params.get("organ") : "";
+  const department = DASHBOARD_SLUG_PATTERN.test(params.get("department") || "") ? params.get("department") : "";
+  const table = DASHBOARD_SLUG_PATTERN.test(params.get("table") || "") ? params.get("table") : "";
+  if (!organs.length && !organ) return;
+  if (organs.length) {
+    storeValue(ORGAN_MODE_KEY, "multi");
+    storeValue(MULTI_ORGANS_KEY, organs.join(","));
+    if (department) storeValue(departmentStorageKey("multi"), department);
+  } else {
+    storeValue(ORGAN_MODE_KEY, "single");
+    storeValue(ORGAN_STORAGE_KEY, organ);
+    if (department) storeValue(departmentStorageKey(organ), department);
+  }
+  if (department && table) storeValue(departmentTableStorageKey(department), table);
+}
+
+function syncDashboardUrl() {
+  if (window.location.pathname !== "/" || !window.history?.replaceState) return;
+  const params = new URLSearchParams(window.location.search);
+  DASHBOARD_URL_PARAMS.forEach((name) => params.delete(name));
+  let department = "";
+  if (isMultiOrganMode()) {
+    const ids = checkedOrganIds();
+    if (ids.length) {
+      const everyOrganChecked = ids.length === allOrganCheckboxValues().length;
+      params.set("organs", everyOrganChecked ? "all" : ids.join("-"));
+    }
+    department = storedValue(departmentStorageKey("multi")) || "";
+  } else if (window.selectedOrgan) {
+    params.set("organ", String(window.selectedOrgan));
+    department = storedValue(departmentStorageKey(window.selectedOrgan)) || "";
+  }
+  if (department) {
+    params.set("department", department);
+    const table = storedValue(departmentTableStorageKey(department));
+    if (table) params.set("table", table);
+  }
+  const query = params.toString();
+  window.history.replaceState(window.history.state, "", query ? `/?${query}` : "/");
 }
 
 function preferredDepartmentForOrgan(organId) {
