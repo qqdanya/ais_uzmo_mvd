@@ -434,15 +434,16 @@ def build_summary_payload(request, metric="in_work", *, available_organs=None, t
 
 
 def build_summary_context(request):
-    available_organs = available_organs_for_user(request.user)
-    payload = build_summary_payload(
-        request,
-        metric=request.GET.get("org_metric", "in_work"),
-        available_organs=available_organs,
-    )
+    # The KPI/dynamics/org-chart/department-load/attention aggregates are the
+    # most expensive part of this page and aren't needed for first paint —
+    # admin_summary.js fetches them from admin_summary_data (the same
+    # build_summary_payload()) right after load and fills them in. Rendering
+    # summary_payload as empty here just means the shell paints instantly
+    # instead of blocking on every one of those aggregate queries twice
+    # (once here, once again for the immediate client-side refresh).
     return {
-        "organs": available_organs,
-        "summary_payload": payload,
+        "organs": available_organs_for_user(request.user),
+        "summary_payload": {},
         "request_stale_workdays": get_request_stale_workdays(),
         "summary_org_metric": request.GET.get("org_metric", "in_work"),
     }

@@ -600,5 +600,9 @@
   restoreAdminOrgSelection();
   updatePeriodLabel();
   renderCalendar();
-  renderSummary();
+  // The server now renders the shell with an empty payload (see
+  // build_summary_context) so first paint doesn't wait on the KPI/dynamics/
+  // org-chart aggregates. Fetch the real data the same way any other
+  // period/organ change does, instead of rendering from SSR state.
+  refreshSummary();
 })();

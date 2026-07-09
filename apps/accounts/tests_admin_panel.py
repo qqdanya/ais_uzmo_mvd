@@ -83,6 +83,29 @@ class AdminPanelEndpointTests(AdminPanelTestMixin, TestCase):
                 if name in expected_tabs:
                     self.assertEqual(response.context["active_tab"], expected_tabs[name])
 
+    def test_admin_panel_shell_skips_summary_aggregates_and_leaves_them_to_summary_data(self):
+        today = timezone.localdate()
+        TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            created_by=self.admin,
+            request_number="1",
+            request_date=today,
+        )
+        self.login_admin()
+
+        response = self.client.get(reverse("admin_panel"))
+
+        self.assertEqual(response.status_code, 200)
+        # The heavy build_summary_payload() aggregates (kpi/dynamics/org_chart/
+        # department_load/attention_requests) must not run on this synchronous
+        # request — admin_summary.js fetches them from admin_summary_data right
+        # after the shell paints. The organ list is still needed for the
+        # selector, so that one stays populated.
+        self.assertEqual(response.context["summary_payload"], {})
+        self.assertIn(self.organ, response.context["organs"])
+        self.assertContains(response, "data-admin-summary-root")
+        self.assertContains(response, reverse("admin_summary_data"))
+
     def test_summary_data_returns_json_for_admin(self):
         self.login_admin()
 
