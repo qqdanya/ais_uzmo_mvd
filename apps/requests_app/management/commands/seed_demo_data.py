@@ -213,7 +213,6 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("--organs", type=int, default=None, help="Limit the number of territorial organs to seed. By default all root organs are used.")
-        parser.add_argument("--include-children", action="store_true", help="Also seed child/subordinate territorial units.")
         parser.add_argument("--requests-per-table", type=int, default=4, help="How many requests to generate per organ for each request table.")
         parser.add_argument("--snapshots", type=int, default=3, help="How many state-snapshot slices to generate per organ for each state table.")
         parser.add_argument("--days-span", type=int, default=180, help="Spread generated request/snapshot dates across this many days back from today.")
@@ -225,7 +224,7 @@ class Command(BaseCommand):
         if not options["skip_initial_data"]:
             call_command("seed_initial_data")
 
-        organs = self._selected_organs(include_children=options["include_children"], limit=options["organs"])
+        organs = self._selected_organs(limit=options["organs"])
         if not organs:
             self.stdout.write(self.style.ERROR("Нет активных территориальных органов для заполнения."))
             return
@@ -252,10 +251,13 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS(f"{key}: {value}"))
         self.stdout.write(self.style.SUCCESS("Демо-данные готовы. Повторный запуск не создает дублей."))
 
-    def _selected_organs(self, include_children, limit):
-        qs = TerritorialOrgan.objects.filter(is_active=True)
-        if not include_children:
-            qs = qs.filter(parent__isnull=True)
+    def _selected_organs(self, limit):
+        # Requests are always scoped to a root territorial organ and one of
+        # the 6 departments - child/subordinate units are purely structural
+        # (shown as informational subunits on the organ card) and are never
+        # themselves a request's territorial_organ, so there's nothing to
+        # seed for them.
+        qs = TerritorialOrgan.objects.filter(is_active=True, parent__isnull=True)
         organs = list(qs.order_by("order_number", "name"))
         return organs[:limit] if limit else organs
 

@@ -23,7 +23,6 @@ def dev_seed_data(request):
     output = None
     form_values = {
         "organs": "",
-        "include_children": False,
         "requests_per_table": 4,
         "snapshots": 3,
         "days_span": 180,
@@ -34,7 +33,6 @@ def dev_seed_data(request):
     if request.method == "POST":
         organs_raw = request.POST.get("organs", "").strip()
         organs = int(organs_raw) if organs_raw.isdigit() else None
-        include_children = "include_children" in request.POST
         requests_per_table = _int_or(request.POST.get("requests_per_table"), 4)
         snapshots = _int_or(request.POST.get("snapshots"), 3)
         days_span = _int_or(request.POST.get("days_span"), 180)
@@ -44,7 +42,6 @@ def dev_seed_data(request):
 
         form_values.update(
             organs=organs_raw,
-            include_children=include_children,
             requests_per_table=requests_per_table,
             snapshots=snapshots,
             days_span=days_span,
@@ -57,7 +54,6 @@ def dev_seed_data(request):
             call_command(
                 "seed_demo_data",
                 organs=organs,
-                include_children=include_children,
                 requests_per_table=requests_per_table,
                 snapshots=snapshots,
                 days_span=days_span,
