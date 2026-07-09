@@ -9,10 +9,6 @@ function registerAppEventHandlers() {
   }, true);
   
   document.addEventListener("input", (event) => {
-    if (event.target.matches(".auth-ascii-input")) {
-      normalizeAuthInput(event.target);
-      return;
-    }
     if (event.target.matches("[data-tmc-product-input]")) {
       requestTmcProductSuggestions(event.target);
       return;
@@ -89,12 +85,6 @@ function registerAppEventHandlers() {
     PhotoUpload.clearPhotoDragState();
     PhotoUpload.openBulkPhotoModal(dropzone, event.dataTransfer.files);
   });
-  
-  document.addEventListener("beforeinput", (event) => {
-    if (!event.target.matches(".auth-ascii-input") || !event.data) return;
-    if (/[^\x21-\x7E]/.test(event.data)) event.preventDefault();
-  });
-  
   
   document.addEventListener("click", (event) => {
     const preparingDownload = event.target.closest("a[data-download-preparing]");
@@ -282,18 +272,6 @@ function registerAppEventHandlers() {
           input.value = input.name === "item_unit" ? "шт." : "";
         });
       }
-      return;
-    }
-  
-    const passwordToggle = event.target.closest("[data-password-toggle]");
-    if (passwordToggle) {
-      const input = document.getElementById(passwordToggle.getAttribute("aria-controls"));
-      if (!input) return;
-      const shouldShow = input.type === "password";
-      input.type = shouldShow ? "text" : "password";
-      passwordToggle.setAttribute("aria-label", shouldShow ? "Скрыть пароль" : "Показать пароль");
-      passwordToggle.innerHTML = shouldShow ? '<i class="bi bi-eye-slash"></i>' : '<i class="bi bi-eye"></i>';
-      input.focus();
       return;
     }
   

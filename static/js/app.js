@@ -7,6 +7,12 @@ function initApp() {
   document.querySelectorAll(".auth-ascii-input").forEach(normalizeAuthInput);
   autoDismissAlerts();
   applyCollapsedPanels();
+  if (typeof registerAppEventHandlers === "function") registerAppEventHandlers();
+
+  // organ_navigation.js (and the dashboard bootstrap below) only loads on the
+  // dashboard page — everything past this point would throw a ReferenceError
+  // anywhere else.
+  if (typeof applyDashboardUrlState !== "function") return;
 
   applyDashboardUrlState();
   const restoredOrganCount = restoreCheckedOrgans();
@@ -49,7 +55,6 @@ function initApp() {
 
 registerModalLifecycle();
 registerHtmxLifecycle();
-registerAppEventHandlers();
 
 document.addEventListener("DOMContentLoaded", initApp);
 window.addEventListener("resize", syncHeaderHeight);

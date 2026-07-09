@@ -1125,17 +1125,25 @@ class FrontendModuleSplitTests(TestCase):
     app_modules = [
         "app_storage.js",
         "app_dom_utils.js",
-        "organ_navigation.js",
+        "auth_ui.js",
         "layout_panels.js",
-        "table_interactions.js",
         "htmx_lifecycle.js",
-        "app_events.js",
         "app.js",
     ]
 
     # Dashboard-only: no unconditional caller outside the dashboard shell, so
     # they're loaded via partials/scripts/dashboard_scripts.html instead.
+    # organ_navigation.js/table_interactions.js/app_events.js used to be core
+    # because app.js and photo_lightbox.js called into them unconditionally;
+    # closeOpenModal/focusCurrentSearch/scrollAfterPaginationSwap moved to
+    # htmx_lifecycle.js, the auth-only bits of app_events.js moved to
+    # auth_ui.js, and initApp() now guards the rest behind a
+    # typeof applyDashboardUrlState check, so what's left of these three is
+    # genuinely dashboard-only.
     dashboard_only_modules = [
+        "organ_navigation.js",
+        "table_interactions.js",
+        "app_events.js",
         "table_state.js",
         "request_photo_picker.js",
     ]
@@ -1215,9 +1223,10 @@ class FrontendModuleSplitTests(TestCase):
             "organ_navigation.js": ["function loadDepartment", "function setActiveOrgan", "function preferredDepartmentForOrgan"],
             "request_photo_picker.js": ["function syncRequestPhotoPicker", "function detachRequestPhoto", "function refreshCurrentTableArea"],
             "layout_panels.js": ["function syncHeaderHeight", "function applyCollapsedPanels"],
-            "table_interactions.js": ["function filterCurrentTable", "function focusCurrentSearch", "function closeOpenModal"],
-            "htmx_lifecycle.js": ["function registerHtmxLifecycle", "htmx:afterSwap", "bootstrap.Modal.getOrCreateInstance(document.getElementById(\"modal-root\")).show()", "modal:close", "function showToastFromHtmxTrigger", "requestPhotosChanged"],
+            "table_interactions.js": ["function filterCurrentTable", "function setTableGroupHover", "function fillCompletedDate"],
+            "htmx_lifecycle.js": ["function registerHtmxLifecycle", "htmx:afterSwap", "bootstrap.Modal.getOrCreateInstance(document.getElementById(\"modal-root\")).show()", "modal:close", "function showToastFromHtmxTrigger", "requestPhotosChanged", "function focusCurrentSearch", "function closeOpenModal", "function scrollAfterPaginationSwap"],
             "app_events.js": ["function registerAppEventHandlers", "data-organ-mode", "data-request-photo-toggle"],
+            "auth_ui.js": ["auth-ascii-input", "data-password-toggle"],
         }
         for module_name, fragments in expected_fragments.items():
             content = self.read_static_js(module_name)
@@ -1244,11 +1253,9 @@ class FrontendModuleSplitTests(TestCase):
             "js/tmc_products.js",
             "js/app_storage.js",
             "js/app_dom_utils.js",
-            "js/organ_navigation.js",
+            "js/auth_ui.js",
             "js/layout_panels.js",
-            "js/table_interactions.js",
             "js/htmx_lifecycle.js",
-            "js/app_events.js",
             "js/app.js",
         ]
         for previous, current in zip(script_order, script_order[1:]):

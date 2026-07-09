@@ -101,6 +101,52 @@ function preventBackgroundModalScroll(event) {
   }
 }
 
+// Generic modal/search-focus utilities (isVisibleElement comes from
+// app_dom_utils.js, also core). These live here rather than in
+// table_interactions.js (dashboard-only) because photo_lightbox.js's global
+// Escape/"/" shortcut handler — also core — calls closeOpenModal() and
+// focusCurrentSearch() unconditionally on every page.
+function focusCurrentSearch() {
+  const modal = document.querySelector("#modal-root.show .modal-content");
+  const scopes = [modal, document.getElementById("workspace"), document].filter(Boolean);
+  const selectors = [
+    "#request-photo-search-input",
+    "#photo-search-input",
+    "[id^='table-search-']",
+    "[data-table-search]",
+    "#organ-search",
+  ];
+  for (const scope of scopes) {
+    for (const selector of selectors) {
+      const input = scope.querySelector(selector);
+      if (!isVisibleElement(input)) continue;
+      input.focus();
+      input.select?.();
+      return true;
+    }
+  }
+  return false;
+}
+
+function closeOpenModal() {
+  const modalElement = document.getElementById("modal-root");
+  if (!modalElement?.classList.contains("show")) return false;
+  bootstrap.Modal.getInstance(modalElement)?.hide();
+  return true;
+}
+
+function scrollAfterPaginationSwap(event) {
+  const trigger = event.detail?.requestConfig?.elt;
+  const pagination = trigger?.closest?.("[data-pagination-scroll]");
+  if (!pagination) return;
+  const targetSelector = pagination.dataset.paginationScroll;
+  if (!targetSelector) return;
+  const swapTarget = event.detail?.target;
+  const target = targetSelector === "self" ? swapTarget : swapTarget?.querySelector?.(targetSelector);
+  if (!target) return;
+  target.scrollTo?.({ top: 0, left: target.scrollLeft, behavior: "smooth" });
+}
+
 function releaseModalObjectUrls(container) {
   // Bulk/single photo pickers create blob: URLs for local-file previews
   // (photo_upload.js). Revoking them here, not just on the next successful

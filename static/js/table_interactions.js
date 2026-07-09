@@ -1,4 +1,4 @@
-// Table search, grouped-row hover, status dates, and modal/search shortcuts.
+// Dashboard table search, grouped-row hover, and status dates.
 function filterCurrentTable(input) {
   const tableWrap = input.closest("#table-area") || document;
   const query = normalizeSearchText(input.value);
@@ -59,53 +59,4 @@ function fillCompletedDate(form) {
   if (status.value === "done" && !completedDate.value) {
     completedDate.value = todayInputValue();
   }
-}
-
-function scrollAfterPaginationSwap(event) {
-  const trigger = event.detail?.requestConfig?.elt;
-  const pagination = trigger?.closest?.("[data-pagination-scroll]");
-  if (!pagination) return;
-  const targetSelector = pagination.dataset.paginationScroll;
-  if (!targetSelector) return;
-  const swapTarget = event.detail?.target;
-  const target = targetSelector === "self" ? swapTarget : swapTarget?.querySelector?.(targetSelector);
-  if (!target) return;
-  target.scrollTo?.({ top: 0, left: target.scrollLeft, behavior: "smooth" });
-}
-
-function isEditableTarget(target) {
-  return Boolean(target?.closest?.("input, textarea, select, [contenteditable='true'], [data-custom-select]"));
-}
-
-function isVisibleElement(element) {
-  return Boolean(element && !element.disabled && element.getClientRects().length);
-}
-
-function focusCurrentSearch() {
-  const modal = document.querySelector("#modal-root.show .modal-content");
-  const scopes = [modal, document.getElementById("workspace"), document].filter(Boolean);
-  const selectors = [
-    "#request-photo-search-input",
-    "#photo-search-input",
-    "[id^='table-search-']",
-    "[data-table-search]",
-    "#organ-search",
-  ];
-  for (const scope of scopes) {
-    for (const selector of selectors) {
-      const input = scope.querySelector(selector);
-      if (!isVisibleElement(input)) continue;
-      input.focus();
-      input.select?.();
-      return true;
-    }
-  }
-  return false;
-}
-
-function closeOpenModal() {
-  const modalElement = document.getElementById("modal-root");
-  if (!modalElement?.classList.contains("show")) return false;
-  bootstrap.Modal.getInstance(modalElement)?.hide();
-  return true;
 }
