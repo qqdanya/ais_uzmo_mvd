@@ -17,10 +17,10 @@ from .admin_common import (
     add_status_counts,
     apply_period,
     build_pagination_fields,
-    completion_average,
+    completion_average_from_totals,
     completion_display,
-    completion_values_for_queryset,
-    completion_values_by_organ_for_queryset,
+    completion_totals_for_queryset,
+    completion_totals_by_organ_for_queryset,
     date_period_from_request,
     days_class,
     filter_by_request_statuses,
@@ -98,8 +98,8 @@ def iter_tables(tables, filters):
         yield table
 
 
-def organ_stats_row(organ, stats, completion_values, latest_date):
-    avg_completion = completion_average(completion_values)
+def organ_stats_row(organ, stats, completion_days_total, completion_days_count, latest_date):
+    avg_completion = completion_average_from_totals(completion_days_total, completion_days_count)
     return {
         "organ": organ,
         "total": stats["total"],
@@ -109,8 +109,8 @@ def organ_stats_row(organ, stats, completion_values, latest_date):
         "stale": stats["stale"],
         "avg_completion": avg_completion,
         "avg_completion_display": completion_display(avg_completion),
-        "completion_days_total": sum(completion_values),
-        "completion_days_count": len(completion_values),
+        "completion_days_total": completion_days_total,
+        "completion_days_count": completion_days_count,
         "latest_date": latest_date,
         "latest_display": latest_date.strftime("%d.%m.%Y") if latest_date else "—",
         "detail_url": reverse("admin_organ_detail", kwargs={"pk": organ.pk}),
@@ -127,7 +127,7 @@ def collect_all_organ_stats(organs, tables, filters):
     organs are selected.
     """
     stale_before = filters["stale_before"]
-    buckets = {organ.pk: {"stats": Counter(), "completion_values": [], "latest_date": None} for organ in organs}
+    buckets = {organ.pk: {"stats": Counter(), "completion_days_total": 0, "completion_days_count": 0, "latest_date": None} for organ in organs}
 
     for table in iter_tables(tables, filters):
         qs = all_organs_filtered_queryset(table, organs, filters, with_request_status=True)
@@ -138,11 +138,12 @@ def collect_all_organ_stats(organs, tables, filters):
             if bucket is not None:
                 add_status_counts(bucket["stats"], counts)
 
-        completion_by_organ = completion_values_by_organ_for_queryset(qs)
-        for organ_id, values in completion_by_organ.items():
+        completion_by_organ = completion_totals_by_organ_for_queryset(qs)
+        for organ_id, totals in completion_by_organ.items():
             bucket = buckets.get(organ_id)
             if bucket is not None:
-                bucket["completion_values"].extend(values)
+                bucket["completion_days_total"] += totals["total"]
+                bucket["completion_days_count"] += totals["count"]
 
         latest_by_organ = latest_request_dates_by_organ(qs)
         for organ_id, latest in latest_by_organ.items():
@@ -151,7 +152,13 @@ def collect_all_organ_stats(organs, tables, filters):
                 bucket["latest_date"] = latest
 
     return {
-        organ.pk: organ_stats_row(organ, buckets[organ.pk]["stats"], buckets[organ.pk]["completion_values"], buckets[organ.pk]["latest_date"])
+        organ.pk: organ_stats_row(
+            organ,
+            buckets[organ.pk]["stats"],
+            buckets[organ.pk]["completion_days_total"],
+            buckets[organ.pk]["completion_days_count"],
+            buckets[organ.pk]["latest_date"],
+        )
         for organ in organs
     }
 
@@ -293,14 +300,17 @@ def department_stats_for_organ(organ, tables, filters):
         if filters.get("departments") and department["slug"] not in filters["departments"]:
             continue
         stats = Counter()
-        completion_values = []
+        completion_days_total = 0
+        completion_days_count = 0
         for table in tables:
             if table["department"] != department["slug"]:
                 continue
             qs = org_filtered_queryset(table, organ, filters, with_request_status=True)
             add_status_counts(stats, request_status_counts(qs, stale_before=stale_before))
-            completion_values.extend(completion_values_for_queryset(qs))
-        avg_completion = completion_average(completion_values)
+            table_days, table_count = completion_totals_for_queryset(qs)
+            completion_days_total += table_days
+            completion_days_count += table_count
+        avg_completion = completion_average_from_totals(completion_days_total, completion_days_count)
         rows.append(
             {
                 "slug": department["slug"],

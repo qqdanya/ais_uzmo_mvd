@@ -1,5 +1,3 @@
-from statistics import mean
-
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Count, Max, Q
 from django.utils import timezone
@@ -310,54 +308,54 @@ def _bulk_history_completion_dates(objects):
     return dates
 
 
-def completion_values_for_queryset(qs):
-    """Return processing-day values for completed requests in a queryset."""
-    values = []
+def completion_totals_for_queryset(qs):
+    total_days = 0
+    total_count = 0
     chunk = []
     for obj in qs.filter(status=NeedStatus.DONE).iterator(chunk_size=COMPLETION_CHUNK_SIZE):
         chunk.append(obj)
         if len(chunk) >= COMPLETION_CHUNK_SIZE:
-            values.extend(completion_values_for_objects(chunk))
+            chunk_days, chunk_count = completion_totals_for_objects(chunk)
+            total_days += chunk_days
+            total_count += chunk_count
             chunk = []
     if chunk:
-        values.extend(completion_values_for_objects(chunk))
-    return values
+        chunk_days, chunk_count = completion_totals_for_objects(chunk)
+        total_days += chunk_days
+        total_count += chunk_count
+    return total_days, total_count
 
 
-def completion_values_for_objects(done_objects):
+def completion_totals_for_objects(done_objects):
     missing = [obj for obj in done_objects if _own_completion_date(obj) is None]
     history_dates = _bulk_history_completion_dates(missing)
-    values = []
+    total_days = 0
+    total_count = 0
     for obj in done_objects:
         end_date = _own_completion_date(obj) or history_dates.get(obj.pk)
         if not end_date:
             continue
         days = business_days_inclusive(obj.request_date, end_date)
         if days is not None:
-            values.append(days)
-    return values
+            total_days += days
+            total_count += 1
+    return total_days, total_count
 
 
-def completion_values_by_organ_for_queryset(qs):
-    """Same batching as completion_values_for_queryset, grouped by territorial_organ_id.
-
-    Lets a caller compute per-organ completion stats across a multi-organ
-    queryset with one pass (one "done" query + one batched history query per
-    table), instead of calling completion_values_for_queryset once per organ.
-    """
-    values_by_organ = {}
+def completion_totals_by_organ_for_queryset(qs):
+    totals_by_organ = {}
     chunk = []
     for obj in qs.filter(status=NeedStatus.DONE).iterator(chunk_size=COMPLETION_CHUNK_SIZE):
         chunk.append(obj)
         if len(chunk) >= COMPLETION_CHUNK_SIZE:
-            add_completion_values_by_organ(values_by_organ, chunk)
+            add_completion_totals_by_organ(totals_by_organ, chunk)
             chunk = []
     if chunk:
-        add_completion_values_by_organ(values_by_organ, chunk)
-    return values_by_organ
+        add_completion_totals_by_organ(totals_by_organ, chunk)
+    return totals_by_organ
 
 
-def add_completion_values_by_organ(values_by_organ, done_objects):
+def add_completion_totals_by_organ(totals_by_organ, done_objects):
     missing = [obj for obj in done_objects if _own_completion_date(obj) is None]
     history_dates = _bulk_history_completion_dates(missing)
     for obj in done_objects:
@@ -366,11 +364,13 @@ def add_completion_values_by_organ(values_by_organ, done_objects):
             continue
         days = business_days_inclusive(obj.request_date, end_date)
         if days is not None:
-            values_by_organ.setdefault(obj.territorial_organ_id, []).append(days)
+            totals = totals_by_organ.setdefault(obj.territorial_organ_id, {"total": 0, "count": 0})
+            totals["total"] += days
+            totals["count"] += 1
 
 
-def completion_average(values):
-    return round(mean(values), 1) if values else None
+def completion_average_from_totals(total_days, count):
+    return round(total_days / count, 1) if count else None
 
 
 def completion_display(value):

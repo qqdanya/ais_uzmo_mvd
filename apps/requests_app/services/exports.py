@@ -9,6 +9,8 @@ from openpyxl.utils import get_column_letter
 
 from apps.requests_app.services.downloads import workbook_file_response
 
+XLSX_WRITE_ONLY_THRESHOLD = 5000
+
 
 def display_fields(table):
     field_names = table["fields"]
@@ -33,7 +35,62 @@ def export_objects(qs):
     return qs.iterator(chunk_size=1000) if hasattr(qs, "iterator") else qs
 
 
+def export_row_count(rows):
+    if hasattr(rows, "count") and callable(rows.count):
+        return rows.count()
+    if hasattr(rows, "__len__"):
+        return len(rows)
+    return None
+
+
+def should_use_write_only(rows):
+    count = export_row_count(rows)
+    return count is None or count > XLSX_WRITE_ONLY_THRESHOLD
+
+
+def write_only_xlsx_response(title, headers, rows, filename):
+    wb = Workbook(write_only=True)
+    ws = wb.create_sheet(title=title[:31])
+    ws.append(headers)
+    for row in rows:
+        ws.append(row)
+    return workbook_file_response(wb, filename)
+
+
+def tmc_write_only_rows(qs, is_multi_organ):
+    for obj in export_objects(qs):
+        items = list(obj.items.all()) or [None]
+        for item in items:
+            row = []
+            if is_multi_organ:
+                row.append(obj.territorial_organ.name)
+            row.extend(
+                [
+                    item.name if item else "-",
+                    f"{item.quantity} {item.unit}" if item else "-",
+                    obj.request_number,
+                    obj.request_date.strftime("%d.%m.%Y"),
+                    obj.get_status_display(),
+                    obj.comment,
+                ]
+            )
+            yield row
+
+
 def tmc_xlsx_response(qs, organ, filename, is_multi_organ=False):
+    if should_use_write_only(qs):
+        headers = [
+            "\u041d\u0430\u0438\u043c\u0435\u043d\u043e\u0432\u0430\u043d\u0438\u0435",
+            "\u041a\u043e\u043b\u0438\u0447\u0435\u0441\u0442\u0432\u043e",
+            "\u041d\u043e\u043c\u0435\u0440",
+            "\u0414\u0430\u0442\u0430",
+            "\u0418\u0441\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u0435 \u0437\u0430\u044f\u0432\u043a\u0438",
+            "\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435",
+        ]
+        if is_multi_organ:
+            headers.insert(0, "\u0422\u0435\u0440\u0440\u0438\u0442\u043e\u0440\u0438\u0430\u043b\u044c\u043d\u044b\u0439 \u043e\u0440\u0433\u0430\u043d")
+        return write_only_xlsx_response("\u0417\u0430\u044f\u0432\u043a\u0438 \u0422\u041c\u0426", headers, tmc_write_only_rows(qs, is_multi_organ), filename)
+
     wb = Workbook()
     ws = wb.active
     ws.title = "Заявки ТМЦ"
@@ -241,6 +298,11 @@ def grouped_export_row(row, group_mode, is_tmc=False, is_multi_organ=False):
 
 
 def tmc_grouped_xlsx_response(rows, is_multi_organ, filename, group_mode="products"):
+    if should_use_write_only(rows):
+        headers = grouped_export_headers(group_mode, is_tmc=True, is_multi_organ=is_multi_organ)
+        row_values = (grouped_export_row(row, group_mode, is_tmc=True, is_multi_organ=is_multi_organ) for row in export_objects(rows))
+        return write_only_xlsx_response("\u0422\u041c\u0426", headers, row_values, filename)
+
     wb = Workbook()
     ws = wb.active
     ws.title = "ТМЦ"
@@ -293,6 +355,11 @@ def tmc_grouped_xlsx_response(rows, is_multi_organ, filename, group_mode="produc
 
 
 def request_grouped_xlsx_response(rows, table, filename, group_mode):
+    if should_use_write_only(rows):
+        headers = grouped_export_headers(group_mode, is_tmc=False)
+        row_values = (grouped_export_row(row, group_mode, is_tmc=False) for row in export_objects(rows))
+        return write_only_xlsx_response(table["title"], headers, row_values, filename)
+
     wb = Workbook()
     ws = wb.active
     ws.title = table["title"][:31]
@@ -339,6 +406,11 @@ def request_grouped_xlsx_response(rows, table, filename, group_mode):
 
 
 def styled_xlsx_response(qs, table, fields, filename, widths=None, center_columns=None):
+    if should_use_write_only(qs):
+        headers = table_header_labels(fields)
+        rows = ([export_cell_value(obj, field) for field in fields] for obj in export_objects(qs))
+        return write_only_xlsx_response(table["title"], headers, rows, filename)
+
     wb = Workbook()
     ws = wb.active
     ws.title = table["title"][:31]
@@ -387,10 +459,8 @@ def styled_xlsx_response(qs, table, fields, filename, widths=None, center_column
 
 
 def basic_xlsx_response(qs, table, fields, filename):
-    wb = Workbook()
-    ws = wb.active
-    ws.title = table["title"][:31]
-    ws.append(table_header_labels(fields))
-    for obj in export_objects(qs):
-        ws.append([str(getattr(obj, f"get_{f.name}_display", lambda: getattr(obj, f.name))()) for f in fields])
-    return workbook_file_response(wb, filename)
+    rows = (
+        [str(getattr(obj, f"get_{field.name}_display", lambda: getattr(obj, field.name))()) for field in fields]
+        for obj in export_objects(qs)
+    )
+    return write_only_xlsx_response(table["title"], table_header_labels(fields), rows, filename)

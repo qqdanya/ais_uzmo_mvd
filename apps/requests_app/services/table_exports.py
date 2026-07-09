@@ -60,7 +60,6 @@ def export_table_response(request, organ, table, table_key, fmt, selected_organs
 
             return download_ready_response(request, csv_streaming_response(filename, csv_rows()))
         if fmt == "xlsx":
-            rows = list(rows)
             if is_tmc:
                 return download_ready_response(request, tmc_grouped_xlsx_response(rows, is_multi_organ, filename, current_group_mode))
             return download_ready_response(request, request_grouped_xlsx_response(rows, table, filename, current_group_mode))

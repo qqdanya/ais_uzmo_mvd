@@ -2,7 +2,8 @@ from datetime import date
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.paginator import Paginator
-from django.db.models import Count, Q
+from django.db.models import Count, IntegerField, Q, Value
+from django.db.models.functions import Coalesce
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
@@ -18,7 +19,7 @@ from .admin_common import (
     DEPARTMENT_ICONS,
     STATUS_BADGE_CLASSES,
     apply_period,
-    completion_values_for_queryset,
+    completion_totals_for_queryset,
     date_period_from_request,
     days_class,
     department_options,
@@ -155,42 +156,35 @@ def request_row(table, obj, departments):
     }
 
 
-def request_row_index(tables, organs, filters):
-    """Cheap (request_date, pk, table_key) tuples for every matching row.
-
-    Sorting/paginating this lightweight index first means the expensive part
-    of building a row (request_row(), including a possible RequestStatusHistory
-    lookup via processing_days()) only runs for the rows on the current page,
-    instead of for every matching request across the system's whole history.
-
-    Sort key must match the original request_rows() ordering exactly:
-    (request_date, pk), descending, with ties broken by a stable sort over
-    the same table-iteration order (pk is not globally unique across tables,
-    so a (request_date, pk) tie across two different tables is possible).
-    """
-    index = []
-    for table in matching_tables(tables, filters):
-        qs = filtered_queryset(table, organs, filters)
-        for pk, request_date in qs.values_list("pk", "request_date"):
-            index.append((request_date or date.min, pk, table["key"]))
-    index.sort(key=lambda item: (item[0], item[1]), reverse=True)
-    return index
-
-
 def request_index_count(tables, organs, filters):
     return sum(filtered_queryset(table, organs, filters).count() for table in matching_tables(tables, filters))
 
 
-def request_row_index_page(tables, organs, filters, offset, limit):
-    if limit <= 0:
+def request_index_queryset(table, organs, filters, table_order):
+    return (
+        filtered_queryset(table, organs, filters)
+        .order_by()
+        .annotate(
+            row_request_date=Coalesce("request_date", Value(date.min)),
+            row_pk=Coalesce("pk", Value(0), output_field=IntegerField()),
+            row_table_key=Value(table["key"]),
+            row_table_order=Value(table_order, output_field=IntegerField()),
+        )
+        .values_list("row_request_date", "row_pk", "row_table_key", "row_table_order")
+    )
+
+
+def request_row_index_page(tables, organs, filters, offset, per_page):
+    if per_page <= 0:
         return []
-    index = []
-    for table in matching_tables(tables, filters):
-        qs = filtered_queryset(table, organs, filters).order_by("-request_date", "-pk")
-        for pk, request_date in qs.values_list("pk", "request_date")[:limit]:
-            index.append((request_date or date.min, pk, table["key"]))
-    index.sort(key=lambda item: (item[0], item[1]), reverse=True)
-    return index[offset:limit]
+    indexed_parts = [
+        request_index_queryset(table, organs, filters, table_order)
+        for table_order, table in enumerate(matching_tables(tables, filters))
+    ]
+    if not indexed_parts:
+        return []
+    union_qs = indexed_parts[0].union(*indexed_parts[1:], all=True).order_by("-row_request_date", "-row_pk", "row_table_order")
+    return [(request_date, pk, table_key) for request_date, pk, table_key, _ in union_qs[offset:offset + per_page]]
 
 
 def hydrate_request_rows(tables_by_key, index_rows):
@@ -265,13 +259,16 @@ def attach_processing_end_dates(table, objects):
 
 
 def average_completion_days(tables, organs, filters):
-    values = []
+    total_days = 0
+    total_count = 0
     for table in matching_tables(tables, filters):
         qs = filtered_queryset(table, organs, filters, with_state=False)
-        values.extend(completion_values_for_queryset(qs))
-    if not values:
+        table_days, table_count = completion_totals_for_queryset(qs)
+        total_days += table_days
+        total_count += table_count
+    if not total_count:
         return None
-    return round(sum(values) / len(values), 1)
+    return round(total_days / total_count, 1)
 
 
 def request_kpis(counts, avg_completion_days):
@@ -355,8 +352,7 @@ def paginate_request_index(request, tables, organs, filters, per_page):
     paginator = Paginator(range(total_count), per_page)
     page = paginator.get_page(request.GET.get("page"))
     offset = page.start_index() - 1 if total_count else 0
-    limit = page.end_index() if total_count else 0
-    index_rows = request_row_index_page(tables, organs, filters, offset, limit)
+    index_rows = request_row_index_page(tables, organs, filters, offset, per_page)
     tables_by_key = {table["key"]: table for table in tables}
     page.object_list = hydrate_request_rows(tables_by_key, index_rows)
     return page, page.paginator.get_elided_page_range(page.number, on_each_side=1, on_ends=1)
