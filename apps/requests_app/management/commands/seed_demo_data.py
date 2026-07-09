@@ -44,6 +44,13 @@ from apps.requests_app.models import (
 from apps.requests_app.services.request_numbers import remove_request_number_registry, sync_request_number_registry
 from apps.requests_app.services.statuses import completed_date_field
 
+
+def _parse_organ_ids(value):
+    if not value:
+        return None
+    return [int(part) for part in value.split(",") if part.strip()]
+
+
 DEMO_USERNAME = "demo_seed_bot"
 
 STATUS_CHOICES = (NeedStatus.IN_WORK, NeedStatus.DONE, NeedStatus.REJECTED)
@@ -210,10 +217,17 @@ BUILDING_REPAIR_SCENARIOS = (
 
 class Command(BaseCommand):
     help = "Creates realistic, configurable demo data across territorial organs and all dashboard tables."
+    # Not a CLI flag - only settable via call_command(..., progress_callback=fn)
+    # from the /dev/seed/ view, which polls a callable(done, total) to report
+    # progress. See BaseCommand.stealth_options for how this bypasses
+    # call_command's "unknown option" validation.
+    stealth_options = ("progress_callback",)
 
     def add_arguments(self, parser):
         parser.add_argument("--organs", type=int, default=None, help="Limit the number of territorial organs to seed. By default all root organs are used.")
-        parser.add_argument("--requests-per-table", type=int, default=4, help="How many requests to generate per organ for each request table.")
+        parser.add_argument("--organ-ids", type=_parse_organ_ids, default=None, help="Comma-separated territorial organ IDs to seed. Overrides --organs if given.")
+        parser.add_argument("--requests-per-table-min", type=int, default=3, help="Minimum number of requests to generate per organ for each request table.")
+        parser.add_argument("--requests-per-table-max", type=int, default=6, help="Maximum number of requests to generate per organ for each request table.")
         parser.add_argument("--snapshots", type=int, default=3, help="How many state-snapshot slices to generate per organ for each state table.")
         parser.add_argument("--days-span", type=int, default=180, help="Spread generated request/snapshot dates across this many days back from today.")
         parser.add_argument("--seed", type=int, default=None, help="Random seed for reproducible output. A random one is chosen and reported if omitted.")
@@ -224,16 +238,18 @@ class Command(BaseCommand):
         if not options["skip_initial_data"]:
             call_command("seed_initial_data")
 
-        organs = self._selected_organs(limit=options["organs"])
+        organs = self._selected_organs(organ_ids=options.get("organ_ids"), limit=options["organs"])
         if not organs:
             self.stdout.write(self.style.ERROR("Нет активных территориальных органов для заполнения."))
             return
 
         seed = options["seed"] if options["seed"] is not None else random.SystemRandom().randrange(1_000_000)
         self.rng = random.Random(seed)
-        self.requests_per_table = max(0, options["requests_per_table"])
+        self.requests_per_table_min = max(0, options["requests_per_table_min"])
+        self.requests_per_table_max = max(self.requests_per_table_min, options["requests_per_table_max"])
         self.snapshots = max(0, options["snapshots"])
         self.days_span = max(1, options["days_span"])
+        progress_callback = options.get("progress_callback")
 
         user = self._demo_user()
         self.products = self._products()
@@ -242,8 +258,10 @@ class Command(BaseCommand):
         with transaction.atomic():
             if options["clear"]:
                 self._clear_demo_data(organs, user)
-            for organ in organs:
+            for index, organ in enumerate(organs, start=1):
                 self._seed_organ(organ, user)
+                if progress_callback:
+                    progress_callback(index, len(organs))
 
         self.stdout.write(self.style.SUCCESS(f"Территориальных органов заполнено: {len(organs)}"))
         self.stdout.write(self.style.SUCCESS(f"Seed для повторного воспроизведения этого набора данных: {seed}"))
@@ -251,15 +269,20 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS(f"{key}: {value}"))
         self.stdout.write(self.style.SUCCESS("Демо-данные готовы. Повторный запуск не создает дублей."))
 
-    def _selected_organs(self, limit):
+    def _selected_organs(self, organ_ids, limit):
         # Requests are always scoped to a root territorial organ and one of
         # the 6 departments - child/subordinate units are purely structural
         # (shown as informational subunits on the organ card) and are never
         # themselves a request's territorial_organ, so there's nothing to
         # seed for them.
         qs = TerritorialOrgan.objects.filter(is_active=True, parent__isnull=True)
+        if organ_ids:
+            qs = qs.filter(pk__in=organ_ids)
         organs = list(qs.order_by("order_number", "name"))
         return organs[:limit] if limit else organs
+
+    def _requests_count(self):
+        return self.rng.randint(self.requests_per_table_min, self.requests_per_table_max)
 
     def _demo_user(self):
         User = get_user_model()
@@ -305,7 +328,7 @@ class Command(BaseCommand):
         return min(request_date + timedelta(days=self.rng.randint(1, 14)), timezone.localdate())
 
     def _seed_tmc(self, organ, user):
-        for item_number in range(1, self.requests_per_table + 1):
+        for item_number in range(1, self._requests_count() + 1):
             status = self._pick_status()
             request_date = self._random_request_date()
             request_obj, _ = self._upsert_request(
@@ -327,7 +350,7 @@ class Command(BaseCommand):
 
     def _seed_transport(self, organ, user):
         self._seed_vehicle_inventory(organ, user)
-        for item_number in range(1, self.requests_per_table + 1):
+        for item_number in range(1, self._requests_count() + 1):
             request_date = self._random_request_date()
             status = self._pick_status()
             self._upsert_request(
@@ -346,7 +369,7 @@ class Command(BaseCommand):
             )
             self.stats["Заявки на ремонт автотранспорта"] += 1
 
-        for item_number in range(1, self.requests_per_table + 1):
+        for item_number in range(1, self._requests_count() + 1):
             request_date = self._random_request_date()
             status = self._pick_status()
             self._upsert_request(
@@ -441,7 +464,7 @@ class Command(BaseCommand):
             )
             self.stats["Срезы охранной сигнализации"] += 1
 
-        for item_number in range(1, self.requests_per_table + 1):
+        for item_number in range(1, self._requests_count() + 1):
             request_date = self._random_request_date()
             status = self._pick_status()
             self._upsert_request(
@@ -461,7 +484,7 @@ class Command(BaseCommand):
             self.stats["Заявки пожарной безопасности"] += 1
 
     def _seed_antiterror(self, organ, user):
-        for item_number in range(1, self.requests_per_table + 1):
+        for item_number in range(1, self._requests_count() + 1):
             request_date = self._random_request_date()
             status = self._pick_status()
             self._upsert_request(
@@ -482,7 +505,7 @@ class Command(BaseCommand):
 
     def _seed_citsizi(self, organ, user):
         equipment_types = [choice[0] for choice in EquipmentType.choices]
-        for item_number in range(1, self.requests_per_table + 1):
+        for item_number in range(1, self._requests_count() + 1):
             equipment_type = self.rng.choice(equipment_types)
             request_date = self._random_request_date()
             status = self._pick_status()
@@ -525,7 +548,7 @@ class Command(BaseCommand):
             )
             self.stats["Срезы служебного жилья"] += 1
 
-        for item_number in range(1, self.requests_per_table + 1):
+        for item_number in range(1, self._requests_count() + 1):
             request_date = self._random_request_date()
             status = self._pick_status()
             self._upsert_request(

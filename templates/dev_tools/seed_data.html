@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Генератор демо-данных — АИС УЗМО{% endblock %}
 {% block content %}
 <div class="container-fluid py-3 admin-command-page">
@@ -6,61 +7,82 @@
     <h2><i class="bi bi-database-fill-gear"></i> Генератор демо-данных</h2>
     <p class="text-secondary">
       Доступно только в режиме разработки (DEBUG). Наполняет базу реалистичными
-      данными (заявки, состояния, статусы, история) по территориальным органам
-      и всем разделам для нагрузочного и функционального тестирования. Все
-      записи создаются от имени отдельной служебной учетной записи
-      «Демо Генератор» — по ней же они находятся и удаляются повторным
-      запуском с очисткой, без каких-либо служебных пометок в тексте заявок.
+      данными (заявки, состояния, статусы, история) для нагрузочного и
+      функционального тестирования. Все записи создаются от имени отдельной
+      служебной учетной записи «Демо Генератор» — по ней же они находятся и
+      удаляются повторным запуском с очисткой.
     </p>
 
-    <form method="post">
+    <form id="seed-form">
       {% csrf_token %}
       <div class="mb-3">
-        <label class="form-label" for="organs">Количество территориальных органов</label>
-        <input type="number" min="1" class="form-control" id="organs" name="organs" value="{{ form_values.organs }}" placeholder="Все активные (по умолчанию)">
-        <div class="form-text">
-          Только корневые территориальные органы — заявка всегда принадлежит конкретному
-          территориальному органу и одному из 6 отделов, а не дочернему подразделению внутри
-          него (дочерние подразделения — это справочная информация в карточке органа).
+        <label class="form-label">Территориальные органы</label>
+        <div class="d-flex gap-2 mb-2">
+          <button type="button" class="btn btn-sm btn-outline-primary" data-seed-select-all>Выбрать все</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-seed-clear-all>Снять все</button>
+          <input type="search" class="form-control form-control-sm" style="max-width: 260px;" placeholder="Поиск по органам" data-seed-organ-search>
         </div>
+        <div style="max-height: 260px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; padding: 8px; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 2px 8px;">
+          {% for organ in organs %}
+            <label class="form-check" data-seed-organ-row data-seed-organ-name="{{ organ.name|lower }}">
+              <input type="checkbox" class="form-check-input" name="organ_ids" value="{{ organ.pk }}" checked>
+              <span class="form-check-label">{{ organ.order_number|floatformat:"-2" }}. {{ organ.name }}</span>
+            </label>
+          {% endfor %}
+        </div>
+        <div class="form-text" data-seed-organ-count></div>
       </div>
 
       <div class="row">
         <div class="col-sm-6 mb-3">
-          <label class="form-label" for="requests_per_table">Заявок на каждую таблицу</label>
-          <input type="number" min="0" class="form-control" id="requests_per_table" name="requests_per_table" value="{{ form_values.requests_per_table }}">
+          <label class="form-label">Заявок на таблицу</label>
+          <div class="d-flex align-items-center gap-2">
+            <input type="number" min="0" class="form-control" name="requests_per_table_min" value="3" aria-label="Минимум заявок на таблицу">
+            <span class="text-secondary">—</span>
+            <input type="number" min="0" class="form-control" name="requests_per_table_max" value="6" aria-label="Максимум заявок на таблицу">
+          </div>
+          <div class="form-text">Случайное количество в этом диапазоне для каждой таблицы отдельно.</div>
         </div>
         <div class="col-sm-6 mb-3">
           <label class="form-label" for="snapshots">Срезов состояния на таблицу</label>
-          <input type="number" min="0" class="form-control" id="snapshots" name="snapshots" value="{{ form_values.snapshots }}">
+          <input type="number" min="0" class="form-control" id="snapshots" name="snapshots" value="3">
         </div>
       </div>
 
       <div class="row">
         <div class="col-sm-6 mb-3">
           <label class="form-label" for="days_span">Разброс дат, дней назад</label>
-          <input type="number" min="1" class="form-control" id="days_span" name="days_span" value="{{ form_values.days_span }}">
+          <input type="number" min="1" class="form-control" id="days_span" name="days_span" value="180">
         </div>
         <div class="col-sm-6 mb-3">
           <label class="form-label" for="seed">Random seed</label>
-          <input type="number" class="form-control" id="seed" name="seed" value="{{ form_values.seed }}" placeholder="Случайный (по умолчанию)">
+          <input type="number" class="form-control" id="seed" name="seed" placeholder="Случайный (по умолчанию)">
         </div>
       </div>
 
       <div class="form-check mb-3">
-        <input type="checkbox" class="form-check-input" id="clear" name="clear" {% if form_values.clear %}checked{% endif %}>
+        <input type="checkbox" class="form-check-input" id="clear" name="clear">
         <label class="form-check-label" for="clear">Сначала удалить ранее сгенерированные демо-данные</label>
       </div>
 
-      <button type="submit" class="btn btn-primary"><i class="bi bi-play-fill"></i> Сгенерировать</button>
+      <button type="submit" class="btn btn-primary" data-seed-submit><i class="bi bi-play-fill"></i> Сгенерировать</button>
     </form>
 
-    {% if output %}
-      <div class="mt-4">
-        <h5>Результат</h5>
-        <pre style="white-space: pre-wrap; background: #f4f8fb; border: 1px solid var(--line); border-radius: 8px; padding: 12px; font-size: .82rem;">{{ output }}</pre>
+    <div class="mt-3" data-seed-progress-wrap hidden>
+      <div class="progress" style="height: 20px;">
+        <div class="progress-bar" role="progressbar" style="width: 0%;" data-seed-progress-bar>0%</div>
       </div>
-    {% endif %}
+      <div class="form-text" data-seed-progress-label></div>
+    </div>
+
+    <div class="mt-4" data-seed-result-wrap hidden>
+      <h5>Результат</h5>
+      <pre style="white-space: pre-wrap; background: #f4f8fb; border: 1px solid var(--line); border-radius: 8px; padding: 12px; font-size: .82rem;" data-seed-output></pre>
+    </div>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/dev_seed.js' %}?v=20260709-001"></script>
 {% endblock %}
