@@ -1,3 +1,9 @@
+from django.db import connection
+from django.test import RequestFactory
+from django.test.utils import CaptureQueriesContext
+
+from .services.exports import tmc_write_only_rows
+from .services.table_filters import request_table_queryset
 from .tests_base import *
 
 
@@ -670,6 +676,46 @@ class TmcRequestTests(RequestAppTestCase):
         self.assertIn("Бумага А4", values)
         self.assertIn("Папка-регистратор", values)
         self.assertIn("Кресло офисное", values)
+
+    def test_tmc_write_only_xlsx_rows_avoid_n_plus_one_on_items(self):
+        # tmc_write_only_rows() is the path used for large exports
+        # (should_use_write_only()), so it must not re-query items per row.
+        # request_table_queryset() already prefetches "items" (see
+        # REQUEST_TABLE_CONFIG); the thing actually worth pinning down is that
+        # export_objects()'s qs.iterator(chunk_size=1000) doesn't silently
+        # drop that prefetch — Django only started honoring
+        # prefetch_related() under iterator() when chunk_size is given.
+        request = RequestFactory().get("/")
+        request.user = self.user
+
+        def build_requests(count):
+            for index in range(count):
+                obj = TmcRequest.objects.create(
+                    territorial_organ=self.organ,
+                    request_number=f"nplusone-{index}",
+                    request_date="2026-06-20",
+                    status="in_work",
+                )
+                TmcRequestItem.objects.create(request=obj, name="Item A", quantity=1, unit="шт.")
+                TmcRequestItem.objects.create(request=obj, name="Item B", quantity=2, unit="шт.")
+
+        build_requests(3)
+        qs_small = request_table_queryset(request, "tmc-requests", [self.organ], include_status=True)
+        qs_small = qs_small.filter(request_number__startswith="nplusone-")
+        with CaptureQueriesContext(connection) as small_queries:
+            list(tmc_write_only_rows(qs_small, is_multi_organ=False))
+
+        build_requests(12)
+        qs_large = request_table_queryset(request, "tmc-requests", [self.organ], include_status=True)
+        qs_large = qs_large.filter(request_number__startswith="nplusone-")
+        with CaptureQueriesContext(connection) as large_queries:
+            list(tmc_write_only_rows(qs_large, is_multi_organ=False))
+
+        # If items were being re-fetched per request (N+1), query count would
+        # scale with row count (3 vs 15 rows); with prefetch actually
+        # respected, both chunks fit in a single iterator batch and the
+        # query count stays flat regardless of how many rows are in it.
+        self.assertEqual(len(small_queries.captured_queries), len(large_queries.captured_queries))
 
     def test_tmc_grouped_xlsx_export_matches_grouped_table(self):
         other_organ = TerritorialOrgan.objects.create(name="Other territorial organ", order_number=2)
