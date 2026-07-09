@@ -1,31 +1,56 @@
 {% extends "base.html" %}
 {% block title %}Генератор демо-данных — АИС УЗМО{% endblock %}
 {% block content %}
-<div class="container-fluid py-3">
-  <div class="panel" style="max-width: 640px; margin: 0 auto;">
+<div class="container-fluid py-3 admin-command-page">
+  <div class="panel admin-command-panel" style="max-width: 720px; margin: 0 auto;">
     <h2><i class="bi bi-database-fill-gear"></i> Генератор демо-данных</h2>
     <p class="text-secondary">
       Доступно только в режиме разработки (DEBUG). Наполняет базу реалистичными
-      данными (заявки, состояния, статусы, история) по всем территориальным
-      органам и разделам для нагрузочного и функционального тестирования.
-      Повторный запуск не создаёт дублей — записи помечаются меткой и опознаются
-      командой при следующем запуске.
+      данными (заявки, состояния, статусы, история) по территориальным органам
+      и всем разделам для нагрузочного и функционального тестирования. Все
+      записи создаются от имени отдельной служебной учетной записи
+      «Демо Генератор» — по ней же они находятся и удаляются повторным
+      запуском с очисткой, без каких-либо служебных пометок в тексте заявок.
     </p>
 
     <form method="post">
       {% csrf_token %}
       <div class="mb-3">
         <label class="form-label" for="organs">Количество территориальных органов</label>
-        <input type="number" min="1" class="form-control" id="organs" name="organs" value="{{ posted_organs }}" placeholder="Все активные (по умолчанию)">
-      </div>
-      <div class="form-check mb-2">
-        <input type="checkbox" class="form-check-input" id="skip_photos" name="skip_photos" {% if posted_skip_photos %}checked{% endif %}>
-        <label class="form-check-label" for="skip_photos">Не генерировать фотографии</label>
+        <input type="number" min="1" class="form-control" id="organs" name="organs" value="{{ form_values.organs }}" placeholder="Все активные (по умолчанию)">
       </div>
       <div class="form-check mb-3">
-        <input type="checkbox" class="form-check-input" id="clear" name="clear" {% if posted_clear %}checked{% endif %}>
+        <input type="checkbox" class="form-check-input" id="include_children" name="include_children" {% if form_values.include_children %}checked{% endif %}>
+        <label class="form-check-label" for="include_children">Включая дочерние подразделения</label>
+      </div>
+
+      <div class="row">
+        <div class="col-sm-6 mb-3">
+          <label class="form-label" for="requests_per_table">Заявок на каждую таблицу (на орган)</label>
+          <input type="number" min="0" class="form-control" id="requests_per_table" name="requests_per_table" value="{{ form_values.requests_per_table }}">
+        </div>
+        <div class="col-sm-6 mb-3">
+          <label class="form-label" for="snapshots">Срезов состояния (на орган)</label>
+          <input type="number" min="0" class="form-control" id="snapshots" name="snapshots" value="{{ form_values.snapshots }}">
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col-sm-6 mb-3">
+          <label class="form-label" for="days_span">Разброс дат, дней назад</label>
+          <input type="number" min="1" class="form-control" id="days_span" name="days_span" value="{{ form_values.days_span }}">
+        </div>
+        <div class="col-sm-6 mb-3">
+          <label class="form-label" for="seed">Random seed</label>
+          <input type="number" class="form-control" id="seed" name="seed" value="{{ form_values.seed }}" placeholder="Случайный (по умолчанию)">
+        </div>
+      </div>
+
+      <div class="form-check mb-3">
+        <input type="checkbox" class="form-check-input" id="clear" name="clear" {% if form_values.clear %}checked{% endif %}>
         <label class="form-check-label" for="clear">Сначала удалить ранее сгенерированные демо-данные</label>
       </div>
+
       <button type="submit" class="btn btn-primary"><i class="bi bi-play-fill"></i> Сгенерировать</button>
     </form>
 

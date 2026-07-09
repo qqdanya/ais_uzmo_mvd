@@ -1,21 +1,26 @@
+"""Generates realistic, configurable demo data for load and UI testing.
+
+Every record this command creates or touches is attributed to a dedicated
+demo user (DEMO_USERNAME). That attribution - not a text marker - is what
+identifies demo data later for --clear, so comments and descriptions stay
+plain, realistic sentences with no seed-tool artifacts in them.
+"""
 from __future__ import annotations
 
+import random
 from collections import Counter
 from datetime import timedelta
 from decimal import Decimal, InvalidOperation
-from io import BytesIO
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
-from django.core.files.base import ContentFile
 from django.core.management import call_command
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
-from PIL import Image, ImageDraw
 
 from apps.accounts.models import UserProfile
-from apps.directory.models import Department, TerritorialOrgan, TerritorialOrganPhoto, TerritorialOrganPhotoFolder
+from apps.directory.models import Department, TerritorialOrgan
 from apps.requests_app.models import (
     AntiTerrorMeasure,
     BuildingRepairRequest,
@@ -25,7 +30,6 @@ from apps.requests_app.models import (
     FireDepartmentRequest,
     FireExtinguisher,
     NeedStatus,
-    RequestPhotoLink,
     RequestStatusHistory,
     SecurityAlarm,
     ServiceHousing,
@@ -40,18 +44,10 @@ from apps.requests_app.models import (
 from apps.requests_app.services.request_numbers import remove_request_number_registry, sync_request_number_registry
 from apps.requests_app.services.statuses import completed_date_field
 
+DEMO_USERNAME = "demo_seed_bot"
 
-DEMO_MARKER = "[demo-seed]"
-DEMO_PHOTO_FOLDER = "Демо: фотофиксация объектов"
-DEMO_USER_USERNAME = "demo_operator"
-
-STATUS_CYCLE = (
-    NeedStatus.IN_WORK,
-    NeedStatus.DONE,
-    NeedStatus.IN_WORK,
-    NeedStatus.REJECTED,
-    NeedStatus.DONE,
-)
+STATUS_CHOICES = (NeedStatus.IN_WORK, NeedStatus.DONE, NeedStatus.REJECTED)
+STATUS_WEIGHTS = (45, 40, 15)
 
 TMC_PRODUCTS = (
     ("Бумага офисная А4, 80 г/м²", "пач."),
@@ -73,11 +69,11 @@ TMC_PRODUCTS = (
 )
 
 TMC_SCENARIOS = (
-    "для канцелярии дежурной части и регистрации входящей корреспонденции",
-    "для рабочих мест подразделения тылового обеспечения",
-    "для кабинета участковых уполномоченных и архива материалов",
-    "для обеспечения работы следственно-оперативной группы",
-    "для замены изношенных расходных материалов в приемной граждан",
+    "Заявка для канцелярии дежурной части и регистрации входящей корреспонденции.",
+    "Заявка для рабочих мест подразделения тылового обеспечения.",
+    "Заявка для кабинета участковых уполномоченных и архива материалов.",
+    "Заявка для обеспечения работы следственно-оперативной группы.",
+    "Заявка для замены изношенных расходных материалов в приемной граждан.",
 )
 
 VEHICLE_REPAIR_SCENARIOS = (
@@ -126,43 +122,19 @@ BUILDING_REPAIR_SCENARIOS = (
     "Ремонт санитарного узла и замена поврежденной сантехники.",
 )
 
-PHOTO_DESCRIPTIONS = (
-    "Фасад административного здания после осмотра",
-    "Гаражный бокс и прилегающая территория",
-    "Помещение дежурной части для фотофиксации",
-)
-
 
 class Command(BaseCommand):
-    help = "Creates realistic demo data across territorial organs and all dashboard tables."
+    help = "Creates realistic, configurable demo data across territorial organs and all dashboard tables."
 
     def add_arguments(self, parser):
-        parser.add_argument(
-            "--organs",
-            type=int,
-            default=None,
-            help="Limit the number of territorial organs to seed. By default all root organs are used.",
-        )
-        parser.add_argument(
-            "--include-children",
-            action="store_true",
-            help="Also seed child/subordinate territorial units. Dashboard multi-select uses root organs only, so this is optional.",
-        )
-        parser.add_argument(
-            "--skip-initial-data",
-            action="store_true",
-            help="Do not run seed_initial_data before creating demo records.",
-        )
-        parser.add_argument(
-            "--skip-photos",
-            action="store_true",
-            help="Do not create demo photo folders, placeholder photos and request-photo links.",
-        )
-        parser.add_argument(
-            "--clear",
-            action="store_true",
-            help="Remove records previously created by this command for the selected organs before seeding again.",
-        )
+        parser.add_argument("--organs", type=int, default=None, help="Limit the number of territorial organs to seed. By default all root organs are used.")
+        parser.add_argument("--include-children", action="store_true", help="Also seed child/subordinate territorial units.")
+        parser.add_argument("--requests-per-table", type=int, default=4, help="How many requests to generate per organ for each request table.")
+        parser.add_argument("--snapshots", type=int, default=3, help="How many state-snapshot slices to generate per organ for each state table.")
+        parser.add_argument("--days-span", type=int, default=180, help="Spread generated request/snapshot dates across this many days back from today.")
+        parser.add_argument("--seed", type=int, default=None, help="Random seed for reproducible output. A random one is chosen and reported if omitted.")
+        parser.add_argument("--skip-initial-data", action="store_true", help="Do not run seed_initial_data before creating demo records.")
+        parser.add_argument("--clear", action="store_true", help="Remove demo records previously created by this command for the selected organs before seeding again.")
 
     def handle(self, *args, **options):
         if not options["skip_initial_data"]:
@@ -173,21 +145,27 @@ class Command(BaseCommand):
             self.stdout.write(self.style.ERROR("Нет активных территориальных органов для заполнения."))
             return
 
+        seed = options["seed"] if options["seed"] is not None else random.SystemRandom().randrange(1_000_000)
+        self.rng = random.Random(seed)
+        self.requests_per_table = max(0, options["requests_per_table"])
+        self.snapshots = max(0, options["snapshots"])
+        self.days_span = max(1, options["days_span"])
+
         user = self._demo_user()
         self.products = self._products()
-        self.departments = {department.slug: department for department in Department.objects.filter(is_active=True)}
         self.stats = Counter()
 
         with transaction.atomic():
             if options["clear"]:
-                self._clear_demo_data(organs)
-            for organ_index, organ in enumerate(organs, start=1):
-                self._seed_organ(organ, organ_index, user, with_photos=not options["skip_photos"])
+                self._clear_demo_data(organs, user)
+            for organ in organs:
+                self._seed_organ(organ, user)
 
         self.stdout.write(self.style.SUCCESS(f"Территориальных органов заполнено: {len(organs)}"))
+        self.stdout.write(self.style.SUCCESS(f"Seed для повторного воспроизведения этого набора данных: {seed}"))
         for key, value in sorted(self.stats.items()):
             self.stdout.write(self.style.SUCCESS(f"{key}: {value}"))
-        self.stdout.write(self.style.SUCCESS("Демо-данные готовы. Повторный запуск не создает дубли."))
+        self.stdout.write(self.style.SUCCESS("Демо-данные готовы. Повторный запуск не создает дублей."))
 
     def _selected_organs(self, include_children, limit):
         qs = TerritorialOrgan.objects.filter(is_active=True)
@@ -198,24 +176,14 @@ class Command(BaseCommand):
 
     def _demo_user(self):
         User = get_user_model()
-        user = User.objects.filter(is_superuser=True).order_by("id").first()
-        if user:
-            UserProfile.objects.get_or_create(user=user, defaults={"role": UserProfile.Role.ADMIN})
-            return user
-
-        user, _ = User.objects.get_or_create(
-            username=DEMO_USER_USERNAME,
-            defaults={
-                "first_name": "Оператор",
-                "last_name": "Демо",
-                "email": "",
-                "is_staff": True,
-            },
+        user, created = User.objects.get_or_create(
+            username=DEMO_USERNAME,
+            defaults={"first_name": "Демо", "last_name": "Генератор", "email": ""},
         )
-        if user.has_usable_password():
+        if created:
             user.set_unusable_password()
             user.save(update_fields=["password"])
-        UserProfile.objects.update_or_create(user=user, defaults={"role": UserProfile.Role.ADMIN, "middle_name": "Системный"})
+        UserProfile.objects.get_or_create(user=user, defaults={"role": UserProfile.Role.OPERATOR, "middle_name": "Тестовый"})
         return user
 
     def _products(self):
@@ -232,23 +200,27 @@ class Command(BaseCommand):
             products.append(product)
         return products
 
-    def _seed_organ(self, organ, organ_index, user, with_photos):
-        self._seed_tmc(organ, organ_index, user)
-        self._seed_transport(organ, organ_index, user)
-        self._seed_fire(organ, organ_index, user)
-        self._seed_antiterror(organ, organ_index, user)
-        self._seed_citsizi(organ, organ_index, user)
-        self._seed_uoto(organ, organ_index, user)
-        if with_photos:
-            photos = self._seed_photos(organ, organ_index, user)
-            self._link_photos_to_requests(organ, user, photos)
+    def _seed_organ(self, organ, user):
+        self._seed_tmc(organ, user)
+        self._seed_transport(organ, user)
+        self._seed_fire(organ, user)
+        self._seed_antiterror(organ, user)
+        self._seed_citsizi(organ, user)
+        self._seed_uoto(organ, user)
 
-    def _seed_tmc(self, organ, organ_index, user):
-        today = timezone.localdate()
-        for item_number in range(1, 7):
-            status = STATUS_CYCLE[(organ_index + item_number) % len(STATUS_CYCLE)]
-            request_date = today - timedelta(days=item_number * 5 + organ_index % 9)
-            due_date = self._completed_at(request_date, item_number) if status == NeedStatus.DONE else None
+    def _pick_status(self):
+        return self.rng.choices(STATUS_CHOICES, weights=STATUS_WEIGHTS, k=1)[0]
+
+    def _random_request_date(self):
+        return timezone.localdate() - timedelta(days=self.rng.randint(0, self.days_span))
+
+    def _completed_at(self, request_date):
+        return min(request_date + timedelta(days=self.rng.randint(1, 14)), timezone.localdate())
+
+    def _seed_tmc(self, organ, user):
+        for item_number in range(1, self.requests_per_table + 1):
+            status = self._pick_status()
+            request_date = self._random_request_date()
             request_obj, _ = self._upsert_request(
                 model=TmcRequest,
                 organ=organ,
@@ -258,20 +230,19 @@ class Command(BaseCommand):
                 defaults={
                     "request_date": request_date,
                     "status": status,
-                    "due_date": due_date,
-                    "comment": self._comment(f"Заявка {TMC_SCENARIOS[(organ_index + item_number) % len(TMC_SCENARIOS)]}."),
+                    "due_date": self._completed_at(request_date) if status == NeedStatus.DONE else None,
+                    "comment": self.rng.choice(TMC_SCENARIOS),
                 },
                 table_key="tmc-requests",
             )
-            self._replace_tmc_items(request_obj, organ_index, item_number)
+            self._replace_tmc_items(request_obj)
             self.stats["ТМЦ-заявки"] += 1
 
-    def _seed_transport(self, organ, organ_index, user):
-        today = timezone.localdate()
-        self._seed_vehicle_inventory(organ, organ_index, user)
-        for item_number in range(1, 5):
-            request_date = today - timedelta(days=item_number * 9 + organ_index % 11)
-            status = STATUS_CYCLE[(organ_index + item_number + 1) % len(STATUS_CYCLE)]
+    def _seed_transport(self, organ, user):
+        self._seed_vehicle_inventory(organ, user)
+        for item_number in range(1, self.requests_per_table + 1):
+            request_date = self._random_request_date()
+            status = self._pick_status()
             self._upsert_request(
                 model=VehicleRepairRequest,
                 organ=organ,
@@ -281,16 +252,16 @@ class Command(BaseCommand):
                 defaults={
                     "request_date": request_date,
                     "status": status,
-                    "completed_at": self._completed_at(request_date, item_number) if status == NeedStatus.DONE else None,
-                    "comment": self._comment(VEHICLE_REPAIR_SCENARIOS[(organ_index + item_number) % len(VEHICLE_REPAIR_SCENARIOS)]),
+                    "completed_at": self._completed_at(request_date) if status == NeedStatus.DONE else None,
+                    "comment": self.rng.choice(VEHICLE_REPAIR_SCENARIOS),
                 },
                 table_key="vehicle-repair",
             )
             self.stats["Заявки на ремонт автотранспорта"] += 1
 
-        for item_number in range(1, 4):
-            request_date = today - timedelta(days=item_number * 8 + organ_index % 7)
-            status = STATUS_CYCLE[(organ_index + item_number + 2) % len(STATUS_CYCLE)]
+        for item_number in range(1, self.requests_per_table + 1):
+            request_date = self._random_request_date()
+            status = self._pick_status()
             self._upsert_request(
                 model=VehicleFuelRequest,
                 organ=organ,
@@ -300,94 +271,92 @@ class Command(BaseCommand):
                 defaults={
                     "request_date": request_date,
                     "status": status,
-                    "completed_at": self._completed_at(request_date, item_number) if status == NeedStatus.DONE else None,
-                    "comment": self._comment(FUEL_SCENARIOS[(organ_index + item_number) % len(FUEL_SCENARIOS)]),
+                    "completed_at": self._completed_at(request_date) if status == NeedStatus.DONE else None,
+                    "comment": self.rng.choice(FUEL_SCENARIOS),
                 },
                 table_key="vehicle-fuel",
             )
             self.stats["Заявки на ГСМ"] += 1
 
-    def _seed_vehicle_inventory(self, organ, organ_index, user):
+    def _seed_vehicle_inventory(self, organ, user):
         today = timezone.localdate()
-        base = self._organ_scale(organ, organ_index)
-        for snapshot_number in range(3):
-            required = base + 3 + snapshot_number
-            available = max(required - ((organ_index + snapshot_number) % 3), 0)
-            broken = min(available, (organ_index + snapshot_number) % 2)
-            writeoff = min(required, 1 if organ_index % 5 == 0 and snapshot_number == 0 else 0)
+        base = self._organ_scale(organ)
+        for snapshot_number in range(self.snapshots):
+            required = base + self.rng.randint(2, 6)
+            available = self.rng.randint(max(required - 4, 0), required)
+            broken = self.rng.randint(0, min(available, 3))
+            writeoff = self.rng.randint(0, min(required, 2)) if self.rng.random() < 0.2 else 0
             self._upsert_snapshot(
                 model=VehicleInventory,
                 organ=organ,
-                state_date=today - timedelta(days=30 * snapshot_number),
+                state_date=today - timedelta(days=self.rng.randint(0, self.days_span)),
                 user=user,
                 defaults={
                     "required_count": required,
                     "available_count": available,
                     "broken_count": broken,
                     "writeoff_count": writeoff,
-                    "comment": self._comment("Срез обеспеченности служебным автотранспортом."),
+                    "comment": "Срез обеспеченности служебным автотранспортом.",
                 },
             )
             self.stats["Срезы автотранспорта"] += 1
 
-    def _seed_fire(self, organ, organ_index, user):
+    def _seed_fire(self, organ, user):
         today = timezone.localdate()
-        base = self._organ_scale(organ, organ_index)
-        for snapshot_number in range(3):
-            required = base + 8 + snapshot_number * 2
-            available = max(required - ((organ_index + snapshot_number) % 4), 0)
+        base = self._organ_scale(organ)
+        for snapshot_number in range(self.snapshots):
+            required = base + self.rng.randint(5, 12)
+            available = self.rng.randint(max(required - 4, 0), required)
             self._upsert_snapshot(
                 model=FireExtinguisher,
                 organ=organ,
-                state_date=today - timedelta(days=30 * snapshot_number),
+                state_date=today - timedelta(days=self.rng.randint(0, self.days_span)),
                 user=user,
                 defaults={
                     "required_count": required,
                     "available_count": available,
-                    "expiry_date": today + timedelta(days=(snapshot_number - 1) * 45 + (organ_index % 20)),
-                    "writeoff_count": min(required, (organ_index + snapshot_number) % 2),
-                    "comment": self._comment("Сведения по огнетушителям административных зданий и гаражных боксов."),
+                    "expiry_date": today + timedelta(days=self.rng.randint(-60, 400)),
+                    "writeoff_count": self.rng.randint(0, min(required, 2)) if self.rng.random() < 0.2 else 0,
+                    "comment": "Сведения по огнетушителям административных зданий и гаражных боксов.",
                 },
             )
             self.stats["Срезы огнетушителей"] += 1
 
-            required_objects = max(1, base // 3 + snapshot_number + 1)
-            equipped_objects = max(required_objects - ((organ_index + snapshot_number) % 2), 0)
-            broken_objects = min(equipped_objects, 1 if organ_index % 6 == 0 and snapshot_number == 0 else 0)
+            required_objects = max(1, base // 3 + self.rng.randint(0, 3))
+            equipped_objects = self.rng.randint(max(required_objects - 2, 0), required_objects)
             self._upsert_snapshot(
                 model=FireAlarm,
                 organ=organ,
-                state_date=today - timedelta(days=30 * snapshot_number),
+                state_date=today - timedelta(days=self.rng.randint(0, self.days_span)),
                 user=user,
                 defaults={
                     "required_objects": required_objects,
                     "equipped_objects": equipped_objects,
-                    "broken_objects": broken_objects,
-                    "comment": self._comment("Сведения по объектам, оборудованным пожарной сигнализацией."),
+                    "broken_objects": self.rng.randint(0, min(equipped_objects, 2)),
+                    "comment": "Сведения по объектам, оборудованным пожарной сигнализацией.",
                 },
             )
             self.stats["Срезы пожарной сигнализации"] += 1
 
-            security_required = required_objects + 1
-            security_equipped = max(security_required - ((organ_index + snapshot_number + 1) % 2), 0)
-            security_broken = min(security_equipped, 1 if organ_index % 7 == 0 and snapshot_number == 0 else 0)
+            security_required = required_objects + self.rng.randint(0, 2)
+            security_equipped = self.rng.randint(max(security_required - 2, 0), security_required)
             self._upsert_snapshot(
                 model=SecurityAlarm,
                 organ=organ,
-                state_date=today - timedelta(days=30 * snapshot_number),
+                state_date=today - timedelta(days=self.rng.randint(0, self.days_span)),
                 user=user,
                 defaults={
                     "required_objects": security_required,
                     "equipped_objects": security_equipped,
-                    "broken_objects": security_broken,
-                    "comment": self._comment("Сведения по объектам, оборудованным охранной сигнализацией."),
+                    "broken_objects": self.rng.randint(0, min(security_equipped, 2)),
+                    "comment": "Сведения по объектам, оборудованным охранной сигнализацией.",
                 },
             )
             self.stats["Срезы охранной сигнализации"] += 1
 
-        for item_number in range(1, 4):
-            request_date = today - timedelta(days=item_number * 10 + organ_index % 8)
-            status = STATUS_CYCLE[(organ_index + item_number + 3) % len(STATUS_CYCLE)]
+        for item_number in range(1, self.requests_per_table + 1):
+            request_date = self._random_request_date()
+            status = self._pick_status()
             self._upsert_request(
                 model=FireDepartmentRequest,
                 organ=organ,
@@ -397,18 +366,17 @@ class Command(BaseCommand):
                 defaults={
                     "request_date": request_date,
                     "status": status,
-                    "completed_at": self._completed_at(request_date, item_number) if status == NeedStatus.DONE else None,
-                    "comment": self._comment(FIRE_REQUEST_SCENARIOS[(organ_index + item_number) % len(FIRE_REQUEST_SCENARIOS)]),
+                    "completed_at": self._completed_at(request_date) if status == NeedStatus.DONE else None,
+                    "comment": self.rng.choice(FIRE_REQUEST_SCENARIOS),
                 },
                 table_key="fire-requests",
             )
             self.stats["Заявки пожарной безопасности"] += 1
 
-    def _seed_antiterror(self, organ, organ_index, user):
-        today = timezone.localdate()
-        for item_number in range(1, 4):
-            request_date = today - timedelta(days=item_number * 13 + organ_index % 9)
-            status = STATUS_CYCLE[(organ_index + item_number + 4) % len(STATUS_CYCLE)]
+    def _seed_antiterror(self, organ, user):
+        for item_number in range(1, self.requests_per_table + 1):
+            request_date = self._random_request_date()
+            status = self._pick_status()
             self._upsert_request(
                 model=AntiTerrorMeasure,
                 organ=organ,
@@ -418,20 +386,19 @@ class Command(BaseCommand):
                 defaults={
                     "request_date": request_date,
                     "status": status,
-                    "completed_at": self._completed_at(request_date, item_number) if status == NeedStatus.DONE else None,
-                    "comment": self._comment(ANTITERROR_SCENARIOS[(organ_index + item_number) % len(ANTITERROR_SCENARIOS)]),
+                    "completed_at": self._completed_at(request_date) if status == NeedStatus.DONE else None,
+                    "comment": self.rng.choice(ANTITERROR_SCENARIOS),
                 },
                 table_key="anti-terror",
             )
             self.stats["Антитеррористическая укрепленность"] += 1
 
-    def _seed_citsizi(self, organ, organ_index, user):
-        today = timezone.localdate()
+    def _seed_citsizi(self, organ, user):
         equipment_types = [choice[0] for choice in EquipmentType.choices]
-        for item_number in range(1, 5):
-            equipment_type = equipment_types[(organ_index + item_number) % len(equipment_types)]
-            request_date = today - timedelta(days=item_number * 7 + organ_index % 10)
-            status = STATUS_CYCLE[(organ_index + item_number + 1) % len(STATUS_CYCLE)]
+        for item_number in range(1, self.requests_per_table + 1):
+            equipment_type = self.rng.choice(equipment_types)
+            request_date = self._random_request_date()
+            status = self._pick_status()
             self._upsert_request(
                 model=CitsiziEquipment,
                 organ=organ,
@@ -441,39 +408,39 @@ class Command(BaseCommand):
                 defaults={
                     "request_date": request_date,
                     "equipment_type": equipment_type,
-                    "quantity": 1 + ((organ_index + item_number) % 5),
+                    "quantity": self.rng.randint(1, 8),
                     "status": status,
-                    "due_date": self._completed_at(request_date, item_number) if status == NeedStatus.DONE else None,
-                    "comment": self._comment(CITSIZI_SCENARIOS[equipment_type]),
+                    "due_date": self._completed_at(request_date) if status == NeedStatus.DONE else None,
+                    "comment": CITSIZI_SCENARIOS[equipment_type],
                 },
                 table_key="citsizi-equipment",
             )
             self.stats["Заявки ЦИТСиЗИ"] += 1
 
-    def _seed_uoto(self, organ, organ_index, user):
+    def _seed_uoto(self, organ, user):
         today = timezone.localdate()
-        base = max(1, self._organ_scale(organ, organ_index) // 5)
-        for snapshot_number in range(3):
-            total = base + (1 if organ_index % 4 == 0 else 0)
-            used = max(total - 1 - (snapshot_number % 2), 0)
-            ready = min(total - used, 1 if total > used else 0)
+        base = max(1, self._organ_scale(organ) // 5)
+        for snapshot_number in range(self.snapshots):
+            total = base + self.rng.randint(0, 2)
+            used = self.rng.randint(0, total)
+            ready = self.rng.randint(0, total - used)
             self._upsert_snapshot(
                 model=ServiceHousing,
                 organ=organ,
-                state_date=today - timedelta(days=30 * snapshot_number),
+                state_date=today - timedelta(days=self.rng.randint(0, self.days_span)),
                 user=user,
                 defaults={
                     "total_count": total,
                     "used_by_staff": used,
                     "ready_to_move": ready,
-                    "comment": self._comment("Сведения по служебному жилью, закрепленному за территориальным органом."),
+                    "comment": "Сведения по служебному жилью, закрепленному за территориальным органом.",
                 },
             )
             self.stats["Срезы служебного жилья"] += 1
 
-        for item_number in range(1, 4):
-            request_date = today - timedelta(days=item_number * 11 + organ_index % 7)
-            status = STATUS_CYCLE[(organ_index + item_number + 2) % len(STATUS_CYCLE)]
+        for item_number in range(1, self.requests_per_table + 1):
+            request_date = self._random_request_date()
+            status = self._pick_status()
             self._upsert_request(
                 model=BuildingRepairRequest,
                 organ=organ,
@@ -483,8 +450,8 @@ class Command(BaseCommand):
                 defaults={
                     "request_date": request_date,
                     "status": status,
-                    "completed_at": self._completed_at(request_date, item_number) if status == NeedStatus.DONE else None,
-                    "comment": self._comment(BUILDING_REPAIR_SCENARIOS[(organ_index + item_number) % len(BUILDING_REPAIR_SCENARIOS)]),
+                    "completed_at": self._completed_at(request_date) if status == NeedStatus.DONE else None,
+                    "comment": self.rng.choice(BUILDING_REPAIR_SCENARIOS),
                 },
                 table_key="building-repair",
             )
@@ -505,7 +472,10 @@ class Command(BaseCommand):
         return obj, created
 
     def _upsert_snapshot(self, model, organ, state_date, user, defaults):
-        obj = model.objects.filter(territorial_organ=organ, state_date=state_date, comment__contains=DEMO_MARKER).first()
+        # Scoped by created_by (the demo bot), not just (organ, state_date) -
+        # a real user could legitimately have a snapshot for that same date,
+        # and matching on it blindly would silently repurpose their record.
+        obj = model.objects.filter(territorial_organ=organ, state_date=state_date, created_by=user).first()
         created = obj is None
         if created:
             obj = model(territorial_organ=organ, state_date=state_date, created_by=user)
@@ -516,16 +486,15 @@ class Command(BaseCommand):
         obj.save()
         return obj, created
 
-    def _replace_tmc_items(self, request_obj, organ_index, request_index):
+    def _replace_tmc_items(self, request_obj):
         request_obj.items.all().delete()
-        item_count = 2 + ((organ_index + request_index) % 3)
-        for row_number in range(item_count):
-            product = self.products[(organ_index + request_index + row_number) % len(self.products)]
+        item_count = self.rng.randint(1, min(5, len(self.products)))
+        for product in self.rng.sample(self.products, k=item_count):
             TmcRequestItem.objects.create(
                 request=request_obj,
                 product=product,
                 name=product.name,
-                quantity=1 + ((organ_index + request_index + row_number) % 8),
+                quantity=self.rng.randint(1, 20),
                 unit=product.unit,
             )
             self.stats["Позиции ТМЦ"] += 1
@@ -545,79 +514,11 @@ class Command(BaseCommand):
             new_status=obj.status,
             completed_at=completed_at,
             changed_by=user,
-            note="Создано командой demo-seed",
+            note="Создано генератором демо-данных",
         )
         self.stats["Записи истории статусов"] += 1
 
-    def _seed_photos(self, organ, organ_index, user):
-        department = self.departments.get("uoto") or Department.objects.filter(is_active=True).first()
-        folder, created = TerritorialOrganPhotoFolder.objects.get_or_create(
-            territorial_organ=organ,
-            parent=None,
-            name=DEMO_PHOTO_FOLDER,
-            is_deleted=False,
-            defaults={"created_by": user, "updated_by": user, "created_department": department},
-        )
-        if not created:
-            folder.updated_by = user
-            folder.created_department = folder.created_department or department
-            folder.save(update_fields=["updated_by", "created_department", "updated_at"])
-
-        photos = []
-        for photo_number, description in enumerate(PHOTO_DESCRIPTIONS, start=1):
-            original_filename = f"demo-organ-{self._organ_code(organ)}-{photo_number}.jpg"
-            photo = TerritorialOrganPhoto.objects.filter(
-                territorial_organ=organ,
-                original_filename=original_filename,
-                description__contains=DEMO_MARKER,
-                is_deleted=False,
-            ).first()
-            if not photo:
-                photo = TerritorialOrganPhoto(
-                    territorial_organ=organ,
-                    folder=folder,
-                    description=self._comment(description),
-                    created_by=user,
-                    updated_by=user,
-                    created_department=department,
-                )
-                photo.image.save(original_filename, ContentFile(self._demo_image_bytes(organ, description, organ_index)), save=False)
-                photo.full_clean()
-                photo.save()
-                self.stats["Фотографии"] += 1
-            else:
-                photo.folder = folder
-                photo.description = self._comment(description)
-                photo.updated_by = user
-                photo.created_department = photo.created_department or department
-                photo.full_clean()
-                photo.save()
-            photos.append(photo)
-        return photos
-
-    def _link_photos_to_requests(self, organ, user, photos):
-        if not photos:
-            return
-        linkable = [
-            *TmcRequest.objects.filter(territorial_organ=organ, comment__contains=DEMO_MARKER).order_by("request_date")[:1],
-            *VehicleRepairRequest.objects.filter(territorial_organ=organ, comment__contains=DEMO_MARKER).order_by("request_date")[:1],
-            *FireDepartmentRequest.objects.filter(territorial_organ=organ, comment__contains=DEMO_MARKER).order_by("request_date")[:1],
-            *AntiTerrorMeasure.objects.filter(territorial_organ=organ, comment__contains=DEMO_MARKER).order_by("request_date")[:1],
-            *BuildingRepairRequest.objects.filter(territorial_organ=organ, comment__contains=DEMO_MARKER).order_by("request_date")[:1],
-        ]
-        for index, obj in enumerate(linkable):
-            photo = photos[index % len(photos)]
-            content_type = ContentType.objects.get_for_model(obj, for_concrete_model=False)
-            _, created = RequestPhotoLink.objects.get_or_create(
-                photo=photo,
-                content_type=content_type,
-                object_id=obj.pk,
-                defaults={"territorial_organ": organ, "created_by": user},
-            )
-            if created:
-                self.stats["Связи заявок с фотографиями"] += 1
-
-    def _clear_demo_data(self, organs):
+    def _clear_demo_data(self, organs, user):
         request_models = (
             TmcRequest,
             VehicleRepairRequest,
@@ -629,25 +530,18 @@ class Command(BaseCommand):
         )
         for model in request_models:
             content_type = ContentType.objects.get_for_model(model, for_concrete_model=False)
-            object_ids = list(model.objects.filter(territorial_organ__in=organs, comment__contains=DEMO_MARKER).values_list("pk", flat=True))
+            object_ids = list(model.objects.filter(territorial_organ__in=organs, created_by=user).values_list("pk", flat=True))
             if not object_ids:
                 continue
-            RequestPhotoLink.objects.filter(content_type=content_type, object_id__in=object_ids).delete()
             RequestStatusHistory.objects.filter(content_type=content_type, object_id__in=object_ids).delete()
             for obj in model.objects.filter(pk__in=object_ids):
                 remove_request_number_registry(obj)
             model.objects.filter(pk__in=object_ids).delete()
-            self.stats[f"Удалено {model._meta.verbose_name_plural}"] += len(object_ids)
+            self.stats[f"Удалено: {model._meta.verbose_name_plural}"] += len(object_ids)
 
         for model in (VehicleInventory, FireExtinguisher, FireAlarm, SecurityAlarm, ServiceHousing):
-            deleted, _ = model.objects.filter(territorial_organ__in=organs, comment__contains=DEMO_MARKER).delete()
-            self.stats[f"Удалено {model._meta.verbose_name_plural}"] += deleted
-
-        for photo in TerritorialOrganPhoto.objects.filter(territorial_organ__in=organs, description__contains=DEMO_MARKER):
-            if photo.image:
-                photo.image.delete(save=False)
-            photo.delete()
-        TerritorialOrganPhotoFolder.objects.filter(territorial_organ__in=organs, name=DEMO_PHOTO_FOLDER).delete()
+            deleted, _ = model.objects.filter(territorial_organ__in=organs, created_by=user).delete()
+            self.stats[f"Удалено: {model._meta.verbose_name_plural}"] += deleted
 
     def _request_number(self, prefix, organ, index):
         return f"ЦХиСО-{prefix}/{self._organ_code(organ)}/{timezone.localdate().year}-{index:03d}"
@@ -659,34 +553,12 @@ class Command(BaseCommand):
         except (InvalidOperation, TypeError, ValueError):
             return str(organ.pk)
 
-    def _organ_scale(self, organ, organ_index):
+    def _organ_scale(self, organ):
         name = organ.name.lower()
         if organ.parent_id:
-            return 5 + organ_index % 5
+            return 5 + self.rng.randint(0, 4)
         if any(word in name for word in ("красноярск", "норильск", "канск", "ачинск", "минусинск", "лесосибирск", "железногорск")):
-            return 22 + organ_index % 8
+            return 22 + self.rng.randint(0, 7)
         if any(word in name for word in ("таймыр", "эвенкий", "турухан", "северо-енисей")):
-            return 14 + organ_index % 6
-        return 10 + organ_index % 7
-
-    def _completed_at(self, request_date, index):
-        completed_at = request_date + timedelta(days=2 + index % 6)
-        return min(completed_at, timezone.localdate())
-
-    def _comment(self, text):
-        return f"{text} {DEMO_MARKER}"
-
-    def _demo_image_bytes(self, organ, description, organ_index):
-        width, height = 1280, 720
-        image = Image.new("RGB", (width, height), color=(230, 230, 225))
-        draw = ImageDraw.Draw(image)
-        draw.rectangle((50, 70, width - 50, height - 70), outline=(120, 120, 120), width=5)
-        draw.rectangle((90, 120, width - 90, 260), fill=(210, 210, 205))
-        draw.rectangle((140, 330, 1140, 620), fill=(200, 205, 205), outline=(120, 120, 120), width=4)
-        draw.text((120, 150), "DEMO PHOTO MATERIAL", fill=(40, 40, 40))
-        draw.text((120, 205), f"Territorial organ code: {self._organ_code(organ)}", fill=(40, 40, 40))
-        draw.text((170, 390), f"Photo set: {organ_index}", fill=(40, 40, 40))
-        draw.text((170, 450), "Generated placeholder for manual UI testing", fill=(80, 80, 80))
-        buffer = BytesIO()
-        image.save(buffer, format="JPEG", quality=88)
-        return buffer.getvalue()
+            return 14 + self.rng.randint(0, 5)
+        return 10 + self.rng.randint(0, 6)
