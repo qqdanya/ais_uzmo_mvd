@@ -30,6 +30,7 @@ from apps.requests_app.models import (
     FireDepartmentRequest,
     FireExtinguisher,
     NeedStatus,
+    RequestNumberRegistry,
     RequestStatusHistory,
     SecurityAlarm,
     ServiceHousing,
@@ -41,14 +42,25 @@ from apps.requests_app.models import (
     VehicleRepairRequest,
     normalize_product_name,
 )
-from apps.requests_app.services.request_numbers import remove_request_number_registry, sync_request_number_registry
+from apps.requests_app.services.request_numbers import sync_request_number_registry
 from apps.requests_app.services.statuses import completed_date_field
+
+# SQLite's default per-statement variable limit can be as low as 999 -
+# _clear_demo_data() can otherwise build a single pk__in/object_id__in with
+# thousands of values from a large demo run and hit "too many SQL variables".
+SQL_IN_CHUNK_SIZE = 500
 
 
 def _parse_organ_ids(value):
     if not value:
         return None
     return [int(part) for part in value.split(",") if part.strip()]
+
+
+def _chunked(items, size=SQL_IN_CHUNK_SIZE):
+    items = list(items)
+    for start in range(0, len(items), size):
+        yield items[start : start + size]
 
 
 DEMO_USERNAME = "demo_seed_bot"
@@ -255,13 +267,20 @@ class Command(BaseCommand):
         self.products = self._products()
         self.stats = Counter()
 
-        with transaction.atomic():
-            if options["clear"]:
+        if options["clear"]:
+            with transaction.atomic():
                 self._clear_demo_data(organs, user)
-            for index, organ in enumerate(organs, start=1):
+
+        # One transaction per organ rather than one for the whole run - on
+        # SQLite that write lock would otherwise be held for the entire
+        # generation (which can take minutes for a large run), starving any
+        # other request (session saves, presence pings) trying to write
+        # during that window and surfacing as "database is locked".
+        for index, organ in enumerate(organs, start=1):
+            with transaction.atomic():
                 self._seed_organ(organ, user)
-                if progress_callback:
-                    progress_callback(index, len(organs))
+            if progress_callback:
+                progress_callback(index, len(organs))
 
         self.stdout.write(self.style.SUCCESS(f"Территориальных органов заполнено: {len(organs)}"))
         self.stdout.write(self.style.SUCCESS(f"Seed для повторного воспроизведения этого набора данных: {seed}"))
@@ -643,10 +662,14 @@ class Command(BaseCommand):
             object_ids = list(model.objects.filter(territorial_organ__in=organs, created_by=user).values_list("pk", flat=True))
             if not object_ids:
                 continue
-            RequestStatusHistory.objects.filter(content_type=content_type, object_id__in=object_ids).delete()
-            for obj in model.objects.filter(pk__in=object_ids):
-                remove_request_number_registry(obj)
-            model.objects.filter(pk__in=object_ids).delete()
+            # A large demo run can produce thousands of ids - a single
+            # pk__in with all of them at once can exceed SQLite's per-
+            # statement variable limit ("too many SQL variables"), so
+            # every pk__in/object_id__in lookup here is chunked.
+            for chunk in _chunked(object_ids):
+                RequestStatusHistory.objects.filter(content_type=content_type, object_id__in=chunk).delete()
+                RequestNumberRegistry.objects.filter(content_type=content_type, object_id__in=chunk).delete()
+                model.objects.filter(pk__in=chunk).delete()
             self.stats[f"Удалено: {model._meta.verbose_name_plural}"] += len(object_ids)
 
         for model in (VehicleInventory, FireExtinguisher, FireAlarm, SecurityAlarm, ServiceHousing):

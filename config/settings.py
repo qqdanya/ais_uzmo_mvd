@@ -58,6 +58,27 @@ TEMPLATES = [
 ]
 
 DATABASES = {"default": env.db("DATABASE_URL", default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}")}
+if "sqlite3" in DATABASES["default"]["ENGINE"]:
+    # Default busy timeout is 5s - a long-running write (e.g. the demo data
+    # generator) can hold SQLite's single writer lock past that under any
+    # concurrent write (session saves, presence pings), surfacing as
+    # "database is locked" instead of just waiting a bit longer.
+    DATABASES["default"].setdefault("OPTIONS", {})["timeout"] = 20
+
+    # SQLite's default rollback-journal mode blocks readers while a writer
+    # transaction is open, on top of only ever allowing one writer at a
+    # time - WAL mode lets readers (e.g. the seed generator's progress-bar
+    # polling) proceed without waiting on an in-progress write, which the
+    # timeout increase above doesn't help with. No-ops harmlessly for the
+    # in-memory database used in tests.
+    from django.db.backends.signals import connection_created
+
+    def _set_sqlite_wal_mode(sender, connection, **kwargs):
+        if connection.vendor == "sqlite":
+            with connection.cursor() as cursor:
+                cursor.execute("PRAGMA journal_mode=WAL;")
+
+    connection_created.connect(_set_sqlite_wal_mode)
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
