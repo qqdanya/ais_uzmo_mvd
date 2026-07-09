@@ -200,7 +200,7 @@ function showToastFromHtmxTrigger(event) {
 }
 
 function refreshTableAfterRequestPhotosChanged() {
-  refreshCurrentTableArea();
+  if (typeof refreshCurrentTableArea === "function") refreshCurrentTableArea();
 }
 
 function registerHtmxLifecycle() {
@@ -214,33 +214,42 @@ function registerHtmxLifecycle() {
       autoDismissAlerts();
       bootstrap.Modal.getOrCreateInstance(document.getElementById("modal-root")).show();
       const bulkForm = event.detail.target.querySelector("[data-bulk-photo-form]");
-      if (bulkForm) {
+      // Modals can open on any page (photo_upload.js/request_photo_picker.js/
+      // download_preparing.js are dashboard-only), so these enrichments are
+      // only safe to run where the relevant module actually loaded.
+      if (bulkForm && window.PhotoUpload) {
         PhotoUpload.renderPendingBulkPhotoFiles(bulkForm);
       }
-      event.detail.target.querySelectorAll("[data-request-photo-box]").forEach(syncRequestPhotoPicker);
-      syncActiveDownloadButtons(event.detail.target);
+      if (typeof syncRequestPhotoPicker === "function") {
+        event.detail.target.querySelectorAll("[data-request-photo-box]").forEach(syncRequestPhotoPicker);
+      }
+      if (typeof syncActiveDownloadButtons === "function") {
+        syncActiveDownloadButtons(event.detail.target);
+      }
       return;
     }
-    saveTableStateFromHtmxEvent(event);
+    if (typeof saveTableStateFromHtmxEvent === "function") saveTableStateFromHtmxEvent(event);
     initCustomSelects(event.detail.target);
     initTooltips();
     autoDismissAlerts();
-    event.detail.target.querySelectorAll?.("[data-request-photo-box]").forEach((box) => {
-      syncRequestPhotoPicker(box);
-      scheduleRequestPhotoPickerScroll(box);
-    });
-    const requestPhotoBox = event.detail.target.closest?.("[data-request-photo-box]");
-    if (requestPhotoBox) {
-      syncRequestPhotoPicker(requestPhotoBox);
-      scheduleRequestPhotoPickerScroll(requestPhotoBox);
+    if (typeof syncRequestPhotoPicker === "function") {
+      event.detail.target.querySelectorAll?.("[data-request-photo-box]").forEach((box) => {
+        syncRequestPhotoPicker(box);
+        scheduleRequestPhotoPickerScroll(box);
+      });
+      const requestPhotoBox = event.detail.target.closest?.("[data-request-photo-box]");
+      if (requestPhotoBox) {
+        syncRequestPhotoPicker(requestPhotoBox);
+        scheduleRequestPhotoPickerScroll(requestPhotoBox);
+      }
     }
-    syncActiveDownloadButtons(event.detail.target);
+    if (typeof syncActiveDownloadButtons === "function") syncActiveDownloadButtons(event.detail.target);
     applyCollapsedPanels();
     scrollAfterPaginationSwap(event);
   });
 
   body.addEventListener("htmx:configRequest", (event) => {
-    if (!isResetTableStateTrigger(event.detail?.elt)) return;
+    if (typeof isResetTableStateTrigger !== "function" || !isResetTableStateTrigger(event.detail?.elt)) return;
     const organId = event.detail.elt.dataset.resetOrganId;
     const restoredOrganId = resetTableStateToSingleOrgan(organId);
     event.detail.parameters?.delete?.("organ_ids");

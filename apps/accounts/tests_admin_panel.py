@@ -1329,9 +1329,38 @@ class FrontendModuleSplitTests(TestCase):
 
         self.assertIn("function serverRenderedWorkspaceState", organ_navigation_js)
         self.assertIn("serverRenderedWorkspaceState()", app_js)
+        self.assertIn("const tableKey = savedTableKeyForDepartment(department.dataset.departmentSlug)", app_js)
         self.assertIn("serverDefault.organId === String(window.selectedOrgan)", app_js)
         self.assertIn("serverDefault.departmentSlug === department.dataset.departmentSlug", app_js)
-        self.assertIn("serverDefault.tableKey === savedTableKeyForDepartment(department.dataset.departmentSlug)", app_js)
+        self.assertIn("serverDefault.tableKey === tableKey", app_js)
+
+    def test_htmx_lifecycle_guards_dashboard_only_calls_for_pages_without_them(self):
+        # htmx_lifecycle.js is core (loads on every page, e.g. audit_log.html's
+        # own hx-get modal button), but syncRequestPhotoPicker/
+        # syncActiveDownloadButtons/saveTableStateFromHtmxEvent/
+        # isResetTableStateTrigger/refreshCurrentTableArea only exist on the
+        # dashboard bundle. An unconditional reference — even just passing
+        # the bare name to forEach() — throws a ReferenceError the moment any
+        # htmx swap or request fires on a page without that module loaded.
+        htmx_js = self.read_static_js("htmx_lifecycle.js")
+
+        self.assertIn('typeof syncRequestPhotoPicker === "function"', htmx_js)
+        self.assertIn('typeof syncActiveDownloadButtons === "function"', htmx_js)
+        self.assertIn('typeof saveTableStateFromHtmxEvent === "function"', htmx_js)
+        self.assertIn('typeof isResetTableStateTrigger !== "function"', htmx_js)
+        self.assertIn('typeof refreshCurrentTableArea === "function"', htmx_js)
+        self.assertIn("bulkForm && window.PhotoUpload", htmx_js)
+
+    def test_dashboard_skip_respects_saved_table_search_and_filters(self):
+        # matchesServerDefault must not skip loadDepartment() just because
+        # organ/department/table match the SSR default — the SSR render never
+        # applies a saved search/filter/page for that table, so a saved query
+        # still means the plain default view isn't what should be shown.
+        app_js = self.read_static_js("app.js")
+
+        self.assertIn("savedTableQuery(department.dataset.departmentSlug, tableKey)", app_js)
+        match_block = app_js[app_js.index("const matchesServerDefault"):app_js.index("if (!matchesServerDefault)")]
+        self.assertIn("!savedTableQuery", match_block)
 
     def test_photo_lightbox_close_releases_item_list_and_view_state(self):
         # photoLightboxState.items holds { trigger: <button> } for every photo
