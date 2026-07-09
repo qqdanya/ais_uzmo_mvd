@@ -71,13 +71,11 @@ class CoreAccessTests(RequestAppTestCase):
         self.client.login(username="operator", password="pass12345")
 
         endpoints = [
-            reverse("table_data", args=[other_organ.pk, "tmc-requests"]),
             reverse("record_create", args=[other_organ.pk, "tmc-requests"]),
             reverse("request_photos", args=[other_organ.pk, "tmc-requests", foreign_request.pk]),
             reverse("request_photos_download", args=[other_organ.pk, "tmc-requests", foreign_request.pk]),
             reverse("request_photo_picker", args=[other_organ.pk]),
             reverse("export_table", args=[other_organ.pk, "tmc-requests", "csv"]),
-            reverse("photos", args=[other_organ.pk]),
             reverse("photo_download", args=[other_organ.pk, foreign_photo.pk]),
         ]
 
@@ -85,6 +83,42 @@ class CoreAccessTests(RequestAppTestCase):
             with self.subTest(url=url):
                 response = self.client.get(url, HTTP_HX_REQUEST="true")
                 self.assertEqual(response.status_code, 404)
+
+        # table_data and photos back the navigation flow that auto-restores a
+        # user's last-selected organ on page load - if an admin revokes that
+        # organ in the meantime, this must render an honest "no access"
+        # message (so htmx swaps it into the workspace normally) rather than
+        # a 404 that htmx won't swap, leaving a stuck loading spinner.
+        for url in [reverse("table_data", args=[other_organ.pk, "tmc-requests"]), reverse("photos", args=[other_organ.pk])]:
+            with self.subTest(url=url):
+                response = self.client.get(url, HTTP_HX_REQUEST="true")
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, "Нет доступа к этому территориальному органу")
+
+    def test_navigation_endpoints_show_honest_message_after_access_revoked(self):
+        # Simulates the real scenario reported by users: they had this organ
+        # open, an admin then revokes access to it, and the client's saved
+        # navigation state (localStorage) tries to restore that same organ
+        # on the next page load. table_data/department_tables/organ_info all
+        # back that auto-restore flow via htmx swaps into a "Загрузка..."
+        # placeholder - a raised Http404 there used to leave that spinner
+        # stuck forever with just a generic error toast, instead of telling
+        # the user plainly that access was revoked.
+        self.client.login(username="operator", password="pass12345")
+        self.profile.allowed_organs.set([])
+
+        endpoints = [
+            reverse("organ_info", args=[self.organ.pk]),
+            reverse("department_tables", args=[self.organ.pk, self.department.slug]),
+            reverse("table_data", args=[self.organ.pk, "tmc-requests"]),
+            reverse("photos", args=[self.organ.pk]),
+        ]
+
+        for url in endpoints:
+            with self.subTest(url=url):
+                response = self.client.get(url, HTTP_HX_REQUEST="true")
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, "Нет доступа к этому территориальному органу")
 
     def test_observer_can_view_table_but_cannot_write_records(self):
         User = get_user_model()

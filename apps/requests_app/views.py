@@ -47,7 +47,11 @@ def dashboard(request):
 def organ_info(request, pk):
     organ = get_object_or_404(TerritorialOrgan.objects.prefetch_related("children"), pk=pk, is_active=True)
     if not can_view(request.user, organ):
-        raise Http404
+        # The organ list itself isn't permission-filtered (any authenticated
+        # user can see the full tree), so a lost-access click here is
+        # expected (e.g. an admin just revoked it) - tell the user plainly
+        # instead of a generic error toast over a stuck loading spinner.
+        return render(request, "partials/no_organ_access.html", {"organ": organ})
     return render(request, "partials/organ_info.html", {"organ": organ})
 
 
@@ -56,7 +60,7 @@ def department_tables(request, organ_id, department_slug):
     organ = get_object_or_404(TerritorialOrgan, pk=organ_id, is_active=True)
     department = get_object_or_404(Department, slug=department_slug, is_active=True)
     if not can_view(request.user, organ):
-        raise Http404
+        return render(request, "partials/no_organ_access.html", {"organ": organ})
     return render(request, "partials/tables_panel.html", tables_panel_context(request, organ, department))
 
 
@@ -65,7 +69,7 @@ def table_data(request, organ_id, table_key):
     table = get_table_or_404(table_key)
     organ = get_object_or_404(TerritorialOrgan, pk=organ_id, is_active=True)
     if not can_view(request.user, organ):
-        raise Http404
+        return render(request, "partials/no_organ_access.html", {"organ": organ})
     selected_organs = selected_organs_from_request(request, organ)
     return render(
         request,
@@ -150,7 +154,7 @@ def export_table(request, organ_id, table_key, fmt):
 def photos(request, organ_id):
     organ = get_object_or_404(TerritorialOrgan, pk=organ_id, is_active=True)
     if not can_view(request.user, organ):
-        raise Http404
+        return render(request, "partials/no_organ_access.html", {"organ": organ})
     return render_photos(request, organ)
 
 
