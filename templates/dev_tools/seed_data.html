@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Генератор демо-данных — АИС УЗМО{% endblock %}
+{% block content %}
+<div class="container-fluid py-3">
+  <div class="panel" style="max-width: 640px; margin: 0 auto;">
+    <h2><i class="bi bi-database-fill-gear"></i> Генератор демо-данных</h2>
+    <p class="text-secondary">
+      Доступно только в режиме разработки (DEBUG). Наполняет базу реалистичными
+      данными (заявки, состояния, статусы, история) по всем территориальным
+      органам и разделам для нагрузочного и функционального тестирования.
+      Повторный запуск не создаёт дублей — записи помечаются меткой и опознаются
+      командой при следующем запуске.
+    </p>
+
+    <form method="post">
+      {% csrf_token %}
+      <div class="mb-3">
+        <label class="form-label" for="organs">Количество территориальных органов</label>
+        <input type="number" min="1" class="form-control" id="organs" name="organs" value="{{ posted_organs }}" placeholder="Все активные (по умолчанию)">
+      </div>
+      <div class="form-check mb-2">
+        <input type="checkbox" class="form-check-input" id="skip_photos" name="skip_photos" {% if posted_skip_photos %}checked{% endif %}>
+        <label class="form-check-label" for="skip_photos">Не генерировать фотографии</label>
+      </div>
+      <div class="form-check mb-3">
+        <input type="checkbox" class="form-check-input" id="clear" name="clear" {% if posted_clear %}checked{% endif %}>
+        <label class="form-check-label" for="clear">Сначала удалить ранее сгенерированные демо-данные</label>
+      </div>
+      <button type="submit" class="btn btn-primary"><i class="bi bi-play-fill"></i> Сгенерировать</button>
+    </form>
+
+    {% if output %}
+      <div class="mt-4">
+        <h5>Результат</h5>
+        <pre style="white-space: pre-wrap; background: #f4f8fb; border: 1px solid var(--line); border-radius: 8px; padding: 12px; font-size: .82rem;">{{ output }}</pre>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

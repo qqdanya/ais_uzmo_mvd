@@ -53,4 +53,7 @@ urlpatterns = [
 ]
 
 if settings.DEBUG:
+    from apps.requests_app.dev_views import dev_seed_data
+
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    urlpatterns += [path("dev/seed/", dev_seed_data, name="dev_seed_data")]
