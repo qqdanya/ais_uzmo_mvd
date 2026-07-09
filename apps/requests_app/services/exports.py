@@ -78,6 +78,11 @@ def tmc_write_only_rows(qs, is_multi_organ):
 
 
 def tmc_xlsx_response(qs, organ, filename, is_multi_organ=False):
+    # Callers are expected to already prefetch "items", but re-asserting it
+    # here is cheap (Django no-ops a repeated prefetch) and keeps this
+    # function safe against N+1 if it's ever called with a bare queryset.
+    if hasattr(qs, "prefetch_related"):
+        qs = qs.prefetch_related("items")
     if should_use_write_only(qs):
         headers = [
             "\u041d\u0430\u0438\u043c\u0435\u043d\u043e\u0432\u0430\u043d\u0438\u0435",

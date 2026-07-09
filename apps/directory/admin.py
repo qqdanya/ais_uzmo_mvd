@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.urls import reverse
 from django.utils.html import format_html
 
 from .models import Department, TerritorialOrgan, TerritorialOrganPhoto, TerritorialOrganPhotoFolder
@@ -33,7 +34,8 @@ class TerritorialOrganPhotoAdmin(admin.ModelAdmin):
     def preview(self, obj):
         if not obj.image:
             return "-"
-        return format_html('<img src="{}" class="admin-preview-image">', obj.thumbnail_small_url)
+        url = reverse("photo_thumbnail", args=[obj.territorial_organ_id, obj.pk, "small"])
+        return format_html('<img src="{}" class="admin-preview-image">', url)
 
     preview.short_description = "preview"
 
