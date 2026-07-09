@@ -228,7 +228,6 @@ document.addEventListener("keydown", (event) => {
   }
   if (event.key === "Escape") {
     closeCustomSelects();
-    closeRequestPhotoSortSelects();
     closeAllTmcProductSuggestions();
     closeOpenModal();
   }

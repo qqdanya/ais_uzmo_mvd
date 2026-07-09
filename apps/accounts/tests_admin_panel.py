@@ -1073,17 +1073,30 @@ class FrontendModuleSplitTests(TestCase):
         ],
     }
 
+    # Core: needed on every page, so they stay directly in base.html.
     app_modules = [
         "app_storage.js",
         "app_dom_utils.js",
-        "table_state.js",
         "organ_navigation.js",
-        "request_photo_picker.js",
         "layout_panels.js",
         "table_interactions.js",
         "htmx_lifecycle.js",
         "app_events.js",
         "app.js",
+    ]
+
+    # Dashboard-only: no unconditional caller outside the dashboard shell, so
+    # they're loaded via partials/scripts/dashboard_scripts.html instead.
+    dashboard_only_modules = [
+        "table_state.js",
+        "request_photo_picker.js",
+    ]
+
+    # Admin-panel-only: same reasoning, loaded via partials/scripts/admin_scripts.html.
+    admin_only_modules = [
+        "confirm_dialog.js",
+        "admin_multiselect.js",
+        "employees_presence.js",
     ]
 
     def project_root(self):
@@ -1126,6 +1139,25 @@ class FrontendModuleSplitTests(TestCase):
         for module_name in self.app_modules:
             with self.subTest(module=module_name):
                 self.assertIn(f"js/{module_name}", base_html)
+        for module_name in self.dashboard_only_modules + self.admin_only_modules:
+            with self.subTest(module=module_name):
+                self.assertNotIn(f"js/{module_name}", base_html)
+
+        dashboard_scripts = (project_root / "templates" / "partials" / "scripts" / "dashboard_scripts.html").read_text(encoding="utf-8")
+        for module_name in self.dashboard_only_modules:
+            with self.subTest(module=module_name):
+                self.assertIn(f"js/{module_name}", dashboard_scripts)
+
+        admin_scripts = (project_root / "templates" / "partials" / "scripts" / "admin_scripts.html").read_text(encoding="utf-8")
+        for module_name in self.admin_only_modules:
+            with self.subTest(module=module_name):
+                self.assertIn(f"js/{module_name}", admin_scripts)
+
+        # admin_org_filter.js is needed by both the dashboard table toolbar and
+        # admin_panel filter forms, so it lives in both bundles, not base.html.
+        self.assertNotIn("js/admin_org_filter.js", base_html)
+        self.assertIn("js/admin_org_filter.js", dashboard_scripts)
+        self.assertIn("js/admin_org_filter.js", admin_scripts)
 
     def test_split_frontend_modules_contain_expected_responsibilities(self):
         expected_fragments = {
@@ -1160,17 +1192,11 @@ class FrontendModuleSplitTests(TestCase):
             "js/custom_select.js",
             "js/photo_lightbox.js",
             "js/presence_ping.js",
-            "js/admin_org_filter.js",
             "js/toasts.js",
-            "js/confirm_dialog.js",
-            "js/photo_upload.js",
             "js/tmc_products.js",
-            "js/download_preparing.js",
             "js/app_storage.js",
             "js/app_dom_utils.js",
-            "js/table_state.js",
             "js/organ_navigation.js",
-            "js/request_photo_picker.js",
             "js/layout_panels.js",
             "js/table_interactions.js",
             "js/htmx_lifecycle.js",
@@ -1183,14 +1209,15 @@ class FrontendModuleSplitTests(TestCase):
 
     def test_confirm_dialog_replaces_native_browser_confirm(self):
         project_root = Path(__file__).resolve().parents[2]
-        base_html = (project_root / "templates" / "base.html").read_text(encoding="utf-8")
+        admin_scripts = (project_root / "templates" / "partials" / "scripts" / "admin_scripts.html").read_text(encoding="utf-8")
         trash_template = (project_root / "templates" / "admin_panel" / "trash.html").read_text(encoding="utf-8")
         confirm_js = self.read_static_js("confirm_dialog.js")
         modals_css = (project_root / "static" / "css" / "app" / "modals-audit.css").read_text(encoding="utf-8")
 
-        self.assertIn("js/confirm_dialog.js", base_html)
-        self.assertLess(base_html.index("js/toasts.js"), base_html.index("js/confirm_dialog.js"))
-        self.assertLess(base_html.index("js/confirm_dialog.js"), base_html.index("js/photo_upload.js"))
+        # confirm_dialog.js is only used by admin_panel pages (see FrontendModuleSplitTests
+        # above), so it's loaded via the admin_scripts.html bundle, not base.html directly.
+        self.assertIn("js/confirm_dialog.js", admin_scripts)
+        self.assertIn('{% include "partials/scripts/admin_scripts.html" %}', trash_template)
         self.assertNotIn('onsubmit="return confirm', trash_template)
         self.assertNotIn("confirm('", trash_template)
         self.assertIn("data-confirm-message", trash_template)

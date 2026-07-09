@@ -115,6 +115,7 @@
 {% endblock %}
 
 {% block extra_scripts %}
+{% include "partials/scripts/admin_scripts.html" %}
 {{ existing_usernames|json_script:"employee-existing-usernames" }}
 <script src="{% static 'js/employee_form.js' %}?v=20260707-002"></script>
 {% endblock %}
