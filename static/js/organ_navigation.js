@@ -244,6 +244,23 @@ function syncDashboardUrl() {
   window.history.replaceState(window.history.state, "", query ? `/?${query}` : "/");
 }
 
+// dashboard_context() always server-renders the same default organ/department/
+// table (see views.py), and that state is only ever reflected in the DOM
+// through #table-area's own hx-get URL and the workspace's department-slug
+// attribute (organ/department items never get an SSR "active" class). Reading
+// it back lets initApp() compare the resolved localStorage state against what
+// the server actually rendered, so a returning visitor whose saved state
+// happens to match the default also skips the redundant re-fetch — not just
+// a visitor with nothing saved at all.
+function serverRenderedWorkspaceState() {
+  const workspace = document.querySelector("[data-tables-workspace]");
+  const tableArea = document.getElementById("table-area");
+  if (!workspace || !tableArea) return null;
+  const match = (tableArea.getAttribute("hx-get") || "").match(/\/organs\/(\d+)\/tables\/([^/?]+)\//);
+  if (!match) return null;
+  return { organId: match[1], departmentSlug: workspace.dataset.departmentSlug, tableKey: match[2] };
+}
+
 function preferredDepartmentForOrgan(organId) {
   if (isMultiOrganMode()) {
     const savedMultiSlug = storedValue(departmentStorageKey("multi"));

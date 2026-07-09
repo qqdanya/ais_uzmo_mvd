@@ -1310,6 +1310,39 @@ class FrontendModuleSplitTests(TestCase):
         self.assertIn("initTooltips();", htmx_js)
         self.assertIn("window.initTooltips = initTooltips", toasts_js)
 
+    def test_app_js_skips_redundant_fetch_only_when_state_matches_server_default(self):
+        # A returning visitor whose saved organ/department/table happen to
+        # match dashboard_context()'s server-rendered default must skip the
+        # #organ-info/#workspace re-fetch too, not just a visitor with
+        # nothing saved at all — checking "is anything saved" alone would
+        # still re-fetch for the (common) case of a saved preference that
+        # matches the default.
+        app_js = self.read_static_js("app.js")
+        organ_navigation_js = self.read_static_js("organ_navigation.js")
+
+        self.assertIn("function serverRenderedWorkspaceState", organ_navigation_js)
+        self.assertIn("serverRenderedWorkspaceState()", app_js)
+        self.assertIn("serverDefault.organId === String(window.selectedOrgan)", app_js)
+        self.assertIn("serverDefault.departmentSlug === department.dataset.departmentSlug", app_js)
+        self.assertIn("serverDefault.tableKey === savedTableKeyForDepartment(department.dataset.departmentSlug)", app_js)
+
+    def test_photo_lightbox_close_releases_item_list_and_view_state(self):
+        # photoLightboxState.items holds { trigger: <button> } for every photo
+        # in the group (not just the one shown), and lastTrigger/scale/offset
+        # are per-session state too — none of it should outlive a close, or
+        # DOM nodes from a table/modal an HTMX swap has since replaced stay
+        # reachable, and the next photo opened could inherit stale zoom/pan.
+        lightbox_js = self.read_static_js("photo_lightbox.js")
+        close_fn_start = lightbox_js.index("function closePhotoLightbox")
+        close_fn_body = lightbox_js[close_fn_start:lightbox_js.index("\nfunction ", close_fn_start + 1)]
+
+        self.assertIn("photoLightboxState.lastTrigger = null;", close_fn_body)
+        self.assertIn("photoLightboxState.items = [];", close_fn_body)
+        self.assertIn("photoLightboxState.index = 0;", close_fn_body)
+        self.assertIn("photoLightboxState.didDrag = false;", close_fn_body)
+        self.assertIn("resetLightboxView();", close_fn_body)
+        self.assertIn('image.removeAttribute("src");', close_fn_body)
+
 
 class AdminSearchOptimizationTests(TestCase):
     def project_root(self):

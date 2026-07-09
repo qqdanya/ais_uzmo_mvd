@@ -132,6 +132,14 @@ function closePhotoLightbox(options = {}) {
   // otherwise it keeps a DOM node — potentially from a table row an HTMX
   // swap has since removed — reachable until the next photo is opened.
   photoLightboxState.lastTrigger = null;
+  // photoLightboxState.items holds { trigger: <button> } for every photo in
+  // the group, not just the one shown — without clearing it, all of those
+  // trigger buttons stay reachable (and un-collectible) after HTMX has since
+  // replaced the table/modal they came from.
+  photoLightboxState.items = [];
+  photoLightboxState.index = 0;
+  photoLightboxState.didDrag = false;
+  resetLightboxView();
   // The lightbox element is a single reused node kept in the DOM for the
   // whole session (ensurePhotoLightbox), so without this the last full-res
   // photo shown stays decoded in memory until another one replaces it.

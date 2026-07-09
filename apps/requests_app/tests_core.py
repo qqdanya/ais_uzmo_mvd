@@ -18,6 +18,21 @@ class CoreAccessTests(RequestAppTestCase):
         self.assertContains(response, "bi-truck")
         self.assertContains(response, "bi-folder2-open")
 
+    def test_dashboard_exposes_server_default_state_for_js_redundant_fetch_check(self):
+        # app.js's serverRenderedWorkspaceState() parses #table-area's hx-get
+        # URL and the workspace's data-department-slug to detect when the
+        # visitor's saved organ/department/table already match what the
+        # server rendered, so it can skip re-fetching #organ-info/#workspace.
+        # If this markup contract changes, that check silently stops working
+        # and every page load goes back to always re-fetching.
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("dashboard"))
+
+        self.assertContains(response, 'data-tables-workspace')
+        self.assertContains(response, f'data-department-slug="{self.department.slug}"')
+        self.assertContains(response, f'hx-get="{reverse("table_data", args=[self.organ.pk, "tmc-requests"])}"')
+
     def test_invalid_table_key_returns_404_for_direct_urls(self):
         self.client.login(username="operator", password="pass12345")
         invalid_key = "unknown-table"
