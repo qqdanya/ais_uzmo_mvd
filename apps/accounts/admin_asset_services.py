@@ -1,10 +1,11 @@
 from collections import Counter
 from datetime import timedelta
 
+from django.db.models import OuterRef, Subquery
 from django.urls import reverse
 from django.utils import timezone
 
-from apps.directory.models import Department
+from apps.directory.models import Department, TerritorialOrgan
 from apps.requests_app.registry import TABLE_BY_KEY
 
 from .admin_common import filter_model_objects_by_search, selected_values
@@ -125,17 +126,25 @@ def visible_categories(categories, selected_categories):
 
 def latest_objects_by_organ(category, organs):
     organ_ids = [organ.pk for organ in organs]
-    latest = {}
     if not organ_ids:
-        return latest
-    qs = (
-        category["model"].objects.select_related("territorial_organ")
-        .filter(is_deleted=False, territorial_organ_id__in=organ_ids)
-        .order_by("territorial_organ_id", "-state_date", "-created_at", "-pk")
+        return {}
+    model = category["model"]
+    # A correlated subquery finds each organ's latest row by pk alone (cheap,
+    # index-friendly), so the DB never has to hydrate the full submission
+    # history into Python just to keep the single newest row per organ.
+    latest_pk_subquery = (
+        model.objects
+        .filter(is_deleted=False, territorial_organ_id=OuterRef("pk"))
+        .order_by("-state_date", "-created_at", "-pk")
+        .values("pk")[:1]
     )
-    for obj in qs:
-        latest.setdefault(obj.territorial_organ_id, obj)
-    return latest
+    latest_pks = (
+        TerritorialOrgan.objects.filter(pk__in=organ_ids)
+        .annotate(latest_asset_pk=Subquery(latest_pk_subquery))
+        .values_list("latest_asset_pk", flat=True)
+    )
+    objects = model.objects.select_related("territorial_organ").filter(pk__in=[pk for pk in latest_pks if pk is not None])
+    return {obj.territorial_organ_id: obj for obj in objects}
 
 
 def make_status(status, message, *, state_date=None, metrics=None, object_=None, category=None, organ=None, reasons=None):

@@ -42,6 +42,10 @@ def audit_context(
     querystring.pop("q", None)
     date_from = audit_date_value(request, "date_from")
     date_to = audit_date_value(request, "date_to")
+    is_all_time = not date_from and not date_to
+    all_time_params = querystring.copy()
+    all_time_params["date_from"] = ""
+    all_time_params["date_to"] = ""
     selected_users = audit_filter_values(request, "user") if show_user_filter else []
     selected_actions = audit_filter_values(request, "action")
     selected_departments = audit_filter_values(request, "department") if show_department_filter else []
@@ -82,6 +86,8 @@ def audit_context(
         ),
         "has_filters": audit_has_filters(request, date_from, date_to, show_user_filter, show_department_filter),
         "reset_url": reverse(reset_url_name),
+        "is_all_time": is_all_time,
+        "all_time_url": f"{reverse(pagination_url_name)}?{all_time_params.urlencode()}",
         "querystring": querystring.urlencode(),
         "total_count": logs.count(),
         "page_links": paginator.get_elided_page_range(page.number, on_each_side=1, on_ends=1),

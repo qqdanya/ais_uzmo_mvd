@@ -28,6 +28,9 @@
       </div>
       <div class="audit-filter-actions">
         <button class="btn btn-sm btn-primary"><i class="bi bi-funnel"></i> Применить</button>
+        {% if not is_all_time %}
+          <a class="btn btn-sm btn-outline-secondary" href="{{ all_time_url }}"><i class="bi bi-clock-history"></i> За всё время</a>
+        {% endif %}
         {% if has_filters %}
           <a class="btn btn-sm btn-outline-secondary" href="{{ reset_url }}"><i class="bi bi-x-lg"></i> Сбросить</a>
         {% endif %}

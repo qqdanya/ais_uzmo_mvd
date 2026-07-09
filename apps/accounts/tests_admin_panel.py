@@ -17,6 +17,7 @@ from apps.audit.models import AuditLog
 from apps.directory.models import Department, TerritorialOrgan, TerritorialOrganPhoto, TerritorialOrganPhotoFolder
 from apps.requests_app.models import FireExtinguisher, NeedStatus, RequestNumberRegistry, RequestPhotoLink, TmcRequest, VehicleRepairRequest
 
+from .admin_asset_services import latest_objects_by_organ
 from .admin_thresholds import _THRESHOLDS_CACHE, get_dashboard_thresholds
 from .models import UserProfile
 
@@ -781,8 +782,32 @@ class AdminAssetsPanelTests(AdminPanelTestMixin, TestCase):
         self.assertEqual(rows[0]["organ"], self.other_organ)
         self.assertEqual(rows[0]["danger"], 1)
 
+    def test_latest_objects_by_organ_picks_newest_row_per_organ_by_tiebreak_order(self):
+        today = timezone.localdate()
+        now = timezone.now()
 
-class AdminSettingsPanelTests(AdminPanelTestMixin, TestCase):
+        def make(state_date, created_at, **fields):
+            obj = FireExtinguisher.objects.create(
+                territorial_organ=self.organ,
+                created_by=self.admin,
+                state_date=state_date,
+                expiry_date=today + timezone.timedelta(days=365),
+                writeoff_count=0,
+                **fields,
+            )
+            FireExtinguisher.objects.filter(pk=obj.pk).update(created_at=created_at)
+            return obj
+
+        make(today - timezone.timedelta(days=10), now - timezone.timedelta(days=20), required_count=10, available_count=10)
+        # Same state_date as `newest`, but an earlier created_at: created_at is
+        # the tiebreak, so this row must lose to `newest`, not be picked instead.
+        make(today, now - timezone.timedelta(hours=2), required_count=5, available_count=5)
+        newest = make(today, now - timezone.timedelta(hours=1), required_count=8, available_count=8)
+
+        latest = latest_objects_by_organ({"model": FireExtinguisher}, [self.organ, self.other_organ])
+
+        self.assertEqual(set(latest.keys()), {self.organ.pk})
+        self.assertEqual(latest[self.organ.pk].pk, newest.pk)
     def setUp(self):
         super().setUp()
         self.temp_dir = tempfile.mkdtemp(prefix="ais-thresholds-")

@@ -1,5 +1,7 @@
+from datetime import date, datetime, time, timedelta
+
 from django.contrib.auth import get_user_model
-from django.db.models import Min, Q
+from django.db.models import Q
 from django.utils import timezone
 
 from apps.directory.models import Department, TerritorialOrgan
@@ -141,13 +143,26 @@ def user_can_view_log(user, log):
     return scope_logs_for_user(AuditLog.objects.filter(pk=log.pk), user).exists()
 
 
+AUDIT_DEFAULT_LOOKBACK_DAYS = 30
+
+
 def audit_default_date_from():
-    oldest = AuditLog.objects.aggregate(oldest=Min("created_at")).get("oldest")
-    return timezone.localtime(oldest).date().isoformat() if oldest else timezone.localdate().isoformat()
+    # A fixed lookback avoids scanning the whole table (via Min(created_at))
+    # just to compute a default on every unfiltered page load. Older entries
+    # are still reachable via the explicit "show all time" link.
+    return (timezone.localdate() - timedelta(days=AUDIT_DEFAULT_LOOKBACK_DAYS)).isoformat()
 
 
 def audit_default_date_to():
     return timezone.localdate().isoformat()
+
+
+def audit_day_boundary(date_value):
+    try:
+        parsed = date.fromisoformat(date_value)
+    except ValueError:
+        return None
+    return timezone.make_aware(datetime.combine(parsed, time.min))
 
 
 def audit_date_value(request, name):
@@ -216,10 +231,17 @@ def filtered_logs(request, logs=None, show_user_filter=True, show_department_fil
         logs = logs.filter(model_name__in=models)
     date_from = audit_date_value(request, "date_from")
     date_to = audit_date_value(request, "date_to")
+    # Plain datetime bounds (rather than created_at__date__gte/lte) keep the
+    # comparison sargable against the index on created_at instead of forcing
+    # a per-row date-truncation on every log.
     if date_from:
-        logs = logs.filter(created_at__date__gte=date_from)
+        start_of_day = audit_day_boundary(date_from)
+        if start_of_day:
+            logs = logs.filter(created_at__gte=start_of_day)
     if date_to:
-        logs = logs.filter(created_at__date__lte=date_to)
+        start_of_next_day = audit_day_boundary(date_to)
+        if start_of_next_day:
+            logs = logs.filter(created_at__lt=start_of_next_day + timedelta(days=1))
     return logs
 
 

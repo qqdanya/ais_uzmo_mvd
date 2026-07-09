@@ -275,6 +275,7 @@ class FireExtinguisher(TrackableRequest):
         verbose_name = "огнетушитель"
         verbose_name_plural = "Огнетушители"
         ordering = ("-state_date", "expiry_date", "-created_at")
+        indexes = [models.Index(fields=["territorial_organ", "state_date"])]
 
     def __str__(self):
         return f"Огнетушители: {self.available_count}/{self.required_count}"
@@ -297,6 +298,7 @@ class FireAlarm(TrackableRequest):
         verbose_name = "пожарная сигнализация"
         verbose_name_plural = "Пожарная сигнализация"
         ordering = ("-state_date", "-created_at")
+        indexes = [models.Index(fields=["territorial_organ", "state_date"])]
 
     def __str__(self):
         return f"Пожарная сигнализация: {self.equipped_objects}/{self.required_objects}"
@@ -319,6 +321,7 @@ class SecurityAlarm(TrackableRequest):
         verbose_name = "охранная сигнализация"
         verbose_name_plural = "Охранная сигнализация"
         ordering = ("-state_date", "-created_at")
+        indexes = [models.Index(fields=["territorial_organ", "state_date"])]
 
     def __str__(self):
         return f"Охранная сигнализация: {self.equipped_objects}/{self.required_objects}"
@@ -393,6 +396,7 @@ class ServiceHousing(TrackableRequest):
         verbose_name = "служебное жилье"
         verbose_name_plural = "Служебное жилье"
         ordering = ("-state_date", "-created_at")
+        indexes = [models.Index(fields=["territorial_organ", "state_date"])]
 
     def __str__(self):
         return f"Жилье: {self.total_count}"

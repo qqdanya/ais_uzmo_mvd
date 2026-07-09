@@ -82,18 +82,37 @@ class AuditLogTests(TestCase):
         self.assertContains(response, "Журнал действий")
         self.assertContains(response, reverse("audit_log"))
 
-    def test_audit_log_hides_reset_without_filters_and_uses_oldest_default_date(self):
+    def test_audit_log_defaults_to_recent_window_and_hides_reset_without_filters(self):
         old_log = self.create_log(object_repr="Old")
-        AuditLog.objects.filter(pk=old_log.pk).update(created_at=timezone.datetime(2026, 6, 1, tzinfo=timezone.get_current_timezone()))
+        AuditLog.objects.filter(pk=old_log.pk).update(
+            created_at=timezone.now() - timezone.timedelta(days=45)
+        )
         self.create_log(object_repr="Fresh")
         self.client.login(username="admin", password="pass12345")
 
         response = self.client.get(reverse("audit_log"))
 
-        self.assertContains(response, 'name="date_from" value="2026-06-01"')
-        self.assertContains(response, "Old")
+        expected_default = (timezone.localdate() - timezone.timedelta(days=30)).isoformat()
+        self.assertContains(response, f'name="date_from" value="{expected_default}"')
+        self.assertNotContains(response, "Old")
         self.assertContains(response, "Fresh")
         self.assertNotContains(response, "Сбросить")
+        self.assertContains(response, "За всё время")
+
+    def test_audit_log_all_time_link_surfaces_older_entries_without_scanning_by_default(self):
+        old_log = self.create_log(object_repr="Old")
+        AuditLog.objects.filter(pk=old_log.pk).update(
+            created_at=timezone.now() - timezone.timedelta(days=45)
+        )
+        self.create_log(object_repr="Fresh")
+        self.client.login(username="admin", password="pass12345")
+
+        response = self.client.get(reverse("audit_log"), {"date_from": "", "date_to": ""})
+
+        self.assertContains(response, "Old")
+        self.assertContains(response, "Fresh")
+        self.assertContains(response, "Сбросить")
+        self.assertNotContains(response, "За всё время")
 
     def test_audit_detail_shows_changed_values_and_user_agent(self):
         log = self.create_log()
@@ -331,6 +350,31 @@ class AuditLogTests(TestCase):
 
         self.assertContains(response, "Fresh")
         self.assertNotContains(response, "Old")
+
+    def test_audit_log_date_to_includes_the_whole_day(self):
+        late_log = self.create_log(object_repr="LateInDay")
+        AuditLog.objects.filter(pk=late_log.pk).update(
+            created_at=timezone.datetime(2026, 7, 1, 23, 59, 0, tzinfo=timezone.get_current_timezone())
+        )
+        next_day_log = self.create_log(object_repr="NextDay")
+        AuditLog.objects.filter(pk=next_day_log.pk).update(
+            created_at=timezone.datetime(2026, 7, 2, 0, 0, 1, tzinfo=timezone.get_current_timezone())
+        )
+        self.client.login(username="admin", password="pass12345")
+
+        response = self.client.get(reverse("audit_log"), {"date_from": "2026-07-01", "date_to": "2026-07-01"})
+
+        self.assertContains(response, "LateInDay")
+        self.assertNotContains(response, "NextDay")
+
+    def test_audit_log_ignores_malformed_date_params_instead_of_erroring(self):
+        self.create_log(object_repr="Fresh")
+        self.client.login(username="admin", password="pass12345")
+
+        response = self.client.get(reverse("audit_log"), {"date_from": "not-a-date", "date_to": "also-bad"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Fresh")
 
     def test_audit_log_uses_shared_admin_multiselect_component(self):
         self.create_log(object_repr="Shared component")
