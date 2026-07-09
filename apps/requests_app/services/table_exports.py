@@ -1,6 +1,6 @@
 from django.http import Http404
 
-from .downloads import csv_file_response, download_ready_response
+from .downloads import csv_streaming_response, download_ready_response
 from .exports import (
     basic_xlsx_response,
     display_fields,
@@ -24,6 +24,10 @@ from .table_config import REQUEST_TABLE_CONFIG, XLSX_EXPORT_CONFIG
 from .table_filters import STATE_SNAPSHOT_TABLES, filtered_queryset, fire_extinguisher_filtered_queryset, state_snapshot_queryset
 
 
+def export_iterator(qs):
+    return qs.iterator(chunk_size=1000) if hasattr(qs, "iterator") else iter(qs)
+
+
 def export_table_response(request, organ, table, table_key, fmt, selected_organs):
     """Build a CSV/XLSX response for the current table view."""
     qs = filtered_queryset(request, table, selected_organs)
@@ -42,26 +46,32 @@ def export_table_response(request, organ, table, table_key, fmt, selected_organs
     if current_group_mode in {"products", "organs", "dates"}:
         is_tmc = table_key == "tmc-requests"
         if current_group_mode == "organs":
-            rows = list(tmc_organ_grouped_rows(qs) if is_tmc else request_organ_grouped_rows(qs))
+            rows = tmc_organ_grouped_rows(qs) if is_tmc else request_organ_grouped_rows(qs)
         elif current_group_mode == "dates":
-            rows = list(tmc_date_grouped_rows(qs) if is_tmc else request_date_grouped_rows(qs))
+            rows = tmc_date_grouped_rows(qs) if is_tmc else request_date_grouped_rows(qs)
         else:
-            rows = list(tmc_grouped_rows(qs))
+            rows = tmc_grouped_rows(qs)
 
         if fmt == "csv":
-            csv_rows = [grouped_export_headers(current_group_mode, is_tmc=is_tmc, is_multi_organ=is_multi_organ)]
-            csv_rows.extend(grouped_export_row(row, current_group_mode, is_tmc=is_tmc, is_multi_organ=is_multi_organ) for row in rows)
-            return download_ready_response(request, csv_file_response(filename, csv_rows))
+            def csv_rows():
+                yield grouped_export_headers(current_group_mode, is_tmc=is_tmc, is_multi_organ=is_multi_organ)
+                for row in export_iterator(rows):
+                    yield grouped_export_row(row, current_group_mode, is_tmc=is_tmc, is_multi_organ=is_multi_organ)
+
+            return download_ready_response(request, csv_streaming_response(filename, csv_rows()))
         if fmt == "xlsx":
+            rows = list(rows)
             if is_tmc:
                 return download_ready_response(request, tmc_grouped_xlsx_response(rows, is_multi_organ, filename, current_group_mode))
             return download_ready_response(request, request_grouped_xlsx_response(rows, table, filename, current_group_mode))
 
     if fmt == "csv":
-        csv_rows = [table_header_labels(fields)]
-        for obj in qs:
-            csv_rows.append([getattr(obj, f"get_{f.name}_display", lambda: getattr(obj, f.name))() for f in fields])
-        return download_ready_response(request, csv_file_response(filename, csv_rows))
+        def csv_rows():
+            yield table_header_labels(fields)
+            for obj in export_iterator(qs):
+                yield [getattr(obj, f"get_{f.name}_display", lambda: getattr(obj, f.name))() for f in fields]
+
+        return download_ready_response(request, csv_streaming_response(filename, csv_rows()))
 
     if fmt == "xlsx":
         if table_key == "tmc-requests":

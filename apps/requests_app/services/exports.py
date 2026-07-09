@@ -29,6 +29,10 @@ def export_cell_value(obj, field):
     return value
 
 
+def export_objects(qs):
+    return qs.iterator(chunk_size=1000) if hasattr(qs, "iterator") else qs
+
+
 def tmc_xlsx_response(qs, organ, filename, is_multi_organ=False):
     wb = Workbook()
     ws = wb.active
@@ -93,8 +97,7 @@ def tmc_xlsx_response(qs, organ, filename, is_multi_organ=False):
             )
 
     current_row = 3
-    requests = list(qs)
-    for request_index, obj in enumerate(requests):
+    for obj in export_objects(qs):
         items = list(obj.items.all()) or [None]
         start_row = current_row
         end_row = current_row + len(items) - 1
@@ -117,7 +120,6 @@ def tmc_xlsx_response(qs, organ, filename, is_multi_organ=False):
             for column in range(request_start, comment_column + 1):
                 ws.merge_cells(start_row=start_row, start_column=column, end_row=end_row, end_column=column)
 
-        is_last_request = request_index == len(requests) - 1
         for row in range(start_row, end_row + 1):
             for column in range(1, max_column + 1):
                 cell = ws.cell(row=row, column=column)
@@ -129,7 +131,7 @@ def tmc_xlsx_response(qs, organ, filename, is_multi_organ=False):
                     left=thin,
                     right=block if column in {need_end, request_end, comment_column} else thin,
                     top=thin,
-                    bottom=thin if is_last_request else block,
+                    bottom=block,
                 )
 
     if current_row > 3:
@@ -372,7 +374,7 @@ def styled_xlsx_response(qs, table, fields, filename, widths=None, center_column
         cell.alignment = center_alignment
         cell.border = Border(left=thin, right=block if column == last_column else thin, top=thin, bottom=header_bottom)
 
-    for row_index, obj in enumerate(qs, start=2):
+    for row_index, obj in enumerate(export_objects(qs), start=2):
         for column, field in enumerate(fields, start=1):
             cell = ws.cell(row=row_index, column=column, value=export_cell_value(obj, field))
             cell.alignment = center_alignment if field.name in center_columns else body_alignment
@@ -389,6 +391,6 @@ def basic_xlsx_response(qs, table, fields, filename):
     ws = wb.active
     ws.title = table["title"][:31]
     ws.append(table_header_labels(fields))
-    for obj in qs:
+    for obj in export_objects(qs):
         ws.append([str(getattr(obj, f"get_{f.name}_display", lambda: getattr(obj, f.name))()) for f in fields])
     return workbook_file_response(wb, filename)

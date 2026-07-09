@@ -14,6 +14,7 @@ from .business_days import business_days_inclusive
 
 PER_PAGE_CHOICES = {"50", "100"}
 DEFAULT_PER_PAGE = 50
+COMPLETION_CHUNK_SIZE = 500
 
 STATUS_BADGE_CLASSES = {
     NeedStatus.IN_WORK: "status-in_work",
@@ -311,7 +312,19 @@ def _bulk_history_completion_dates(objects):
 
 def completion_values_for_queryset(qs):
     """Return processing-day values for completed requests in a queryset."""
-    done_objects = list(qs.filter(status=NeedStatus.DONE))
+    values = []
+    chunk = []
+    for obj in qs.filter(status=NeedStatus.DONE).iterator(chunk_size=COMPLETION_CHUNK_SIZE):
+        chunk.append(obj)
+        if len(chunk) >= COMPLETION_CHUNK_SIZE:
+            values.extend(completion_values_for_objects(chunk))
+            chunk = []
+    if chunk:
+        values.extend(completion_values_for_objects(chunk))
+    return values
+
+
+def completion_values_for_objects(done_objects):
     missing = [obj for obj in done_objects if _own_completion_date(obj) is None]
     history_dates = _bulk_history_completion_dates(missing)
     values = []
@@ -332,10 +345,21 @@ def completion_values_by_organ_for_queryset(qs):
     queryset with one pass (one "done" query + one batched history query per
     table), instead of calling completion_values_for_queryset once per organ.
     """
-    done_objects = list(qs.filter(status=NeedStatus.DONE))
+    values_by_organ = {}
+    chunk = []
+    for obj in qs.filter(status=NeedStatus.DONE).iterator(chunk_size=COMPLETION_CHUNK_SIZE):
+        chunk.append(obj)
+        if len(chunk) >= COMPLETION_CHUNK_SIZE:
+            add_completion_values_by_organ(values_by_organ, chunk)
+            chunk = []
+    if chunk:
+        add_completion_values_by_organ(values_by_organ, chunk)
+    return values_by_organ
+
+
+def add_completion_values_by_organ(values_by_organ, done_objects):
     missing = [obj for obj in done_objects if _own_completion_date(obj) is None]
     history_dates = _bulk_history_completion_dates(missing)
-    values_by_organ = {}
     for obj in done_objects:
         end_date = _own_completion_date(obj) or history_dates.get(obj.pk)
         if not end_date:
@@ -343,7 +367,6 @@ def completion_values_by_organ_for_queryset(qs):
         days = business_days_inclusive(obj.request_date, end_date)
         if days is not None:
             values_by_organ.setdefault(obj.territorial_organ_id, []).append(days)
-    return values_by_organ
 
 
 def completion_average(values):
@@ -430,6 +453,8 @@ def processing_days(obj):
         return None
     if status == NeedStatus.IN_WORK:
         end_date = timezone.localdate()
+    elif hasattr(obj, "_processing_end_date"):
+        end_date = obj._processing_end_date
     elif status == NeedStatus.DONE:
         end_date = object_completion_date(obj)
     elif status == NeedStatus.REJECTED:

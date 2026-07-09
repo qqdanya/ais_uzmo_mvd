@@ -123,7 +123,7 @@ def field_label(model_name, field_name):
     return capfirst(field_name.replace("_", " "))
 
 
-def field_display_value(model_name, field_name, value):
+def field_display_value(model_name, field_name, value, related_value_cache=None):
     if value in (None, "", "None"):
         return "Не указано"
     if value == "True":
@@ -135,8 +135,12 @@ def field_display_value(model_name, field_name, value):
         try:
             field = model._meta.get_field(field_name)
             if getattr(field, "remote_field", None) and field.remote_field.model:
-                related = field.remote_field.model.objects.filter(pk=value).first()
-                return str(related) if related else str(value)
+                cache = related_value_cache if related_value_cache is not None else {}
+                cache_key = (field.remote_field.model._meta.label_lower, str(value))
+                if cache_key not in cache:
+                    related = field.remote_field.model.objects.filter(pk=value).first()
+                    cache[cache_key] = str(related) if related else str(value)
+                return cache[cache_key]
             choices = dict(getattr(field, "choices", []) or [])
             if choices:
                 return str(choices.get(value, value))
@@ -189,7 +193,7 @@ def relevant_keys(log):
     return [key for key in keys if key not in hidden_fields]
 
 
-def audit_changes(log):
+def audit_changes(log, related_value_cache=None):
     old_values = log.old_values or {}
     new_values = log.new_values or {}
     rows = []
@@ -204,14 +208,14 @@ def audit_changes(log):
             {
                 "field": key,
                 "label": field_label(log.model_name, key),
-                "old": field_display_value(log.model_name, key, old_raw),
-                "new": field_display_value(log.model_name, key, new_raw),
+                "old": field_display_value(log.model_name, key, old_raw, related_value_cache),
+                "new": field_display_value(log.model_name, key, new_raw, related_value_cache),
             }
         )
     return rows
 
 
-def audit_summary(log):
+def audit_summary(log, changes=None):
     if log.action == AuditLog.Action.LOGIN:
         return "Вход в систему"
     if log.action == AuditLog.Action.LOGOUT:
@@ -219,7 +223,7 @@ def audit_summary(log):
     audit_event = (log.new_values or {}).get("audit_event")
     if audit_event in AUDIT_EVENT_SUMMARIES:
         return AUDIT_EVENT_SUMMARIES[audit_event]
-    changes = audit_changes(log)
+    changes = audit_changes(log) if changes is None else changes
     changed_fields = {row["field"]: row for row in changes}
     if log.model_name == "TerritorialOrganPhoto":
         if log.action == AuditLog.Action.CREATE:
@@ -267,7 +271,7 @@ def audit_summary(log):
     return typographic_quotes(log.object_repr) or log.get_action_display()
 
 
-def audit_location(log):
+def audit_location(log, department_names=None):
     if log.action not in {AuditLog.Action.CREATE, AuditLog.Action.UPDATE, AuditLog.Action.DELETE}:
         return []
     parts = []
@@ -275,6 +279,13 @@ def audit_location(log):
         parts.append(("Территориальный орган", str(log.territorial_organ)))
     table = MODEL_TABLES.get(log.model_name)
     if table:
+        if department_names is not None:
+            department_name = department_names.get(table["department"])
+            if department_name:
+                parts.append(("Отдел", department_name))
+            table_title = table.get("parent_title") or table["title"]
+            parts.append(("Раздел", table_title))
+            return parts
         department = Department.objects.filter(slug=table["department"], is_active=True).first()
         if department:
             parts.append(("Отдел", department.name))
@@ -301,19 +312,19 @@ def audit_status_history(log):
     )
 
 
-def prepare_log(log):
+def prepare_log(log, *, include_status_history=True, department_names=None, related_value_cache=None):
     log.action_badge = ACTION_BADGES.get(log.action, "audit-action-default")
     log.action_display = ACTION_DISPLAY_LABELS.get(log.action, log.get_action_display())
     log.model_title = model_title(log.model_name)
     log.browser_summary = user_agent_summary(log.user_agent)
-    log.change_rows = audit_changes(log)
-    log.summary = audit_summary(log)
+    log.change_rows = audit_changes(log, related_value_cache)
+    log.summary = audit_summary(log, log.change_rows)
     log.detail_action_text = log.summary
     log.display_object_repr = audit_object_repr(log)
     log.is_object_action = log.action in {AuditLog.Action.CREATE, AuditLog.Action.UPDATE, AuditLog.Action.DELETE}
     log.show_territorial_organ = log.is_object_action and log.territorial_organ_id
-    log.location_parts = audit_location(log)
-    log.status_history = audit_status_history(log)
+    log.location_parts = audit_location(log, department_names)
+    log.status_history = audit_status_history(log) if include_status_history else []
     return log
 
 

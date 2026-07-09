@@ -177,6 +177,22 @@ def request_row_index(tables, organs, filters):
     return index
 
 
+def request_index_count(tables, organs, filters):
+    return sum(filtered_queryset(table, organs, filters).count() for table in matching_tables(tables, filters))
+
+
+def request_row_index_page(tables, organs, filters, offset, limit):
+    if limit <= 0:
+        return []
+    index = []
+    for table in matching_tables(tables, filters):
+        qs = filtered_queryset(table, organs, filters).order_by("-request_date", "-pk")
+        for pk, request_date in qs.values_list("pk", "request_date")[:limit]:
+            index.append((request_date or date.min, pk, table["key"]))
+    index.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    return index[offset:limit]
+
+
 def hydrate_request_rows(tables_by_key, index_rows):
     """Build full display rows for a (page-sized) slice of request_row_index()."""
     departments = department_name_map()
@@ -188,7 +204,9 @@ def hydrate_request_rows(tables_by_key, index_rows):
     for table_key, pks in pks_by_table.items():
         table = tables_by_key[table_key]
         qs = table["model"].objects.select_related("territorial_organ").filter(pk__in=pks)
-        objects_by_table[table_key] = {obj.pk: obj for obj in qs}
+        objects = list(qs)
+        attach_processing_end_dates(table, objects)
+        objects_by_table[table_key] = {obj.pk: obj for obj in objects}
 
     rows = []
     for _, pk, table_key in index_rows:
@@ -196,6 +214,54 @@ def hydrate_request_rows(tables_by_key, index_rows):
         if obj:
             rows.append(request_row(tables_by_key[table_key], obj, departments))
     return rows
+
+
+def own_completion_date(obj):
+    for field_name in ("completed_at", "due_date"):
+        value = getattr(obj, field_name, None)
+        if value:
+            return value
+    return None
+
+
+def latest_history_dates(content_type, object_ids, status):
+    if not object_ids:
+        return {}
+    order_by = ("object_id", "-completed_at", "-changed_at", "-pk") if status == NeedStatus.DONE else ("object_id", "-changed_at", "-pk")
+    rows = RequestStatusHistory.objects.filter(
+        content_type=content_type,
+        object_id__in=object_ids,
+        new_status=status,
+    ).order_by(*order_by)
+    dates = {}
+    for history in rows:
+        if history.object_id in dates:
+            continue
+        dates[history.object_id] = history.completed_at or history.changed_at.date()
+    return dates
+
+
+def attach_processing_end_dates(table, objects):
+    content_type = ContentType.objects.get_for_model(table["model"], for_concrete_model=False)
+    done_missing_ids = []
+    rejected_ids = []
+    for obj in objects:
+        if obj.status == NeedStatus.DONE:
+            own_date = own_completion_date(obj)
+            if own_date:
+                obj._processing_end_date = own_date
+            else:
+                done_missing_ids.append(obj.pk)
+        elif obj.status == NeedStatus.REJECTED:
+            rejected_ids.append(obj.pk)
+
+    done_dates = latest_history_dates(content_type, done_missing_ids, NeedStatus.DONE)
+    rejected_dates = latest_history_dates(content_type, rejected_ids, NeedStatus.REJECTED)
+    for obj in objects:
+        if obj.status == NeedStatus.DONE and not hasattr(obj, "_processing_end_date"):
+            obj._processing_end_date = done_dates.get(obj.pk)
+        elif obj.status == NeedStatus.REJECTED:
+            obj._processing_end_date = rejected_dates.get(obj.pk)
 
 
 def average_completion_days(tables, organs, filters):
@@ -284,11 +350,15 @@ def build_status_tabs(request, counts, filters):
     ]
 
 
-def paginate_request_index(request, index_rows, tables, per_page):
-    paginator = Paginator(index_rows, per_page)
+def paginate_request_index(request, tables, organs, filters, per_page):
+    total_count = request_index_count(tables, organs, filters)
+    paginator = Paginator(range(total_count), per_page)
     page = paginator.get_page(request.GET.get("page"))
+    offset = page.start_index() - 1 if total_count else 0
+    limit = page.end_index() if total_count else 0
+    index_rows = request_row_index_page(tables, organs, filters, offset, limit)
     tables_by_key = {table["key"]: table for table in tables}
-    page.object_list = hydrate_request_rows(tables_by_key, list(page.object_list))
+    page.object_list = hydrate_request_rows(tables_by_key, index_rows)
     return page, page.paginator.get_elided_page_range(page.number, on_each_side=1, on_ends=1)
 
 
@@ -300,8 +370,7 @@ def build_requests_context(request):
     filters = build_request_filters(request, departments)
     counts = status_counts(tables, organs, filters)
     avg_completion = average_completion_days(tables, organs, filters)
-    index_rows = request_row_index(tables, organs, filters)
-    page, page_links = paginate_request_index(request, index_rows, tables, filters["per_page"])
+    page, page_links = paginate_request_index(request, tables, organs, filters, filters["per_page"])
     selected_ids = {organ.pk for organ in organs}
     department_labels = {item["slug"]: item["name"] for item in departments}
     return {

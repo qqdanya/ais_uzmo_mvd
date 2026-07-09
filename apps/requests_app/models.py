@@ -380,7 +380,10 @@ class CitsiziEquipment(TrackableRequest):
         verbose_name = "заявка ЦИТСиЗИ"
         verbose_name_plural = "По линии ЦИТСиЗИ"
         ordering = ("-request_date", "-created_at")
-        indexes = [models.Index(fields=["territorial_organ", "equipment_type"])]
+        indexes = [
+            models.Index(fields=["territorial_organ", "equipment_type"]),
+            models.Index(fields=["territorial_organ", "request_date", "status"]),
+        ]
 
     def __str__(self):
         return f"Заявка № {self.request_number}" if self.request_number else "Заявка ЦИТСиЗИ"

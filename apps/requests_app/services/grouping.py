@@ -6,11 +6,12 @@ from apps.requests_app.models import NeedStatus, TmcRequestItem
 
 
 def request_status_stats(qs):
-    return {
-        "in_work_count": qs.filter(status=NeedStatus.IN_WORK).count(),
-        "done_count": qs.filter(status=NeedStatus.DONE).count(),
-        "rejected_count": qs.filter(status=NeedStatus.REJECTED).count(),
-    }
+    counts = qs.aggregate(
+        in_work_count=Count("id", filter=Q(status=NeedStatus.IN_WORK)),
+        done_count=Count("id", filter=Q(status=NeedStatus.DONE)),
+        rejected_count=Count("id", filter=Q(status=NeedStatus.REJECTED)),
+    )
+    return {key: counts.get(key) or 0 for key in ("in_work_count", "done_count", "rejected_count")}
 
 
 def tmc_grouped_rows(qs):

@@ -3,6 +3,7 @@ from django.shortcuts import render
 from django.urls import reverse
 
 from apps.audit.models import AuditLog
+from apps.directory.models import Department
 from .constants import ACTION_DISPLAY_LABELS, OBJECT_FILTERS
 from .display import prepare_log, user_display_name
 from .filters import (
@@ -35,8 +36,10 @@ def audit_context(
     object_filters = [(key, label) for key, label, _ in OBJECT_FILTERS]
     paginator = Paginator(logs, 25)
     page = paginator.get_page(request.GET.get("page"))
+    department_names = {department.slug: department.name for department in Department.objects.filter(is_active=True)}
+    related_value_cache = {}
     for log in page.object_list:
-        prepare_log(log)
+        prepare_log(log, include_status_history=False, department_names=department_names, related_value_cache=related_value_cache)
     querystring = request.GET.copy()
     querystring.pop("page", None)
     querystring.pop("q", None)

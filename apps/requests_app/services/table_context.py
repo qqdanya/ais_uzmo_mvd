@@ -32,7 +32,7 @@ from .table_filters import (
     filtered_queryset,
     fire_extinguisher_active_conditions,
     fire_extinguisher_filtered_queryset,
-    request_table_date_filter_defaults,
+    request_table_date_filter_defaults_for_request,
     request_table_date_filter_values,
     request_table_queryset,
     state_snapshot_mode,
@@ -83,7 +83,7 @@ def build_table_data_context(request, organ, table, table_key, selected_organs, 
     is_date_grouped = current_group_mode == "dates"
 
     if is_request_table:
-        table_filter_defaults = request_table_date_filter_defaults(table_key, selected_organs)
+        table_filter_defaults = request_table_date_filter_defaults_for_request(request, table_key, selected_organs)
         table_filters = request_table_date_filter_values(request, table_key, selected_organs)
         stats_qs = request_table_queryset(request, table_key, selected_organs)
         table_stats = request_status_stats(stats_qs)

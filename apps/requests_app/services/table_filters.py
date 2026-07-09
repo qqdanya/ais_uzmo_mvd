@@ -2,7 +2,8 @@
 
 from datetime import timedelta
 
-from django.db.models import Min, Q
+from django.db.models import F, Min, Q, Window
+from django.db.models.functions import RowNumber
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 
@@ -44,21 +45,17 @@ def state_snapshot_queryset(request, table_key, qs):
     if state_snapshot_mode(request, table_key) == "history":
         return qs
 
-    # A correlated Subquery/OuterRef "latest row per organ" here is extremely
-    # slow (SQLite re-evaluates the correlated subquery, sort and all, per
-    # organ, and Paginator triggers it again for .count()). The number of
-    # distinct organs is always small and bounded, so a single ordered scan
-    # plus a Python-side "first row per organ" pick is far cheaper and
-    # produces the identical result, since sorting by
-    # (territorial_organ_id, -state_date, -created_at, -pk) groups each
-    # organ's rows together with its best match first.
-    latest_pks = []
-    seen_organs = set()
-    ordered = qs.order_by("territorial_organ_id", "-state_date", "-created_at", "-pk").values_list("territorial_organ_id", "pk")
-    for organ_id, pk in ordered:
-        if organ_id not in seen_organs:
-            seen_organs.add(organ_id)
-            latest_pks.append(pk)
+    latest_pks = list(
+        qs.annotate(
+            snapshot_rank=Window(
+                expression=RowNumber(),
+                partition_by=[F("territorial_organ_id")],
+                order_by=[F("state_date").desc(), F("created_at").desc(), F("pk").desc()],
+            )
+        )
+        .filter(snapshot_rank=1)
+        .values_list("pk", flat=True)
+    )
     return qs.filter(pk__in=latest_pks).order_by("territorial_organ__name", "-state_date", "-created_at")
 
 
@@ -71,8 +68,20 @@ def request_date_filter_defaults(model, organs):
     }
 
 
+def request_date_filter_defaults_for_request(request, model, organs):
+    cache = getattr(request, "_request_date_filter_defaults_cache", None)
+    if cache is None:
+        cache = {}
+        setattr(request, "_request_date_filter_defaults_cache", cache)
+    organ_ids = tuple(sorted(organ.pk for organ in organs))
+    key = (model._meta.label_lower, organ_ids)
+    if key not in cache:
+        cache[key] = request_date_filter_defaults(model, organs)
+    return cache[key]
+
+
 def request_date_filter_values(request, model, organs):
-    defaults = request_date_filter_defaults(model, organs)
+    defaults = request_date_filter_defaults_for_request(request, model, organs)
     date_from = request.GET.get("date_from") if "date_from" in request.GET else defaults["date_from"]
     date_to = request.GET.get("date_to") if "date_to" in request.GET else defaults["date_to"]
     return {"date_from": date_from, "date_to": date_to}
@@ -80,6 +89,10 @@ def request_date_filter_values(request, model, organs):
 
 def request_table_date_filter_defaults(table_key, organs):
     return request_date_filter_defaults(REQUEST_TABLE_CONFIG[table_key]["model"], organs)
+
+
+def request_table_date_filter_defaults_for_request(request, table_key, organs):
+    return request_date_filter_defaults_for_request(request, REQUEST_TABLE_CONFIG[table_key]["model"], organs)
 
 
 def request_table_date_filter_values(request, table_key, organs):

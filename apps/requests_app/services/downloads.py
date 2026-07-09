@@ -6,7 +6,7 @@ import time
 import zipfile
 from pathlib import Path, PurePosixPath
 
-from django.http import FileResponse
+from django.http import FileResponse, StreamingHttpResponse
 
 
 XLSX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -74,6 +74,21 @@ def csv_file_response(filename, rows):
     return temporary_download_response(path, filename, "text/csv; charset=utf-8")
 
 
+class CsvEcho:
+    def write(self, value):
+        return value
+
+
+def csv_streaming_response(filename, rows):
+    writer = csv.writer(CsvEcho())
+    def stream():
+        yield "\ufeff"
+        for row in rows:
+            yield writer.writerow(row)
+
+    response = StreamingHttpResponse(stream(), content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
 def safe_download_name(value, fallback):
     name = "".join(char if char.isalnum() or char in "._- " else "_" for char in value).strip()
     return name or fallback
