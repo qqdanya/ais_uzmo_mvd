@@ -22,15 +22,22 @@
       <div class="form-check mb-3">
         <input type="checkbox" class="form-check-input" id="include_children" name="include_children" {% if form_values.include_children %}checked{% endif %}>
         <label class="form-check-label" for="include_children">Включая дочерние подразделения</label>
+        <div class="form-text">
+          У части территориальных органов есть подчиненные подразделения (отделения полиции,
+          пункты полиции и т.п.) — в общем выборе органов на дашборде они не показываются
+          отдельно, только их «родительский» орган. Если отметить этот пункт, генератор
+          дополнительно заполнит данные и для этих дочерних подразделений — полезно, если
+          нужно проверить страницы, где они видны отдельно (например, детальную карточку органа).
+        </div>
       </div>
 
       <div class="row">
         <div class="col-sm-6 mb-3">
-          <label class="form-label" for="requests_per_table">Заявок на каждую таблицу (на орган)</label>
+          <label class="form-label" for="requests_per_table">Заявок на каждую таблицу</label>
           <input type="number" min="0" class="form-control" id="requests_per_table" name="requests_per_table" value="{{ form_values.requests_per_table }}">
         </div>
         <div class="col-sm-6 mb-3">
-          <label class="form-label" for="snapshots">Срезов состояния (на орган)</label>
+          <label class="form-label" for="snapshots">Срезов состояния на таблицу</label>
           <input type="number" min="0" class="form-control" id="snapshots" name="snapshots" value="{{ form_values.snapshots }}">
         </div>
       </div>
