@@ -13,6 +13,7 @@ from django.views.decorators.http import require_POST
 from apps.audit.models import AuditLog
 from apps.audit.views import prepare_log
 from apps.directory.models import Department, TerritorialOrgan, TerritorialOrganPhoto, TerritorialOrganPhotoFolder
+from apps.requests_app.dev_state import is_dev_seed_running
 from apps.requests_app.models import NeedStatus, TmcProduct
 from apps.requests_app.registry import TABLE_BY_KEY
 
@@ -119,8 +120,17 @@ def department_access_rows(profiles):
 @login_required
 @require_POST
 def presence_ping(request):
+    # This view never touches request.session, but SESSION_SAVE_EVERY_REQUEST
+    # forces SessionMiddleware to re-save it anyway - a pointless write on
+    # every single heartbeat (every 30s, from every open tab, for every
+    # user). Skip it unconditionally, not just during a dev generation.
+    request.session.save = lambda *args, **kwargs: None
     profile = getattr(request.user, "profile", None)
-    if profile:
+    # Also skip the actual last_seen_at write specifically while a dev
+    # seed-data generation is running - that background job already
+    # dominates SQLite's single write lock for a while, and presence isn't
+    # what's being tested during it.
+    if profile and not is_dev_seed_running():
         profile.last_seen_at = timezone.now()
         profile.save(update_fields=["last_seen_at"])
     return HttpResponse(status=204)
@@ -254,6 +264,9 @@ def admin_employee_action(request, pk):
 
 @admin_required
 def admin_employees_presence_data(request):
+    # Polled every 30s from the employees panel and never touches the
+    # session - same pointless-forced-resave issue as presence_ping.
+    request.session.save = lambda *args, **kwargs: None
     return JsonResponse(employee_presence_payload())
 
 

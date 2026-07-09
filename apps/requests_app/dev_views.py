@@ -16,9 +16,11 @@ from django.views.decorators.http import require_http_methods
 from apps.accounts.views import admin_required
 from apps.directory.models import TerritorialOrgan
 
+from .dev_state import DEV_SEED_PROGRESS_CACHE_KEY
+
 SQLITE_LOCK_RETRY_ATTEMPTS = 3
 
-PROGRESS_CACHE_KEY = "dev_seed_progress"
+PROGRESS_CACHE_KEY = DEV_SEED_PROGRESS_CACHE_KEY
 PROGRESS_CACHE_TIMEOUT = 3600
 IDLE_PROGRESS = {"running": False, "done": 0, "total": 0, "finished": False, "output": None, "error": None}
 
