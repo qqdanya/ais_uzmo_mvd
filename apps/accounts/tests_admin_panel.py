@@ -8,14 +8,17 @@ from pathlib import Path
 
 from PIL import Image
 from django.contrib.auth import get_user_model
+from django.contrib.contenttypes.models import ContentType
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import connection
 from django.test import TestCase, override_settings
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
 from apps.audit.models import AuditLog
 from apps.directory.models import Department, TerritorialOrgan, TerritorialOrganPhoto, TerritorialOrganPhotoFolder
-from apps.requests_app.models import FireExtinguisher, NeedStatus, RequestNumberRegistry, RequestPhotoLink, TmcRequest, VehicleRepairRequest
+from apps.requests_app.models import FireExtinguisher, NeedStatus, RequestNumberRegistry, RequestPhotoLink, RequestStatusHistory, TmcRequest, VehicleRepairRequest
 
 from .admin_asset_services import latest_objects_by_organ
 from .admin_thresholds import _THRESHOLDS_CACHE, get_dashboard_thresholds
@@ -432,6 +435,64 @@ class AdminOrgansDepartmentsPanelTests(AdminPanelTestMixin, TestCase):
         self.assertEqual(rows_by_slug["transport"]["total"], 0)
         self.assertIn(f"Орган: {self.organ.name}", response.context["active_filter_chips"])
         self.assertIn("Статусы заявок: В работе", response.context["active_filter_chips"])
+
+    def create_done_request_needing_history_lookup(self, number):
+        # No completed_at/due_date on the object itself, so processing_days()
+        # can only resolve the completion date via RequestStatusHistory -
+        # exactly the case attach_processing_end_dates() is meant to batch.
+        obj = TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            created_by=self.admin,
+            updated_by=self.admin,
+            request_number=number,
+            request_date=timezone.localdate(),
+            status=NeedStatus.DONE,
+        )
+        RequestStatusHistory.objects.create(
+            content_type=ContentType.objects.get_for_model(TmcRequest, for_concrete_model=False),
+            object_id=obj.pk,
+            old_status=NeedStatus.IN_WORK,
+            new_status=NeedStatus.DONE,
+            changed_by=self.admin,
+        )
+        return obj
+
+    def history_query_count(self, queries_context):
+        # Isolates the metric the fix actually targets from unrelated noise
+        # (session-save UPDATEs, SAVEPOINTs) that varies run-to-run for
+        # reasons that have nothing to do with attach_processing_end_dates().
+        return sum(1 for q in queries_context.captured_queries if "requeststatushistory" in q["sql"].lower())
+
+    def test_organ_detail_latest_requests_avoid_n_plus_one_on_processing_days(self):
+        self.login_admin()
+        for index in range(2):
+            self.create_done_request_needing_history_lookup(f"organ-np1-{index}")
+        with CaptureQueriesContext(connection) as few_queries:
+            self.client.get(reverse("admin_organ_detail", kwargs={"pk": self.organ.pk}))
+
+        for index in range(2, 12):
+            self.create_done_request_needing_history_lookup(f"organ-np1-{index}")
+        with CaptureQueriesContext(connection) as many_queries:
+            self.client.get(reverse("admin_organ_detail", kwargs={"pk": self.organ.pk}))
+
+        # If processing_days() were falling back to a per-row history query,
+        # this would scale with row count (2 vs 12 done requests); with
+        # attach_processing_end_dates() batching it up front, it doesn't.
+        self.assertEqual(self.history_query_count(few_queries), self.history_query_count(many_queries))
+
+    def test_department_detail_latest_requests_avoid_n_plus_one_on_processing_days(self):
+        self.login_admin()
+        for index in range(2):
+            self.create_done_request_needing_history_lookup(f"dept-np1-{index}")
+        with CaptureQueriesContext(connection) as few_queries:
+            self.client.get(reverse("admin_department_detail", kwargs={"department_slug": "tmc"}))
+
+        for index in range(2, 12):
+            self.create_done_request_needing_history_lookup(f"dept-np1-{index}")
+        with CaptureQueriesContext(connection) as many_queries:
+            self.client.get(reverse("admin_department_detail", kwargs={"department_slug": "tmc"}))
+
+        self.assertEqual(self.history_query_count(few_queries), self.history_query_count(many_queries))
 
 
 class AdminEmployeesPanelTests(AdminPanelTestMixin, TestCase):

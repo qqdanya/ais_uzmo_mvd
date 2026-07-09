@@ -39,6 +39,7 @@ from .admin_common import (
     selected_per_page,
     selected_request_statuses,
 )
+from .admin_requests import attach_processing_end_dates
 from .admin_summary import available_organs_for_user, request_tables, selected_organs
 from .business_days import subtract_business_days_inclusive
 from .admin_thresholds import get_request_stale_workdays
@@ -351,7 +352,11 @@ def latest_request_rows_for_department(department, tables, organs, filters, limi
     departments = department_name_by_slug(department_options(tables))
     for table in tables_for_department(tables, department["slug"]):
         qs = department_filtered_queryset(table, organs, filters, with_request_status=True).order_by("-request_date", "-created_at", "-pk")
-        for obj in qs[:limit]:
+        objects = list(qs[:limit])
+        # Without this, processing_days() falls back to one RequestStatusHistory
+        # query per done/rejected row that lacks its own completion date.
+        attach_processing_end_dates(table, objects)
+        for obj in objects:
             days = processing_days(obj)
             rows.append(
                 {
