@@ -4,9 +4,10 @@ from django.db.models import Q
 from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import get_object_or_404, render
 
+from apps.accounts.models import UserProfile
 from apps.directory.models import TerritorialOrganPhoto, TerritorialOrganPhotoFolder
 
-from ..permissions import can_manage_photo_asset, can_view, can_write
+from ..permissions import can_manage_photo_asset, can_view, can_write, role_for
 from .downloads import download_ready_response, photo_download_name, photos_zip_response, safe_download_name
 from .http import htmx_triggers
 from .photo_asset_actions import (
@@ -46,6 +47,48 @@ def photo_download_response(request, organ, pk):
     filename = photo_download_name(photo)
     content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
     return FileResponse(file_handle, as_attachment=True, filename=filename, content_type=content_type)
+
+
+def _photo_for_preview(user, organ, pk):
+    # Mirrors photo_download_response's checks, except a soft-deleted photo
+    # is only visible to admins/superusers (the trash UI), not to anyone who
+    # can merely view the organ — can_view() alone would let a regular
+    # operator assigned to that organ see a photo that's supposed to be
+    # trash-only.
+    photo = get_object_or_404(TerritorialOrganPhoto.objects.select_related("folder"), pk=pk, territorial_organ=organ)
+    if photo.is_deleted:
+        if role_for(user) != UserProfile.Role.ADMIN:
+            raise Http404
+    else:
+        if not can_view(user, organ):
+            raise Http404
+        if photo.folder_id and photo.folder.is_deleted:
+            raise Http404
+    return photo
+
+
+def _serve_photo_field(field):
+    if not field:
+        raise Http404
+    try:
+        file_handle = field.open("rb")
+    except FileNotFoundError:
+        raise Http404
+    content_type = mimetypes.guess_type(field.name)[0] or "application/octet-stream"
+    return FileResponse(file_handle, content_type=content_type)
+
+
+def photo_preview_response(request, organ, pk):
+    photo = _photo_for_preview(request.user, organ, pk)
+    return _serve_photo_field(photo.image)
+
+
+def photo_thumbnail_response(request, organ, pk, size):
+    if size not in ("small", "medium"):
+        raise Http404
+    photo = _photo_for_preview(request.user, organ, pk)
+    field = photo.thumbnail_small if size == "small" else photo.thumbnail_medium
+    return _serve_photo_field(field or photo.image)
 
 
 def photos_download_all_response(request, organ):

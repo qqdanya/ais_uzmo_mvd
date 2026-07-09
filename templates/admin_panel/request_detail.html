@@ -70,8 +70,8 @@
                 {% if attached_photos %}
                   <div class="admin-request-photo-thumbnails" data-lightbox-scope data-lightbox-group="admin-request-{{ object.territorial_organ_id }}-{{ table.key }}-{{ object.pk }}" aria-label="Миниатюры связанных фотографий">
                     {% for photo in attached_photos %}
-                      <button class="admin-request-photo-thumb" type="button" data-lightbox-photo data-lightbox-group="admin-request-{{ object.territorial_organ_id }}-{{ table.key }}-{{ object.pk }}" data-src="{{ photo.image.url }}" data-download-url="{% url 'photo_download' photo.territorial_organ.pk photo.pk %}" data-description="{{ photo.description|default:'Описание не добавлено' }}" data-meta="{{ photo.created_at|date:'d.m.Y H:i' }} · {{ photo.created_by|default:'-' }}" aria-label="Открыть связанную фотографию {{ forloop.counter }}">
-                        <img src="{{ photo.thumbnail_small_url }}" alt="{{ photo.description|default:photo.original_filename|default:'Фотография заявки' }}" loading="lazy" decoding="async">
+                      <button class="admin-request-photo-thumb" type="button" data-lightbox-photo data-lightbox-group="admin-request-{{ object.territorial_organ_id }}-{{ table.key }}-{{ object.pk }}" data-src="{% url 'photo_preview' photo.territorial_organ.pk photo.pk %}" data-download-url="{% url 'photo_download' photo.territorial_organ.pk photo.pk %}" data-description="{{ photo.description|default:'Описание не добавлено' }}" data-meta="{{ photo.created_at|date:'d.m.Y H:i' }} · {{ photo.created_by|default:'-' }}" aria-label="Открыть связанную фотографию {{ forloop.counter }}">
+                        <img src="{% url 'photo_thumbnail' photo.territorial_organ.pk photo.pk 'small' %}" alt="{{ photo.description|default:photo.original_filename|default:'Фотография заявки' }}" loading="lazy" decoding="async">
                       </button>
                     {% endfor %}
                   </div>

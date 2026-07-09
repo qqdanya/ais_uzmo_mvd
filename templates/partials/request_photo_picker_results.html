@@ -39,7 +39,7 @@
     {% for photo in available_photos %}
       <label class="request-photo-option {% if photo.is_attached_to_request %}is-selected{% endif %}">
         <input type="checkbox" value="{{ photo.pk }}" {% if photo.is_attached_to_request %}checked{% endif %} data-request-photo-checkbox>
-        <span class="request-photo-thumb"><img src="{{ photo.thumbnail_small_url }}" alt="{{ photo.description|default:photo.original_filename }}" loading="lazy" decoding="async"></span>
+        <span class="request-photo-thumb"><img src="{% url 'photo_thumbnail' organ.pk photo.pk 'small' %}" alt="{{ photo.description|default:photo.original_filename }}" loading="lazy" decoding="async"></span>
         <span class="request-photo-meta">
           <strong>{{ photo.original_filename|default:"Фотография" }}</strong>
           <span class="request-photo-picker-meta-line"><i class="bi bi-person"></i> {{ photo.created_by|display_name }}</span>

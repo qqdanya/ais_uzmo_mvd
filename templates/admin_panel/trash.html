@@ -119,8 +119,8 @@
                       <td>
                         <div class="admin-trash-photo-cell" data-lightbox-scope>
                           {% if photo.image %}
-                            <button class="admin-trash-photo-thumb" type="button" data-lightbox-photo data-lightbox-group="trash-photos" data-src="{{ photo.image.url }}" data-download-url="{{ photo.image.url }}" data-description="{{ photo.description|default:'Описание не добавлено' }}" data-meta="{{ photo.updated_at|date:'d.m.Y H:i' }} · {{ photo.updated_by|default:'-' }}" aria-label="Открыть удалённую фотографию {{ photo.original_filename|default:photo.image.name }}">
-                              <img src="{{ photo.thumbnail_small_url }}" alt="{{ photo.description|default:photo.original_filename }}" loading="lazy" decoding="async">
+                            <button class="admin-trash-photo-thumb" type="button" data-lightbox-photo data-lightbox-group="trash-photos" data-src="{% url 'photo_preview' photo.territorial_organ_id photo.pk %}" data-download-url="{% url 'photo_preview' photo.territorial_organ_id photo.pk %}" data-description="{{ photo.description|default:'Описание не добавлено' }}" data-meta="{{ photo.updated_at|date:'d.m.Y H:i' }} · {{ photo.updated_by|default:'-' }}" aria-label="Открыть удалённую фотографию {{ photo.original_filename|default:photo.image.name }}">
+                              <img src="{% url 'photo_thumbnail' photo.territorial_organ_id photo.pk 'small' %}" alt="{{ photo.description|default:photo.original_filename }}" loading="lazy" decoding="async">
                             </button>
                           {% else %}
                             <span class="admin-trash-photo-thumb admin-trash-photo-thumb-empty"><i class="bi bi-image"></i></span>

@@ -110,7 +110,7 @@
 <div class="photo-grid photo-file-grid">
   {% for photo in photos %}
   <article class="photo-card">
-    <button class="photo-image" type="button" data-lightbox-photo data-src="{{ photo.image.url }}" data-download-url="{% url 'photo_download' organ.pk photo.pk %}" data-description="{{ photo.description }}" data-meta="{{ photo.created_at|date:'d.m.Y H:i' }} · {{ photo.created_by|default:'-' }}"><img src="{{ photo.thumbnail_medium_url }}" alt="{{ photo.description|default:photo.original_filename }}" loading="lazy" decoding="async"></button>
+    <button class="photo-image" type="button" data-lightbox-photo data-src="{% url 'photo_preview' organ.pk photo.pk %}" data-download-url="{% url 'photo_download' organ.pk photo.pk %}" data-description="{{ photo.description }}" data-meta="{{ photo.created_at|date:'d.m.Y H:i' }} · {{ photo.created_by|default:'-' }}"><img src="{% url 'photo_thumbnail' organ.pk photo.pk 'medium' %}" alt="{{ photo.description|default:photo.original_filename }}" loading="lazy" decoding="async"></button>
     <div class="photo-body">
       <div class="photo-card-meta-list">
         <span class="photo-card-meta"><i class="bi bi-person"></i> {{ photo.created_by|display_name }}</span>

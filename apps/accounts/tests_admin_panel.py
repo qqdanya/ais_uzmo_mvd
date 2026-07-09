@@ -305,7 +305,9 @@ class AdminRequestsPanelTests(AdminPanelTestMixin, TestCase):
         self.assertContains(response, "фотография прикреплена")
         self.assertContains(response, "admin-request-photo-thumbnails")
         self.assertContains(response, "admin-request-photo-thumb")
-        self.assertContains(response, "detail-proof")
+        # The photo is served through the permission-checked preview endpoint,
+        # not a raw /media/... URL that would bypass the per-organ access check.
+        self.assertContains(response, reverse("photo_preview", args=[self.organ.pk, photo.pk]))
 
     def test_requests_panel_department_filter_limits_request_tables(self):
         self.login_admin()
@@ -1580,7 +1582,9 @@ class AdminTrashPanelTests(AdminPanelTestMixin, TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "admin-trash-photo-thumb")
         self.assertContains(response, "data-lightbox-photo")
-        self.assertContains(response, photo.image.url)
+        # Even trashed photos must go through the permission-checked preview
+        # endpoint (admin-only there), not a raw /media/... URL.
+        self.assertContains(response, reverse("photo_preview", args=[self.organ.pk, photo.pk]))
         self.assertContains(response, "Фото для предпросмотра")
         self.assertContains(response, "Акты / Проверка")
         self.assertNotContains(response, ">Корень / Акты / Проверка<")
@@ -1612,7 +1616,7 @@ class AdminTrashPanelTests(AdminPanelTestMixin, TestCase):
         self.assertContains(response, "Фотографии в этой папке")
         self.assertNotContains(response, "Фотографии в дереве папки")
         self.assertContains(response, f'data-lightbox-group="trash-folder-{grandchild.pk}"')
-        self.assertContains(response, photo.image.url)
+        self.assertContains(response, reverse("photo_preview", args=[self.organ.pk, photo.pk]))
         self.assertContains(response, "nested-preview.png")
         self.assertContains(response, "Удалить папку")
         self.assertNotContains(response, ">Очистить</button>")

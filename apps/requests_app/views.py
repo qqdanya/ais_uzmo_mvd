@@ -15,6 +15,8 @@ from .services.photo_responses import (
     photo_folder_download_response,
     photo_folder_form_response,
     photo_form_response,
+    photo_preview_response,
+    photo_thumbnail_response,
     photos_download_all_response,
     render_photos,
 )
@@ -156,6 +158,18 @@ def photos(request, organ_id):
 def photo_download(request, organ_id, pk):
     organ = get_object_or_404(TerritorialOrgan, pk=organ_id, is_active=True)
     return photo_download_response(request, organ, pk)
+
+
+@login_required
+def photo_preview(request, organ_id, pk):
+    organ = get_object_or_404(TerritorialOrgan, pk=organ_id, is_active=True)
+    return photo_preview_response(request, organ, pk)
+
+
+@login_required
+def photo_thumbnail(request, organ_id, pk, size):
+    organ = get_object_or_404(TerritorialOrgan, pk=organ_id, is_active=True)
+    return photo_thumbnail_response(request, organ, pk, size)
 
 
 @login_required

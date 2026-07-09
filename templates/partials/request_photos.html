@@ -36,8 +36,8 @@
         {% for link in links %}
           {% with photo=link.photo %}
           <article class="request-linked-photo" data-request-linked-photo="{{ photo.pk }}">
-            <button class="photo-image" type="button" data-lightbox-photo data-lightbox-group="request-{{ organ.pk }}-{{ table_key }}-{{ object.pk }}" data-src="{{ photo.image.url }}" data-download-url="{% url 'photo_download' organ.pk photo.pk %}" data-description="{{ photo.description|default:'Описание не добавлено' }}" data-meta="{{ photo.created_at|date:'d.m.Y H:i' }} · {{ photo.created_by|default:'-' }}">
-              <img src="{{ photo.thumbnail_medium_url }}" alt="{{ photo.description|default:photo.original_filename }}" loading="lazy" decoding="async">
+            <button class="photo-image" type="button" data-lightbox-photo data-lightbox-group="request-{{ organ.pk }}-{{ table_key }}-{{ object.pk }}" data-src="{% url 'photo_preview' organ.pk photo.pk %}" data-download-url="{% url 'photo_download' organ.pk photo.pk %}" data-description="{{ photo.description|default:'Описание не добавлено' }}" data-meta="{{ photo.created_at|date:'d.m.Y H:i' }} · {{ photo.created_by|default:'-' }}">
+              <img src="{% url 'photo_thumbnail' organ.pk photo.pk 'medium' %}" alt="{{ photo.description|default:photo.original_filename }}" loading="lazy" decoding="async">
             </button>
             <div class="request-linked-photo-body">
               <strong>{{ photo.original_filename|default:"Фотография" }}</strong>

@@ -2,9 +2,9 @@
   <div class="request-photo-thumbnails" data-lightbox-scope data-lightbox-group="request-{{ obj.territorial_organ_id }}-{{ table.key }}-{{ obj.pk }}" aria-label="Прикрепленные фотографии">
     {% for photo in obj.attached_photos %}
       {% if photo.image %}
-        <button class="request-photo-thumbnail{% if forloop.counter > 3 %} request-photo-thumbnail-hidden{% endif %}" type="button" data-lightbox-photo data-lightbox-group="request-{{ obj.territorial_organ_id }}-{{ table.key }}-{{ obj.pk }}" data-src="{{ photo.image.url }}" data-download-url="{% url 'photo_download' photo.territorial_organ.pk photo.pk %}" data-description="{{ photo.description|default:'Описание не добавлено' }}" data-meta="{{ photo.created_at|date:'d.m.Y H:i' }} · {{ photo.created_by|default:'-' }}" aria-label="Открыть фотографию {{ forloop.counter }}" {% if forloop.counter > 3 %}hidden{% endif %}>
+        <button class="request-photo-thumbnail{% if forloop.counter > 3 %} request-photo-thumbnail-hidden{% endif %}" type="button" data-lightbox-photo data-lightbox-group="request-{{ obj.territorial_organ_id }}-{{ table.key }}-{{ obj.pk }}" data-src="{% url 'photo_preview' photo.territorial_organ.pk photo.pk %}" data-download-url="{% url 'photo_download' photo.territorial_organ.pk photo.pk %}" data-description="{{ photo.description|default:'Описание не добавлено' }}" data-meta="{{ photo.created_at|date:'d.m.Y H:i' }} · {{ photo.created_by|default:'-' }}" aria-label="Открыть фотографию {{ forloop.counter }}" {% if forloop.counter > 3 %}hidden{% endif %}>
           {% if forloop.counter <= 3 %}
-            <img src="{{ photo.thumbnail_small_url }}" alt="{{ photo.description|default:photo.original_filename|default:'Фотография заявки' }}" loading="lazy" decoding="async">
+            <img src="{% url 'photo_thumbnail' photo.territorial_organ.pk photo.pk 'small' %}" alt="{{ photo.description|default:photo.original_filename|default:'Фотография заявки' }}" loading="lazy" decoding="async">
           {% endif %}
         </button>
       {% endif %}
