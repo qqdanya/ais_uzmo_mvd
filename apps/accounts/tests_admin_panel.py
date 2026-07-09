@@ -1498,6 +1498,53 @@ class AdminSearchOptimizationTests(TestCase):
         self.assertIn("from .admin_asset_services import", assets_panel)
 
 
+class PerformanceRegressionTests(AdminPanelTestMixin, TestCase):
+    """Query-count ceilings for /control/requests/ and /control/summary-data/.
+
+    Not meant to force an exact "ideal" count - just to catch a future N+1
+    before it ships. Bounds are set with headroom over the count measured at
+    the time the test was written (noted per test).
+    """
+
+    def seed_tmc_requests(self, count=10):
+        for index in range(count):
+            TmcRequest.objects.create(
+                territorial_organ=self.organ,
+                created_by=self.admin,
+                request_number=f"perf-{index}",
+                request_date=timezone.localdate(),
+                status=NeedStatus.IN_WORK,
+            )
+
+    def test_admin_requests_panel_query_count_has_a_ceiling(self):
+        # Measured 41 queries for 10 seeded requests at write time - this
+        # page scans every request table (not just tmc-requests) to build
+        # the combined registry view.
+        self.seed_tmc_requests()
+        self.login_admin()
+
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get(reverse("admin_requests_panel"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertLessEqual(len(queries.captured_queries), 60)
+
+    def test_admin_summary_data_query_count_has_a_ceiling(self):
+        # Measured 102 queries for 10 seeded requests at write time - this
+        # endpoint aggregates KPI/dynamics/org-chart/department-load/attention
+        # across every request table, so it's naturally the heaviest page
+        # in the app (already reduced from 139 in an earlier optimization
+        # pass - see admin_panel N+1 fix history).
+        self.seed_tmc_requests()
+        self.login_admin()
+
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get(reverse("admin_summary_data"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertLessEqual(len(queries.captured_queries), 130)
+
+
 class AdminTrashPanelTests(AdminPanelTestMixin, TestCase):
     def setUp(self):
         super().setUp()

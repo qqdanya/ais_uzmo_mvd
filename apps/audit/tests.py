@@ -1,6 +1,8 @@
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
@@ -69,6 +71,20 @@ class AuditLogTests(TestCase):
         self.assertContains(response, "Сбросить")
         self.assertContains(response, "Заявка отредактирована")
         self.assertEqual(len(response.context["logs"]), 25)
+
+    def test_audit_log_query_count_has_a_ceiling(self):
+        # Measured 39 queries for 30 seeded log entries (all-time view, since
+        # the default 25-per-page result set is what actually gets rendered
+        # and prepare_log() resolves each row's user/organ/model references).
+        for index in range(30):
+            self.create_log(object_id=str(index), object_repr=f"Запись {index}")
+        self.client.login(username="admin", password="pass12345")
+
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get(reverse("audit_log"), {"date_from": "", "date_to": ""})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertLessEqual(len(queries.captured_queries), 55)
 
     def test_admin_index_links_to_full_audit_log(self):
         User = get_user_model()
