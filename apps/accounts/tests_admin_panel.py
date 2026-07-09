@@ -9,6 +9,7 @@ from pathlib import Path
 from PIL import Image
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
+from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import connection
 from django.test import TestCase, override_settings
@@ -27,6 +28,11 @@ from .models import UserProfile
 
 class AdminPanelTestMixin:
     def setUp(self):
+        # admin_summary_data caches by user pk + query params (see
+        # summary_data_cache_key); Django's cache isn't reset between test
+        # methods on its own, and transactional test PKs can repeat, so a
+        # stale hit from an earlier test could otherwise leak into this one.
+        cache.clear()
         self.User = get_user_model()
         self.department_tmc = Department.objects.create(name="ТМЦ", slug="tmc", order_number=1)
         self.department_transport = Department.objects.create(name="Транспорт", slug="transport", order_number=2)
@@ -128,6 +134,41 @@ class AdminPanelEndpointTests(AdminPanelTestMixin, TestCase):
         for key in ("total", "in_work", "done", "rejected", "stale"):
             self.assertIn(key, payload["kpi"])
 
+    def test_summary_data_is_cached_per_user_and_params(self):
+        self.login_admin()
+        TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            created_by=self.admin,
+            request_number="cache-1",
+            request_date=timezone.localdate(),
+            status=NeedStatus.IN_WORK,
+        )
+
+        first = self.client.get(reverse("admin_summary_data")).json()
+        self.assertEqual(first["kpi"]["total"], 1)
+
+        # A second request with the same params must hit the cache and keep
+        # returning the stale total, not recompute from the DB.
+        TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            created_by=self.admin,
+            request_number="cache-2",
+            request_date=timezone.localdate(),
+            status=NeedStatus.IN_WORK,
+        )
+        cached = self.client.get(reverse("admin_summary_data")).json()
+        self.assertEqual(cached["kpi"]["total"], 1)
+
+        # Different params (a different cache key) must not reuse that
+        # stale entry - it should compute fresh and see both requests.
+        different_params = self.client.get(reverse("admin_summary_data"), {"org_metric": "done"}).json()
+        self.assertEqual(different_params["kpi"]["total"], 2)
+
+        # Once the cache entry is gone (TTL expiry in production; cleared
+        # here to avoid a real 45s sleep), the same params compute fresh.
+        cache.clear()
+        refreshed = self.client.get(reverse("admin_summary_data")).json()
+        self.assertEqual(refreshed["kpi"]["total"], 2)
 
     def test_attention_requests_include_detail_url(self):
         self.login_admin()

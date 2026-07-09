@@ -3,6 +3,7 @@ from functools import wraps
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
+from django.core.cache import cache
 from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
@@ -21,7 +22,7 @@ from .admin_employees import build_employees_context, create_employee, edit_empl
 from .admin_organs import build_organ_detail_context, build_organs_context
 from .admin_requests import build_request_detail_context, build_requests_context
 from .admin_settings import build_settings_context, handle_settings_post
-from .admin_summary import build_summary_context, build_summary_payload
+from .admin_summary import SUMMARY_DATA_CACHE_SECONDS, build_summary_context, build_summary_payload, summary_data_cache_key
 from .admin_trash import (
     add_action_message,
     build_trash_context,
@@ -309,4 +310,10 @@ def admin_trash_purge_folder(request, pk):
 
 @admin_required
 def admin_summary_data(request):
-    return JsonResponse(build_summary_payload(request, metric=request.GET.get("org_metric", "in_work")))
+    metric = request.GET.get("org_metric", "in_work")
+    cache_key = summary_data_cache_key(request, metric)
+    payload = cache.get(cache_key)
+    if payload is None:
+        payload = build_summary_payload(request, metric=metric)
+        cache.set(cache_key, payload, SUMMARY_DATA_CACHE_SECONDS)
+    return JsonResponse(payload)

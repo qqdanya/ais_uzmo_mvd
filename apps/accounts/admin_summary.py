@@ -414,6 +414,32 @@ def status_history_flags(tables, organs):
     return flags
 
 
+SUMMARY_DATA_CACHE_SECONDS = 45
+
+
+def summary_data_cache_key(request, metric):
+    # Scoped by user (not just role) to stay correct if permissions ever get
+    # more granular than "admin sees everything" - a stale hit here would
+    # only affect the read-only KPI/chart JSON, never a write or a
+    # permission check, so a coarse per-user key is a fine tradeoff.
+    raw_ids = request.GET.getlist("organ_ids")
+    if not raw_ids and request.GET.get("organ_ids"):
+        raw_ids = request.GET["organ_ids"].split(",")
+    organ_ids = ",".join(sorted({value for value in raw_ids if str(value).isdigit()}))
+    return ":".join(
+        [
+            "admin-summary-data",
+            str(request.user.pk),
+            metric,
+            request.GET.get("period", ""),
+            request.GET.get("date_from", ""),
+            request.GET.get("date_to", ""),
+            "empty" if request.GET.get("organ_filter_empty") == "1" else "",
+            organ_ids,
+        ]
+    )
+
+
 def build_summary_payload(request, metric="in_work", *, available_organs=None, tables=None):
     period = parse_period(request)
     available_organs = available_organs if available_organs is not None else available_organs_for_user(request.user)
