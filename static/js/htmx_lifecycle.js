@@ -101,6 +101,27 @@ function preventBackgroundModalScroll(event) {
   }
 }
 
+function releaseModalObjectUrls(container) {
+  // Bulk/single photo pickers create blob: URLs for local-file previews
+  // (photo_upload.js). Revoking them here, not just on the next successful
+  // upload, is what actually frees that memory when a form is abandoned
+  // (closed without submitting) — URL.revokeObjectURL is never called
+  // automatically just because the referencing DOM node was removed.
+  container.querySelectorAll("[data-bulk-preview-url]").forEach((preview) => {
+    URL.revokeObjectURL(preview.dataset.bulkPreviewUrl);
+  });
+  container.querySelectorAll("[data-object-url]").forEach((preview) => {
+    URL.revokeObjectURL(preview.dataset.objectUrl);
+  });
+}
+
+function cleanupModalContent() {
+  const modalContent = document.getElementById("modal-content");
+  if (!modalContent) return;
+  releaseModalObjectUrls(modalContent);
+  modalContent.replaceChildren();
+}
+
 function registerModalLifecycle() {
   document.addEventListener("wheel", preventBackgroundModalScroll, { passive: false });
   document.addEventListener("touchmove", preventBackgroundModalScroll, { passive: false });
@@ -108,6 +129,9 @@ function registerModalLifecycle() {
   const appModalRoot = document.getElementById("modal-root");
   appModalRoot?.addEventListener("show.bs.modal", lockDocumentScrollForModal);
   appModalRoot?.addEventListener("hidden.bs.modal", unlockDocumentScrollForModal);
+  // Runs after the close transition, once the modal is already invisible, so
+  // clearing #modal-content here can't be seen mid-close.
+  appModalRoot?.addEventListener("hidden.bs.modal", cleanupModalContent);
   appModalRoot?.addEventListener("shown.bs.modal", () => {
     const input = appModalRoot.querySelector("[autofocus]");
     if (!isVisibleElement(input)) return;

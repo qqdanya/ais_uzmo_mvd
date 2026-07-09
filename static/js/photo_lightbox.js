@@ -127,8 +127,16 @@ function closePhotoLightbox(options = {}) {
     if (photoLightboxState.lastTrigger && typeof photoLightboxState.lastTrigger.blur === "function") {
       photoLightboxState.lastTrigger.blur();
     }
-    photoLightboxState.lastTrigger = null;
   }
+  // Always release the reference (not just on the blurTrigger/Escape path),
+  // otherwise it keeps a DOM node — potentially from a table row an HTMX
+  // swap has since removed — reachable until the next photo is opened.
+  photoLightboxState.lastTrigger = null;
+  // The lightbox element is a single reused node kept in the DOM for the
+  // whole session (ensurePhotoLightbox), so without this the last full-res
+  // photo shown stays decoded in memory until another one replaces it.
+  const image = lightbox.querySelector("[data-lightbox-image]");
+  if (image) image.removeAttribute("src");
 }
 
 function navigatePhotoLightbox(direction) {
