@@ -25,6 +25,8 @@ function sendPresencePing() {
 
 function startPresenceHeartbeat() {
   if (!document.body?.dataset.presenceUrl) return;
+  if (window.__presenceHeartbeatStarted) return;
+  window.__presenceHeartbeatStarted = true;
   sendPresencePing();
   window.setInterval(sendPresencePing, PRESENCE_HEARTBEAT_MS);
   document.addEventListener("visibilitychange", () => {

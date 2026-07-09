@@ -85,6 +85,7 @@ MEDIA_ROOT = BASE_DIR / env("MEDIA_ROOT", default="media")
 DATA_UPLOAD_MAX_NUMBER_FILES = 500
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+TEST_RUNNER = "config.test_runner.QuietRequestLogTestRunner"
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "dashboard"
 LOGOUT_REDIRECT_URL = "login"

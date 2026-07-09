@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Доступ запрещён — АИС УЗМО{% endblock %}
+{% block content %}
+<div class="auth-wrap">
+  <div class="error-page">
+    <i class="bi bi-shield-lock"></i>
+    <div class="error-page-code">403</div>
+    <h1>Доступ запрещён</h1>
+    <p>У вас недостаточно прав для просмотра этой страницы.</p>
+    <a class="btn btn-primary" href="{% url 'dashboard' %}">На главную</a>
+  </div>
+</div>
+{% endblock %}

@@ -64,6 +64,8 @@ async function refreshEmployeesPresence() {
 
 function startEmployeesPresenceRefresh() {
   if (!document.querySelector("[data-employees-presence-url]")) return;
+  if (window.__employeesPresenceRefreshStarted) return;
+  window.__employeesPresenceRefreshStarted = true;
   refreshEmployeesPresence();
   window.setInterval(refreshEmployeesPresence, 30000);
   document.addEventListener("visibilitychange", () => {

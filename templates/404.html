@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Страница не найдена — АИС УЗМО{% endblock %}
+{% block content %}
+<div class="auth-wrap">
+  <div class="error-page">
+    <i class="bi bi-signpost-split"></i>
+    <div class="error-page-code">404</div>
+    <h1>Страница не найдена</h1>
+    <p>Запрошенный адрес не существует или был перемещён.</p>
+    <a class="btn btn-primary" href="{% url 'dashboard' %}">На главную</a>
+  </div>
+</div>
+{% endblock %}
