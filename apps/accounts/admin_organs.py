@@ -139,7 +139,7 @@ def collect_all_organ_stats(organs, tables, filters):
             if bucket is not None:
                 add_status_counts(bucket["stats"], counts)
 
-        completion_by_organ = completion_totals_by_organ_for_queryset(qs)
+        completion_by_organ = completion_totals_by_organ_for_queryset(qs, table["key"])
         for organ_id, totals in completion_by_organ.items():
             bucket = buckets.get(organ_id)
             if bucket is not None:
@@ -308,7 +308,7 @@ def department_stats_for_organ(organ, tables, filters):
                 continue
             qs = org_filtered_queryset(table, organ, filters, with_request_status=True)
             add_status_counts(stats, request_status_counts(qs, stale_before=stale_before))
-            table_days, table_count = completion_totals_for_queryset(qs)
+            table_days, table_count = completion_totals_for_queryset(qs, table["key"])
             completion_days_total += table_days
             completion_days_count += table_count
         avg_completion = completion_average_from_totals(completion_days_total, completion_days_count)

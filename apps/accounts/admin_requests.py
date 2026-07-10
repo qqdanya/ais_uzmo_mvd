@@ -263,7 +263,7 @@ def average_completion_days(tables, organs, filters):
     total_count = 0
     for table in matching_tables(tables, filters):
         qs = filtered_queryset(table, organs, filters, with_state=False)
-        table_days, table_count = completion_totals_for_queryset(qs)
+        table_days, table_count = completion_totals_for_queryset(qs, table["key"])
         total_days += table_days
         total_count += table_count
     if not total_count:

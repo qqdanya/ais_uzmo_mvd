@@ -5,6 +5,7 @@ from django.utils.dateparse import parse_date
 
 from apps.directory.models import Department
 from apps.requests_app.models import NeedStatus, RequestStatusHistory
+from apps.requests_app.services.statuses import completed_date_field
 
 from .admin_thresholds import get_request_stale_workdays
 from .business_days import business_days_inclusive
@@ -279,26 +280,18 @@ def add_status_counts(total_counts, counts):
         total_counts[key] += counts.get(key, 0)
 
 
-def _own_completion_date(obj):
-    for field_name in ("completed_at", "due_date"):
-        value = getattr(obj, field_name, None)
-        if value:
-            return value
-    return None
-
-
-def _bulk_history_completion_dates(objects):
+def _bulk_history_completion_dates(model, object_ids):
     """Batch-fetch the best RequestStatusHistory completion date per object.
 
     Avoids one RequestStatusHistory query per row (the previous per-object
     object_completion_date() call) when completed_at/due_date is missing.
     """
-    if not objects:
+    if not object_ids:
         return {}
-    content_type = ContentType.objects.get_for_model(objects[0]._meta.model, for_concrete_model=False)
+    content_type = ContentType.objects.get_for_model(model, for_concrete_model=False)
     history_qs = RequestStatusHistory.objects.filter(
         content_type=content_type,
-        object_id__in=[obj.pk for obj in objects],
+        object_id__in=object_ids,
         new_status=NeedStatus.DONE,
     ).order_by("object_id", "-completed_at", "-changed_at", "-pk")
     dates = {}
@@ -308,63 +301,72 @@ def _bulk_history_completion_dates(objects):
     return dates
 
 
-def completion_totals_for_queryset(qs):
+def _completion_rows(qs, table_key):
+    # .values_list(...) here (not .iterator() over full model instances) is
+    # the whole point: at 100k+ DONE rows, materializing full model objects
+    # just to read two date fields dominates wall time (ORM row
+    # construction, not the DB) - plain tuples skip that entirely.
+    field = completed_date_field(table_key)
+    return qs.filter(status=NeedStatus.DONE).values_list("pk", "territorial_organ_id", "request_date", field)
+
+
+def completion_totals_for_queryset(qs, table_key):
     total_days = 0
     total_count = 0
     chunk = []
-    for obj in qs.filter(status=NeedStatus.DONE).iterator(chunk_size=COMPLETION_CHUNK_SIZE):
-        chunk.append(obj)
+    for row in _completion_rows(qs, table_key).iterator(chunk_size=COMPLETION_CHUNK_SIZE):
+        chunk.append(row)
         if len(chunk) >= COMPLETION_CHUNK_SIZE:
-            chunk_days, chunk_count = completion_totals_for_objects(chunk)
+            chunk_days, chunk_count = _completion_totals_for_rows(qs.model, chunk)
             total_days += chunk_days
             total_count += chunk_count
             chunk = []
     if chunk:
-        chunk_days, chunk_count = completion_totals_for_objects(chunk)
+        chunk_days, chunk_count = _completion_totals_for_rows(qs.model, chunk)
         total_days += chunk_days
         total_count += chunk_count
     return total_days, total_count
 
 
-def completion_totals_for_objects(done_objects):
-    missing = [obj for obj in done_objects if _own_completion_date(obj) is None]
-    history_dates = _bulk_history_completion_dates(missing)
+def _completion_totals_for_rows(model, rows):
+    missing_ids = [pk for pk, _organ_id, _request_date, end_date in rows if not end_date]
+    history_dates = _bulk_history_completion_dates(model, missing_ids)
     total_days = 0
     total_count = 0
-    for obj in done_objects:
-        end_date = _own_completion_date(obj) or history_dates.get(obj.pk)
+    for pk, _organ_id, request_date, end_date in rows:
+        end_date = end_date or history_dates.get(pk)
         if not end_date:
             continue
-        days = business_days_inclusive(obj.request_date, end_date)
+        days = business_days_inclusive(request_date, end_date)
         if days is not None:
             total_days += days
             total_count += 1
     return total_days, total_count
 
 
-def completion_totals_by_organ_for_queryset(qs):
+def completion_totals_by_organ_for_queryset(qs, table_key):
     totals_by_organ = {}
     chunk = []
-    for obj in qs.filter(status=NeedStatus.DONE).iterator(chunk_size=COMPLETION_CHUNK_SIZE):
-        chunk.append(obj)
+    for row in _completion_rows(qs, table_key).iterator(chunk_size=COMPLETION_CHUNK_SIZE):
+        chunk.append(row)
         if len(chunk) >= COMPLETION_CHUNK_SIZE:
-            add_completion_totals_by_organ(totals_by_organ, chunk)
+            _add_completion_totals_by_organ(totals_by_organ, qs.model, chunk)
             chunk = []
     if chunk:
-        add_completion_totals_by_organ(totals_by_organ, chunk)
+        _add_completion_totals_by_organ(totals_by_organ, qs.model, chunk)
     return totals_by_organ
 
 
-def add_completion_totals_by_organ(totals_by_organ, done_objects):
-    missing = [obj for obj in done_objects if _own_completion_date(obj) is None]
-    history_dates = _bulk_history_completion_dates(missing)
-    for obj in done_objects:
-        end_date = _own_completion_date(obj) or history_dates.get(obj.pk)
+def _add_completion_totals_by_organ(totals_by_organ, model, rows):
+    missing_ids = [pk for pk, _organ_id, _request_date, end_date in rows if not end_date]
+    history_dates = _bulk_history_completion_dates(model, missing_ids)
+    for pk, organ_id, request_date, end_date in rows:
+        end_date = end_date or history_dates.get(pk)
         if not end_date:
             continue
-        days = business_days_inclusive(obj.request_date, end_date)
+        days = business_days_inclusive(request_date, end_date)
         if days is not None:
-            totals = totals_by_organ.setdefault(obj.territorial_organ_id, {"total": 0, "count": 0})
+            totals = totals_by_organ.setdefault(organ_id, {"total": 0, "count": 0})
             totals["total"] += days
             totals["count"] += 1
 
