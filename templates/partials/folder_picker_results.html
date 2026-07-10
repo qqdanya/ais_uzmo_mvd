@@ -1,0 +1,38 @@
+<div class="request-photo-folder-browser">
+  <div class="request-photo-breadcrumb" aria-label="Расположение папки">
+    <button class="btn btn-sm request-photo-folder-crumb {% if not folder_picker_folder %}btn-primary{% else %}btn-outline-primary{% endif %}" type="button" hx-get="{% url 'folder_picker' organ.pk %}?exclude={{ folder_picker_exclude }}&field_name={{ field_name }}" hx-target="closest [data-folder-picker-panel]" hx-swap="innerHTML" hx-include="#folder-picker-search-{{ field_name }}">
+      <span><i class="bi bi-house"></i> Корень</span>
+      <small><i class="bi bi-folder2 ms-1"></i>{{ folder_picker_root_folder_count }}</small>
+    </button>
+    {% for folder in folder_picker_folder_path %}
+      <span class="request-photo-breadcrumb-separator"><i class="bi bi-chevron-right"></i></span>
+      {% if forloop.last %}
+        <span class="request-photo-folder-crumb is-current">
+          <span><i class="bi bi-folder2-open"></i> {{ folder.name }}</span>
+        </span>
+      {% else %}
+        <button class="btn btn-sm btn-outline-primary request-photo-folder-crumb" type="button" hx-get="{% url 'folder_picker' organ.pk %}?picker_folder={{ folder.pk }}&exclude={{ folder_picker_exclude }}&field_name={{ field_name }}" hx-target="closest [data-folder-picker-panel]" hx-swap="innerHTML" hx-include="#folder-picker-search-{{ field_name }}">
+          <span><i class="bi bi-folder2"></i> {{ folder.name }}</span>
+        </button>
+      {% endif %}
+    {% endfor %}
+  </div>
+
+  <button class="btn btn-sm btn-primary folder-picker-select-here" type="button" data-folder-picker-select data-folder-id="{{ folder_picker_folder }}" data-folder-label="{{ folder_picker_current_label }}">
+    <i class="bi bi-check2-circle"></i> Выбрать текущую папку («{{ folder_picker_current_label }}»)
+  </button>
+
+  {% if folder_picker_child_folders %}
+    <div class="request-photo-folder-grid">
+      {% for folder in folder_picker_child_folders %}
+        <button class="request-photo-folder-card" type="button" hx-get="{% url 'folder_picker' organ.pk %}?picker_folder={{ folder.pk }}&exclude={{ folder_picker_exclude }}&field_name={{ field_name }}" hx-target="closest [data-folder-picker-panel]" hx-swap="innerHTML" hx-include="#folder-picker-search-{{ field_name }}">
+          <span class="request-photo-folder-icon"><i class="bi bi-folder2-open"></i></span>
+          <span class="request-photo-folder-title">{{ folder.name }}</span>
+          <span class="request-photo-folder-counts"><i class="bi bi-folder2 ms-1"></i>{{ folder.child_count }}</span>
+        </button>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="empty-state">{% if folder_picker_query %}Ничего не найдено{% else %}Вложенных папок нет{% endif %}</div>
+  {% endif %}
+</div>

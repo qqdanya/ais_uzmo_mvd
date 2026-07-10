@@ -271,8 +271,9 @@ class PhotoAssetTests(RequestAppTestCase):
         self.assertContains(response, "Выбрать изображение")
         self.assertContains(response, '<i class="bi bi-image" aria-hidden="true"></i> Выбрать изображение', html=True)
         self.assertContains(response, "Parent / Folder")
-        self.assertContains(response, "custom-select-field")
-        self.assertContains(response, "custom-select")
+        self.assertContains(response, "data-folder-picker-box")
+        self.assertContains(response, "data-folder-picker-hidden")
+        self.assertContains(response, f'value="{folder.pk}"')
         self.assertContains(response, "custom-select-native", count=0)
 
     def test_photo_replace_updates_upload_date(self):
@@ -718,9 +719,17 @@ class PhotoAssetTests(RequestAppTestCase):
         form_response = self.client.get(reverse("photo_folder_update", args=[self.organ.pk, folder.pk]), HTTP_HX_REQUEST="true")
         self.assertContains(form_response, "Расположение")
         self.assertContains(form_response, "photo-folder-form")
-        self.assertContains(form_response, "Parent / Child")
+        self.assertContains(form_response, "data-folder-picker-box")
         self.assertContains(form_response, "Target")
-        self.assertNotContains(form_response, "Moved / Nested")
+        self.assertContains(form_response, f"exclude={folder.pk}")
+
+        picker_response = self.client.get(
+            reverse("folder_picker", args=[self.organ.pk]),
+            {"picker_folder": parent.pk, "exclude": folder.pk, "field_name": "parent"},
+            HTTP_HX_REQUEST="true",
+        )
+        self.assertContains(picker_response, "Child")
+        self.assertNotContains(picker_response, "Moved")
 
         response = self.client.post(
             reverse("photo_folder_update", args=[self.organ.pk, folder.pk]),

@@ -1,0 +1,12 @@
+<div class="request-photo-box folder-picker-box" data-folder-picker-box>
+  <input type="hidden" name="{{ field_name }}" value="{{ initial_folder_id }}" data-folder-picker-hidden>
+  <div class="request-photo-summary">
+    <div class="small text-secondary"><i class="bi bi-folder2"></i> <span data-folder-picker-current-label>{{ initial_label }}</span></div>
+    <button class="btn btn-sm btn-outline-primary" type="button" data-folder-picker-toggle>
+      <i class="bi bi-folder2-open"></i> Изменить
+    </button>
+  </div>
+  <div class="request-photo-picker" data-folder-picker-panel hidden>
+    {% include "partials/folder_picker_panel.html" %}
+  </div>
+</div>

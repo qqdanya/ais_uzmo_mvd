@@ -1,0 +1,12 @@
+<div class="request-photo-filters" hx-get="{% url 'folder_picker' organ.pk %}?exclude={{ folder_picker_exclude }}&field_name={{ field_name }}" hx-target="closest [data-folder-picker-panel]" hx-swap="innerHTML" hx-include="#folder-picker-search-{{ field_name }}" hx-trigger="input delay:500ms from:#folder-picker-search-{{ field_name }}">
+  <div class="search-box request-photo-search">
+    <i class="bi bi-search"></i>
+    <input id="folder-picker-search-{{ field_name }}" class="form-control form-control-sm" name="picker_q" value="{{ folder_picker_query }}" placeholder="Поиск папки">
+  </div>
+</div>
+<div class="folder-picker-results">
+  {% include "partials/folder_picker_results.html" %}
+</div>
+<div class="request-photo-picker-footer">
+  <button class="btn btn-sm btn-outline-secondary" type="button" data-folder-picker-toggle>Закрыть</button>
+</div>

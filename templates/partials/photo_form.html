@@ -29,7 +29,7 @@
     <div class="form-grid one-col">
       {% for field in form %}
         {% if field.name != "image" or not photo %}
-        <div class="form-field wide {% if field|is_select_field %}custom-select-field{% endif %}">
+        <div class="form-field wide {% if field|is_select_field and field.name != "folder" %}custom-select-field{% endif %}">
           <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
           {% if field.name == "image" %}
             <div class="single-file-picker" data-single-file-picker>
@@ -43,6 +43,8 @@
               </div>
               <div class="visually-hidden">{{ field }}</div>
             </div>
+          {% elif field.name == "folder" %}
+            {% include "partials/folder_picker.html" %}
           {% elif field|is_select_field %}
             {% include "partials/custom_select_field.html" %}
           {% else %}

@@ -8,6 +8,7 @@ from apps.directory.models import Department, TerritorialOrgan
 from .permissions import can_view
 from .registry import get_table_or_404
 from .services.photo_responses import (
+    folder_picker_response,
     photo_bulk_upload_response,
     photo_delete_response,
     photo_download_response,
@@ -184,6 +185,12 @@ def photos_download_all(request, organ_id):
 def photo_folder_download(request, organ_id, pk):
     organ = get_object_or_404(TerritorialOrgan, pk=organ_id, is_active=True)
     return photo_folder_download_response(request, organ, pk)
+
+
+@login_required
+def folder_picker(request, organ_id):
+    organ = get_object_or_404(TerritorialOrgan, pk=organ_id, is_active=True)
+    return folder_picker_response(request, organ)
 
 
 @login_required

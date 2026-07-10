@@ -5,6 +5,7 @@ from django.shortcuts import get_object_or_404
 
 from apps.requests_app.services.table_filters import search_query_variants
 
+from apps.directory.forms import photo_folder_path_label
 from apps.directory.models import TerritorialOrganPhoto, TerritorialOrganPhotoFolder
 
 from ..permissions import can_manage_photo_asset, can_write, user_primary_department
@@ -52,6 +53,68 @@ def folder_tree_is_manageable(user, organ, folder):
     folders = organ.photo_folders.filter(pk__in=folder_ids, is_deleted=False)
     photos = organ.photos.filter(folder_id__in=folder_ids, is_deleted=False)
     return all(can_manage_photo_asset(user, organ, item) for item in folders) and all(can_manage_photo_asset(user, organ, item) for item in photos)
+
+
+def folder_picker_context(request, organ, user, exclude_folder_id=""):
+    """Breadcrumb + folder-grid browsing state for the folder destination picker.
+
+    Reused both for the initial (root-level) render when a photo/folder edit
+    form is first built, and for the picker's own htmx navigation - both
+    just read picker_folder/picker_q from whatever request they're called
+    with, so a plain GET (no picker params) naturally starts at root.
+    """
+    query = request.GET.get("picker_q", "").strip()
+    folder_value = request.GET.get("picker_folder", "").strip()
+
+    excluded_ids = set()
+    if str(exclude_folder_id).isdigit():
+        excluded_root = organ.photo_folders.filter(pk=exclude_folder_id, is_deleted=False).first()
+        if excluded_root:
+            excluded_ids = set(photo_folder_descendant_ids(excluded_root))
+
+    manageable = manageable_photo_folders_queryset(user, organ).exclude(pk__in=excluded_ids)
+
+    selected_folder = None
+    if folder_value.isdigit():
+        selected_folder = manageable.filter(pk=folder_value).first()
+        if selected_folder is None:
+            folder_value = ""
+
+    base_qs = manageable.annotate(child_count=Count("children", filter=Q(children__is_deleted=False), distinct=True))
+    if query:
+        folder_q = Q()
+        for variant in search_query_variants(query):
+            folder_q |= Q(name__icontains=variant)
+        child_folders = base_qs.filter(folder_q) if folder_q else base_qs.none()
+    else:
+        child_folders = base_qs.filter(parent=selected_folder)
+    child_folders = child_folders.order_by("name", "pk")
+
+    folder_path_items = folder_path(selected_folder)
+    current_label = " / ".join(folder.name for folder in folder_path_items) if folder_path_items else "Корень"
+    root_folder_count = manageable.filter(parent__isnull=True).count()
+
+    return {
+        "folder_picker_query": query,
+        "folder_picker_folder": folder_value,
+        "folder_picker_selected_folder": selected_folder,
+        "folder_picker_folder_path": folder_path_items,
+        "folder_picker_child_folders": child_folders,
+        "folder_picker_root_folder_count": root_folder_count,
+        "folder_picker_current_label": current_label,
+        "folder_picker_exclude": exclude_folder_id,
+    }
+
+
+def folder_picker_widget_context(request, organ, user, field_name, current_folder, exclude_folder=None):
+    context = {
+        "field_name": field_name,
+        "initial_folder_id": current_folder.pk if current_folder else "",
+        "initial_label": photo_folder_path_label(current_folder) if current_folder else "Корень",
+    }
+    exclude_folder_id = exclude_folder.pk if exclude_folder else ""
+    context.update(folder_picker_context(request, organ, user, exclude_folder_id))
+    return context
 
 
 def selected_photo_folder(organ, folder_id):

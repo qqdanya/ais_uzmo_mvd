@@ -21,7 +21,13 @@ from .photo_asset_actions import (
     save_photo_folder,
     soft_delete_photo,
 )
-from .photo_assets import can_upload_to_photo_folder, photo_folder_descendant_ids, photo_gallery_context
+from .photo_assets import (
+    can_upload_to_photo_folder,
+    folder_picker_context,
+    folder_picker_widget_context,
+    photo_folder_descendant_ids,
+    photo_gallery_context,
+)
 from .request_photos import folder_path_from_map
 
 
@@ -155,7 +161,9 @@ def photo_form_response(request, organ, pk=None):
         response = render_photos(request, organ, obj.folder_id or "")
         response["HX-Trigger"] = htmx_triggers("Фотография сохранена.")
         return response
-    return render(request, "partials/photo_form.html", {"form": form, "organ": organ, "photo": photo})
+    context = {"form": form, "organ": organ, "photo": photo}
+    context.update(folder_picker_widget_context(request, organ, request.user, "folder", photo.folder if photo else None))
+    return render(request, "partials/photo_form.html", context)
 
 
 def photo_folder_form_response(request, organ, pk=None):
@@ -173,7 +181,20 @@ def photo_folder_form_response(request, organ, pk=None):
         response = render_photos(request, organ, obj.parent_id or "")
         response["HX-Trigger"] = htmx_triggers("Папка переименована." if folder else "Папка создана.")
         return response
-    return render(request, "partials/photo_folder_form.html", {"form": form, "organ": organ, "folder": folder, "current_folder": current_folder})
+    context = {"form": form, "organ": organ, "folder": folder, "current_folder": current_folder}
+    if folder:
+        context.update(folder_picker_widget_context(request, organ, request.user, "parent", folder.parent, exclude_folder=folder))
+    return render(request, "partials/photo_folder_form.html", context)
+
+
+def folder_picker_response(request, organ):
+    if not can_view(request.user, organ):
+        raise Http404
+    exclude_folder_id = request.GET.get("exclude", "").strip()
+    field_name = request.GET.get("field_name", "folder").strip() or "folder"
+    context = {"organ": organ, "field_name": field_name}
+    context.update(folder_picker_context(request, organ, request.user, exclude_folder_id))
+    return render(request, "partials/folder_picker_panel.html", context)
 
 
 def photo_folder_delete_response(request, organ, pk):
