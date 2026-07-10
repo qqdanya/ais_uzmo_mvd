@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import random
 from collections import Counter
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth import get_user_model
@@ -242,6 +242,7 @@ class Command(BaseCommand):
         parser.add_argument("--requests-per-table-max", type=int, default=6, help="Maximum number of requests to generate per organ for each request table.")
         parser.add_argument("--snapshots", type=int, default=3, help="How many state-snapshot slices to generate per organ for each state table.")
         parser.add_argument("--days-span", type=int, default=180, help="Spread generated request/snapshot dates across this many days back from today.")
+        parser.add_argument("--review-days-max", type=int, default=14, help="Requests start out 'В работе' and, within this many days, may move to 'Исполнена'/'Отклонена' - never earlier than the day they were filed.")
         parser.add_argument("--seed", type=int, default=None, help="Random seed for reproducible output. A random one is chosen and reported if omitted.")
         parser.add_argument("--skip-initial-data", action="store_true", help="Do not run seed_initial_data before creating demo records.")
         parser.add_argument("--clear", action="store_true", help="Remove demo records previously created by this command for the selected organs before seeding again.")
@@ -261,6 +262,7 @@ class Command(BaseCommand):
         self.requests_per_table_max = max(self.requests_per_table_min, options["requests_per_table_max"])
         self.snapshots = max(0, options["snapshots"])
         self.days_span = max(1, options["days_span"])
+        self.review_days_max = max(1, options["review_days_max"])
         progress_callback = options.get("progress_callback")
 
         user = self._demo_user()
@@ -347,13 +349,34 @@ class Command(BaseCommand):
     def _random_request_date(self):
         return timezone.localdate() - timedelta(days=self.rng.randint(0, self.days_span))
 
-    def _completed_at(self, request_date):
-        return min(request_date + timedelta(days=self.rng.randint(1, 14)), timezone.localdate())
+    def _lifecycle(self, request_date):
+        """Every request is filed as "В работе"; only some of them go on to
+        resolve into "Исполнена"/"Отклонена" within review_days_max days -
+        never before the day they were filed, never after today. The rest
+        realistically stay open, same as a live backlog would.
+        """
+        status = self._pick_status()
+        if status == NeedStatus.IN_WORK:
+            return status, None
+        resolved_date = min(request_date + timedelta(days=self.rng.randint(1, self.review_days_max)), timezone.localdate())
+        return status, resolved_date
+
+    def _as_datetime(self, date_value, *, after=None):
+        # Demo history timestamps only need to be chronologically plausible,
+        # not precise - pin them to a random business hour so ordering by
+        # changed_at reads naturally instead of every event landing at
+        # midnight. When a resolution lands on the same day it was filed,
+        # offset it forward from the filing time instead of re-rolling an
+        # independent hour, so the two events can't land out of order.
+        if after is not None and date_value == after.date():
+            return after + timedelta(minutes=self.rng.randint(30, 240))
+        naive = datetime.combine(date_value, time(hour=self.rng.randint(8, 18), minute=self.rng.randint(0, 59)))
+        return timezone.make_aware(naive)
 
     def _seed_tmc(self, organ, user):
         for item_number in range(1, self._requests_count() + 1):
-            status = self._pick_status()
             request_date = self._random_request_date()
+            status, resolved_date = self._lifecycle(request_date)
             request_obj, _ = self._upsert_request(
                 model=TmcRequest,
                 organ=organ,
@@ -363,10 +386,12 @@ class Command(BaseCommand):
                 defaults={
                     "request_date": request_date,
                     "status": status,
-                    "due_date": self._completed_at(request_date) if status == NeedStatus.DONE else None,
+                    "due_date": resolved_date if status == NeedStatus.DONE else None,
                     "comment": self.rng.choice(TMC_SCENARIOS),
                 },
                 table_key="tmc-requests",
+                request_date=request_date,
+                resolved_date=resolved_date,
             )
             self._replace_tmc_items(request_obj)
             self.stats["ТМЦ-заявки"] += 1
@@ -375,7 +400,7 @@ class Command(BaseCommand):
         self._seed_vehicle_inventory(organ, user)
         for item_number in range(1, self._requests_count() + 1):
             request_date = self._random_request_date()
-            status = self._pick_status()
+            status, resolved_date = self._lifecycle(request_date)
             self._upsert_request(
                 model=VehicleRepairRequest,
                 organ=organ,
@@ -385,16 +410,18 @@ class Command(BaseCommand):
                 defaults={
                     "request_date": request_date,
                     "status": status,
-                    "completed_at": self._completed_at(request_date) if status == NeedStatus.DONE else None,
+                    "completed_at": resolved_date if status == NeedStatus.DONE else None,
                     "comment": self.rng.choice(VEHICLE_REPAIR_SCENARIOS),
                 },
                 table_key="vehicle-repair",
+                request_date=request_date,
+                resolved_date=resolved_date,
             )
             self.stats["Заявки на ремонт автотранспорта"] += 1
 
         for item_number in range(1, self._requests_count() + 1):
             request_date = self._random_request_date()
-            status = self._pick_status()
+            status, resolved_date = self._lifecycle(request_date)
             self._upsert_request(
                 model=VehicleFuelRequest,
                 organ=organ,
@@ -404,10 +431,12 @@ class Command(BaseCommand):
                 defaults={
                     "request_date": request_date,
                     "status": status,
-                    "completed_at": self._completed_at(request_date) if status == NeedStatus.DONE else None,
+                    "completed_at": resolved_date if status == NeedStatus.DONE else None,
                     "comment": self.rng.choice(FUEL_SCENARIOS),
                 },
                 table_key="vehicle-fuel",
+                request_date=request_date,
+                resolved_date=resolved_date,
             )
             self.stats["Заявки на ГСМ"] += 1
 
@@ -489,7 +518,7 @@ class Command(BaseCommand):
 
         for item_number in range(1, self._requests_count() + 1):
             request_date = self._random_request_date()
-            status = self._pick_status()
+            status, resolved_date = self._lifecycle(request_date)
             self._upsert_request(
                 model=FireDepartmentRequest,
                 organ=organ,
@@ -499,17 +528,19 @@ class Command(BaseCommand):
                 defaults={
                     "request_date": request_date,
                     "status": status,
-                    "completed_at": self._completed_at(request_date) if status == NeedStatus.DONE else None,
+                    "completed_at": resolved_date if status == NeedStatus.DONE else None,
                     "comment": self.rng.choice(FIRE_REQUEST_SCENARIOS),
                 },
                 table_key="fire-requests",
+                request_date=request_date,
+                resolved_date=resolved_date,
             )
             self.stats["Заявки пожарной безопасности"] += 1
 
     def _seed_antiterror(self, organ, user):
         for item_number in range(1, self._requests_count() + 1):
             request_date = self._random_request_date()
-            status = self._pick_status()
+            status, resolved_date = self._lifecycle(request_date)
             self._upsert_request(
                 model=AntiTerrorMeasure,
                 organ=organ,
@@ -519,10 +550,12 @@ class Command(BaseCommand):
                 defaults={
                     "request_date": request_date,
                     "status": status,
-                    "completed_at": self._completed_at(request_date) if status == NeedStatus.DONE else None,
+                    "completed_at": resolved_date if status == NeedStatus.DONE else None,
                     "comment": self.rng.choice(ANTITERROR_SCENARIOS),
                 },
                 table_key="anti-terror",
+                request_date=request_date,
+                resolved_date=resolved_date,
             )
             self.stats["Антитеррористическая укрепленность"] += 1
 
@@ -531,7 +564,7 @@ class Command(BaseCommand):
         for item_number in range(1, self._requests_count() + 1):
             equipment_type = self.rng.choice(equipment_types)
             request_date = self._random_request_date()
-            status = self._pick_status()
+            status, resolved_date = self._lifecycle(request_date)
             self._upsert_request(
                 model=CitsiziEquipment,
                 organ=organ,
@@ -543,10 +576,12 @@ class Command(BaseCommand):
                     "equipment_type": equipment_type,
                     "quantity": self.rng.randint(1, 8),
                     "status": status,
-                    "due_date": self._completed_at(request_date) if status == NeedStatus.DONE else None,
+                    "due_date": resolved_date if status == NeedStatus.DONE else None,
                     "comment": CITSIZI_SCENARIOS[equipment_type],
                 },
                 table_key="citsizi-equipment",
+                request_date=request_date,
+                resolved_date=resolved_date,
             )
             self.stats["Заявки ЦИТСиЗИ"] += 1
 
@@ -573,7 +608,7 @@ class Command(BaseCommand):
 
         for item_number in range(1, self._requests_count() + 1):
             request_date = self._random_request_date()
-            status = self._pick_status()
+            status, resolved_date = self._lifecycle(request_date)
             self._upsert_request(
                 model=BuildingRepairRequest,
                 organ=organ,
@@ -583,14 +618,16 @@ class Command(BaseCommand):
                 defaults={
                     "request_date": request_date,
                     "status": status,
-                    "completed_at": self._completed_at(request_date) if status == NeedStatus.DONE else None,
+                    "completed_at": resolved_date if status == NeedStatus.DONE else None,
                     "comment": self.rng.choice(BUILDING_REPAIR_SCENARIOS),
                 },
                 table_key="building-repair",
+                request_date=request_date,
+                resolved_date=resolved_date,
             )
             self.stats["Заявки текущего ремонта"] += 1
 
-    def _upsert_request(self, model, organ, department, request_number, user, defaults, table_key):
+    def _upsert_request(self, model, organ, department, request_number, user, defaults, table_key, request_date, resolved_date):
         obj = model.objects.filter(territorial_organ=organ, request_number=request_number).first()
         created = obj is None
         if created:
@@ -601,7 +638,7 @@ class Command(BaseCommand):
         obj.full_clean()
         obj.save()
         sync_request_number_registry(obj, department)
-        self._ensure_status_history(obj, table_key, user)
+        self._ensure_status_history(obj, table_key, user, request_date, resolved_date)
         return obj, created
 
     def _upsert_snapshot(self, model, organ, state_date, user, defaults):
@@ -632,23 +669,42 @@ class Command(BaseCommand):
             )
             self.stats["Позиции ТМЦ"] += 1
 
-    def _ensure_status_history(self, obj, table_key, user):
+    def _ensure_status_history(self, obj, table_key, user, request_date, resolved_date):
         if not hasattr(obj, "status"):
             return
         content_type = ContentType.objects.get_for_model(obj, for_concrete_model=False)
         if RequestStatusHistory.objects.filter(content_type=content_type, object_id=obj.pk).exists():
             return
-        completion_field = completed_date_field(table_key)
-        completed_at = getattr(obj, completion_field, None) if obj.status == NeedStatus.DONE else None
-        RequestStatusHistory.objects.create(
+
+        filed_entry = RequestStatusHistory.objects.create(
             content_type=content_type,
             object_id=obj.pk,
             old_status=None,
-            new_status=obj.status,
-            completed_at=completed_at,
+            new_status=NeedStatus.IN_WORK,
+            completed_at=None,
             changed_by=user,
             note="Создано генератором демо-данных",
         )
+        filed_at = self._as_datetime(request_date)
+        RequestStatusHistory.objects.filter(pk=filed_entry.pk).update(changed_at=filed_at)
+        self.stats["Записи истории статусов"] += 1
+
+        if obj.status == NeedStatus.IN_WORK or resolved_date is None:
+            return
+
+        completion_field = completed_date_field(table_key)
+        completed_at = getattr(obj, completion_field, None) if obj.status == NeedStatus.DONE else None
+        resolved_entry = RequestStatusHistory.objects.create(
+            content_type=content_type,
+            object_id=obj.pk,
+            old_status=NeedStatus.IN_WORK,
+            new_status=obj.status,
+            completed_at=completed_at,
+            changed_by=user,
+            note="Статус изменен генератором демо-данных",
+        )
+        resolved_at = self._as_datetime(resolved_date, after=filed_at)
+        RequestStatusHistory.objects.filter(pk=resolved_entry.pk).update(changed_at=resolved_at)
         self.stats["Записи истории статусов"] += 1
 
     def _clear_demo_data(self, organs, user):

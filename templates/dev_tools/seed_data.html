@@ -55,6 +55,14 @@
           <input type="number" min="1" class="form-control" id="days_span" name="days_span" value="180">
         </div>
         <div class="col-sm-6 mb-3">
+          <label class="form-label" for="review_days_max">Срок рассмотрения, макс. дней</label>
+          <input type="number" min="1" class="form-control" id="review_days_max" name="review_days_max" value="14">
+          <div class="form-text">Заявка сначала создается «В работе» и только в пределах этого срока может смениться на «Исполнена»/«Отклонена».</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col-sm-6 mb-3">
           <label class="form-label" for="seed">Random seed</label>
           <input type="number" class="form-control" id="seed" name="seed" placeholder="Случайный (по умолчанию)">
         </div>

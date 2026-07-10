@@ -48,6 +48,7 @@ def dev_seed_start(request):
     requests_max = max(requests_min, _int_or(request.POST.get("requests_per_table_max"), requests_min))
     snapshots = _int_or(request.POST.get("snapshots"), 3)
     days_span = _int_or(request.POST.get("days_span"), 180)
+    review_days_max = _int_or(request.POST.get("review_days_max"), 14)
     seed_raw = request.POST.get("seed", "").strip()
     seed = int(seed_raw) if seed_raw.isdigit() else None
     clear = "clear" in request.POST
@@ -78,6 +79,7 @@ def dev_seed_start(request):
                     requests_per_table_max=requests_max,
                     snapshots=snapshots,
                     days_span=days_span,
+                    review_days_max=review_days_max,
                     seed=seed,
                     clear=clear,
                     progress_callback=progress_callback,
