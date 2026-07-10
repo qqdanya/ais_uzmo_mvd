@@ -171,6 +171,14 @@ class RequestStatusHistory(RequestLinkMixin):
         indexes = [
             models.Index(fields=["content_type", "object_id", "-changed_at"]),
             models.Index(fields=["content_type", "new_status", "changed_at"]),
+            # Covers admin_summary.py's status_history_qs(...).values("object_id")
+            # .distinct().count()/annotate() calls used for the KPI/trend-chart
+            # queries: without object_id in the index, SQLite has to visit every
+            # matching (content_type, new_status) row in the table to read it -
+            # a full row lookup per history entry, tens of thousands of them per
+            # status per table at scale. With it, those queries become pure
+            # index-only scans.
+            models.Index(fields=["content_type", "new_status", "object_id"]),
         ]
 
     def __str__(self):
