@@ -90,12 +90,12 @@
           <span class="folder-card-meta"><i class="bi bi-clock"></i> {{ folder.created_at|date:"d.m.Y H:i" }}</span>
         </div>
       </button>
-      <div class="folder-card-footer">
-        <button class="folder-card-counts" type="button" hx-get="{% url 'photos' organ.pk %}?folder={{ folder.pk }}{% if photo_query %}&q={{ photo_query|urlencode }}{% endif %}{% if photo_sort == 'oldest' %}&sort=oldest{% endif %}{% if photo_item_order == 'photos' %}&order=photos{% endif %}" hx-target="#workspace" hx-swap="innerHTML" aria-label="В папке: {{ folder.photo_count }} фотографий, {{ folder.child_count }} папок">
+      <div class="folder-card-footer" hx-get="{% url 'photos' organ.pk %}?folder={{ folder.pk }}{% if photo_query %}&q={{ photo_query|urlencode }}{% endif %}{% if photo_sort == 'oldest' %}&sort=oldest{% endif %}{% if photo_item_order == 'photos' %}&order=photos{% endif %}" hx-target="#workspace" hx-swap="innerHTML">
+        <span class="folder-card-counts" aria-label="В папке: {{ folder.photo_count }} фотографий, {{ folder.child_count }} папок">
           <span><i class="bi bi-image"></i>{{ folder.photo_count }}</span>
           <span><i class="bi bi-folder2"></i>{{ folder.child_count }}</span>
-        </button>
-        <div class="folder-card-actions">
+        </span>
+        <div class="folder-card-actions" hx-on="click: event.stopPropagation()">
           <a class="btn btn-sm btn-download" data-folder-card-action href="{% url 'photo_folder_download' organ.pk folder.pk %}" data-download-preparing="Подготовка архива..." data-bs-toggle="tooltip" data-bs-title="Скачать папку" aria-label="Скачать папку"><i class="bi bi-download"></i></a>
       {% if folder.can_manage %}
           <button class="btn btn-sm btn-outline-primary" type="button" data-folder-card-action hx-get="{% url 'photo_folder_update' organ.pk folder.pk %}" hx-target="#modal-content" data-open-modal="true" data-bs-toggle="tooltip" data-bs-title="Редактировать папку" aria-label="Редактировать папку"><i class="bi bi-pencil"></i></button>
