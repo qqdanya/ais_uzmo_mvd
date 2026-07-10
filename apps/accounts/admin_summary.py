@@ -1,6 +1,6 @@
 from calendar import monthrange
 from collections import Counter, defaultdict
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Count, Min
@@ -158,6 +158,28 @@ def content_type_for_model(model):
     return ContentType.objects.get_for_model(model, for_concrete_model=False)
 
 
+def _changed_at_bounds(date_from, date_to):
+    """Convert local calendar-date bounds into an aware [start, end)
+    datetime range equivalent to changed_at__date__gte/__lte, but as a raw
+    comparison instead of a per-row local-date extraction.
+
+    changed_at__date__gte/__lte forces SQLite to evaluate a timezone-
+    converting function against every row that matches the rest of the
+    filter before it can even check the date bound - at tens of thousands
+    of rows per (content_type, status), that dwarfs the actual date-ranged
+    result. A plain changed_at >= / < comparison can use a B-tree range
+    scan on the existing (content_type, new_status, changed_at) index
+    instead, letting SQLite skip straight to the matching rows.
+    """
+    start = timezone.make_aware(datetime.combine(date_from, time.min)) if date_from else None
+    end = timezone.make_aware(datetime.combine(date_to + timedelta(days=1), time.min)) if date_to else None
+    return start, end
+
+
+def _period_changed_at_bounds(period):
+    return _changed_at_bounds(period["date_from"], period["date_to"])
+
+
 def status_history_qs(table, qs, status, period=None):
     history = RequestStatusHistory.objects.filter(
         content_type=table.get("content_type") or content_type_for_model(table["model"]),
@@ -165,7 +187,11 @@ def status_history_qs(table, qs, status, period=None):
         new_status=status,
     )
     if period and period["period"] != "all":
-        history = history.filter(changed_at__date__gte=period["date_from"], changed_at__date__lte=period["date_to"])
+        start, end = _period_changed_at_bounds(period)
+        if start:
+            history = history.filter(changed_at__gte=start)
+        if end:
+            history = history.filter(changed_at__lt=end)
     return history
 
 
@@ -243,7 +269,8 @@ def add_status_history_series(counter, table, qs, status, days, has_history=None
     if has_history:
         history = status_history_qs(table, qs, status)
         if day_set:
-            history = history.filter(changed_at__date__gte=days[0], changed_at__date__lte=days[-1])
+            start, end = _changed_at_bounds(days[0], days[-1])
+            history = history.filter(changed_at__gte=start, changed_at__lt=end)
         for row in history.annotate(day=TruncDate("changed_at")).values("day").annotate(total=Count("object_id", distinct=True)):
             if row["day"]:
                 counter[row["day"]] += row["total"]
