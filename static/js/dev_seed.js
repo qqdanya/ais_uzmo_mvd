@@ -72,11 +72,18 @@
 
   function setSubmitting(isSubmitting) {
     const button = document.querySelector("[data-seed-submit]");
-    if (!button) return;
-    button.disabled = isSubmitting;
-    button.innerHTML = isSubmitting
-      ? '<i class="bi bi-hourglass-split"></i> Генерация...'
-      : '<i class="bi bi-play-fill"></i> Сгенерировать';
+    const stopButton = document.querySelector("[data-seed-stop]");
+    if (button) {
+      button.disabled = isSubmitting;
+      button.innerHTML = isSubmitting
+        ? '<i class="bi bi-hourglass-split"></i> Генерация...'
+        : '<i class="bi bi-play-fill"></i> Сгенерировать';
+    }
+    if (stopButton) {
+      stopButton.hidden = !isSubmitting;
+      stopButton.disabled = false;
+      stopButton.innerHTML = '<i class="bi bi-stop-fill"></i> Стоп';
+    }
   }
 
   function pollProgress(onDone) {
@@ -128,6 +135,26 @@
         return;
       }
       pollProgress();
+    });
+
+    const stopButton = document.querySelector("[data-seed-stop]");
+    stopButton?.addEventListener("click", async () => {
+      stopButton.disabled = true;
+      stopButton.innerHTML = '<i class="bi bi-hourglass-split"></i> Останавливаем...';
+      const response = await fetch("/dev/seed/stop/", {
+        method: "POST",
+        headers: { "X-CSRFToken": decodeURIComponent(cookieValue("csrftoken")) },
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        stopButton.disabled = false;
+        stopButton.innerHTML = '<i class="bi bi-stop-fill"></i> Стоп';
+        showResult(`Ошибка: ${data.error || "Не удалось остановить генерацию."}`);
+      }
+      // On success the button stays disabled with "Останавливаем..." until
+      // the next poll tick sees finished:true and setSubmitting(false)
+      // resets it - the stop only takes effect once the seed command
+      // reaches its next territorial-organ boundary.
     });
   }
 

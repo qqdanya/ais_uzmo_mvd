@@ -42,6 +42,7 @@ from apps.requests_app.models import (
     VehicleRepairRequest,
     normalize_product_name,
 )
+from apps.requests_app.dev_state import SeedCancelled
 from apps.requests_app.services.request_numbers import sync_request_number_registry
 from apps.requests_app.services.statuses import completed_date_field
 
@@ -66,7 +67,9 @@ def _chunked(items, size=SQL_IN_CHUNK_SIZE):
 DEMO_USERNAME = "demo_seed_bot"
 
 STATUS_CHOICES = (NeedStatus.IN_WORK, NeedStatus.DONE, NeedStatus.REJECTED)
-STATUS_WEIGHTS = (45, 40, 15)
+DEFAULT_IN_WORK_WEIGHT = 45
+DEFAULT_DONE_WEIGHT = 40
+DEFAULT_REJECTED_WEIGHT = 15
 
 TMC_PRODUCTS = (
     # Канцелярские товары
@@ -242,7 +245,10 @@ class Command(BaseCommand):
         parser.add_argument("--requests-per-table-max", type=int, default=6, help="Maximum number of requests to generate per organ for each request table.")
         parser.add_argument("--snapshots", type=int, default=3, help="How many state-snapshot slices to generate per organ for each state table.")
         parser.add_argument("--days-span", type=int, default=180, help="Spread generated request/snapshot dates across this many days back from today.")
-        parser.add_argument("--review-days-max", type=int, default=14, help="Requests start out 'В работе' and, within this many days, may move to 'Исполнена'/'Отклонена' - never earlier than the day they were filed.")
+        parser.add_argument("--review-days-max", type=int, default=14, help="Requests start out 'В работе'. Within this many days they may move to 'Исполнена'/'Отклонена'; once this many days have passed since filing, they must have resolved by now - no request stays 'В работе' forever.")
+        parser.add_argument("--in-work-weight", type=int, default=DEFAULT_IN_WORK_WEIGHT, help="Relative weight for a request staying 'В работе', while its review window is still open.")
+        parser.add_argument("--done-weight", type=int, default=DEFAULT_DONE_WEIGHT, help="Relative weight for a request resolving to 'Исполнена'.")
+        parser.add_argument("--rejected-weight", type=int, default=DEFAULT_REJECTED_WEIGHT, help="Relative weight for a request resolving to 'Отклонена'.")
         parser.add_argument("--seed", type=int, default=None, help="Random seed for reproducible output. A random one is chosen and reported if omitted.")
         parser.add_argument("--skip-initial-data", action="store_true", help="Do not run seed_initial_data before creating demo records.")
         parser.add_argument("--clear", action="store_true", help="Remove demo records previously created by this command for the selected organs before seeding again.")
@@ -263,6 +269,7 @@ class Command(BaseCommand):
         self.snapshots = max(0, options["snapshots"])
         self.days_span = max(1, options["days_span"])
         self.review_days_max = max(1, options["review_days_max"])
+        self._configure_status_weights(options["in_work_weight"], options["done_weight"], options["rejected_weight"])
         progress_callback = options.get("progress_callback")
 
         user = self._demo_user()
@@ -279,16 +286,25 @@ class Command(BaseCommand):
         # past any other request's busy timeout (session saves on every
         # request, thanks to SESSION_SAVE_EVERY_REQUEST, are themselves
         # writes and will collide with this just as easily as a real write).
+        canceled_after = None
         for index, organ in enumerate(organs, start=1):
             self._seed_organ(organ, user)
             if progress_callback:
-                progress_callback(index, len(organs))
+                try:
+                    progress_callback(index, len(organs))
+                except SeedCancelled:
+                    canceled_after = index
+                    break
 
-        self.stdout.write(self.style.SUCCESS(f"Территориальных органов заполнено: {len(organs)}"))
+        if canceled_after is not None:
+            self.stdout.write(self.style.WARNING(f"Генерация остановлена пользователем после {canceled_after} из {len(organs)} территориальных органов."))
+        else:
+            self.stdout.write(self.style.SUCCESS(f"Территориальных органов заполнено: {len(organs)}"))
         self.stdout.write(self.style.SUCCESS(f"Seed для повторного воспроизведения этого набора данных: {seed}"))
         for key, value in sorted(self.stats.items()):
             self.stdout.write(self.style.SUCCESS(f"{key}: {value}"))
-        self.stdout.write(self.style.SUCCESS("Демо-данные готовы. Повторный запуск не создает дублей."))
+        if canceled_after is None:
+            self.stdout.write(self.style.SUCCESS("Демо-данные готовы. Повторный запуск не создает дублей."))
 
     def _selected_organs(self, organ_ids, limit):
         # Requests are always scoped to a root territorial organ and one of
@@ -343,22 +359,37 @@ class Command(BaseCommand):
             with transaction.atomic():
                 step(organ, user)
 
-    def _pick_status(self):
-        return self.rng.choices(STATUS_CHOICES, weights=STATUS_WEIGHTS, k=1)[0]
+    def _configure_status_weights(self, in_work_weight, done_weight, rejected_weight):
+        in_work_weight, done_weight, rejected_weight = (max(0, w) for w in (in_work_weight, done_weight, rejected_weight))
+        if in_work_weight + done_weight + rejected_weight <= 0:
+            in_work_weight, done_weight, rejected_weight = DEFAULT_IN_WORK_WEIGHT, DEFAULT_DONE_WEIGHT, DEFAULT_REJECTED_WEIGHT
+        self.status_weights = (in_work_weight, done_weight, rejected_weight)
+        # Forced resolutions (see _lifecycle) only ever choose between DONE
+        # and REJECTED - fall back to an even split if the user zeroed out
+        # both, so a forced resolution still has something to pick from.
+        self.resolved_weights = (done_weight, rejected_weight) if done_weight + rejected_weight > 0 else (1, 1)
 
     def _random_request_date(self):
         return timezone.localdate() - timedelta(days=self.rng.randint(0, self.days_span))
 
     def _lifecycle(self, request_date):
-        """Every request is filed as "В работе"; only some of them go on to
-        resolve into "Исполнена"/"Отклонена" within review_days_max days -
-        never before the day they were filed, never after today. The rest
-        realistically stay open, same as a live backlog would.
+        """Every request is filed as "В работе". Within review_days_max days
+        it may resolve into "Исполнена"/"Отклонена"; once that many days
+        have passed since filing, the review window has definitely closed,
+        so it must have resolved by now - no request stays "В работе"
+        forever. Requests filed too recently for the window to have closed
+        yet may still legitimately be open, same as a live backlog would.
         """
-        status = self._pick_status()
+        today = timezone.localdate()
+        elapsed = (today - request_date).days
+        if elapsed >= self.review_days_max:
+            status = self.rng.choices((NeedStatus.DONE, NeedStatus.REJECTED), weights=self.resolved_weights, k=1)[0]
+        else:
+            status = self.rng.choices(STATUS_CHOICES, weights=self.status_weights, k=1)[0]
         if status == NeedStatus.IN_WORK:
             return status, None
-        resolved_date = min(request_date + timedelta(days=self.rng.randint(1, self.review_days_max)), timezone.localdate())
+        max_delay = min(self.review_days_max, max(elapsed, 1))
+        resolved_date = min(request_date + timedelta(days=self.rng.randint(1, max_delay)), today)
         return status, resolved_date
 
     def _as_datetime(self, date_value, *, after=None):

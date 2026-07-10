@@ -3,7 +3,7 @@
 {% block title %}Генератор демо-данных — АИС УЗМО{% endblock %}
 {% block content %}
 <div class="container-fluid py-3 admin-command-page">
-  <div class="panel admin-command-panel" style="max-width: 720px; margin: 0 auto;">
+  <div class="panel admin-command-panel">
     <h2><i class="bi bi-database-fill-gear"></i> Генератор демо-данных</h2>
     <p class="text-secondary">
       Доступно только в режиме разработки (DEBUG). Наполняет базу реалистичными
@@ -55,10 +55,26 @@
           <input type="number" min="1" class="form-control" id="days_span" name="days_span" value="180">
         </div>
         <div class="col-sm-6 mb-3">
-          <label class="form-label" for="review_days_max">Срок рассмотрения, макс. дней</label>
+          <label class="form-label" for="review_days_max">Срок в работе, макс. дней</label>
           <input type="number" min="1" class="form-control" id="review_days_max" name="review_days_max" value="14">
-          <div class="form-text">Заявка сначала создается «В работе» и только в пределах этого срока может смениться на «Исполнена»/«Отклонена».</div>
+          <div class="form-text">Заявка сначала создается «В работе». В пределах этого срока она может смениться на «Исполнена»/«Отклонена», а по его истечении обязательно получает один из этих статусов — «В работе» дольше этого срока не висит.</div>
         </div>
+      </div>
+
+      <div class="row">
+        <div class="col-sm-4 mb-3">
+          <label class="form-label" for="in_work_weight">Вес: остается «В работе»</label>
+          <input type="number" min="0" class="form-control" id="in_work_weight" name="in_work_weight" value="45">
+        </div>
+        <div class="col-sm-4 mb-3">
+          <label class="form-label" for="done_weight">Вес: «Исполнена»</label>
+          <input type="number" min="0" class="form-control" id="done_weight" name="done_weight" value="40">
+        </div>
+        <div class="col-sm-4 mb-3">
+          <label class="form-label" for="rejected_weight">Вес: «Отклонена»</label>
+          <input type="number" min="0" class="form-control" id="rejected_weight" name="rejected_weight" value="15">
+        </div>
+        <div class="form-text col-12 mb-3" style="margin-top: -.75rem;">Относительные веса при выборе исхода заявки — суммироваться к 100 не обязаны, важно только их соотношение.</div>
       </div>
 
       <div class="row">
@@ -73,7 +89,10 @@
         <label class="form-check-label" for="clear">Сначала удалить ранее сгенерированные демо-данные</label>
       </div>
 
-      <button type="submit" class="btn btn-primary" data-seed-submit><i class="bi bi-play-fill"></i> Сгенерировать</button>
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary" data-seed-submit><i class="bi bi-play-fill"></i> Сгенерировать</button>
+        <button type="button" class="btn btn-outline-danger" data-seed-stop hidden><i class="bi bi-stop-fill"></i> Стоп</button>
+      </div>
     </form>
 
     <div class="mt-3" data-seed-progress-wrap hidden>
@@ -92,5 +111,5 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="{% static 'js/dev_seed.js' %}?v=20260709-001"></script>
+<script src="{% static 'js/dev_seed.js' %}?v=20260710-001"></script>
 {% endblock %}

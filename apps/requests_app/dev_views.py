@@ -16,11 +16,12 @@ from django.views.decorators.http import require_http_methods
 from apps.accounts.views import admin_required
 from apps.directory.models import TerritorialOrgan
 
-from .dev_state import DEV_SEED_PROGRESS_CACHE_KEY
+from .dev_state import DEV_SEED_CANCEL_CACHE_KEY, DEV_SEED_PROGRESS_CACHE_KEY, SeedCancelled
 
 SQLITE_LOCK_RETRY_ATTEMPTS = 3
 
 PROGRESS_CACHE_KEY = DEV_SEED_PROGRESS_CACHE_KEY
+CANCEL_CACHE_KEY = DEV_SEED_CANCEL_CACHE_KEY
 PROGRESS_CACHE_TIMEOUT = 3600
 IDLE_PROGRESS = {"running": False, "done": 0, "total": 0, "finished": False, "output": None, "error": None}
 
@@ -49,16 +50,22 @@ def dev_seed_start(request):
     snapshots = _int_or(request.POST.get("snapshots"), 3)
     days_span = _int_or(request.POST.get("days_span"), 180)
     review_days_max = _int_or(request.POST.get("review_days_max"), 14)
+    in_work_weight = _int_or(request.POST.get("in_work_weight"), 45)
+    done_weight = _int_or(request.POST.get("done_weight"), 40)
+    rejected_weight = _int_or(request.POST.get("rejected_weight"), 15)
     seed_raw = request.POST.get("seed", "").strip()
     seed = int(seed_raw) if seed_raw.isdigit() else None
     clear = "clear" in request.POST
 
+    cache.delete(CANCEL_CACHE_KEY)
     cache.set(PROGRESS_CACHE_KEY, {**IDLE_PROGRESS, "running": True, "total": len(organ_ids) or 1}, PROGRESS_CACHE_TIMEOUT)
 
     def progress_callback(done, total):
         state = cache.get(PROGRESS_CACHE_KEY) or dict(IDLE_PROGRESS)
         state.update(running=True, done=done, total=total)
         cache.set(PROGRESS_CACHE_KEY, state, PROGRESS_CACHE_TIMEOUT)
+        if cache.get(CANCEL_CACHE_KEY):
+            raise SeedCancelled
 
     def run():
         # SQLite only ever allows one writer at a time - under just the
@@ -80,6 +87,9 @@ def dev_seed_start(request):
                     snapshots=snapshots,
                     days_span=days_span,
                     review_days_max=review_days_max,
+                    in_work_weight=in_work_weight,
+                    done_weight=done_weight,
+                    rejected_weight=rejected_weight,
                     seed=seed,
                     clear=clear,
                     progress_callback=progress_callback,
@@ -103,6 +113,20 @@ def dev_seed_start(request):
 
     threading.Thread(target=run, daemon=True).start()
     return JsonResponse({"started": True})
+
+
+@admin_required
+@require_http_methods(["POST"])
+def dev_seed_stop(request):
+    current = cache.get(PROGRESS_CACHE_KEY) or IDLE_PROGRESS
+    if not current.get("running"):
+        return JsonResponse({"error": "Генерация не выполняется."}, status=409)
+    # seed_demo_data only checks this between territorial organs (see
+    # progress_callback above), so a stop takes effect after the organ it's
+    # currently on finishes rather than instantly - avoids tearing a
+    # transaction down mid-write.
+    cache.set(CANCEL_CACHE_KEY, True, PROGRESS_CACHE_TIMEOUT)
+    return JsonResponse({"stopping": True})
 
 
 @admin_required
