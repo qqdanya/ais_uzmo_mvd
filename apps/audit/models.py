@@ -26,7 +26,15 @@ class AuditLog(models.Model):
         verbose_name = "запись аудита"
         verbose_name_plural = "журнал действий"
         ordering = ("-created_at",)
-        indexes = [models.Index(fields=["action", "model_name", "created_at"])]
+        indexes = [
+            models.Index(fields=["action", "model_name", "created_at"]),
+            # scope_logs_for_user()/filtered_logs() always narrow by
+            # territorial_organ (non-admins) or user (employee detail,
+            # activity stats) before ordering by -created_at - neither
+            # column's default single-field index covers that combination.
+            models.Index(fields=["territorial_organ", "created_at"]),
+            models.Index(fields=["user", "created_at"]),
+        ]
 
     def __str__(self):
         return f"{self.created_at:%d.%m.%Y %H:%M} {self.get_action_display()} {self.object_repr}"

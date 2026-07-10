@@ -84,19 +84,19 @@ class FailedAttempt(models.Model):
     """
 
     username = models.CharField(max_length=150, db_index=True)
-    attempted_at = models.DateTimeField(auto_now_add=True)
+    attempted_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:
         abstract = True
 
 
 class ActivationAttempt(FailedAttempt):
-    class Meta:
+    class Meta(FailedAttempt.Meta):
         verbose_name = "Попытка активации"
         verbose_name_plural = "Попытки активации"
 
 
 class LoginAttempt(FailedAttempt):
-    class Meta:
+    class Meta(FailedAttempt.Meta):
         verbose_name = "Попытка входа"
         verbose_name_plural = "Попытки входа"

@@ -1,3 +1,4 @@
+from datetime import datetime, time, timedelta
 from functools import wraps
 
 from django.contrib import messages
@@ -161,7 +162,19 @@ def admin_panel(request):
             {"label": "Ожидают активации", "value": len(awaiting_activation), "icon": "bi-person-check"},
             {"label": "Территориальных органов", "value": TerritorialOrgan.objects.filter(is_active=True, parent__isnull=True).count(), "icon": "bi-building"},
             {"label": "Заявок в работе", "value": active_requests_count(NeedStatus.IN_WORK), "icon": "bi-clipboard-check"},
-            {"label": "Событий сегодня", "value": AuditLog.objects.filter(created_at__date=today).count(), "icon": "bi-activity"},
+            {
+                "label": "Событий сегодня",
+                # created_at__date=today forces a per-row timezone-converting
+                # function before SQLite/Postgres can even check the date -
+                # a plain [start, end) range on the raw column can use the
+                # created_at index directly instead (same fix as
+                # admin_summary.py's status_history_qs).
+                "value": AuditLog.objects.filter(
+                    created_at__gte=timezone.make_aware(datetime.combine(today, time.min)),
+                    created_at__lt=timezone.make_aware(datetime.combine(today + timedelta(days=1), time.min)),
+                ).count(),
+                "icon": "bi-activity",
+            },
         ],
         "employees": employee_rows(list(users[:12])),
         "awaiting_activation": awaiting_activation[:6],

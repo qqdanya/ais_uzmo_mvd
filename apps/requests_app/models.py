@@ -60,7 +60,7 @@ class TmcRequest(TrackableRequest):
         verbose_name = "заявка ТМЦ"
         verbose_name_plural = "Заявки ТМЦ"
         ordering = ("-request_date", "-created_at")
-        indexes = [models.Index(fields=["territorial_organ", "request_date", "status"])]
+        indexes = [models.Index(fields=["territorial_organ", "is_deleted", "request_date", "status"])]
 
     @property
     def items_summary(self):
@@ -252,7 +252,7 @@ class SimpleStatusRequest(TrackableRequest):
     class Meta:
         abstract = True
         ordering = ("-request_date",)
-        indexes = [models.Index(fields=["territorial_organ", "request_date", "status"])]
+        indexes = [models.Index(fields=["territorial_organ", "is_deleted", "request_date", "status"])]
 
 
 class VehicleRepairRequest(SimpleStatusRequest):
@@ -365,7 +365,7 @@ class AntiTerrorMeasure(TrackableRequest):
         verbose_name = "антитеррористическая укрепленность"
         verbose_name_plural = "Антитеррористическая укрепленность"
         ordering = ("-request_date", "-created_at")
-        indexes = [models.Index(fields=["territorial_organ", "request_date", "status"])]
+        indexes = [models.Index(fields=["territorial_organ", "is_deleted", "request_date", "status"])]
 
     def __str__(self):
         return f"Акт обследования № {self.request_number}" if self.request_number else "Акт обследования"
@@ -393,8 +393,8 @@ class CitsiziEquipment(TrackableRequest):
         verbose_name_plural = "По линии ЦИТСиЗИ"
         ordering = ("-request_date", "-created_at")
         indexes = [
-            models.Index(fields=["territorial_organ", "equipment_type"]),
-            models.Index(fields=["territorial_organ", "request_date", "status"]),
+            models.Index(fields=["territorial_organ", "is_deleted", "equipment_type"]),
+            models.Index(fields=["territorial_organ", "is_deleted", "request_date", "status"]),
         ]
 
     def __str__(self):
