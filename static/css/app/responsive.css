@@ -251,7 +251,8 @@
   }
   .request-photo-summary,
   .request-photo-filters,
-  .request-linked-photo {
+  .request-linked-photo,
+  .photo-edit-preview {
     grid-template-columns: 1fr;
   }
   .request-photo-summary {

@@ -85,7 +85,8 @@
   font-size: .78rem;
 }
 .request-photo-meta strong,
-.request-linked-photo-body strong {
+.request-linked-photo-body strong,
+.photo-edit-preview-body strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
