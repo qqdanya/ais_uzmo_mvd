@@ -107,6 +107,10 @@ def build_table_data_context(request, organ, table, table_key, selected_organs, 
         grouped_summary = tmc_date_grouped_summary(qs, grouped_count) if table_key == "tmc-requests" else request_grouped_summary(qs, date_count=grouped_count)
 
     paginator = Paginator(page_qs, 20)
+    # ``grouped_count`` above has already evaluated the exact count used by
+    # Paginator.  Seed its cached_property so every table load does not issue
+    # the same potentially expensive COUNT(*) a second time.
+    paginator.count = grouped_count
     page = paginator.get_page(request.GET.get("page"))
 
     if table_key in REQUEST_PHOTO_TABLES and not is_request_grouped:

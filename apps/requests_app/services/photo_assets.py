@@ -169,9 +169,13 @@ def photo_gallery_context(request, organ, user, folder_id_override=None):
     querystring = request.GET.copy()
     querystring.pop("page", None)
     folder_path_items = add_folder_content_counts(organ, folder_path(selected_folder))
-    root_photo_count = organ.photos.filter(is_deleted=False, folder__isnull=True).count()
-    root_folder_count = organ.photo_folders.filter(is_deleted=False, parent__isnull=True).count()
-    total_photo_count = organ.photos.filter(is_deleted=False).filter(Q(folder__isnull=True) | Q(folder__is_deleted=False)).count()
+    photo_counts = organ.photos.filter(is_deleted=False).aggregate(
+        root=Count("id", filter=Q(folder__isnull=True)),
+        total=Count("id", filter=Q(folder__isnull=True) | Q(folder__is_deleted=False)),
+    )
+    root_photo_count = photo_counts["root"]
+    root_folder_count = sum(folder.parent_id is None for folder in folders_by_id.values())
+    total_photo_count = photo_counts["total"]
     total_folder_count = len(folders_by_id)
 
     return {

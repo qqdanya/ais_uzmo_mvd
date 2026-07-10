@@ -91,41 +91,52 @@ def request_organ_grouped_rows(qs):
 
 def tmc_grouped_summary(qs, grouped_count):
     items = TmcRequestItem.objects.filter(request__in=qs)
+    request_counts = qs.aggregate(
+        request_count=Count("id"),
+        organ_count=Count("territorial_organ_id", distinct=True),
+    )
     return {
         "position_count": grouped_count,
-        "request_count": qs.count(),
-        "organ_count": qs.values("territorial_organ_id").distinct().count(),
+        "request_count": request_counts["request_count"],
+        "organ_count": request_counts["organ_count"],
         "total_quantity": items.aggregate(total=Sum("quantity")).get("total") or 0,
     }
 
 
 def tmc_organ_grouped_summary(qs, grouped_count):
     items = TmcRequestItem.objects.filter(request__in=qs)
+    item_counts = items.aggregate(position_count=Count("id"), total_quantity=Sum("quantity"))
     return {
         "organ_count": grouped_count,
         "request_count": qs.count(),
-        "position_count": items.count(),
-        "total_quantity": items.aggregate(total=Sum("quantity")).get("total") or 0,
+        "position_count": item_counts["position_count"],
+        "total_quantity": item_counts["total_quantity"] or 0,
     }
 
 
 def tmc_date_grouped_summary(qs, grouped_count):
     items = TmcRequestItem.objects.filter(request__in=qs)
     summary = request_grouped_summary(qs, date_count=grouped_count)
+    item_counts = items.aggregate(position_count=Count("id"), total_quantity=Sum("quantity"))
     summary.update({
         "date_count": grouped_count,
-        "position_count": items.count(),
-        "total_quantity": items.aggregate(total=Sum("quantity")).get("total") or 0,
+        "position_count": item_counts["position_count"],
+        "total_quantity": item_counts["total_quantity"] or 0,
     })
     return summary
 
 
 def request_grouped_summary(qs, date_count=None, organ_count=None):
-    summary = request_status_stats(qs)
+    summary = qs.aggregate(
+        in_work_count=Count("id", filter=Q(status=NeedStatus.IN_WORK)),
+        done_count=Count("id", filter=Q(status=NeedStatus.DONE)),
+        rejected_count=Count("id", filter=Q(status=NeedStatus.REJECTED)),
+        request_count=Count("id"),
+        **({} if organ_count is not None else {"organ_count": Count("territorial_organ_id", distinct=True)}),
+    )
     summary.update(
         {
-            "request_count": qs.count(),
-            "organ_count": organ_count if organ_count is not None else qs.values("territorial_organ_id").distinct().count(),
+            "organ_count": organ_count if organ_count is not None else summary["organ_count"],
         }
     )
     if date_count is not None:
