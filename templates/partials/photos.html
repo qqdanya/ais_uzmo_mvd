@@ -91,10 +91,10 @@
         </div>
       </button>
       <div class="folder-card-footer">
-        <span class="folder-card-counts" aria-label="В папке: {{ folder.photo_count }} фотографий, {{ folder.child_count }} папок">
+        <button class="folder-card-counts" type="button" hx-get="{% url 'photos' organ.pk %}?folder={{ folder.pk }}{% if photo_query %}&q={{ photo_query|urlencode }}{% endif %}{% if photo_sort == 'oldest' %}&sort=oldest{% endif %}{% if photo_item_order == 'photos' %}&order=photos{% endif %}" hx-target="#workspace" hx-swap="innerHTML" aria-label="В папке: {{ folder.photo_count }} фотографий, {{ folder.child_count }} папок">
           <span><i class="bi bi-image"></i>{{ folder.photo_count }}</span>
           <span><i class="bi bi-folder2"></i>{{ folder.child_count }}</span>
-        </span>
+        </button>
         <div class="folder-card-actions">
           <a class="btn btn-sm btn-download" data-folder-card-action href="{% url 'photo_folder_download' organ.pk folder.pk %}" data-download-preparing="Подготовка архива..." data-bs-toggle="tooltip" data-bs-title="Скачать папку" aria-label="Скачать папку"><i class="bi bi-download"></i></a>
       {% if folder.can_manage %}

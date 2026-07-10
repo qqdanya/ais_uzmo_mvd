@@ -244,6 +244,10 @@ function registerHtmxLifecycle() {
       }
     }
     if (typeof syncActiveDownloadButtons === "function") syncActiveDownloadButtons(event.detail.target);
+    if (typeof syncFolderPickerBox === "function") {
+      const folderPickerBox = event.detail.target.closest?.("[data-folder-picker-box]");
+      if (folderPickerBox) syncFolderPickerBox(folderPickerBox);
+    }
     applyCollapsedPanels();
     scrollAfterPaginationSwap(event);
   });

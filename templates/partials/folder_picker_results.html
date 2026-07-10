@@ -1,4 +1,4 @@
-<div class="request-photo-folder-browser">
+<div class="request-photo-folder-browser" data-folder-picker-current-id="{{ folder_picker_folder }}" data-folder-picker-current-label="{{ folder_picker_current_label }}">
   <div class="request-photo-breadcrumb" aria-label="Расположение папки">
     <button class="btn btn-sm request-photo-folder-crumb {% if not folder_picker_folder %}btn-primary{% else %}btn-outline-primary{% endif %}" type="button" hx-get="{% url 'folder_picker' organ.pk %}?exclude={{ folder_picker_exclude }}&field_name={{ field_name }}" hx-target="closest [data-folder-picker-panel]" hx-swap="innerHTML" hx-include="#folder-picker-search-{{ field_name }}">
       <span><i class="bi bi-house"></i> Корень</span>
@@ -17,10 +17,6 @@
       {% endif %}
     {% endfor %}
   </div>
-
-  <button class="btn btn-sm btn-primary folder-picker-select-here" type="button" data-folder-picker-select data-folder-id="{{ folder_picker_folder }}" data-folder-label="{{ folder_picker_current_label }}">
-    <i class="bi bi-check2-circle"></i> Выбрать текущую папку («{{ folder_picker_current_label }}»)
-  </button>
 
   {% if folder_picker_child_folders %}
     <div class="request-photo-folder-grid">

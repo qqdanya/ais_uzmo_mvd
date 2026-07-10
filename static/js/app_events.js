@@ -252,12 +252,6 @@ function registerAppEventHandlers() {
       return;
     }
 
-    const folderPickerSelect = event.target.closest("[data-folder-picker-select]");
-    if (folderPickerSelect) {
-      selectFolderPickerDestination(folderPickerSelect);
-      return;
-    }
-
     const addTmcItem = event.target.closest("[data-add-tmc-item]");
     if (addTmcItem) {
       const list = addTmcItem.closest("[data-tmc-request-form]")?.querySelector("[data-tmc-items]");
