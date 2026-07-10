@@ -18,7 +18,7 @@ from .services.photo_responses import (
     photo_preview_response,
     photo_thumbnail_response,
     photos_download_all_response,
-    render_photos,
+    photos_response,
 )
 from .services.record_forms import record_delete_response, record_form_response
 from .services.request_photo_panels import (
@@ -153,9 +153,7 @@ def export_table(request, organ_id, table_key, fmt):
 @login_required
 def photos(request, organ_id):
     organ = get_object_or_404(TerritorialOrgan, pk=organ_id, is_active=True)
-    if not can_view(request.user, organ):
-        return render(request, "partials/no_organ_access.html", {"organ": organ})
-    return render_photos(request, organ)
+    return photos_response(request, organ)
 
 
 @login_required

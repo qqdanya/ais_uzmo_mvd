@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Фотографии — {{ organ.name }} — АИС УЗМО{% endblock %}
+{% block content %}
+<div class="container-fluid py-3">
+  <a class="btn btn-sm btn-outline-secondary mb-3" href="{% url 'dashboard' %}"><i class="bi bi-arrow-left"></i> На главную</a>
+  <div id="workspace">
+    {% if no_access %}
+      {% include "partials/no_organ_access.html" %}
+    {% else %}
+      {% include "partials/photos.html" %}
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+{% block extra_scripts %}{% include "partials/scripts/dashboard_scripts.html" %}{% endblock %}

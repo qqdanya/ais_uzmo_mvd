@@ -29,6 +29,22 @@ def render_photos(request, organ, folder_id_override=None):
     return render(request, "partials/photos.html", photo_gallery_context(request, organ, request.user, folder_id_override))
 
 
+def photos_response(request, organ):
+    # /organs/<id>/photos/ is reachable two ways: an htmx swap into #workspace
+    # from within the dashboard shell (existing behaviour, unchanged), or a
+    # direct/bookmarked/shared visit - which needs the full page (header,
+    # nav, static assets) since partials/photos.html is a bare fragment with
+    # no <html>/<head> of its own.
+    is_htmx = bool(request.headers.get("HX-Request"))
+    if not can_view(request.user, organ):
+        if is_htmx:
+            return render(request, "partials/no_organ_access.html", {"organ": organ})
+        return render(request, "photos_page.html", {"organ": organ, "no_access": True})
+    if is_htmx:
+        return render_photos(request, organ)
+    return render(request, "photos_page.html", {**photo_gallery_context(request, organ, request.user), "no_access": False})
+
+
 def photo_download_response(request, organ, pk):
     if not can_view(request.user, organ):
         raise Http404

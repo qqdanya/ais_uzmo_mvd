@@ -525,6 +525,35 @@ class PhotoAssetTests(RequestAppTestCase):
             self.assertTrue(any(name.startswith("Child/") and name.endswith("folder-child-download.png") for name in names))
             self.assertFalse(any("outside-marker" in name for name in names))
 
+    def test_photos_direct_visit_renders_full_page_htmx_returns_fragment(self):
+        # /organs/<id>/photos/ is a real, shareable URL - a direct/bookmarked
+        # visit (no HX-Request header) must render a full page (base.html's
+        # header/nav/static assets), not the bare partials/photos.html
+        # fragment htmx swaps into #workspace.
+        self.create_photo("shared-link.png")
+        self.client.login(username="operator", password="pass12345")
+
+        direct_response = self.client.get(reverse("photos", args=[self.organ.pk]))
+        self.assertEqual(direct_response.status_code, 200)
+        self.assertContains(direct_response, "<!doctype html>")
+        self.assertContains(direct_response, "shared-link.png")
+        self.assertContains(direct_response, 'id="workspace"')
+
+        htmx_response = self.client.get(reverse("photos", args=[self.organ.pk]), HTTP_HX_REQUEST="true")
+        self.assertEqual(htmx_response.status_code, 200)
+        self.assertNotContains(htmx_response, "<!doctype html>")
+        self.assertContains(htmx_response, "shared-link.png")
+
+    def test_photos_direct_visit_without_access_shows_full_page_message(self):
+        other_organ = TerritorialOrgan.objects.create(name="Foreign territorial organ for deep link", order_number=2)
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("photos", args=[other_organ.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "<!doctype html>")
+        self.assertContains(response, "Нет доступа к этому территориальному органу")
+
     def test_photos_are_paginated_and_filterable(self):
         for index in range(25):
             photo = self.create_photo(f"photo-{index}.png")
