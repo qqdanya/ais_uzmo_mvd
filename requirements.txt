@@ -24,6 +24,8 @@ psycopg[binary]==3.3.4
     # via -r requirements.in
 psycopg-binary==3.3.4
     # via psycopg
+redis==7.1.0
+    # via -r requirements.in
 sqlparse==0.5.5
     # via django
 tzdata==2026.2

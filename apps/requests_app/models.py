@@ -60,7 +60,10 @@ class TmcRequest(TrackableRequest):
         verbose_name = "заявка ТМЦ"
         verbose_name_plural = "Заявки ТМЦ"
         ordering = ("-request_date", "-created_at")
-        indexes = [models.Index(fields=["territorial_organ", "is_deleted", "request_date", "status"])]
+        indexes = [
+            models.Index(fields=["territorial_organ", "is_deleted", "request_date", "status"]),
+            models.Index(fields=["territorial_organ", "is_deleted", "-request_date", "-created_at", "-id"]),
+        ]
 
     @property
     def items_summary(self):
@@ -252,7 +255,10 @@ class SimpleStatusRequest(TrackableRequest):
     class Meta:
         abstract = True
         ordering = ("-request_date",)
-        indexes = [models.Index(fields=["territorial_organ", "is_deleted", "request_date", "status"])]
+        indexes = [
+            models.Index(fields=["territorial_organ", "is_deleted", "request_date", "status"]),
+            models.Index(fields=["territorial_organ", "is_deleted", "-request_date", "-created_at", "-id"]),
+        ]
 
 
 class VehicleRepairRequest(SimpleStatusRequest):
@@ -365,7 +371,10 @@ class AntiTerrorMeasure(TrackableRequest):
         verbose_name = "антитеррористическая укрепленность"
         verbose_name_plural = "Антитеррористическая укрепленность"
         ordering = ("-request_date", "-created_at")
-        indexes = [models.Index(fields=["territorial_organ", "is_deleted", "request_date", "status"])]
+        indexes = [
+            models.Index(fields=["territorial_organ", "is_deleted", "request_date", "status"]),
+            models.Index(fields=["territorial_organ", "is_deleted", "-request_date", "-created_at", "-id"]),
+        ]
 
     def __str__(self):
         return f"Акт обследования № {self.request_number}" if self.request_number else "Акт обследования"
@@ -395,6 +404,7 @@ class CitsiziEquipment(TrackableRequest):
         indexes = [
             models.Index(fields=["territorial_organ", "is_deleted", "equipment_type"]),
             models.Index(fields=["territorial_organ", "is_deleted", "request_date", "status"]),
+            models.Index(fields=["territorial_organ", "is_deleted", "-request_date", "-created_at", "-id"]),
         ]
 
     def __str__(self):

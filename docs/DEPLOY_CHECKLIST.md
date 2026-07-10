@@ -33,6 +33,10 @@ CSRF_COOKIE_SECURE=True
 
 Production должен использовать PostgreSQL через `DATABASE_URL`. SQLite подходит только для локальной разработки и тестов.
 
+Для общего кэша всех Gunicorn workers должен быть запущен Redis, а `REDIS_URL`
+в `.env` должен указывать на отдельную базу Redis, например
+`redis://127.0.0.1:6379/1`.
+
 Проверить:
 
 - база создана;

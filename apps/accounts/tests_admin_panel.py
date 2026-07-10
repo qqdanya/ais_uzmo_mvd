@@ -1581,7 +1581,7 @@ class PerformanceRegressionTests(AdminPanelTestMixin, TestCase):
             )
 
     def test_admin_requests_panel_query_count_has_a_ceiling(self):
-        # Measured 41 queries for 10 seeded requests at write time - this
+        # Measured 38 queries for 10 seeded requests at write time - this
         # page scans every request table (not just tmc-requests) to build
         # the combined registry view.
         self.seed_tmc_requests()
@@ -1591,10 +1591,12 @@ class PerformanceRegressionTests(AdminPanelTestMixin, TestCase):
             response = self.client.get(reverse("admin_requests_panel"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertLessEqual(len(queries.captured_queries), 60)
+        self.assertLessEqual(len(queries.captured_queries), 50)
 
     def test_admin_summary_data_query_count_has_a_ceiling(self):
-        # Measured 102 queries for 10 seeded requests at write time - this
+        # Measured 78 queries for 10 seeded requests after consolidating the
+        # total/in-work/stale/department-load scans into one aggregate per
+        # request table. This
         # endpoint aggregates KPI/dynamics/org-chart/department-load/attention
         # across every request table, so it's naturally the heaviest page
         # in the app (already reduced from 139 in an earlier optimization
@@ -1606,7 +1608,7 @@ class PerformanceRegressionTests(AdminPanelTestMixin, TestCase):
             response = self.client.get(reverse("admin_summary_data"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertLessEqual(len(queries.captured_queries), 130)
+        self.assertLessEqual(len(queries.captured_queries), 100)
 
 
 class AdminTrashPanelTests(AdminPanelTestMixin, TestCase):

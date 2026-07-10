@@ -39,12 +39,27 @@ def assign_photo_asset_author(obj, user):
 
 
 def photo_folder_descendant_ids(folder):
-    folder_ids = [folder.pk]
+    # Load the small adjacency list once. The former breadth-first loop made
+    # one query per nesting level, which became unexpectedly expensive for
+    # deeply organised photo archives.
+    children_by_parent = {}
+    rows = TerritorialOrganPhotoFolder.objects.filter(
+        territorial_organ_id=folder.territorial_organ_id,
+        is_deleted=False,
+    ).values_list("pk", "parent_id")
+    for pk, parent_id in rows:
+        children_by_parent.setdefault(parent_id, []).append(pk)
+
+    folder_ids = []
     pending = [folder.pk]
+    seen = set()
     while pending:
-        child_ids = list(TerritorialOrganPhotoFolder.objects.filter(parent_id__in=pending, is_deleted=False).values_list("pk", flat=True))
-        folder_ids.extend(child_ids)
-        pending = child_ids
+        pk = pending.pop()
+        if pk in seen:
+            continue
+        seen.add(pk)
+        folder_ids.append(pk)
+        pending.extend(children_by_parent.get(pk, ()))
     return folder_ids
 
 

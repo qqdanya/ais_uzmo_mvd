@@ -20,7 +20,7 @@ ssh root@SERVER_IP
 
 ```bash
 apt update && apt upgrade -y
-apt install -y python3 python3-venv python3-pip git nginx postgresql postgresql-contrib build-essential libpq-dev
+apt install -y python3 python3-venv python3-pip git nginx postgresql postgresql-contrib redis-server build-essential libpq-dev
 ```
 
 ## 2. Системный пользователь

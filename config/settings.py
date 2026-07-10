@@ -58,6 +58,12 @@ TEMPLATES = [
 ]
 
 DATABASES = {"default": env.db("DATABASE_URL", default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}")}
+if "postgresql" in DATABASES["default"]["ENGINE"]:
+    # Reuse connections between requests instead of paying for a PostgreSQL
+    # TCP/authentication handshake on every view. Health checks make a worker
+    # recover cleanly after a database restart or connection timeout.
+    DATABASES["default"]["CONN_MAX_AGE"] = env.int("DB_CONN_MAX_AGE", default=60)
+    DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
 if "sqlite3" in DATABASES["default"]["ENGINE"]:
     # Default busy timeout is 5s - a long-running write (e.g. the demo data
     # generator) can hold SQLite's single writer lock past that under any
@@ -112,9 +118,29 @@ LOGIN_REDIRECT_URL = "dashboard"
 LOGOUT_REDIRECT_URL = "login"
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_AGE = 60 * 60 * 24
-SESSION_SAVE_EVERY_REQUEST = True
+# Authentication already updates the session when its contents change.
+# Saving every read-only request adds an unnecessary database UPDATE and is
+# especially costly for polling/HTMX endpoints.
+SESSION_SAVE_EVERY_REQUEST = False
 CSRF_COOKIE_HTTPONLY = False
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+REDIS_URL = env("REDIS_URL", default="").strip()
+CACHES = {
+    "default": (
+        {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": REDIS_URL,
+            "KEY_PREFIX": env("CACHE_KEY_PREFIX", default="ais_uzmo"),
+            "TIMEOUT": env.int("CACHE_DEFAULT_TIMEOUT", default=300),
+        }
+        if REDIS_URL
+        else {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "ais-uzmo-local",
+        }
+    )
+}
 
 if not DEBUG:
     SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=True)

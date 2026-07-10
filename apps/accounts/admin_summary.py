@@ -3,7 +3,7 @@ from collections import Counter, defaultdict
 from datetime import datetime, time, timedelta
 
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Count, Min
+from django.db.models import Count, Min, Q
 from django.db.models.functions import TruncDate
 from django.urls import reverse
 from django.utils import timezone
@@ -130,6 +130,18 @@ def apply_request_period(qs, period):
     if period["date_to"]:
         qs = qs.filter(request_date__lte=period["date_to"])
     return qs
+
+
+def request_period_q(period):
+    """Q equivalent of apply_request_period, usable inside filtered aggregates."""
+    condition = Q()
+    if period["period"] == "all":
+        return condition
+    if period["date_from"]:
+        condition &= Q(request_date__gte=period["date_from"])
+    if period["date_to"]:
+        condition &= Q(request_date__lte=period["date_to"])
+    return condition
 
 
 def apply_date_period(qs, field_name, period):
@@ -293,18 +305,33 @@ def stale_cutoff_date():
     return subtract_business_days_inclusive(timezone.localdate(), get_request_stale_workdays() + 1)
 
 
-def build_kpi(tables, organs, period, history_flags=None):
-    totals = Counter()
+def table_base_metrics(tables, organs, period):
+    """Fetch total/in-work/stale counters with one scan per request table."""
+    period_filter = request_period_q(period)
     stale_before = stale_cutoff_date()
+    return {
+        table["key"]: base_queryset(table, organs).aggregate(
+            total=Count("pk", filter=period_filter),
+            in_work=Count("pk", filter=Q(status=NeedStatus.IN_WORK)),
+            stale=Count("pk", filter=Q(status=NeedStatus.IN_WORK, request_date__lte=stale_before)),
+        )
+        for table in tables
+    }
+
+
+def build_kpi(tables, organs, period, history_flags=None, base_metrics=None):
+    totals = Counter()
+    base_metrics = base_metrics or table_base_metrics(tables, organs, period)
     for table in tables:
         qs = base_queryset(table, organs)
-        totals["total"] += apply_request_period(qs, period).count()
-        totals["in_work"] += qs.filter(status=NeedStatus.IN_WORK).count()
+        metrics = base_metrics[table["key"]]
+        totals["total"] += metrics["total"]
+        totals["in_work"] += metrics["in_work"]
         done_flag = history_flags.get((table["key"], NeedStatus.DONE)) if history_flags else None
         rejected_flag = history_flags.get((table["key"], NeedStatus.REJECTED)) if history_flags else None
         totals["done"] += count_status_changed(table, qs, NeedStatus.DONE, period, done_flag)
         totals["rejected"] += count_status_changed(table, qs, NeedStatus.REJECTED, period, rejected_flag)
-        totals["stale"] += qs.filter(status=NeedStatus.IN_WORK, request_date__lte=stale_before).count()
+        totals["stale"] += metrics["stale"]
     return {
         "total": totals["total"],
         "in_work": totals["in_work"],
@@ -381,11 +408,12 @@ def active_departments_by_slug():
     return {item.slug: item.name for item in Department.objects.filter(is_active=True)}
 
 
-def build_department_load(tables, organs):
+def build_department_load(tables, organs, base_metrics=None):
     departments = active_departments_by_slug()
     rows_by_department = defaultdict(int)
     for table in tables:
-        rows_by_department[table["department"]] += base_queryset(table, organs).filter(status=NeedStatus.IN_WORK).count()
+        in_work = base_metrics[table["key"]]["in_work"] if base_metrics else base_queryset(table, organs).filter(status=NeedStatus.IN_WORK).count()
+        rows_by_department[table["department"]] += in_work
     rows = [
         {"slug": slug, "name": departments.get(slug, slug), "value": value}
         for slug, value in rows_by_department.items()
@@ -473,14 +501,15 @@ def build_summary_payload(request, metric="in_work", *, available_organs=None, t
     organs = selected_organs(request, available_organs)
     tables = tables if tables is not None else list(request_tables())
     history_flags = status_history_flags(tables, organs)
+    base_metrics = table_base_metrics(tables, organs, period)
     return {
         "period": serialize_period(period),
         "selected_organs": [organ.pk for organ in organs],
         "selected_organs_count": len(organs),
-        "kpi": build_kpi(tables, organs, period, history_flags),
+        "kpi": build_kpi(tables, organs, period, history_flags, base_metrics),
         "dynamics": build_dynamics(tables, organs, period, history_flags),
         "org_chart": build_org_chart(tables, organs, period, metric=metric, history_flags=history_flags),
-        "department_load": build_department_load(tables, organs),
+        "department_load": build_department_load(tables, organs, base_metrics),
         "attention_requests": build_attention_requests(tables, organs),
         "request_stale_workdays": get_request_stale_workdays(),
     }
