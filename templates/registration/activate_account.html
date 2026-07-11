@@ -1,9 +1,10 @@
 {% extends "base.html" %}
+{% load static %}
 {% block content %}
 <div class="auth-wrap">
   <div class="auth-shell">
     <div class="auth-system-title">
-      <div class="auth-system-mark"><i class="bi bi-shield-check"></i></div>
+      <div class="auth-system-mark"><img src="{% static 'img/ais-uzmo-mark.svg' %}" alt="" aria-hidden="true"></div>
       <div>
         <div class="auth-system-name">АИС УЗМО</div>
         <div class="auth-system-subtitle">Активация учетной записи сотрудника</div>

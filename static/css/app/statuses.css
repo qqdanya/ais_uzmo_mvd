@@ -215,6 +215,11 @@
   background: linear-gradient(135deg, var(--navy), var(--blue));
   box-shadow: 0 10px 24px rgba(23,105,170,.18);
 }
+.auth-system-mark img {
+  width: 37px;
+  height: 37px;
+  display: block;
+}
 .auth-system-name {
   color: var(--navy);
   font-size: 1.45rem;

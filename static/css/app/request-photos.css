@@ -34,6 +34,13 @@
 .request-photo-search {
   min-width: 0;
 }
+.folder-picker-box .request-photo-filters {
+  grid-template-columns: minmax(0, 1fr);
+}
+.folder-picker-box .request-photo-search {
+  width: 100%;
+  max-width: none;
+}
 .request-photo-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));

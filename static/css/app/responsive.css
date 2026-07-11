@@ -196,7 +196,7 @@
   }
   .form-grid { grid-template-columns: 1fr; }
   .brand { font-size: .82rem; }
-  .brand-mark { width: 30px; height: 30px; }
+  .brand-mark { width: 36px; height: 32px; border-radius: 8px; }
   .auth-system-name { font-size: 1.3rem; }
   .app-header .header-inner { align-items: flex-start !important; padding-top: .65rem; padding-bottom: .65rem; }
   .header-actions {

@@ -190,10 +190,21 @@
   color: var(--blue);
 }
 .compact-date-toolbar > button:nth-child(2) {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  width: 100%;
+  padding-right: 30px;
+  padding-left: 30px;
+}
+.compact-date-toolbar > button:nth-child(2) .bi {
+  position: absolute;
+  right: 9px;
+  transition: transform .2s var(--motion-smooth);
+}
+.compact-date-toolbar > button:nth-child(2)[aria-expanded="true"] .bi {
+  transform: rotate(180deg);
 }
 .compact-date-jump {
   margin-bottom: 8px;
@@ -253,6 +264,13 @@
 }
 .compact-date-presets-single { grid-template-columns: repeat(2, 1fr); }
 .compact-date-presets button { min-height: 27px; padding: .2rem; font-size: .72rem; }
+.compact-date-presets button:hover,
+.compact-date-presets button:focus-visible {
+  border-color: var(--blue);
+  outline: 0;
+  background: #e5f3fd;
+  color: var(--blue);
+}
 .table-search-box {
   flex: 1 1 210px;
   min-width: min(100%, 180px);

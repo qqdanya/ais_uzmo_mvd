@@ -47,6 +47,29 @@
     return second ? `${formatDateDigits(digits.slice(0, 8))} – ${formatDateDigits(second)}` : formatDateDigits(digits);
   }
 
+  // Mirrors native date inputs: clicking anywhere in a date selects the whole
+  // day, month or year segment, ready to be replaced with the next keystroke.
+  function dateSegments(value) {
+    const segments = [];
+    const matcher = /\d{1,2}\.\d{1,2}\.\d{4}/g;
+    let match;
+    while ((match = matcher.exec(value)) !== null) {
+      const offset = match.index;
+      segments.push([offset, offset + 2], [offset + 3, offset + 5], [offset + 6, offset + 10]);
+    }
+    return segments;
+  }
+
+  function selectDateSegment(input, position = input.selectionStart || 0, direction = 0) {
+    const segments = dateSegments(input.value);
+    if (!segments.length) return;
+    let index = segments.findIndex(([start, end]) => position >= start && position <= end);
+    if (index < 0) index = segments.findIndex(([start]) => position < start);
+    if (index < 0) index = segments.length - 1;
+    index = Math.max(0, Math.min(segments.length - 1, index + direction));
+    input.setSelectionRange(segments[index][0], segments[index][1]);
+  }
+
   function initPicker(root) {
     if (root.dataset.dateRangeReady === "true") return;
     root.dataset.dateRangeReady = "true";
@@ -56,6 +79,7 @@
     const toggle = root.querySelector("[data-date-range-toggle]");
     const popover = root.querySelector("[data-date-range-popover]");
     const caption = root.querySelector("[data-date-range-caption]");
+    const captionButton = root.querySelector("[data-date-range-caption-button]");
     const calendar = root.querySelector("[data-date-range-calendar]");
     const jump = root.querySelector("[data-date-range-jump]");
     const yearLabel = root.querySelector("[data-date-range-year]");
@@ -68,6 +92,7 @@
     let pending = null;
     let center = monthStart(start || new Date());
     let pickerYear = center.getFullYear();
+    let segmentEdit = null;
 
     function syncLabel() {
       textInput.value = single ? display(start) : (start && end ? `${display(start)} – ${display(end)}` : "");
@@ -120,7 +145,11 @@
       popover.hidden = !value;
       toggle.setAttribute("aria-expanded", String(value));
       if (value) render();
-      else { jump.hidden = true; pending = null; }
+      else {
+        jump.hidden = true;
+        captionButton?.setAttribute("aria-expanded", "false");
+        pending = null;
+      }
     }
     root.closeDateRangePicker = () => open(false);
 
@@ -160,6 +189,7 @@
       if (event.target.closest("[data-date-range-next]")) { center = addMonths(center, 1); render(); return; }
       if (event.target.closest("[data-date-range-caption-button]")) {
         jump.hidden = !jump.hidden;
+        captionButton?.setAttribute("aria-expanded", String(!jump.hidden));
         pickerYear = center.getFullYear();
         renderJump();
         return;
@@ -167,7 +197,13 @@
       if (event.target.closest("[data-date-range-year-prev]")) { pickerYear -= 1; renderJump(); return; }
       if (event.target.closest("[data-date-range-year-next]")) { pickerYear += 1; renderJump(); return; }
       const month = event.target.closest("[data-date-range-month]");
-      if (month) { center = new Date(pickerYear, Number(month.dataset.dateRangeMonth), 1); jump.hidden = true; render(); return; }
+      if (month) {
+        center = new Date(pickerYear, Number(month.dataset.dateRangeMonth), 1);
+        jump.hidden = true;
+        captionButton?.setAttribute("aria-expanded", "false");
+        render();
+        return;
+      }
       const dayButton = event.target.closest("[data-date-range-day]");
       if (dayButton) {
         const date = parseIso(dayButton.dataset.dateRangeDay);
@@ -193,12 +229,47 @@
       textInput.value = applyDateMask(textInput.value, single);
     });
 
+    textInput.addEventListener("beforeinput", (event) => {
+      if (event.inputType !== "insertText" || !/^\d+$/.test(event.data || "")) return;
+      const segments = dateSegments(textInput.value);
+      const index = segments.findIndex(([start, end]) => textInput.selectionStart === start && textInput.selectionEnd === end);
+      if (index < 0) return;
+      event.preventDefault();
+      const [startAt, endAt] = segments[index];
+      const length = endAt - startAt;
+      const previous = segmentEdit?.index === index ? segmentEdit.digits : "";
+      const digits = (previous + event.data).slice(-length);
+      const replacement = digits.padStart(length, "0");
+      textInput.value = textInput.value.slice(0, startAt) + replacement + textInput.value.slice(endAt);
+      textInput.classList.remove("is-invalid");
+      segmentEdit = digits.length < length ? { index, digits } : null;
+      if (segmentEdit) textInput.setSelectionRange(startAt, endAt);
+      else selectDateSegment(textInput, startAt, 1);
+    });
+
+    textInput.addEventListener("click", () => {
+      segmentEdit = null;
+      selectDateSegment(textInput);
+    });
+
+    textInput.addEventListener("focus", () => {
+      if (textInput.selectionStart === textInput.selectionEnd) selectDateSegment(textInput);
+    });
+
     textInput.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
         event.preventDefault();
         commitManualValue();
       } else if (event.key === "Escape") {
         open(false);
+      } else if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+        const segments = dateSegments(textInput.value);
+        const selectedSegment = segments.some(([start, end]) => textInput.selectionStart === start && textInput.selectionEnd === end);
+        if (selectedSegment) {
+          event.preventDefault();
+          segmentEdit = null;
+          selectDateSegment(textInput, textInput.selectionStart, event.key === "ArrowLeft" ? -1 : 1);
+        }
       }
     });
     textInput.addEventListener("change", commitManualValue);

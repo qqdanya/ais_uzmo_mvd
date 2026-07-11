@@ -128,19 +128,6 @@ def request_photo_picker_context(request, organ, selected_ids):
 
     page = Paginator(qs, REQUEST_PHOTO_PICKER_PAGE_SIZE).get_page(request.GET.get("photo_page"))
     photos = list(page.object_list)
-
-    # Keep already selected photos visible even when the current folder/search filter
-    # would otherwise hide them, so users can always see what remains attached.
-    current_photo_ids = {photo.pk for photo in photos}
-    selected_extra_photos = []
-    if selected_ids:
-        selected_extra_photos = list(
-            available_request_photos(organ)
-            .filter(pk__in=selected_ids)
-            .exclude(pk__in=current_photo_ids)
-            .order_by("-created_at", "-pk")
-        )
-    photos = selected_extra_photos + photos
     for photo in photos:
         photo.is_attached_to_request = photo.pk in selected_ids
 

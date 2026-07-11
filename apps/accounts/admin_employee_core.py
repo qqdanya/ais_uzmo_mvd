@@ -9,7 +9,7 @@ from apps.audit.models import AuditLog
 from apps.directory.models import Department, TerritorialOrgan
 from apps.requests_app.registry import TABLE_BY_KEY
 
-from .admin_common import DEFAULT_PER_PAGE, build_pagination_fields, multiselect_label, query_with, selected_values
+from .admin_common import DEFAULT_PER_PAGE, build_admin_search_q, build_pagination_fields, multiselect_label, query_with, selected_values
 from .models import UserProfile
 
 
@@ -294,12 +294,10 @@ def activation_q(states):
 def apply_employee_search_filter(users, query):
     if not query:
         return users
-    return users.filter(
-        Q(username__icontains=query)
-        | Q(first_name__icontains=query)
-        | Q(last_name__icontains=query)
-        | Q(profile__middle_name__icontains=query)
-    )
+    return users.filter(build_admin_search_q(
+        ("username", "first_name", "last_name", "profile__middle_name"),
+        query,
+    ))
 
 
 def apply_employee_access_filters(users, filters):

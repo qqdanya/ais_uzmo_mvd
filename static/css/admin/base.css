@@ -144,6 +144,10 @@
 }
 .admin-calendar-caption-button .bi {
   font-size: .72rem;
+  transition: transform .2s var(--motion-smooth);
+}
+.admin-calendar-caption-button[aria-expanded="true"] .bi {
+  transform: rotate(180deg);
 }
 .admin-calendar-jump-panel {
   position: absolute;

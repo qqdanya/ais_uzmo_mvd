@@ -23,7 +23,6 @@
 
     <div class="tmc-items-head">
       <div class="form-label mb-0">Позиции заявки</div>
-      <button class="btn btn-sm btn-outline-primary" type="button" data-add-tmc-item><i class="bi bi-plus-lg"></i> Позиция</button>
     </div>
     {% if item_errors %}
       <div class="modal-error-list tmc-item-errors" role="alert">
@@ -55,6 +54,9 @@
         <button class="btn btn-icon danger tmc-item-remove" type="button" data-remove-tmc-item aria-label="Удалить позицию"><i class="bi bi-trash"></i></button>
       </div>
       {% endfor %}
+    </div>
+    <div class="tmc-items-actions">
+      <button class="btn btn-sm btn-outline-primary" type="button" data-add-tmc-item><i class="bi bi-plus-lg"></i> Позиция</button>
     </div>
     {% include "partials/request_photo_picker.html" %}
     {% if form.non_field_errors %}

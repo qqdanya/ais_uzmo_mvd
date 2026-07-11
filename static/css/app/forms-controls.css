@@ -386,6 +386,11 @@ textarea.form-control {
   display: grid;
   gap: 8px;
 }
+.tmc-items-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
 .tmc-item-row {
   display: grid;
   grid-template-columns: minmax(180px, 1fr) minmax(90px, 120px) minmax(80px, 110px) 32px;

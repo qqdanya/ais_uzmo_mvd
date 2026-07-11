@@ -540,6 +540,18 @@ class AdminOrgansDepartmentsPanelTests(AdminPanelTestMixin, TestCase):
 
 
 class AdminEmployeesPanelTests(AdminPanelTestMixin, TestCase):
+    def test_employees_panel_search_is_case_insensitive_for_cyrillic(self):
+        self.login_admin()
+        target = self.User.objects.create_user("case_user", first_name="Марина", last_name="Соколова")
+        profile = UserProfile.objects.create(user=target, role=UserProfile.Role.OPERATOR)
+        profile.allowed_organs.set([self.organ])
+        profile.allowed_departments.set([self.department_tmc])
+
+        response = self.client.get(reverse("admin_employees_panel"), {"q": "соколова"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "case_user")
+
     def test_employees_panel_filters_by_query_and_exposes_presence_url(self):
         self.login_admin()
         target = self.User.objects.create_user("ivanov", first_name="Иван", last_name="Иванов")

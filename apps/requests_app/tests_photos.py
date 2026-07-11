@@ -196,7 +196,7 @@ class PhotoAssetTests(RequestAppTestCase):
         self.assertGreaterEqual(content.count(f'data-lightbox-group="{first_group}"'), 2)
         self.assertGreaterEqual(content.count(f'data-lightbox-group="{second_group}"'), 2)
 
-    def test_request_photo_picker_filters_paginates_and_keeps_selected(self):
+    def test_request_photo_picker_filters_paginates_without_moving_selected_between_folders(self):
         folder = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Evidence")
         selected = self.create_photo("selected-proof.png")
         selected.description = "Already selected"
@@ -215,12 +215,16 @@ class PhotoAssetTests(RequestAppTestCase):
         self.client.login(username="operator", password="pass12345")
 
         response = self.client.get(reverse("request_photo_picker", args=[self.organ.pk]), {"attached_photos": [selected.pk], "photo_q": "folder"})
-        self.assertContains(response, "selected-proof.png")
+        self.assertNotContains(response, "selected-proof.png")
         self.assertContains(response, "folder-proof.png")
         self.assertNotContains(response, "root-proof.png")
 
-        response = self.client.get(reverse("request_photo_picker", args=[self.organ.pk]), {"photo_folder": folder.pk})
+        response = self.client.get(
+            reverse("request_photo_picker", args=[self.organ.pk]),
+            {"photo_folder": folder.pk, "attached_photos": [selected.pk]},
+        )
         self.assertContains(response, "folder-proof.png")
+        self.assertNotContains(response, "selected-proof.png")
         self.assertNotContains(response, "root-proof.png")
 
         response = self.client.get(reverse("request_photo_picker", args=[self.organ.pk]), {"photo_page": 2})

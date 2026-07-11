@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">Эмблема АИС УЗМО</title>
+  <defs>
+    <linearGradient id="shield" x1="12" y1="8" x2="52" y2="57" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#DFF2FF"/>
+    </linearGradient>
+    <linearGradient id="box" x1="21" y1="24" x2="43" y2="43" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#43A9E6"/>
+      <stop offset="1" stop-color="#1769AA"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-15%" width="140%" height="145%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#071D37" flood-opacity=".28"/>
+    </filter>
+  </defs>
+  <path fill="url(#shield)" filter="url(#shadow)" d="M32 4.8 53 12v16.4c0 14.3-8.2 24.6-21 30.8-12.8-6.2-21-16.5-21-30.8V12L32 4.8Z"/>
+  <path fill="#0B2F5B" fill-opacity=".1" d="M32 9.2 49 15v13.1c0 11.7-6.3 20.1-17 25.8-10.7-5.7-17-14.1-17-25.8V15l17-5.8Zm0 2.7-14.4 4.9v11.3c0 9.9 5.1 17.3 14.4 22.6 9.3-5.3 14.4-12.7 14.4-22.6V16.8L32 11.9Z"/>
+  <path fill="#8BD1F3" d="m32 19 12 6-12 6-12-6 12-6Z"/>
+  <path fill="url(#box)" d="m20 25 12 6v15L20 40V25Z"/>
+  <path fill="#0E558D" d="m32 31 12-6v15l-12 6V31Z"/>
+  <path fill="#FFF" fill-opacity=".85" d="m27.3 21.4 12 6 2.6-1.3-12-6-2.6 1.3Z"/>
+  <circle cx="43.8" cy="43.3" r="9.2" fill="#FFF"/>
+  <circle cx="43.8" cy="43.3" r="7.3" fill="#1F8A4C"/>
+  <path fill="none" stroke="#FFF" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.8" d="m39.9 43.2 2.5 2.5 5.2-5.4"/>
+</svg>
