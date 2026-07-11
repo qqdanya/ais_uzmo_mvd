@@ -6,6 +6,7 @@ from django.utils.text import capfirst
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.merge import MergedCellRange
 
 from apps.requests_app.services.downloads import workbook_file_response
 
@@ -37,6 +38,23 @@ def export_cell_value(obj, field):
 
 def export_objects(qs):
     return qs.iterator(chunk_size=1000) if hasattr(qs, "iterator") else qs
+
+
+def fast_merge_cells(ws, start_row, start_column, end_row, end_column):
+    """Merge a cell range without ws.merge_cells()'s O(n) overlap check
+    against every range merged so far - that check turns thousands of merges
+    in a loop into an effectively O(n^2) wall-clock cost (8,000 merges took
+    12s in testing; ~35k TMC requests with multiple items each needs well
+    over 100k merges, which extrapolates to over an hour). Only use this
+    where the caller can guarantee the new range never overlaps a previous
+    one, e.g. merging fixed, non-overlapping columns across disjoint,
+    increasing row blocks - which is the only way tmc_xlsx_response uses it.
+    """
+    start = ws.cell(row=start_row, column=start_column).coordinate
+    end = ws.cell(row=end_row, column=end_column).coordinate
+    mcr = MergedCellRange(ws, f"{start}:{end}")
+    ws.merged_cells.ranges.add(mcr)
+    ws._clean_merge_range(mcr)
 
 
 def export_row_count(rows):
@@ -173,9 +191,9 @@ def tmc_xlsx_response(qs, organ, filename, is_multi_organ=False):
 
         if end_row > start_row:
             if is_multi_organ:
-                ws.merge_cells(start_row=start_row, start_column=1, end_row=end_row, end_column=1)
+                fast_merge_cells(ws, start_row, 1, end_row, 1)
             for column in range(request_start, comment_column + 1):
-                ws.merge_cells(start_row=start_row, start_column=column, end_row=end_row, end_column=column)
+                fast_merge_cells(ws, start_row, column, end_row, column)
 
         for row in range(start_row, end_row + 1):
             for column in range(1, max_column + 1):
