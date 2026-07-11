@@ -473,7 +473,8 @@
   vertical-align: middle;
 }
 .nested-table-tabs {
-  margin-top: -2px;
+  flex: 0 0 auto;
+  margin-top: 0;
   border-bottom-color: #dee2e6;
   overflow-x: auto;
   overflow-y: hidden;
@@ -494,7 +495,6 @@
   font-weight: 400;
   background: #fff;
   border-color: #dee2e6 #dee2e6 #fff;
-  box-shadow: inset 0 2px 0 var(--accent);
 }
 .table-actions-head,
 .table-row-actions {
