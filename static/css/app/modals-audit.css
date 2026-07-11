@@ -635,7 +635,7 @@
 .audit-table-wrap {
   min-height: 0;
   max-height: none;
-  overflow: visible;
+  overflow: auto;
 }
 .audit-table th,
 .audit-table td {

@@ -37,11 +37,11 @@ function panelRect(element) {
   return rect.width && rect.height ? rect : null;
 }
 
-function flipPanelElement(element, firstRect, duration = 440) {
+function flipPanelElement(element, firstRect, duration = 440, scaleWidth = true) {
   const lastRect = panelRect(element);
   if (!firstRect || !lastRect || typeof element.animate !== "function") return null;
   const deltaX = firstRect.left - lastRect.left;
-  const scaleX = firstRect.width / lastRect.width;
+  const scaleX = scaleWidth ? firstRect.width / lastRect.width : 1;
   if (Math.abs(deltaX) < .5 && Math.abs(scaleX - 1) < .001) return null;
   return element.animate(
     [
@@ -88,7 +88,7 @@ async function toggleCollapsedPanel(panel) {
 
     if (!canAnimate) return;
     const animations = [
-      flipPanelElement(workspace, firstRects.workspace),
+      flipPanelElement(workspace, firstRects.workspace, 440, false),
       flipPanelElement(organPanel, firstRects.organs),
       flipPanelElement(departmentPanel, firstRects.departments),
     ].filter(Boolean);
