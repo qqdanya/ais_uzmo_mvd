@@ -198,7 +198,7 @@
 
   function updatePeriodLabel() {
     if (!periodLabel) return;
-    periodLabel.textContent = selectedPeriod === "all" ? "Период: за всё время" : `Период: ${displayDate(selectedStart)} — ${displayDate(selectedEnd)}`;
+    periodLabel.textContent = selectedPeriod === "all" ? "Период: за всё время" : `Период: ${displayDate(selectedStart)} – ${displayDate(selectedEnd)}`;
   }
 
   function renderCalendar() {
@@ -207,7 +207,7 @@
     const today = new Date();
     const months = [addMonths(calendarCenter, -1), calendarCenter, addMonths(calendarCenter, 1)];
     if (calendarCaption) {
-      calendarCaption.textContent = `${MONTHS[months[0].getMonth()]} ${months[0].getFullYear()} — ${MONTHS[months[2].getMonth()]} ${months[2].getFullYear()}`;
+      calendarCaption.textContent = `${MONTHS[months[0].getMonth()]} ${months[0].getFullYear()} – ${MONTHS[months[2].getMonth()]} ${months[2].getFullYear()}`;
     }
     months.forEach((monthDate, index) => {
       const month = document.createElement("div");

@@ -78,7 +78,6 @@ def build_employees_context(request):
         "querystring": query_with(request),
         "pagination_url": reverse("admin_employees_panel"),
         "pagination_fields": pagination_fields(request),
-        "per_page_options": [50, 100],
         "role_options": UserProfile.Role.choices,
         "activity_options": ACTIVITY_OPTIONS.items(),
         "activation_options": ACTIVATION_OPTIONS.items(),

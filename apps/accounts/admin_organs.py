@@ -11,6 +11,7 @@ from apps.directory.models import Department, TerritorialOrgan, TerritorialOrgan
 from apps.requests_app.permissions import can_view
 
 from .admin_common import (
+    DEFAULT_PER_PAGE,
     DEPARTMENT_ICONS,
     REQUEST_STATUS_FILTERS,
     STATUS_BADGE_CLASSES,
@@ -38,7 +39,6 @@ from .admin_common import (
     request_status_counts_by_organ,
     request_title,
     row_matches_view,
-    selected_per_page,
     selected_request_statuses,
     selected_values,
 )
@@ -213,7 +213,7 @@ def org_view_counts(all_rows):
 def pagination_fields(request):
     return build_pagination_fields(
         request,
-        scalar_fields=("date_from", "date_to", "view", "q", "per_page"),
+        scalar_fields=("date_from", "date_to", "view", "q"),
         list_fields=("department", "request_status"),
     )
 
@@ -247,10 +247,9 @@ def build_filters(request, departments):
         "request_status_label": multiselect_label(selected_status_values, "Все статусы", REQUEST_STATUS_FILTERS),
         "view": selected_organs_view(request),
         "query": (request.GET.get("q", "") or "").strip(),
-        "per_page": selected_per_page(request),
+        "per_page": DEFAULT_PER_PAGE,
         "stale_before": subtract_business_days_inclusive(timezone.localdate(), get_request_stale_workdays() + 1),
     }
-    filters["per_page_label"] = f"{filters['per_page']} на странице"
     return filters
 
 
@@ -270,7 +269,6 @@ def build_organs_context(request):
         "filters": filters,
         "departments": departments,
         "request_status_options": [(key, label) for key, label in REQUEST_STATUS_FILTERS.items() if key != "all"],
-        "per_page_options": [50, 100],
         "organs_kpis": build_organs_kpis(all_rows, visible_rows),
         "view_tabs": [
             {

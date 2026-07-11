@@ -1,4 +1,3 @@
-from calendar import monthrange
 from collections import Counter, defaultdict
 from datetime import datetime, time, timedelta
 
@@ -14,7 +13,7 @@ from apps.requests_app.models import NeedStatus, RequestStatusHistory
 from apps.requests_app.permissions import can_view
 from apps.requests_app.registry import TABLES
 
-from .admin_common import request_number
+from .admin_common import month_bounds, request_number
 from .admin_thresholds import get_request_stale_workdays
 from .business_days import business_days_inclusive, subtract_business_days_inclusive
 
@@ -59,12 +58,6 @@ def request_tables():
                 yield _summary_table(table, department_slug)
 
 
-def month_bounds(day):
-    first = day.replace(day=1)
-    last = day.replace(day=monthrange(day.year, day.month)[1])
-    return first, last
-
-
 def parse_period(request):
     today = timezone.localdate()
     requested_period = request.GET.get("period", "")
@@ -87,7 +80,7 @@ def parse_period(request):
         "period": requested_period or "custom",
         "date_from": date_from,
         "date_to": date_to,
-        "label": f"{date_from:%d.%m.%Y} — {date_to:%d.%m.%Y}",
+        "label": f"{date_from:%d.%m.%Y} – {date_to:%d.%m.%Y}",
     }
 
 

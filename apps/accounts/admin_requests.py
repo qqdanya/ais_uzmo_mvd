@@ -16,6 +16,7 @@ from apps.requests_app.registry import TABLE_BY_KEY
 
 from .admin_summary import available_organs_for_user, request_tables, selected_organs
 from .admin_common import (
+    DEFAULT_PER_PAGE,
     DEPARTMENT_ICONS,
     STATUS_BADGE_CLASSES,
     apply_period,
@@ -31,7 +32,6 @@ from .admin_common import (
     query_with,
     request_number,
     request_title,
-    selected_per_page,
     selected_values,
 )
 from .business_days import subtract_business_days_inclusive
@@ -306,7 +306,7 @@ def active_filter_chips(filters, selected_organs_list, available_organs, departm
 
 def pagination_fields(request):
     fields = []
-    for name in ("date_from", "date_to", "q", "per_page"):
+    for name in ("date_from", "date_to", "q"):
         value = request.GET.get(name, "")
         if value:
             fields.append({"name": name, "value": value})
@@ -327,7 +327,7 @@ def build_request_filters(request, departments):
         "department": "",
         "state": "all",
         "query": (request.GET.get("q", "") or "").strip(),
-        "per_page": selected_per_page(request),
+        "per_page": DEFAULT_PER_PAGE,
     }
     filters["department"] = filters["departments"][0] if len(filters["departments"]) == 1 else ""
     filters["state"] = filters["states"][0] if len(filters["states"]) == 1 else "all"
@@ -381,8 +381,6 @@ def build_requests_context(request):
         "status_options": [(key, label) for key, label in STATUS_FILTERS.items() if key != "all"],
         "department_label": multiselect_label(filters["departments"], "Все отделы", department_labels),
         "state_label": multiselect_label(filters["states"], "Все статусы", STATUS_FILTERS),
-        "per_page_label": f"{filters['per_page']} на странице",
-        "per_page_options": [50, 100],
         "request_kpis": request_kpis(counts, avg_completion),
         "page": page,
         "page_links": page_links,

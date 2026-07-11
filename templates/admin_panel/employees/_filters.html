@@ -42,10 +42,6 @@
             {% admin_multiselect name="organ" options=organs selected_values=filters.organs current_label=filter_labels.organs empty_label="Все территориальные органы" value_attr="pk" label_attr="organ_full_name" menu_class="admin-multiselect-menu-wide" %}
           </div>
 
-          <div class="admin-filter-field">
-            <span>На странице</span>
-            {% admin_multiselect name="per_page" options=per_page_options selected_value=filters.per_page current_label=filter_labels.per_page empty_label="50 на странице" input_type="radio" label_suffix="на странице" menu_class="admin-multiselect-menu-small" %}
-          </div>
           <input type="hidden" name="view" value="{{ filters.view }}">
         </div>
 

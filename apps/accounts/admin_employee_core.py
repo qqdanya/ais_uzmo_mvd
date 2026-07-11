@@ -9,7 +9,7 @@ from apps.audit.models import AuditLog
 from apps.directory.models import Department, TerritorialOrgan
 from apps.requests_app.registry import TABLE_BY_KEY
 
-from .admin_common import build_pagination_fields, multiselect_label, query_with, selected_per_page, selected_values
+from .admin_common import DEFAULT_PER_PAGE, build_pagination_fields, multiselect_label, query_with, selected_values
 from .models import UserProfile
 
 
@@ -252,7 +252,7 @@ def selected_employee_filters(request, departments=None, organs=None):
         "activations": selected_values(request, "activation", ACTIVATION_OPTIONS.keys()),
         "departments": selected_values(request, "department", [department.slug for department in departments]),
         "organs": selected_values(request, "organ", [str(organ.pk) for organ in organs]),
-        "per_page": selected_per_page(request),
+        "per_page": DEFAULT_PER_PAGE,
     }
 
 
@@ -263,7 +263,6 @@ def employee_filter_labels(filters, departments, organs):
         "activations": multiselect_label(filters["activations"], "Любой статус", ACTIVATION_OPTIONS),
         "departments": multiselect_label(filters["departments"], "Все отделы", {department.slug: department.name for department in departments}),
         "organs": multiselect_label(filters["organs"], "Все территориальные органы", {str(organ.pk): organ.name for organ in organs}),
-        "per_page": f"{filters['per_page']} на странице",
     }
 
 
@@ -388,7 +387,7 @@ def tab_count(users, key):
 def pagination_fields(request):
     return build_pagination_fields(
         request,
-        list_fields=("view", "q", "role", "activity", "activation", "department", "organ", "per_page"),
+        list_fields=("view", "q", "role", "activity", "activation", "department", "organ"),
     )
 
 

@@ -1,3 +1,5 @@
+from calendar import monthrange
+
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Count, Max, Q
 from django.utils import timezone
@@ -11,7 +13,6 @@ from .admin_thresholds import get_request_stale_workdays
 from .business_days import business_days_inclusive
 
 
-PER_PAGE_CHOICES = {"50", "100"}
 DEFAULT_PER_PAGE = 50
 COMPLETION_CHUNK_SIZE = 500
 
@@ -48,14 +49,28 @@ COMPUTED_FIELD_LABELS = {
 }
 
 
+def month_bounds(day):
+    first = day.replace(day=1)
+    last = day.replace(day=monthrange(day.year, day.month)[1])
+    return first, last
+
+
 def date_period_from_request(request):
-    """Return normalized date range filters and a human-readable label."""
+    """Return normalized date range filters and a human-readable label.
+
+    Defaults to the current calendar month when neither bound is given -
+    without a default, this page ran an unfiltered query across every
+    request ever created, which is what made it slow to load once a few
+    years of data piled up.
+    """
     date_from = parse_date(request.GET.get("date_from", ""))
     date_to = parse_date(request.GET.get("date_to", ""))
-    if date_from and date_to and date_from > date_to:
+    if not date_from and not date_to:
+        date_from, date_to = month_bounds(timezone.localdate())
+    elif date_from and date_to and date_from > date_to:
         date_from, date_to = date_to, date_from
     if date_from and date_to:
-        label = f"{date_from:%d.%m.%Y} — {date_to:%d.%m.%Y}"
+        label = f"{date_from:%d.%m.%Y} – {date_to:%d.%m.%Y}"
     elif date_from:
         label = f"с {date_from:%d.%m.%Y}"
     elif date_to:
@@ -63,11 +78,6 @@ def date_period_from_request(request):
     else:
         label = "за всё время"
     return {"date_from": date_from, "date_to": date_to, "label": label}
-
-
-def selected_per_page(request):
-    value = request.GET.get("per_page", str(DEFAULT_PER_PAGE))
-    return int(value) if value in PER_PAGE_CHOICES else DEFAULT_PER_PAGE
 
 
 def selected_values(request, name, allowed_values, *, drop_all=True):

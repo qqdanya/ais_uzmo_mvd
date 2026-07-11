@@ -10,6 +10,7 @@ from django.utils import timezone
 from apps.directory.models import Department
 
 from .admin_common import (
+    DEFAULT_PER_PAGE,
     DEPARTMENT_ICONS,
     REQUEST_STATUS_FILTERS,
     STATUS_BADGE_CLASSES,
@@ -36,7 +37,6 @@ from .admin_common import (
     request_status_counts_by_organ,
     request_title,
     row_matches_view,
-    selected_per_page,
     selected_request_statuses,
 )
 from .admin_requests import attach_processing_end_dates
@@ -184,7 +184,7 @@ def department_view_counts(all_rows):
 def pagination_fields(request):
     return build_pagination_fields(
         request,
-        scalar_fields=("date_from", "date_to", "view", "q", "per_page"),
+        scalar_fields=("date_from", "date_to", "view", "q"),
         list_fields=("request_status", "organ_ids"),
         flag_fields=("organ_filter_empty",),
     )
@@ -217,10 +217,9 @@ def build_filters(request):
         "request_status_label": multiselect_label(selected_status_values, "Все статусы", REQUEST_STATUS_FILTERS),
         "view": selected_department_view(request),
         "query": (request.GET.get("q", "") or "").strip(),
-        "per_page": selected_per_page(request),
+        "per_page": DEFAULT_PER_PAGE,
         "stale_before": subtract_business_days_inclusive(timezone.localdate(), get_request_stale_workdays() + 1),
     }
-    filters["per_page_label"] = f"{filters['per_page']} на странице"
     return filters
 
 
@@ -245,7 +244,6 @@ def build_departments_context(request):
         "all_organs_selected": len(organs) == len(available_organs),
         "filters": filters,
         "request_status_options": [(key, label) for key, label in REQUEST_STATUS_FILTERS.items() if key != "all"],
-        "per_page_options": [50, 100],
         "departments_kpis": build_departments_kpis(visible_rows),
         "view_tabs": [
             {

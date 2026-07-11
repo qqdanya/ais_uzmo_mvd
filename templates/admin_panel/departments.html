@@ -4,7 +4,7 @@
 {% block title %}Отделы — Административная панель{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260711-004">
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260711-005">
 {% endblock %}
 
 {% block content %}
@@ -74,10 +74,6 @@
             <span>Поиск отдела</span>
             <input class="form-control form-control-sm" type="search" name="q" value="{{ filters.query }}" placeholder="Название или код отдела">
           </label>
-          <div class="admin-filter-field">
-            <span>На странице</span>
-            {% admin_multiselect name="per_page" options=per_page_options selected_value=filters.per_page current_label=filters.per_page_label empty_label="50 на странице" input_type="radio" label_suffix="на странице" menu_class="admin-multiselect-menu-small" %}
-          </div>
           <input type="hidden" name="view" value="{{ filters.view }}">
         </div>
 

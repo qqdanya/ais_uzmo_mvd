@@ -173,6 +173,12 @@
   border-radius: 7px;
   background: #f8fbff;
   color: var(--navy);
+  transition: border-color .15s var(--motion-smooth), background-color .15s var(--motion-smooth), color .15s var(--motion-smooth);
+}
+.admin-calendar-year-row button:hover {
+  border-color: var(--blue);
+  background: #eef7ff;
+  color: var(--blue);
 }
 .admin-calendar-year-row strong {
   color: var(--navy);
@@ -330,6 +336,7 @@
   gap: 8px;
   align-items: center;
   padding: 8px 9px;
+  margin-bottom: 8px;
   border: 1px solid #dce9f3;
   border-radius: var(--radius-ui);
   background: #fbfdff;

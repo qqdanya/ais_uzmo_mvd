@@ -24,12 +24,12 @@ from .admin_asset_services import (
     visible_categories,
 )
 from .admin_common import (
+    DEFAULT_PER_PAGE,
     build_pagination_fields,
     field_label,
     field_value,
     multiselect_label,
     query_with,
-    selected_per_page,
 )
 from .admin_summary import available_organs_for_user, selected_organs
 from .admin_thresholds import get_asset_stale_days
@@ -38,7 +38,7 @@ from .admin_thresholds import get_asset_stale_days
 def asset_pagination_fields(request):
     return build_pagination_fields(
         request,
-        scalar_fields=("q", "per_page"),
+        scalar_fields=("q",),
         list_fields=("category", "asset_status", "organ_ids"),
         flag_fields=("organ_filter_empty",),
     )
@@ -47,7 +47,7 @@ def asset_pagination_fields(request):
 def category_pagination_fields(request):
     return build_pagination_fields(
         request,
-        scalar_fields=("q", "per_page"),
+        scalar_fields=("q",),
         list_fields=("asset_status", "organ_ids"),
         flag_fields=("organ_filter_empty",),
     )
@@ -60,13 +60,12 @@ def build_asset_filters(request, categories):
         "category": "",
         "asset_status": "all",
         "query": (request.GET.get("q", "") or "").strip(),
-        "per_page": selected_per_page(request),
+        "per_page": DEFAULT_PER_PAGE,
     }
     filters["category"] = filters["categories"][0] if len(filters["categories"]) == 1 else ""
     filters["asset_status"] = filters["asset_statuses"][0] if len(filters["asset_statuses"]) == 1 else "all"
     filters["category_label"] = multiselect_label(filters["categories"], "Все категории", {item["key"]: item["title"] for item in categories})
     filters["asset_status_label"] = multiselect_label(filters["asset_statuses"], "Все состояния", ASSET_STATUS_FILTERS)
-    filters["per_page_label"] = f"{filters['per_page']} на странице"
     return filters
 
 
@@ -75,11 +74,10 @@ def build_asset_category_filters(request):
         "asset_statuses": selected_asset_statuses(request),
         "asset_status": "all",
         "query": (request.GET.get("q", "") or "").strip(),
-        "per_page": selected_per_page(request),
+        "per_page": DEFAULT_PER_PAGE,
     }
     filters["asset_status"] = filters["asset_statuses"][0] if len(filters["asset_statuses"]) == 1 else "all"
     filters["asset_status_label"] = multiselect_label(filters["asset_statuses"], "Все состояния", ASSET_STATUS_FILTERS)
-    filters["per_page_label"] = f"{filters['per_page']} на странице"
     return filters
 
 
@@ -136,7 +134,6 @@ def build_assets_context(request):
         "matrix_categories": matrix_categories,
         "filters": filters,
         "asset_status_options": [(key, label) for key, label in ASSET_STATUS_FILTERS.items() if key != "all"],
-        "per_page_options": [50, 100],
         "asset_kpis": build_assets_kpis(all_rows, matrix_categories),
         "category_summaries": category_summaries,
         "category_chart": build_category_charts(category_summaries),
@@ -218,7 +215,6 @@ def build_asset_category_detail_context(request, category_key):
         "all_organs_selected": len(organs) == len(available_organs),
         "filters": filters,
         "asset_status_options": [(key, label) for key, label in ASSET_STATUS_FILTERS.items() if key != "all"],
-        "per_page_options": [50, 100],
         "summary": category_summary(category, rows_all),
         "status_tabs": build_asset_status_tabs(request, filters, counts),
         "page": page,
