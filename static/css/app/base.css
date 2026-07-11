@@ -313,50 +313,26 @@ body.modal-open .toast-stack {
   border-radius: 8px;
   box-shadow: 0 14px 34px rgba(11, 47, 91, .16);
 }
-/* Pure-CSS tooltips (no Bootstrap/Popper JS): initTooltips() (toasts.js)
- * copies data-bs-title onto data-css-tooltip and everything below renders
- * off attr(data-css-tooltip) via ::before (the arrow)/::after (the bubble).
- * Placement can't see available viewport space, so it's driven by static,
- * predictable rules that match this app's actual layouts instead:
- *   - default: centered above the trigger (the common case - buttons with
- *     room on every side).
- *   - .table-action-stack (vertically-stacked row-action icons): to the
- *     left, vertically centered, so a tooltip on one icon never covers
- *     the icon stacked above/below it.
- *   - [data-tooltip-placement="bottom"]: below - for buttons that sit
- *     right at a panel's top edge, where "above" would clip against it.
- *   - .navigation-float-toggle (the one fixed-position button pinned to
- *     the left screen edge): to the right, vertically centered - there's
- *     no room above (it sits at the very top of the panel) or to the left
- *     (it sits at the very edge of the viewport).
+/* Tooltips render as a single portal element appended straight to <body>
+ * (toasts.js: showTooltip/positionTooltip), not as a pseudo-element on the
+ * trigger. That's what lets them escape .organ-panel/.department-panel -
+ * both panels need overflow-x: hidden for their own layout, and a
+ * position:absolute tooltip anchored to a button inside them would get
+ * clipped by that no matter how high its z-index is (overflow clipping and
+ * z-index are separate mechanisms - one can't override the other). The
+ * portal is `position: fixed` and JS recomputes its coordinates from
+ * getBoundingClientRect() on show, scroll and resize, so it always draws on
+ * top of every panel regardless of which one the trigger lives in.
+ * Placement (top/bottom/left/right) is chosen in JS per the same rules the
+ * old static CSS used (see tooltipPlacementOrder), then the arrow triangle
+ * is drawn as a single ::after layer - it never overlaps the bubble, so its
+ * opacity always matches exactly (no alpha-compositing seam).
  */
-[data-css-tooltip] {
-  position: relative;
-}
-[data-css-tooltip]::before,
-[data-css-tooltip]::after {
-  position: absolute;
-  left: 50%;
-  bottom: calc(100% + 8px);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity .1s ease, transform .1s ease;
-}
-[data-css-tooltip]::before {
-  content: "";
-  bottom: calc(100% + 4px);
-  z-index: 2101;
-  width: 9px;
-  height: 9px;
-  border: 0;
-  border-radius: 2px;
-  background: rgba(11, 47, 91, .94);
-  transform: translate(-50%, 2px) rotate(45deg);
-}
-[data-css-tooltip]::after {
-  content: attr(data-css-tooltip);
+.app-tooltip-portal {
+  position: fixed;
+  top: 0;
+  left: 0;
   z-index: 2100;
-  transform: translate(-50%, 2px);
   width: max-content;
   max-width: min(220px, calc(100vw - 16px));
   padding: .28rem .48rem;
@@ -367,96 +343,43 @@ body.modal-open .toast-stack {
   line-height: 1.2;
   white-space: normal;
   box-shadow: 0 8px 20px rgba(11, 47, 91, .22);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .1s ease;
 }
-/* Show on hover/focus, but only after a short delay - moving the mouse
- * across a column of icons (or tabbing through) shouldn't flash a tooltip
- * per icon passed over. Hiding stays immediate (no delay on the base
- * opacity:0 transition above), so tooltips don't linger on the way out. */
-[data-css-tooltip]:hover::before,
-[data-css-tooltip]:hover::after,
-[data-css-tooltip]:focus-visible::before,
-[data-css-tooltip]:focus-visible::after {
+.app-tooltip-portal.is-visible {
   opacity: 1;
-  transition-delay: .35s;
 }
-[data-css-tooltip]:hover::before,
-[data-css-tooltip]:focus-visible::before {
-  transform: translate(-50%, 0) rotate(45deg);
+.app-tooltip-portal::after {
+  content: "";
+  position: absolute;
+  width: 0;
+  height: 0;
+  border: 6px solid transparent;
 }
-[data-css-tooltip]:hover::after,
-[data-css-tooltip]:focus-visible::after {
-  transform: translate(-50%, 0);
+.app-tooltip-portal[data-placement="top"]::after {
+  top: 100%;
+  left: clamp(6px, calc(var(--tooltip-arrow-x, 0px) - 6px), calc(100% - 12px));
+  border-bottom-width: 0;
+  border-top-color: rgba(11, 47, 91, .94);
 }
-
-[data-tooltip-placement="bottom"][data-css-tooltip]::before,
-[data-tooltip-placement="bottom"][data-css-tooltip]::after {
-  top: calc(100% + 8px);
-  bottom: auto;
+.app-tooltip-portal[data-placement="bottom"]::after {
+  bottom: 100%;
+  left: clamp(6px, calc(var(--tooltip-arrow-x, 0px) - 6px), calc(100% - 12px));
+  border-top-width: 0;
+  border-bottom-color: rgba(11, 47, 91, .94);
 }
-[data-tooltip-placement="bottom"][data-css-tooltip]::before {
-  top: calc(100% + 4px);
+.app-tooltip-portal[data-placement="left"]::after {
+  left: 100%;
+  top: clamp(6px, calc(var(--tooltip-arrow-y, 0px) - 6px), calc(100% - 12px));
+  border-right-width: 0;
+  border-left-color: rgba(11, 47, 91, .94);
 }
-
-.table-action-stack [data-css-tooltip]::before,
-.table-action-stack [data-css-tooltip]::after,
-[data-tooltip-placement="left"][data-css-tooltip]::before,
-[data-tooltip-placement="left"][data-css-tooltip]::after {
-  left: auto;
-  bottom: auto;
-  top: 50%;
-}
-.table-action-stack [data-css-tooltip]::before,
-[data-tooltip-placement="left"][data-css-tooltip]::before {
-  right: calc(100% + 4px);
-  transform: translate(2px, -50%) rotate(45deg);
-}
-.table-action-stack [data-css-tooltip]::after,
-[data-tooltip-placement="left"][data-css-tooltip]::after {
-  right: calc(100% + 8px);
-  transform: translate(2px, -50%);
-}
-.table-action-stack [data-css-tooltip]:hover::before,
-.table-action-stack [data-css-tooltip]:focus-visible::before,
-[data-tooltip-placement="left"][data-css-tooltip]:hover::before,
-[data-tooltip-placement="left"][data-css-tooltip]:focus-visible::before {
-  transform: translate(0, -50%) rotate(45deg);
-}
-.table-action-stack [data-css-tooltip]:hover::after,
-.table-action-stack [data-css-tooltip]:focus-visible::after,
-[data-tooltip-placement="left"][data-css-tooltip]:hover::after,
-[data-tooltip-placement="left"][data-css-tooltip]:focus-visible::after {
-  transform: translate(0, -50%);
-}
-
-.navigation-float-toggle[data-css-tooltip]::before,
-.navigation-float-toggle[data-css-tooltip]::after,
-[data-tooltip-placement="right"][data-css-tooltip]::before,
-[data-tooltip-placement="right"][data-css-tooltip]::after {
-  left: auto;
-  bottom: auto;
-  top: 50%;
-}
-.navigation-float-toggle[data-css-tooltip]::before,
-[data-tooltip-placement="right"][data-css-tooltip]::before {
-  left: calc(100% + 4px);
-  transform: translate(-2px, -50%) rotate(45deg);
-}
-.navigation-float-toggle[data-css-tooltip]::after,
-[data-tooltip-placement="right"][data-css-tooltip]::after {
-  left: calc(100% + 8px);
-  transform: translate(-2px, -50%);
-}
-.navigation-float-toggle[data-css-tooltip]:hover::before,
-.navigation-float-toggle[data-css-tooltip]:focus-visible::before,
-[data-tooltip-placement="right"][data-css-tooltip]:hover::before,
-[data-tooltip-placement="right"][data-css-tooltip]:focus-visible::before {
-  transform: translate(0, -50%) rotate(45deg);
-}
-.navigation-float-toggle[data-css-tooltip]:hover::after,
-.navigation-float-toggle[data-css-tooltip]:focus-visible::after,
-[data-tooltip-placement="right"][data-css-tooltip]:hover::after,
-[data-tooltip-placement="right"][data-css-tooltip]:focus-visible::after {
-  transform: translate(0, -50%);
+.app-tooltip-portal[data-placement="right"]::after {
+  right: 100%;
+  top: clamp(6px, calc(var(--tooltip-arrow-y, 0px) - 6px), calc(100% - 12px));
+  border-left-width: 0;
+  border-right-color: rgba(11, 47, 91, .94);
 }
 .app-footer {
   flex: 0 0 auto;
