@@ -1412,23 +1412,39 @@ class FrontendModuleSplitTests(TestCase):
         self.assertIn(".app-confirm-dialog", modals_css)
         self.assertIn(".app-confirm-details", modals_css)
 
-    def test_floating_navigation_tooltip_can_align_left(self):
+    def test_floating_navigation_tooltip_shows_to_the_right(self):
         project_root = Path(__file__).resolve().parents[2]
         dashboard_template = (project_root / "templates" / "dashboard" / "index.html").read_text(encoding="utf-8")
         base_css = (project_root / "static" / "css" / "app" / "base.css").read_text(encoding="utf-8")
 
+        # .navigation-float-toggle sits pinned to the left screen edge and
+        # the top of the panel, so its tooltip can't go above (clips the
+        # panel top) or to the left (clips the viewport edge) - it needs to
+        # go right, vertically centered, driven by the class alone so the
+        # template doesn't need a placement attribute on this button.
         self.assertIn("navigation-float-toggle", dashboard_template)
-        self.assertIn('data-tooltip-align="left"', dashboard_template)
-        self.assertIn('[data-tooltip-align="left"][data-css-tooltip]::after', base_css)
-        self.assertIn('[data-tooltip-align="left"][data-css-tooltip]::before', base_css)
-        self.assertIn("left: 0", base_css)
-        self.assertIn("left: 12px", base_css)
-        self.assertIn("right: auto", base_css)
+        self.assertNotIn("data-tooltip-align", dashboard_template)
+        self.assertIn(".navigation-float-toggle[data-css-tooltip]::after", base_css)
+        self.assertIn(".navigation-float-toggle[data-css-tooltip]::before", base_css)
+        self.assertIn("left: calc(100% + 4px)", base_css)
+        self.assertIn("left: calc(100% + 8px)", base_css)
         self.assertIn("z-index: 2101", base_css)
         self.assertIn("width: 9px", base_css)
         self.assertIn("height: 9px", base_css)
-        self.assertIn("transform: translateY(2px) rotate(45deg)", base_css)
-        self.assertIn("transform: translateY(0) rotate(45deg)", base_css)
+        self.assertIn("transform: translate(-2px, -50%) rotate(45deg)", base_css)
+        self.assertIn("transform: translate(0, -50%) rotate(45deg)", base_css)
+
+    def test_table_action_stack_tooltip_shows_to_the_left(self):
+        project_root = Path(__file__).resolve().parents[2]
+        base_css = (project_root / "static" / "css" / "app" / "base.css").read_text(encoding="utf-8")
+
+        # .table-action-stack stacks its row-action icons vertically, so a
+        # tooltip above/below one icon would cover the icon next to it -
+        # driven by the container class alone, no per-button attribute.
+        self.assertIn(".table-action-stack [data-css-tooltip]::after", base_css)
+        self.assertIn(".table-action-stack [data-css-tooltip]::before", base_css)
+        self.assertIn("right: calc(100% + 4px)", base_css)
+        self.assertIn("right: calc(100% + 8px)", base_css)
 
     def test_htmx_modal_lifecycle_dependencies_are_stable_after_module_split(self):
         htmx_js = self.read_static_js("htmx_lifecycle.js")
