@@ -9,6 +9,10 @@ from openpyxl.utils import get_column_letter
 
 from apps.requests_app.services.downloads import workbook_file_response
 
+# All styled XLSX exports below always keep their formatting regardless of
+# row count - this only decides which exports are "large" enough to need a
+# heavy_export_slot() (see table_exports.py/export_limits.py), so a handful
+# of big exports can't tie up every gunicorn worker at once.
 XLSX_WRITE_ONLY_THRESHOLD = 5000
 
 
@@ -64,44 +68,12 @@ def write_only_xlsx_response(title, headers, rows, filename):
     return workbook_file_response(wb, filename)
 
 
-def tmc_write_only_rows(qs, is_multi_organ):
-    for obj in export_objects(qs):
-        items = list(obj.items.all()) or [None]
-        for item in items:
-            row = []
-            if is_multi_organ:
-                row.append(obj.territorial_organ.name)
-            row.extend(
-                [
-                    item.name if item else "-",
-                    f"{item.quantity} {item.unit}" if item else "-",
-                    obj.request_number,
-                    obj.request_date.strftime("%d.%m.%Y"),
-                    obj.get_status_display(),
-                    obj.comment,
-                ]
-            )
-            yield row
-
-
 def tmc_xlsx_response(qs, organ, filename, is_multi_organ=False):
     # Callers are expected to already prefetch "items", but re-asserting it
     # here is cheap (Django no-ops a repeated prefetch) and keeps this
     # function safe against N+1 if it's ever called with a bare queryset.
     if hasattr(qs, "prefetch_related"):
         qs = qs.prefetch_related("items")
-    if should_use_write_only(qs):
-        headers = [
-            "\u041d\u0430\u0438\u043c\u0435\u043d\u043e\u0432\u0430\u043d\u0438\u0435",
-            "\u041a\u043e\u043b\u0438\u0447\u0435\u0441\u0442\u0432\u043e",
-            "\u041d\u043e\u043c\u0435\u0440",
-            "\u0414\u0430\u0442\u0430",
-            "\u0418\u0441\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u0435 \u0437\u0430\u044f\u0432\u043a\u0438",
-            "\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435",
-        ]
-        if is_multi_organ:
-            headers.insert(0, "\u0422\u0435\u0440\u0440\u0438\u0442\u043e\u0440\u0438\u0430\u043b\u044c\u043d\u044b\u0439 \u043e\u0440\u0433\u0430\u043d")
-        return write_only_xlsx_response("\u0417\u0430\u044f\u0432\u043a\u0438 \u0422\u041c\u0426", headers, tmc_write_only_rows(qs, is_multi_organ), filename)
 
     wb = Workbook()
     ws = wb.active
@@ -152,18 +124,34 @@ def tmc_xlsx_response(qs, organ, filename, is_multi_organ=False):
     body_alignment = Alignment(vertical="top", wrap_text=True)
     center_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
+    # Every cell's border is one of a handful of fixed combinations - build
+    # each once and reuse it instead of a fresh Border() per cell, which is
+    # most of the cost of writing a large styled sheet (openpyxl interns
+    # style objects into a shared table, so re-passing the same instance is
+    # a table lookup instead of a new entry each time).
+    block_columns = {need_end, request_end, comment_column}
+    header_border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    header_border_block = Border(left=thin, right=block, top=thin, bottom=thin)
+    subheader_border = Border(left=thin, right=thin, top=thin, bottom=header_bottom)
+    subheader_border_block = Border(left=thin, right=block, top=thin, bottom=header_bottom)
+    body_border = Border(left=thin, right=thin, top=thin, bottom=block)
+    body_border_block = Border(left=thin, right=block, top=thin, bottom=block)
+
     for row in range(1, 3):
         for column in range(1, max_column + 1):
             cell = ws.cell(row=row, column=column)
             cell.fill = header_fill if row == 1 else subheader_fill
             cell.font = header_font
             cell.alignment = center_alignment
-            cell.border = Border(
-                left=thin,
-                right=block if column in {need_end, request_end, comment_column} else thin,
-                top=thin,
-                bottom=header_bottom if row == 2 else thin,
-            )
+            is_block_column = column in block_columns
+            if row == 1:
+                cell.border = header_border_block if is_block_column else header_border
+            else:
+                cell.border = subheader_border_block if is_block_column else subheader_border
+
+    body_center_columns = {request_start, request_start + 1, request_start + 2}
+    if is_multi_organ:
+        body_center_columns.add(1)
 
     current_row = 3
     for obj in export_objects(qs):
@@ -192,16 +180,8 @@ def tmc_xlsx_response(qs, organ, filename, is_multi_organ=False):
         for row in range(start_row, end_row + 1):
             for column in range(1, max_column + 1):
                 cell = ws.cell(row=row, column=column)
-                center_columns = {request_start, request_start + 1, request_start + 2}
-                if is_multi_organ:
-                    center_columns.add(1)
-                cell.alignment = center_alignment if column in center_columns else body_alignment
-                cell.border = Border(
-                    left=thin,
-                    right=block if column in {need_end, request_end, comment_column} else thin,
-                    top=thin,
-                    bottom=block,
-                )
+                cell.alignment = center_alignment if column in body_center_columns else body_alignment
+                cell.border = body_border_block if column in block_columns else body_border
 
     if current_row > 3:
         ws.auto_filter.ref = f"A2:{get_column_letter(max_column)}{current_row - 1}"
@@ -310,11 +290,6 @@ def grouped_export_row(row, group_mode, is_tmc=False, is_multi_organ=False):
 
 
 def tmc_grouped_xlsx_response(rows, is_multi_organ, filename, group_mode="products"):
-    if should_use_write_only(rows):
-        headers = grouped_export_headers(group_mode, is_tmc=True, is_multi_organ=is_multi_organ)
-        row_values = (grouped_export_row(row, group_mode, is_tmc=True, is_multi_organ=is_multi_organ) for row in export_objects(rows))
-        return write_only_xlsx_response("\u0422\u041c\u0426", headers, row_values, filename)
-
     wb = Workbook()
     ws = wb.active
     ws.title = "ТМЦ"
@@ -346,19 +321,26 @@ def tmc_grouped_xlsx_response(rows, is_multi_organ, filename, group_mode="produc
     center_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
     last_column = len(headers)
 
+    # Build each border variant once and reuse it, instead of a fresh
+    # Border() per cell - see the comment in tmc_xlsx_response.
+    header_border = Border(left=thin, right=thin, top=thin, bottom=header_bottom)
+    header_border_last = Border(left=thin, right=block, top=thin, bottom=header_bottom)
+    body_border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    body_border_last = Border(left=thin, right=block, top=thin, bottom=thin)
+
     for column in range(1, last_column + 1):
         cell = ws.cell(row=1, column=column)
         cell.fill = header_fill
         cell.font = header_font
         cell.alignment = center_alignment
-        cell.border = Border(left=thin, right=block if column == last_column else thin, top=thin, bottom=header_bottom)
+        cell.border = header_border_last if column == last_column else header_border
 
     for row_index, row in enumerate(rows, start=2):
         row_values = grouped_export_row(row, group_mode, is_tmc=True, is_multi_organ=is_multi_organ)
         for column, value in enumerate(row_values, start=1):
             cell = ws.cell(row=row_index, column=column, value=value)
             cell.alignment = body_alignment if column == 1 else center_alignment
-            cell.border = Border(left=thin, right=block if column == last_column else thin, top=thin, bottom=thin)
+            cell.border = body_border_last if column == last_column else body_border
 
     if ws.max_row > 1:
         ws.auto_filter.ref = f"A1:{ws.cell(row=1, column=last_column).column_letter}{ws.max_row}"
@@ -367,11 +349,6 @@ def tmc_grouped_xlsx_response(rows, is_multi_organ, filename, group_mode="produc
 
 
 def request_grouped_xlsx_response(rows, table, filename, group_mode):
-    if should_use_write_only(rows):
-        headers = grouped_export_headers(group_mode, is_tmc=False)
-        row_values = (grouped_export_row(row, group_mode, is_tmc=False) for row in export_objects(rows))
-        return write_only_xlsx_response(table["title"], headers, row_values, filename)
-
     wb = Workbook()
     ws = wb.active
     ws.title = table["title"][:31]
@@ -398,18 +375,23 @@ def request_grouped_xlsx_response(rows, table, filename, group_mode):
     body_alignment = Alignment(vertical="top", wrap_text=True)
     last_column = len(headers)
 
+    header_border = Border(left=thin, right=thin, top=thin, bottom=header_bottom)
+    header_border_last = Border(left=thin, right=block, top=thin, bottom=header_bottom)
+    body_border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    body_border_last = Border(left=thin, right=block, top=thin, bottom=thin)
+
     for column in range(1, last_column + 1):
         cell = ws.cell(row=1, column=column)
         cell.fill = header_fill
         cell.font = header_font
         cell.alignment = center_alignment
-        cell.border = Border(left=thin, right=block if column == last_column else thin, top=thin, bottom=header_bottom)
+        cell.border = header_border_last if column == last_column else header_border
 
     for row_index, row in enumerate(rows, start=2):
         for column, value in enumerate(grouped_export_row(row, group_mode, is_tmc=False), start=1):
             cell = ws.cell(row=row_index, column=column, value=value)
             cell.alignment = body_alignment if column == 1 else center_alignment
-            cell.border = Border(left=thin, right=block if column == last_column else thin, top=thin, bottom=thin)
+            cell.border = body_border_last if column == last_column else body_border
 
     if ws.max_row > 1:
         ws.auto_filter.ref = f"A1:{ws.cell(row=1, column=last_column).column_letter}{ws.max_row}"
@@ -418,11 +400,6 @@ def request_grouped_xlsx_response(rows, table, filename, group_mode):
 
 
 def styled_xlsx_response(qs, table, fields, filename, widths=None, center_columns=None):
-    if should_use_write_only(qs):
-        headers = table_header_labels(fields)
-        rows = ([export_cell_value(obj, field) for field in fields] for obj in export_objects(qs))
-        return write_only_xlsx_response(table["title"], headers, rows, filename)
-
     wb = Workbook()
     ws = wb.active
     ws.title = table["title"][:31]
@@ -451,18 +428,23 @@ def styled_xlsx_response(qs, table, fields, filename, widths=None, center_column
     center_columns = center_columns or set()
     last_column = len(fields)
 
+    header_border = Border(left=thin, right=thin, top=thin, bottom=header_bottom)
+    header_border_last = Border(left=thin, right=block, top=thin, bottom=header_bottom)
+    body_border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    body_border_last = Border(left=thin, right=block, top=thin, bottom=thin)
+
     for column in range(1, last_column + 1):
         cell = ws.cell(row=1, column=column)
         cell.fill = header_fill
         cell.font = header_font
         cell.alignment = center_alignment
-        cell.border = Border(left=thin, right=block if column == last_column else thin, top=thin, bottom=header_bottom)
+        cell.border = header_border_last if column == last_column else header_border
 
     for row_index, obj in enumerate(export_objects(qs), start=2):
         for column, field in enumerate(fields, start=1):
             cell = ws.cell(row=row_index, column=column, value=export_cell_value(obj, field))
             cell.alignment = center_alignment if field.name in center_columns else body_alignment
-            cell.border = Border(left=thin, right=block if column == last_column else thin, top=thin, bottom=thin)
+            cell.border = body_border_last if column == last_column else body_border
 
     if ws.max_row > 1:
         ws.auto_filter.ref = f"A1:{ws.cell(row=1, column=last_column).column_letter}{ws.max_row}"

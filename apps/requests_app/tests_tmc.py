@@ -2,7 +2,7 @@ from django.db import connection
 from django.test import RequestFactory
 from django.test.utils import CaptureQueriesContext
 
-from .services.exports import tmc_write_only_rows
+from .services.exports import export_objects
 from .services.table_filters import request_table_queryset
 from .tests_base import *
 
@@ -677,10 +677,10 @@ class TmcRequestTests(RequestAppTestCase):
         self.assertIn("Папка-регистратор", values)
         self.assertIn("Кресло офисное", values)
 
-    def test_tmc_write_only_xlsx_rows_avoid_n_plus_one_on_items(self):
-        # tmc_write_only_rows() is the path used for large exports
-        # (should_use_write_only()), so it must not re-query items per row.
-        # request_table_queryset() already prefetches "items" (see
+    def test_tmc_xlsx_export_objects_avoid_n_plus_one_on_items(self):
+        # tmc_xlsx_response() (and every other styled export) iterates
+        # querysets via export_objects(), which must not re-query items per
+        # row. request_table_queryset() already prefetches "items" (see
         # REQUEST_TABLE_CONFIG); the thing actually worth pinning down is that
         # export_objects()'s qs.iterator(chunk_size=1000) doesn't silently
         # drop that prefetch — Django only started honoring
@@ -699,17 +699,21 @@ class TmcRequestTests(RequestAppTestCase):
                 TmcRequestItem.objects.create(request=obj, name="Item A", quantity=1, unit="шт.")
                 TmcRequestItem.objects.create(request=obj, name="Item B", quantity=2, unit="шт.")
 
+        def touch_items(qs):
+            for obj in export_objects(qs):
+                list(obj.items.all())
+
         build_requests(3)
         qs_small = request_table_queryset(request, "tmc-requests", [self.organ], include_status=True)
         qs_small = qs_small.filter(request_number__startswith="nplusone-")
         with CaptureQueriesContext(connection) as small_queries:
-            list(tmc_write_only_rows(qs_small, is_multi_organ=False))
+            touch_items(qs_small)
 
         build_requests(12)
         qs_large = request_table_queryset(request, "tmc-requests", [self.organ], include_status=True)
         qs_large = qs_large.filter(request_number__startswith="nplusone-")
         with CaptureQueriesContext(connection) as large_queries:
-            list(tmc_write_only_rows(qs_large, is_multi_organ=False))
+            touch_items(qs_large)
 
         # If items were being re-fetched per request (N+1), query count would
         # scale with row count (3 vs 15 rows); with prefetch actually
