@@ -202,11 +202,8 @@ function registerAppEventHandlers() {
   
     const panelToggle = event.target.closest("[data-panel-toggle]");
     if (panelToggle) {
-      const state = readCollapsedPanels();
       const panel = panelToggle.dataset.panelToggle;
-      state[panel] = !state[panel];
-      writeCollapsedPanels(state);
-      applyCollapsedPanels();
+      toggleCollapsedPanel(panel);
       return;
     }
   

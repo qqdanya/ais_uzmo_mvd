@@ -11,7 +11,6 @@
   height: auto;
   align-content: start;
   position: relative;
-  transition: grid-template-columns .36s var(--motion-smooth), column-gap .36s var(--motion-smooth);
 }
 .app-main > .container,
 .app-main > .container-fluid {
@@ -37,7 +36,7 @@
   grid-template-columns: minmax(230px, 1.08fr) minmax(220px, .92fr);
   gap: 10px;
   overflow: hidden;
-  transition: opacity .3s var(--motion-smooth), transform .36s var(--motion-smooth), visibility .3s var(--motion-smooth), grid-template-columns .36s var(--motion-smooth);
+  transition: opacity .42s ease-in-out, transform .52s ease-in-out, visibility .42s ease-in-out, grid-template-columns .58s cubic-bezier(.4, 0, .2, 1);
 }
 .dashboard-grid.is-departments-collapsed {
   grid-template-columns: minmax(240px, 21vw) minmax(0, 1fr);
@@ -143,12 +142,21 @@
 .workspace-panel {
   overflow-x: hidden;
   overflow-y: visible;
+  isolation: isolate;
 }
 .organ-panel {
   transition: opacity .28s var(--motion-smooth), transform .36s var(--motion-smooth), visibility .28s var(--motion-smooth), max-height .36s var(--motion-smooth), padding .36s var(--motion-smooth), border-width .36s var(--motion-smooth);
 }
 .department-panel {
   transition: opacity .28s var(--motion-smooth), transform .36s var(--motion-smooth), visibility .28s var(--motion-smooth), max-height .36s var(--motion-smooth), padding .36s var(--motion-smooth), border-width .36s var(--motion-smooth);
+}
+.dashboard-grid.is-panel-animating .navigation-shell,
+.dashboard-grid.is-panel-animating .organ-panel,
+.dashboard-grid.is-panel-animating .department-panel {
+  transition: none;
+}
+.dashboard-grid.is-panel-animating [data-panel-toggle] {
+  pointer-events: none;
 }
 .panel-title, .workspace-head, .table-toolbar, .organ-info {
   display: flex;

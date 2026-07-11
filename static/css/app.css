@@ -3,7 +3,7 @@
  * Keep imports in this order: later modules intentionally refine earlier shared rules.
  */
 @import url("app/base.css?v=20260711-002");
-@import url("app/dashboard.css?v=20260705-010");
+@import url("app/dashboard.css?v=20260711-006");
 @import url("app/tables.css?v=20260711-004");
 @import url("app/request-photos.css?v=20260710-001");
 @import url("app/statuses.css?v=20260705-010");
