@@ -36,6 +36,13 @@ def export_objects(qs):
 
 
 def export_row_count(rows):
+    # list has its own .count(value) (counts occurrences of a value, not the
+    # list's length), so it has to be checked before the queryset .count()
+    # branch below or this misfires with a TypeError - grouped rows
+    # (grouping.py's request_organ_grouped_rows/request_date_grouped_rows)
+    # are plain lists, not querysets.
+    if isinstance(rows, list):
+        return len(rows)
     if hasattr(rows, "count") and callable(rows.count):
         return rows.count()
     if hasattr(rows, "__len__"):
