@@ -93,6 +93,8 @@ class TmcRequestTests(RequestAppTestCase):
         self.assertContains(response, "novalidate")
         self.assertContains(response, 'name="status"')
         self.assertContains(response, 'value="in_work"')
+        self.assertContains(response, "data-app-date-input")
+        self.assertNotContains(response, 'type="date"')
         self.assertNotContains(response, 'value="new"')
         self.assertNotIn(("new", "Новая"), TmcRequest._meta.get_field("status").choices)
         self.assertNotIn(("new", "Новая"), ACTIVE_NEED_STATUS_CHOICES)
@@ -608,6 +610,8 @@ class TmcRequestTests(RequestAppTestCase):
         self.assertContains(response, f'name="date_to" value="{today.isoformat()}"')
         self.assertContains(response, f'data-default-date-from="{today.isoformat()}"')
         self.assertContains(response, f'data-default-date-to="{today.isoformat()}"')
+        self.assertContains(response, "data-date-range-picker")
+        self.assertContains(response, "data-date-range-popover")
 
     def test_table_pagination_uses_photo_style_controls_above_table(self):
         for index in range(21):

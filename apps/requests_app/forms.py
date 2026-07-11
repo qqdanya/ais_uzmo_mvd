@@ -27,14 +27,15 @@ class BootstrapModelForm(forms.ModelForm):
                 css = "form-check-input" if isinstance(field.widget, forms.CheckboxInput) else "form-control"
             field.widget.attrs.setdefault("class", css)
             if isinstance(field.widget, forms.DateInput):
-                field.widget.attrs.setdefault("type", "date")
+                field.widget.attrs["type"] = "hidden"
+                field.widget.attrs["data-app-date-input"] = "true"
 
 
 def form_for_table(table_key):
     table = get_table_or_404(table_key)
     model = table["model"]
     editable_fields = table["form_fields"]
-    widgets = {field.name: forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d") for field in model._meta.fields if field.get_internal_type() == "DateField"}
+    widgets = {field.name: forms.DateInput(attrs={"type": "hidden", "data-app-date-input": "true"}, format="%Y-%m-%d") for field in model._meta.fields if field.get_internal_type() == "DateField"}
     meta = type("Meta", (), {"model": model, "fields": editable_fields, "widgets": widgets})
     return type(f"{model.__name__}Form", (BootstrapModelForm,), {"Meta": meta})
 
@@ -48,6 +49,6 @@ class TmcRequestForm(BootstrapModelForm):
         model = TmcRequest
         fields = ["request_number", "request_date", "status", "due_date", "comment"]
         widgets = {
-            "request_date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
-            "due_date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+            "request_date": forms.DateInput(attrs={"type": "hidden", "data-app-date-input": "true"}, format="%Y-%m-%d"),
+            "due_date": forms.DateInput(attrs={"type": "hidden", "data-app-date-input": "true"}, format="%Y-%m-%d"),
         }

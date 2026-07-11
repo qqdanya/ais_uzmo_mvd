@@ -52,6 +52,8 @@ class AuditLogTests(TestCase):
         self.assertContains(response, "Журнал действий")
         self.assertContains(response, "audit-filters")
         self.assertContains(response, "audit-table")
+        self.assertContains(response, "data-date-range-picker")
+        self.assertContains(response, "audit-date-picker")
         self.assertContains(response, "data-admin-multiselect")
         self.assertContains(response, "data-admin-multiselect-select-all")
         self.assertContains(response, "data-admin-multiselect-clear")

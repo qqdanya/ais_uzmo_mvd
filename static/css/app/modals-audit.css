@@ -606,6 +606,10 @@
 .audit-date-range span {
   color: var(--muted);
 }
+.audit-date-picker,
+.audit-date-picker .custom-date-control {
+  width: 100%;
+}
 .audit-filter-actions {
   display: inline-flex;
   align-items: center;

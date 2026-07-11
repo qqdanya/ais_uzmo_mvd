@@ -4,7 +4,7 @@
 {% block title %}Территориальные органы — Административная панель{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260707-002">
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260711-004">
 {% endblock %}
 
 {% block content %}
@@ -65,14 +65,7 @@
         </div>
 
         <div class="admin-organs-filter-grid">
-          <label class="admin-filter-field">
-            <span>Дата с</span>
-            <input class="form-control form-control-sm" type="date" name="date_from" value="{{ filters.period.date_from|date:'Y-m-d' }}">
-          </label>
-          <label class="admin-filter-field">
-            <span>Дата по</span>
-            <input class="form-control form-control-sm" type="date" name="date_to" value="{{ filters.period.date_to|date:'Y-m-d' }}">
-          </label>
+          {% include "partials/date_range_picker.html" with from_name="date_from" to_name="date_to" from_value=filters.period.date_from|date:'Y-m-d' to_value=filters.period.date_to|date:'Y-m-d' picker_class="admin-date-picker" %}
           <div class="admin-filter-field">
             <span>Отделы</span>
             {% admin_multiselect name="department" options=departments selected_values=filters.departments current_label=filters.department_label empty_label="Все отделы" value_attr="slug" label_attr="name" %}

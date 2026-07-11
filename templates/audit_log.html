@@ -21,11 +21,7 @@
       {% endif %}
       {% admin_multiselect name="object" options=object_filters selected_values=selected_objects current_label=object_filter_label empty_label="Все объекты" root_class="audit-multiselect" menu_class="audit-multiselect-menu" %}
       {% admin_multiselect name="organ" options=organs selected_values=selected_organs current_label=organ_filter_label empty_label="Все территориальные органы" value_attr="pk" label_attr="name" root_class="audit-multiselect" menu_class="audit-multiselect-menu" %}
-      <div class="date-range audit-date-range">
-        <input class="form-control form-control-sm" type="date" name="date_from" value="{{ date_from }}" aria-label="Дата с">
-        <span>-</span>
-        <input class="form-control form-control-sm" type="date" name="date_to" value="{{ date_to }}" aria-label="Дата по">
-      </div>
+      {% include "partials/date_range_picker.html" with from_name="date_from" to_name="date_to" from_value=date_from to_value=date_to picker_class="audit-date-picker" %}
       <div class="audit-filter-actions">
         <button class="btn btn-sm btn-primary"><i class="bi bi-funnel"></i> Применить</button>
         {% if not is_all_time %}

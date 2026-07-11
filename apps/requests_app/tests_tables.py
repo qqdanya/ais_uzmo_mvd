@@ -531,6 +531,9 @@ class DepartmentTableTests(RequestAppTestCase):
         )
 
         self.assertContains(grouped_response, "Second territorial organ")
+        self.assertContains(grouped_response, "data-date-range-picker")
+        self.assertContains(grouped_response, 'name="expiry_from"')
+        self.assertContains(grouped_response, 'name="expiry_to"')
         self.assertContains(grouped_response, "Скоро истекает")
         self.assertContains(grouped_response, (today + timedelta(days=20)).strftime("%d.%m.%Y"))
         self.assertNotContains(grouped_response, (today + timedelta(days=10)).strftime("%d.%m.%Y"))

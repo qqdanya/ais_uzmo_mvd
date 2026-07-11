@@ -14,18 +14,37 @@
         </div>
 
         <div class="admin-period-presets" role="group" aria-label="Быстрый выбор периода">
-          <button class="btn btn-sm btn-outline-primary" type="button" data-admin-period-preset="today">Сегодня</button>
-          <button class="btn btn-sm btn-outline-primary" type="button" data-admin-period-preset="current_week">Текущая неделя</button>
-          <button class="btn btn-sm btn-outline-primary" type="button" data-admin-period-preset="previous_week">Прошлая неделя</button>
-          <button class="btn btn-sm btn-outline-primary" type="button" data-admin-period-preset="last_14_days">Последние 2 недели</button>
-          <button class="btn btn-sm btn-outline-primary active" type="button" data-admin-period-preset="current_month">Текущий месяц</button>
+          <span class="admin-period-preset-group">
           <button class="btn btn-sm btn-outline-primary" type="button" data-admin-period-preset="previous_month">Прошлый месяц</button>
+          <button class="btn btn-sm btn-outline-primary" type="button" data-admin-period-preset="previous_week">Прошлая неделя</button>
+          </span>
+          <span class="admin-period-preset-group">
+          <button class="btn btn-sm btn-outline-primary" type="button" data-admin-period-preset="last_14_days">Последние 2 недели</button>
+          </span>
+          <span class="admin-period-preset-group">
+          <button class="btn btn-sm btn-outline-primary active" type="button" data-admin-period-preset="current_month">Текущий месяц</button>
+          <button class="btn btn-sm btn-outline-primary" type="button" data-admin-period-preset="current_week">Текущая неделя</button>
+          <button class="btn btn-sm btn-outline-primary" type="button" data-admin-period-preset="today">Сегодня</button>
+          </span>
           <button class="btn btn-sm btn-outline-secondary" type="button" data-admin-period-preset="all">За всё время</button>
         </div>
 
         <div class="admin-calendar-toolbar">
           <button class="btn btn-sm btn-outline-secondary" type="button" data-admin-calendar-prev aria-label="Предыдущие месяцы"><i class="bi bi-chevron-left"></i></button>
-          <strong data-admin-calendar-caption>Календарь</strong>
+          <div class="admin-calendar-jump">
+            <button class="admin-calendar-caption-button" type="button" data-admin-calendar-jump-toggle aria-expanded="false">
+              <strong data-admin-calendar-caption>Календарь</strong><i class="bi bi-chevron-down"></i>
+            </button>
+            <div class="admin-calendar-jump-panel" data-admin-calendar-jump-panel hidden>
+              <div class="admin-calendar-year-row">
+                <button type="button" data-admin-calendar-year-prev aria-label="Предыдущий год"><i class="bi bi-chevron-left"></i></button>
+                <strong data-admin-calendar-year></strong>
+                <button type="button" data-admin-calendar-year-next aria-label="Следующий год"><i class="bi bi-chevron-right"></i></button>
+              </div>
+              <div class="admin-calendar-month-picker" data-admin-calendar-month-picker></div>
+              <button class="btn btn-sm btn-outline-primary w-100" type="button" data-admin-calendar-today>Перейти к текущему месяцу</button>
+            </div>
+          </div>
           <button class="btn btn-sm btn-outline-secondary" type="button" data-admin-calendar-next aria-label="Следующие месяцы"><i class="bi bi-chevron-right"></i></button>
         </div>
         <div class="admin-inline-calendar" data-admin-calendar></div>

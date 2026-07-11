@@ -114,6 +114,9 @@ class AdminPanelEndpointTests(AdminPanelTestMixin, TestCase):
         self.assertIn(self.organ, response.context["organs"])
         self.assertContains(response, "data-admin-summary-root")
         self.assertContains(response, reverse("admin_summary_data"))
+        self.assertContains(response, "data-admin-calendar-jump-toggle")
+        self.assertContains(response, "data-admin-calendar-month-picker")
+        self.assertLess(response.content.index("previous_month".encode()), response.content.index("today".encode()))
 
     def test_summary_data_returns_json_for_admin(self):
         self.login_admin()
@@ -1701,10 +1704,10 @@ class AdminTrashPanelTests(AdminPanelTestMixin, TestCase):
         self.assertIn("transition: background-color .14s var(--motion-smooth), border-color .14s var(--motion-smooth)", requests_css)
         self.assertIn(".admin-requests-table td:last-child", requests_css)
         self.assertIn("justify-content: center", requests_css)
-        self.assertIn("admin/base.css?v=20260707-001", admin_css)
+        self.assertIn("admin/base.css?v=20260711-003", admin_css)
         self.assertIn("admin/requests.css?v=20260707-001", admin_css)
         self.assertIn("admin/trash.css?v=20260705-016", admin_css)
-        self.assertIn("css/admin.css' %}?v=20260707-002", trash_template)
+        self.assertIn("css/admin.css' %}?v=20260711-004", trash_template)
 
 
 

@@ -1,0 +1,31 @@
+<div class="compact-date-range {{ picker_class }}" data-date-range-picker>
+  <input type="hidden" name="{{ from_name }}" value="{{ from_value }}" data-date-range-from>
+  <input type="hidden" name="{{ to_name }}" value="{{ to_value }}" data-date-range-to>
+  <div class="custom-date-control">
+    <i class="bi bi-calendar-range custom-date-leading-icon"></i>
+    <input class="custom-date-text" type="text" data-date-range-text aria-label="Диапазон дат" placeholder="ДД.ММ.ГГГГ – ДД.ММ.ГГГГ" autocomplete="off">
+    <button class="custom-date-arrow" type="button" data-date-range-toggle aria-expanded="false" aria-label="Открыть календарь"><i class="bi bi-chevron-down"></i></button>
+  </div>
+  <div class="compact-date-popover" data-date-range-popover hidden>
+    <div class="compact-date-toolbar">
+      <button type="button" data-date-range-prev aria-label="Предыдущий месяц"><i class="bi bi-chevron-left"></i></button>
+      <button type="button" data-date-range-caption-button><strong data-date-range-caption></strong><i class="bi bi-chevron-down"></i></button>
+      <button type="button" data-date-range-next aria-label="Следующий месяц"><i class="bi bi-chevron-right"></i></button>
+    </div>
+    <div class="compact-date-jump" data-date-range-jump hidden>
+      <div class="compact-date-year-row">
+        <button type="button" data-date-range-year-prev aria-label="Предыдущий год"><i class="bi bi-chevron-left"></i></button>
+        <strong data-date-range-year></strong>
+        <button type="button" data-date-range-year-next aria-label="Следующий год"><i class="bi bi-chevron-right"></i></button>
+      </div>
+      <div class="compact-date-months" data-date-range-months></div>
+    </div>
+    <div data-date-range-calendar></div>
+    <div class="compact-date-presets">
+      <button type="button" data-date-range-preset="month">Месяц</button>
+      <button type="button" data-date-range-preset="week">Неделя</button>
+      <button type="button" data-date-range-preset="today">Сегодня</button>
+      <button type="button" data-date-range-preset="clear">Очистить</button>
+    </div>
+  </div>
+</div>

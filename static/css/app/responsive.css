@@ -236,6 +236,17 @@
     width: auto;
     min-width: 0;
   }
+  .compact-date-range,
+  .custom-date-control {
+    width: 100%;
+  }
+  .compact-date-popover {
+    position: fixed;
+    inset: auto 10px calc(var(--app-footer-height) + 10px) 10px;
+    width: auto;
+    max-height: calc(100dvh - var(--app-header-height) - var(--app-footer-height) - 24px);
+    overflow-y: auto;
+  }
   .account-actions { flex-direction: column-reverse; }
   .account-actions .btn { width: 100%; }
   .form-toast { position: static; width: 100%; margin-bottom: 12px; }

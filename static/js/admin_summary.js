@@ -14,6 +14,7 @@
   let selectedEnd = state.period?.date_to ? parseIsoDate(state.period.date_to) : lastDayOfMonth(new Date());
   let selectedPeriod = state.period?.code || "current_month";
   let calendarCenter = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  let calendarPickerYear = calendarCenter.getFullYear();
   let pendingRangeStart = null;
   let dynamicsChart = null;
   let dynamicsMode = "all";
@@ -21,6 +22,10 @@
   const periodLabel = root.querySelector("[data-admin-period-label]");
   const calendar = root.querySelector("[data-admin-calendar]");
   const calendarCaption = root.querySelector("[data-admin-calendar-caption]");
+  const calendarJumpToggle = root.querySelector("[data-admin-calendar-jump-toggle]");
+  const calendarJumpPanel = root.querySelector("[data-admin-calendar-jump-panel]");
+  const calendarYear = root.querySelector("[data-admin-calendar-year]");
+  const calendarMonthPicker = root.querySelector("[data-admin-calendar-month-picker]");
   const summaryUrl = shell.dataset.summaryUrl;
 
   function parseIsoDate(value) {
@@ -244,6 +249,30 @@
       month.append(title, week, grid);
       calendar.append(month);
     });
+  }
+
+  function renderCalendarJump() {
+    if (!calendarMonthPicker) return;
+    if (calendarYear) calendarYear.textContent = String(calendarPickerYear);
+    calendarMonthPicker.replaceChildren();
+    MONTHS.forEach((label, monthIndex) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = label.slice(0, 3);
+      button.dataset.adminCalendarMonth = String(monthIndex);
+      button.classList.toggle("active", calendarPickerYear === calendarCenter.getFullYear() && monthIndex === calendarCenter.getMonth());
+      calendarMonthPicker.append(button);
+    });
+  }
+
+  function setCalendarJumpOpen(open) {
+    if (!calendarJumpPanel || !calendarJumpToggle) return;
+    calendarJumpPanel.hidden = !open;
+    calendarJumpToggle.setAttribute("aria-expanded", String(open));
+    if (open) {
+      calendarPickerYear = calendarCenter.getFullYear();
+      renderCalendarJump();
+    }
   }
 
   function paramsForRequest() {
@@ -522,6 +551,39 @@
       renderCalendar();
       return;
     }
+    if (event.target.closest("[data-admin-calendar-jump-toggle]")) {
+      event.preventDefault();
+      setCalendarJumpOpen(Boolean(calendarJumpPanel?.hidden));
+      return;
+    }
+    if (event.target.closest("[data-admin-calendar-year-prev]")) {
+      event.preventDefault();
+      calendarPickerYear -= 1;
+      renderCalendarJump();
+      return;
+    }
+    if (event.target.closest("[data-admin-calendar-year-next]")) {
+      event.preventDefault();
+      calendarPickerYear += 1;
+      renderCalendarJump();
+      return;
+    }
+    const calendarMonth = event.target.closest("[data-admin-calendar-month]");
+    if (calendarMonth) {
+      event.preventDefault();
+      calendarCenter = new Date(calendarPickerYear, Number(calendarMonth.dataset.adminCalendarMonth), 1);
+      setCalendarJumpOpen(false);
+      renderCalendar();
+      return;
+    }
+    if (event.target.closest("[data-admin-calendar-today]")) {
+      event.preventDefault();
+      const today = new Date();
+      calendarCenter = new Date(today.getFullYear(), today.getMonth(), 1);
+      setCalendarJumpOpen(false);
+      renderCalendar();
+      return;
+    }
     const day = event.target.closest("[data-admin-calendar-day]");
     if (day) {
       event.preventDefault();
@@ -595,6 +657,11 @@
     if (event.target.matches("[data-admin-org-metric]")) {
       refreshSummary();
     }
+  });
+
+  document.addEventListener("click", (event) => {
+    if (calendarJumpPanel?.hidden || event.target.closest(".admin-calendar-jump")) return;
+    setCalendarJumpOpen(false);
   });
 
   restoreAdminOrgSelection();

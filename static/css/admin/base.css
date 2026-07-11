@@ -93,8 +93,16 @@
 }
 .admin-period-presets {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
   gap: 6px;
+}
+.admin-period-preset-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-right: 7px;
+  border-right: 1px solid #d9e7f1;
 }
 .admin-period-presets .btn.active {
   color: #fff;
@@ -112,6 +120,82 @@
   color: var(--navy);
   font-size: .92rem;
   text-align: center;
+}
+.admin-calendar-jump {
+  position: relative;
+  min-width: 0;
+  text-align: center;
+}
+.admin-calendar-caption-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: .3rem .55rem;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--navy);
+}
+.admin-calendar-caption-button:hover,
+.admin-calendar-caption-button[aria-expanded="true"] {
+  background: #eef7ff;
+}
+.admin-calendar-caption-button .bi {
+  font-size: .72rem;
+}
+.admin-calendar-jump-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  z-index: 40;
+  width: min(310px, calc(100vw - 32px));
+  padding: 10px;
+  border: 1px solid #c9deed;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 18px 42px rgba(11,47,91,.2);
+  transform: translateX(-50%);
+}
+.admin-calendar-jump-panel[hidden] { display: none; }
+.admin-calendar-year-row {
+  display: grid;
+  grid-template-columns: 32px 1fr 32px;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.admin-calendar-year-row button,
+.admin-calendar-month-picker button {
+  min-height: 31px;
+  border: 1px solid #d7e5ef;
+  border-radius: 7px;
+  background: #f8fbff;
+  color: var(--navy);
+}
+.admin-calendar-year-row strong {
+  color: var(--navy);
+  text-align: center;
+}
+.admin-calendar-month-picker {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+  margin-bottom: 8px;
+}
+.admin-calendar-month-picker button:hover,
+.admin-calendar-month-picker button.active {
+  border-color: var(--blue);
+  background: var(--blue);
+  color: #fff;
+}
+.admin-date-picker {
+  grid-column: span 2;
+  width: 100%;
+}
+.admin-date-picker .custom-date-control {
+  width: 100%;
 }
 .admin-inline-calendar {
   display: grid;
@@ -542,4 +626,3 @@
     justify-self: start;
   }
 }
-
