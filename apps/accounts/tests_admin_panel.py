@@ -1418,8 +1418,8 @@ class FrontendModuleSplitTests(TestCase):
         self.assertNotIn('onsubmit="return confirm', trash_template)
         self.assertNotIn("confirm('", trash_template)
         self.assertIn("data-confirm-message", trash_template)
-        self.assertIn('data-confirm-title="Безвозвратное удаление фотографии"', trash_template)
-        self.assertIn('data-confirm-title="Безвозвратное удаление папки"', trash_template)
+        self.assertIn('data-confirm-title="Окончательное удаление фотографии"', trash_template)
+        self.assertIn('data-confirm-title="Окончательное удаление папки"', trash_template)
         self.assertIn("const ConfirmDialog", confirm_js)
         self.assertIn('document.addEventListener("submit", handleSubmit, true)', confirm_js)
         self.assertIn("app-confirm-dialog", confirm_js)
@@ -1972,7 +1972,7 @@ class AdminTrashPanelTests(AdminPanelTestMixin, TestCase):
         self.assertContains(response, f'data-lightbox-group="trash-folder-{grandchild.pk}"')
         self.assertContains(response, reverse("photo_preview", args=[self.organ.pk, photo.pk]))
         self.assertContains(response, "nested-preview.png")
-        self.assertContains(response, "Удалить папку")
+        self.assertContains(response, "Удалить окончательно")
         self.assertNotContains(response, ">Очистить</button>")
 
     def test_trash_folder_tree_previews_do_not_scale_per_root_folder(self):

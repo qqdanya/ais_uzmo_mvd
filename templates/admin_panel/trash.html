@@ -16,14 +16,14 @@
       <div class="admin-requests-hero admin-trash-hero">
         <div>
           <h2>Корзина удаленных объектов</h2>
-          <p>{% if is_personal_trash %}Здесь отображаются объекты, удалённые вами. Их можно восстановить или убрать только из своей корзины — данные останутся в системе и общей корзине администратора. Через 90 дней после удаления объект автоматически исчезнет из вашей корзины.{% else %}Мягко удалённые записи не отображаются в рабочих таблицах, но остаются в системе. Здесь их можно восстановить; безвозвратная очистка файлов доступна только руководителю.{% endif %}</p>
+          <p>{% if is_personal_trash %}Здесь отображаются удалённые вами объекты. Их можно восстановить или убрать из списка. Через 90 дней объекты автоматически исчезнут из вашей корзины.{% else %}Здесь отображаются удалённые записи, фотографии и папки. Их можно восстановить или удалить окончательно.{% endif %}</p>
         </div>
         <div class="admin-requests-total">
           <span>Удалённых объектов</span>
           <strong>{{ counts.requests|add:counts.photos|add:counts.folders }}</strong>
         </div>
         {% if is_personal_trash and counts.requests|add:counts.photos|add:counts.folders %}
-          <form method="post" action="{% url 'trash_clear_personal' %}" class="admin-inline-action-form" data-confirm-title="Очистить личную корзину" data-confirm-message="Объекты исчезнут только из вашей корзины. Данные останутся в системе и общей корзине администратора." data-confirm-confirm-label="Очистить корзину">{% csrf_token %}<button class="btn btn-sm btn-outline-secondary" type="submit"><i class="bi bi-trash3"></i> Очистить корзину</button></form>
+          <form method="post" action="{% url 'trash_clear_personal' %}" class="admin-inline-action-form" data-confirm-title="Очистить личную корзину" data-confirm-message="Все объекты будут убраны из вашей корзины. При необходимости обратитесь к администратору." data-confirm-confirm-label="Очистить корзину">{% csrf_token %}<button class="btn btn-sm btn-outline-secondary" type="submit"><i class="bi bi-trash3"></i> Очистить корзину</button></form>
         {% endif %}
       </div>
 
@@ -34,7 +34,7 @@
         </article>
         <article class="admin-requests-kpi-card admin-assets-kpi-card">
           <span class="admin-requests-kpi-icon"><i class="bi bi-images"></i></span>
-          <div><strong>{{ counts.photos }}</strong><span>Фотографий</span><small>можно восстановить или очистить файл</small></div>
+          <div><strong>{{ counts.photos }}</strong><span>Фотографий</span><small>можно восстановить или удалить окончательно</small></div>
         </article>
         <article class="admin-requests-kpi-card admin-assets-kpi-card">
           <span class="admin-requests-kpi-icon"><i class="bi bi-folder2-open"></i></span>
@@ -100,7 +100,7 @@
 
       {% if section == 'all' or section == 'photos' %}
         <section class="admin-section admin-requests-table-section">
-          <div class="admin-section-head"><div><h2>Удалённые фотографии</h2><span>Восстановление возвращает фотографию в фотоархив. Безвозвратная очистка удаляет файл с сервера и запись из базы.</span></div></div>
+          <div class="admin-section-head"><div><h2>Удалённые фотографии</h2><span>Фотографию можно восстановить или удалить без возможности восстановления.</span></div></div>
           {% if photo_page.object_list %}
             <div class="admin-requests-table-wrap">
               <table class="admin-requests-table">
@@ -129,7 +129,7 @@
                           <form method="post" action="{% url 'admin_trash_restore_photo' photo.pk %}" class="admin-inline-action-form">{% csrf_token %}<button class="btn btn-sm btn-outline-primary" type="submit"><i class="bi bi-arrow-counterclockwise"></i> Восстановить</button></form>
                           {% if is_personal_trash %}<form method="post" action="{% url 'trash_dismiss_photo' photo.pk %}" class="admin-inline-action-form">{% csrf_token %}<button class="btn btn-sm btn-outline-danger" type="submit"><i class="bi bi-x-lg"></i> Удалить из корзины</button></form>{% endif %}
                           {% if is_leader %}
-                            <form method="post" action="{% url 'admin_trash_purge_photo' photo.pk %}" class="admin-inline-action-form" data-confirm-title="Безвозвратное удаление фотографии" data-confirm-message="Фотография и файл будут удалены с сервера без возможности восстановления." data-confirm-details="{{ photo.original_filename|default:photo.image.name }}" data-confirm-confirm-label="Удалить файл" data-confirm-variant="danger">{% csrf_token %}<button class="btn btn-sm btn-outline-danger" type="submit"><i class="bi bi-trash3"></i> Удалить файл</button></form>
+                            <form method="post" action="{% url 'admin_trash_purge_photo' photo.pk %}" class="admin-inline-action-form" data-confirm-title="Окончательное удаление фотографии" data-confirm-message="Фотографию нельзя будет восстановить." data-confirm-details="{{ photo.original_filename|default:photo.image.name }}" data-confirm-confirm-label="Удалить окончательно" data-confirm-variant="danger">{% csrf_token %}<button class="btn btn-sm btn-outline-danger" type="submit"><i class="bi bi-trash3"></i> Удалить окончательно</button></form>
                           {% endif %}
                         </div>
                       </td>
@@ -167,7 +167,7 @@
                           <form method="post" action="{% url 'admin_trash_restore_folder' folder.pk %}" class="admin-inline-action-form">{% csrf_token %}<button class="btn btn-sm btn-outline-primary" type="submit"><i class="bi bi-arrow-counterclockwise"></i> Восстановить</button></form>
                           {% if is_personal_trash %}<form method="post" action="{% url 'trash_dismiss_folder' folder.pk %}" class="admin-inline-action-form">{% csrf_token %}<button class="btn btn-sm btn-outline-danger" type="submit"><i class="bi bi-x-lg"></i> Удалить из корзины</button></form>{% endif %}
                           {% if is_leader %}
-                            <form method="post" action="{% url 'admin_trash_purge_folder' folder.pk %}" class="admin-inline-action-form" data-confirm-title="Безвозвратное удаление папки" data-confirm-message="Папка, вложенные папки и файлы фотографий будут удалены с сервера без возможности восстановления." data-confirm-details="{{ folder.name }} · {{ folder.trash_tree_photo_count }} фото · {{ folder.trash_tree_folder_count }} влож. папок" data-confirm-confirm-label="Удалить папку" data-confirm-variant="danger">{% csrf_token %}<button class="btn btn-sm btn-outline-danger" type="submit"><i class="bi bi-trash3"></i> Удалить папку</button></form>
+                            <form method="post" action="{% url 'admin_trash_purge_folder' folder.pk %}" class="admin-inline-action-form" data-confirm-title="Окончательное удаление папки" data-confirm-message="Папку, вложенные папки и фотографии нельзя будет восстановить." data-confirm-details="{{ folder.name }} · {{ folder.trash_tree_photo_count }} фото · {{ folder.trash_tree_folder_count }} влож. папок" data-confirm-confirm-label="Удалить окончательно" data-confirm-variant="danger">{% csrf_token %}<button class="btn btn-sm btn-outline-danger" type="submit"><i class="bi bi-trash3"></i> Удалить окончательно</button></form>
                           {% endif %}
                         </div>
                       </td>

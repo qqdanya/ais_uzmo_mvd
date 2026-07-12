@@ -12,11 +12,11 @@
   <section class="panel admin-command-panel admin-executive-panel">
     {% include "admin_panel/_executive_nav.html" with active_tab="departments" %}
 
-    <section class="admin-departments-screen" aria-label="Аналитика по отделам">
+    <section class="admin-departments-screen" aria-label="Состояние заявок по отделам">
       <div class="admin-requests-hero admin-departments-hero">
         <div>
           <h2>Отделы</h2>
-          <p>Сравнение отделов по заявкам, срокам исполнения, зависшим обращениям и активности территориальных органов.</p>
+          <p>Состояние заявок и сроки обработки по отделам.</p>
         </div>
         <div class="admin-requests-total">
           <span>Найдено</span>
@@ -37,7 +37,7 @@
         {% endfor %}
       </section>
 
-      <nav class="admin-status-tabs" aria-label="Быстрые срезы по отделам">
+      <nav class="admin-status-tabs" aria-label="Фильтры по отделам">
         {% for tab in view_tabs %}
           <a class="admin-status-tab{% if tab.active %} active{% endif %}" href="{{ tab.url }}">
             <span>{{ tab.label }}</span>
@@ -132,7 +132,7 @@
                   <th>В работе</th>
                   <th>Исполнено</th>
                   <th>Отклонено</th>
-                  <th>Зависшие</th>
+                  <th>Просроченные</th>
                   <th>Средний срок</th>
                   <th>Активных органов</th>
                   <th>Последняя активность</th>

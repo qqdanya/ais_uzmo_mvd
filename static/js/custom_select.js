@@ -78,6 +78,13 @@ function initCustomSelects(scope = document) {
     const value = document.createElement("span");
     value.className = "custom-select-value";
     value.dataset.customSelectValue = "true";
+    const leadingIconClass = select.dataset.customSelectIcon;
+    if (leadingIconClass) {
+      const leadingIcon = document.createElement("i");
+      leadingIcon.className = `bi ${leadingIconClass} custom-select-leading-icon`;
+      leadingIcon.setAttribute("aria-hidden", "true");
+      trigger.append(leadingIcon);
+    }
     const icon = document.createElement("i");
     icon.className = "bi bi-chevron-down";
     trigger.append(value, icon);

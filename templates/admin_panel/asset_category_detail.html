@@ -17,17 +17,17 @@
         <div>
           <a class="admin-back-link" href="{{ back_url }}"><i class="bi bi-arrow-left"></i> Назад к материальной базе</a>
           <h2><i class="bi {{ category.icon }}"></i> {{ category.title }}</h2>
-          <p>{{ category.department_name }} · актуальное состояние по территориальным органам</p>
+          <p>{{ category.department_name }} · текущее состояние по территориальным органам</p>
         </div>
         <div class="admin-organ-detail-meta">
           <span>Данные есть: <strong>{{ summary.data_label }}</strong></span>
-          <span>Требует внимания: <strong>{{ summary.attention_count }}</strong></span>
+          <span>Требует контроля: <strong>{{ summary.attention_count }}</strong></span>
           <span>Нет данных: <strong>{{ summary.no_data_count }}</strong></span>
           <span>Обновлено: <strong>{{ summary.latest_display }}</strong></span>
         </div>
       </div>
 
-      <nav class="admin-status-tabs" aria-label="Срезы категории материальной базы">
+      <nav class="admin-status-tabs" aria-label="Фильтры категории материальной базы">
         {% for tab in status_tabs %}
           <a class="admin-status-tab{% if tab.active %} active{% endif %}" href="{{ tab.url }}">
             <span>{{ tab.label }}</span>
@@ -92,7 +92,7 @@
           <div class="admin-section-head">
             <div>
               <h2>Текущая ситуация по органам</h2>
-              <span>В таблице показано актуальное состояние по каждому территориальному органу.</span>
+              <span>В таблице показано текущее состояние по каждому территориальному органу.</span>
             </div>
           </div>
           {% if page.object_list %}
@@ -102,7 +102,7 @@
                   <tr>
                     <th>Территориальный орган</th>
                     <th>Состояние</th>
-                    <th>Актуализация</th>
+                    <th>Обновлено</th>
                     <th>Показатели</th>
                     <th>Действие</th>
                   </tr>
@@ -140,8 +140,8 @@
         <section class="admin-section">
           <div class="admin-section-head">
             <div>
-              <h2>Последние актуализации</h2>
-              <span>История помогает отследить изменения по выбранной категории</span>
+              <h2>Последние обновления данных</h2>
+              <span>Изменения данных по выбранной категории</span>
             </div>
           </div>
           {% if history_rows %}

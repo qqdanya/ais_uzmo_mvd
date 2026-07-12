@@ -3,29 +3,34 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 92px;
-  padding: .18rem .5rem;
+  gap: .34rem;
+  min-width: 104px;
+  padding: .26rem .62rem;
   border: 1px solid transparent;
   border-radius: 999px;
-  font-size: .76rem;
-  font-weight: 400;
+  font-size: .79rem;
+  font-weight: 500;
   line-height: 1.15;
   white-space: nowrap;
 }
+.status-badge > i {
+  flex: 0 0 auto;
+  font-size: .82rem;
+}
 .status-in_work {
-  color: #6f5b00;
-  background: #fff8c9;
-  border-color: #dec75a;
+  color: #69571f;
+  background: #faf5e7;
+  border-color: #ddcfa4;
 }
 .status-done {
-  color: #116329;
-  background: #dcf7e5;
-  border-color: #7dc99a;
+  color: #245f3a;
+  background: #edf6f0;
+  border-color: #afd0bb;
 }
 .status-rejected {
-  color: #9f1d1d;
-  background: #ffe1e1;
-  border-color: #e58b8b;
+  color: #7d3c3c;
+  background: #faeeee;
+  border-color: #dfbcbc;
 }
 .expiry-cell {
   display: inline-flex;

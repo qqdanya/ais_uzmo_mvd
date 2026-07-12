@@ -18,7 +18,7 @@
       <div class="admin-request-detail-head admin-organ-detail-head">
         <div>
           <h2>{{ organ.order_number|floatformat:"-2" }}. {{ organ.name }}</h2>
-          <p>Карточка органа: заявки, сроки обработки, отделы и последняя активность.</p>
+          <p>Состояние заявок, сроки обработки и распределение по отделам.</p>
         </div>
         <div class="admin-organ-detail-meta">
           <span><i class="bi bi-diagram-3"></i> Подразделений: <strong>{{ children|length }}</strong></span>
@@ -30,7 +30,7 @@
         <div class="admin-section-head">
           <div>
             <h2>Фильтры карточки</h2>
-            <span>Период, отдел и статус заявок для статистики органа</span>
+            <span>Период, отдел и статус заявок</span>
           </div>
         </div>
 
@@ -74,7 +74,7 @@
           <div class="admin-section-head">
             <div>
               <h2>Разбивка по отделам</h2>
-              <span>Где у органа основная нагрузка и есть ли зависшие заявки</span>
+              <span>Состояние заявок по отделам</span>
             </div>
           </div>
           <div class="admin-requests-table-wrap">
@@ -86,7 +86,7 @@
                   <th>В работе</th>
                   <th>Исполнено</th>
                   <th>Отклонено</th>
-                  <th>Зависшие</th>
+                  <th>Просроченные</th>
                   <th>Средний срок</th>
                 </tr>
               </thead>

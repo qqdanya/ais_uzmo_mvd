@@ -1,7 +1,7 @@
 <div class="admin-command-head admin-executive-head">
   <div>
     <h1>Административная панель</h1>
-    <p>Сводная информация по заявкам, сотрудникам и материальной базе</p>
+    <p>Состояние заявок, сотрудников и материальной базы</p>
   </div>
   <div class="admin-command-actions">
     <a class="btn btn-sm btn-outline-primary" href="{% url 'audit_log' %}">
@@ -24,7 +24,7 @@
 <nav class="admin-top-tabs" aria-label="Разделы административной панели">
   <a class="admin-top-tab{% if active_tab == 'summary' %} active{% endif %}" href="{% url 'admin_panel' %}">
     <i class="bi bi-speedometer2"></i>
-    Оперативная сводка
+    Общее состояние
   </a>
   <a class="admin-top-tab{% if active_tab == 'requests' %} active{% endif %}" href="{% url 'admin_requests_panel' %}">
     <i class="bi bi-inboxes"></i>

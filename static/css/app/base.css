@@ -25,12 +25,12 @@
 
 * { box-sizing: border-box; }
 ::selection {
-  background: #c7e8f8;
-  color: var(--navy);
+  background: #97cfee;
+  color: #082746;
 }
 ::-moz-selection {
-  background: #c7e8f8;
-  color: var(--navy);
+  background: #97cfee;
+  color: #082746;
 }
 html {
   height: 100%;

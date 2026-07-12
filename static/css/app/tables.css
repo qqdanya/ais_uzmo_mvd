@@ -290,6 +290,60 @@
   margin-left: auto;
   white-space: nowrap;
 }
+.table-actions .table-export-button,
+.table-actions .table-add-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+  min-height: 34px;
+  padding: .4rem .72rem;
+  border-radius: 8px;
+  font-size: .82rem;
+  font-weight: 600;
+  line-height: 1.15;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18);
+  transition: border-color .16s var(--motion-smooth), background .16s var(--motion-smooth), color .16s var(--motion-smooth), box-shadow .16s var(--motion-smooth);
+}
+.table-actions .table-export-button {
+  border-color: #78a98c;
+  background: #edf4f0;
+  color: #236741;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .7);
+}
+.table-actions .table-export-button:hover,
+.table-actions .table-export-button:focus-visible,
+.table-actions .table-export-button.show {
+  border-color: #4f906b;
+  background: #e2eee7;
+  color: #185533;
+  box-shadow: 0 2px 6px rgba(33, 115, 70, .11);
+}
+.table-actions .table-export-chevron {
+  margin-left: .1rem;
+  font-size: .68rem;
+  transition: transform .16s var(--motion-smooth);
+}
+.table-actions .table-export-button.show .table-export-chevron {
+  transform: rotate(180deg);
+}
+.table-actions .table-add-button {
+  border-color: #76add1;
+  background: #edf5fb;
+  color: #145b88;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .72);
+}
+.table-actions .table-add-button:hover,
+.table-actions .table-add-button:focus-visible {
+  border-color: #4b94c2;
+  background: #e1eff9;
+  color: #0d4c75;
+  box-shadow: 0 2px 6px rgba(23, 105, 170, .11);
+}
+.table-actions .table-export-button > i:first-child,
+.table-actions .table-add-button > i {
+  font-size: .9rem;
+}
 .table-view-switch {
   display: inline-flex;
   align-items: center;
@@ -420,19 +474,19 @@
   box-shadow: inset 0 0 0 1px rgba(255,255,255,.82);
 }
 .summary-pill-in-work {
-  --summary-accent: #d5a316;
-  --summary-bg: #fff7df;
-  --summary-border: #f0d98d;
+  --summary-accent: #a78b3d;
+  --summary-bg: #faf5e7;
+  --summary-border: #ddcfa4;
 }
 .summary-pill-done {
-  --summary-accent: #2f9b62;
-  --summary-bg: #eaf8f0;
-  --summary-border: #bde3cd;
+  --summary-accent: #4c8b66;
+  --summary-bg: #edf6f0;
+  --summary-border: #c5ddce;
 }
 .summary-pill-rejected {
-  --summary-accent: #c94b4b;
-  --summary-bg: #fff0f0;
-  --summary-border: #efc6c6;
+  --summary-accent: #a96363;
+  --summary-bg: #faeeee;
+  --summary-border: #dfbcbc;
 }
 .summary-pill.is-zero {
   --summary-bg: #f6f9fc;

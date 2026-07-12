@@ -426,8 +426,14 @@ def dismiss_trash_item(request, kind, pk, table_key=""):
     else:
         raise PermissionDenied
     TrashDismissal.objects.get_or_create(user=request.user, kind=kind, table_key=table_key, object_id=pk)
+    write_audit(
+        AuditLog.Action.UPDATE,
+        obj,
+        new_values={"audit_event": AuditLog.EventType.PERSONAL_TRASH_ITEM_REMOVED, "kind": kind},
+        request=request,
+    )
     refresh_personal_trash_count(request.user)
-    return TrashActionResult(True, "Объект удалён из вашей корзины. В системе и общей корзине администратора он сохранён.")
+    return TrashActionResult(True, "Объект убран из вашей корзины.")
 
 
 def clear_personal_trash(request):
@@ -445,8 +451,14 @@ def clear_personal_trash(request):
     dismissals.extend(TrashDismissal(user=request.user, kind="photo", object_id=photo.pk) for photo in _deleted_photos(organs, user=request.user, personal=True))
     dismissals.extend(TrashDismissal(user=request.user, kind="folder", object_id=folder.pk) for folder in _deleted_folders(organs, user=request.user, personal=True))
     TrashDismissal.objects.bulk_create(dismissals, ignore_conflicts=True)
+    write_audit(
+        AuditLog.Action.UPDATE,
+        user=request.user,
+        new_values={"audit_event": AuditLog.EventType.PERSONAL_TRASH_CLEARED, "object_count": len(dismissals)},
+        request=request,
+    )
     refresh_personal_trash_count(request.user)
-    return TrashActionResult(True, "Личная корзина очищена. Данные сохранены в системе и общей корзине администратора.")
+    return TrashActionResult(True, "Корзина очищена.")
 
 
 def add_action_message(request, result):
@@ -567,7 +579,7 @@ def permanently_delete_photo(request, pk):
         if photo.image:
             photo.image.delete(save=False)
         photo.delete()
-    return TrashActionResult(True, "Фотография и файл на сервере безвозвратно удалены.")
+    return TrashActionResult(True, "Фотография удалена без возможности восстановления.")
 
 
 def permanently_delete_folder_tree(request, pk):
@@ -605,4 +617,4 @@ def permanently_delete_folder_tree(request, pk):
                 photo.image.delete(save=False)
             photo.delete()
         TerritorialOrganPhotoFolder.objects.filter(pk__in=folder_ids).delete()
-    return TrashActionResult(True, "Папка, вложенные папки и файлы фотографий безвозвратно удалены.")
+    return TrashActionResult(True, "Папка и всё её содержимое удалены без возможности восстановления.")

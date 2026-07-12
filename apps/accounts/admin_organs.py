@@ -51,9 +51,9 @@ from .admin_thresholds import get_request_stale_workdays
 ORGAN_VIEW_FILTERS = {
     "all": "Все",
     "in_work": "С заявками в работе",
-    "stale": "С зависшими",
-    "no_activity": "Без активности",
-    "best": "Лучшие по срокам",
+    "stale": "С просроченными",
+    "no_activity": "Без заявок",
+    "best": "Сначала с меньшим сроком",
 }
 
 
@@ -189,7 +189,7 @@ def build_organs_kpis(all_rows, visible_rows):
     return [
         {"label": "Всего органов", "value": len(visible_rows), "hint": "в текущем списке", "icon": "bi-building"},
         {"label": "Активные органы", "value": sum(1 for row in visible_rows if row["total"] > 0), "hint": "есть заявки", "icon": "bi-activity"},
-        {"label": "С зависшими", "value": sum(1 for row in visible_rows if row["stale"] > 0), "hint": f"более {get_request_stale_workdays()} рабочих дней", "icon": "bi-exclamation-triangle"},
+        {"label": "С просроченными", "value": sum(1 for row in visible_rows if row["stale"] > 0), "hint": f"более {get_request_stale_workdays()} рабочих дней", "icon": "bi-exclamation-triangle"},
         {
             "label": "Средний срок",
             "value": completion_display(avg_completion),
@@ -229,7 +229,7 @@ def active_filter_chips(filters):
     if filters["query"]:
         chips.append(f"Поиск: {filters['query']}")
     if filters["view"] != "all":
-        chips.append(f"Срез: {ORGAN_VIEW_FILTERS[filters['view']]}")
+        chips.append(f"Фильтр: {ORGAN_VIEW_FILTERS[filters['view']]}")
     return chips
 
 
@@ -383,7 +383,7 @@ def build_organ_detail_context(request, pk):
             {"label": "Всего заявок", "value": organ_row["total"], "hint": filters["period"]["label"], "icon": "bi-inboxes"},
             {"label": "В работе", "value": organ_row["in_work"], "hint": "текущие заявки", "icon": "bi-hourglass-split"},
             {"label": "Исполнено", "value": organ_row["done"], "hint": "по текущим фильтрам", "icon": "bi-check2-circle"},
-            {"label": "Зависшие", "value": organ_row["stale"], "hint": f"более {get_request_stale_workdays()} рабочих дней", "icon": "bi-exclamation-triangle"},
+            {"label": "Просроченные", "value": organ_row["stale"], "hint": f"более {get_request_stale_workdays()} рабочих дней", "icon": "bi-exclamation-triangle"},
             {"label": "Средний срок", "value": organ_row["avg_completion_display"], "hint": "по исполненным заявкам", "icon": "bi-stopwatch"},
         ],
         "department_rows": department_stats_for_organ(organ, tables, filters),

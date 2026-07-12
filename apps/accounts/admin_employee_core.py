@@ -418,7 +418,7 @@ def employee_kpis(users_or_counts):
         {"key": "online", "label": "Онлайн сейчас", "value": counts["online"], "hint": "активность за последнюю минуту", "icon": "bi-broadcast"},
         {"key": "activation", "label": "Ожидают активации", "value": counts["activation"], "hint": "ещё не задали пароль", "icon": "bi-person-check"},
         {"key": "blocked", "label": "Заблокированы", "value": counts["blocked"], "hint": "вход отключён", "icon": "bi-person-x"},
-        {"key": "admins", "label": "Руководители/админы", "value": counts["admins"], "hint": "управленческий доступ", "icon": "bi-shield-lock"},
+        {"key": "admins", "label": "Руководители и администраторы", "value": counts["admins"], "hint": "расширенные права доступа", "icon": "bi-shield-lock"},
     ]
 
 

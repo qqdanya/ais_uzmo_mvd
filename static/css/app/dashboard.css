@@ -216,22 +216,31 @@
   gap: 4px;
   padding: 4px;
   margin-bottom: 8px;
-  border: 1px solid var(--line);
+  border: 1px solid #c3dbea;
   border-radius: 8px;
-  background: #eef6fb;
+  background: #e8f3fa;
 }
 .organ-mode-switch button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .36rem;
   border: 0;
   border-radius: 6px;
   padding: .38rem .5rem;
-  background: transparent;
-  color: var(--muted);
+  background: #f4f9fc;
+  color: #526b80;
   font-weight: 700;
+  transition: color .16s var(--motion-smooth), background .16s var(--motion-smooth), box-shadow .16s var(--motion-smooth);
+}
+.organ-mode-switch button:hover:not(.active) {
+  background: #fff;
+  color: var(--blue);
 }
 .organ-mode-switch button.active {
-  background: #fff;
-  color: var(--navy);
-  box-shadow: 0 8px 18px rgba(23, 105, 170, .12);
+  background: linear-gradient(180deg, #287bb8 0%, #1769aa 100%);
+  color: #fff;
+  box-shadow: 0 3px 8px rgba(23, 105, 170, .22);
 }
 .organ-bulk-actions {
   display: grid;

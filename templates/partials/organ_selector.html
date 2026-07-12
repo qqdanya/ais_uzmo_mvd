@@ -12,7 +12,7 @@ so it does not conflict with the dashboard localStorage and event handlers.
   </div>
   <div class="admin-organ-selector-summary" data-admin-organ-summary>Выбрано: все территориальные органы</div>
   <div class="admin-organ-selector-hint">
-    Выбранные органы подсвечиваются. По умолчанию в сводке учитывается весь доступный перечень.
+    Выбранные органы подсвечиваются. По умолчанию учитываются все доступные территориальные органы.
   </div>
   <div class="organ-bulk-actions admin-organ-bulk-actions">
     <button class="btn btn-sm btn-outline-primary" type="button" data-admin-organ-select-all>Выбрать все</button>
@@ -22,7 +22,7 @@ so it does not conflict with the dashboard localStorage and event handlers.
     <input type="checkbox" data-admin-all-organs checked>
     <span>
       <strong>Все территориальные органы</strong>
-      <small>Сводная аналитика по всему доступному перечню</small>
+      <small>Учитываются все доступные территориальные органы</small>
     </span>
   </label>
   <div class="search-box mb-3">
@@ -55,8 +55,8 @@ so it does not conflict with the dashboard localStorage and event handlers.
   </div>
   <button class="btn btn-sm btn-outline-primary navigation-restore-departments" type="button" data-panel-toggle="departments" data-bs-toggle="tooltip" data-tooltip-placement="bottom" data-bs-title="Показать отделы" aria-label="Показать отделы" aria-pressed="true"><i class="bi bi-chevron-right"></i> Показать отделы</button>
   <div class="organ-mode-switch" role="group" aria-label="Режим выбора территориальных органов">
-    <button class="active" type="button" data-organ-mode="single">Один</button>
-    <button type="button" data-organ-mode="multi">Выборочно</button>
+    <button class="active" type="button" data-organ-mode="single"><i class="bi bi-record-circle" aria-hidden="true"></i> Один</button>
+    <button type="button" data-organ-mode="multi"><i class="bi bi-check2-square" aria-hidden="true"></i> Выборочно</button>
   </div>
   <div class="organ-bulk-actions" data-organ-bulk-actions hidden>
     <button class="btn btn-sm btn-outline-primary" type="button" data-organ-select-all>Выбрать все</button>

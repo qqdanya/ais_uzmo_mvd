@@ -32,7 +32,7 @@
         {% endif %}
 
         <div class="admin-section-head">
-          <div><h2>Данные сотрудника</h2><span>ФИО заполняется вертикально, отдельно от логина и системной роли</span></div>
+          <div><h2>Данные сотрудника</h2><span>Укажите ФИО, логин и роль сотрудника</span></div>
           <div class="admin-filter-actions">
             <button class="btn btn-sm btn-primary" type="submit"><i class="bi bi-check2"></i> {{ submit_label }}</button>
           </div>
@@ -100,7 +100,7 @@
 
         <section class="admin-employee-form-card admin-employee-system-rights admin-employee-account-status">
           <div class="admin-section-head admin-section-head-compact">
-            <div><h2>Статус учетной записи</h2><span>Обычному сотруднику достаточно роли и рабочих прав по отделам/территориальным органам.</span></div>
+            <div><h2>Статус учетной записи</h2><span>Доступ к разделам определяется ролью и назначенными правами.</span></div>
           </div>
           <label class="admin-employee-switch{% if form.is_active.errors %} has-error{% endif %}">
             {{ form.is_active }}

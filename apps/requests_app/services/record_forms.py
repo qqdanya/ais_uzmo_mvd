@@ -100,6 +100,6 @@ def record_delete_response(request, organ, table_key, table, pk, refresh_table):
     if request.method == "POST":
         soft_delete_record(request, obj)
         response = refresh_table()
-        response["HX-Trigger"] = htmx_triggers("Запись удалена.")
+        response["HX-Trigger"] = htmx_triggers("Запись перемещена в корзину.")
         return response
     return render(request, "partials/confirm_delete.html", {"object": obj, "organ": organ, "table": table})

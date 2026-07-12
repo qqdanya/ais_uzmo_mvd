@@ -200,6 +200,7 @@ def single_select(
     id: str = "",
     aria_label: str = "",
     css_class: str = "form-select form-select-sm",
+    icon_class: str = "",
     data_admin_org_metric: bool = False,
     data_custom_select_skip: bool = False,
 ) -> dict[str, Any]:
@@ -218,6 +219,7 @@ def single_select(
         "name": name,
         "aria_label": aria_label,
         "css_class": css_class,
+        "icon_class": icon_class,
         "options": normalized_options,
         "data_admin_org_metric": data_admin_org_metric,
         "data_custom_select_skip": data_custom_select_skip,

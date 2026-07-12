@@ -3,6 +3,9 @@ from django.http import Http404
 from django.shortcuts import redirect
 from django.utils.http import url_has_allowed_host_and_scheme
 
+from apps.audit.models import AuditLog
+from apps.audit.utils import write_audit
+
 from .downloads import csv_streaming_response, download_ready_response
 from .export_limits import ExportBusyError, heavy_export_slot
 from .exports import (
@@ -58,6 +61,8 @@ def build_export_response(request, rows_for_count, builder):
 
 def export_table_response(request, organ, table, table_key, fmt, selected_organs):
     """Build a CSV/XLSX response for the current table view."""
+    if fmt not in {"csv", "xlsx"}:
+        raise Http404
     qs = filtered_queryset(request, table, selected_organs)
     fields = display_fields(table)
     filename = f"{table_key}-{organ.pk}.{fmt}"
@@ -71,6 +76,19 @@ def export_table_response(request, organ, table, table_key, fmt, selected_organs
         qs = fire_extinguisher_filtered_queryset(request, qs)
 
     current_group_mode = request_group_mode(request, table_key, is_multi_organ) if is_request_table else "requests"
+    write_audit(
+        AuditLog.Action.UPDATE,
+        user=request.user,
+        new_values={
+            "audit_event": AuditLog.EventType.TABLE_EXPORTED,
+            "format": fmt,
+            "table_key": table_key,
+            "table_title": table["title"],
+            "organ_count": len(selected_organs),
+            "group_mode": current_group_mode,
+        },
+        request=request,
+    )
     if current_group_mode in {"products", "organs", "dates"}:
         is_tmc = table_key == "tmc-requests"
         if current_group_mode == "organs":

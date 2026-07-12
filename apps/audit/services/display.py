@@ -15,6 +15,7 @@ from .constants import (
     ACTION_BADGES,
     ACTION_DISPLAY_LABELS,
     AUDIT_EVENT_SUMMARIES,
+    EVENT_BADGES,
     MODEL_HIDDEN_FIELD_NAMES,
     MODEL_TABLES,
     SYSTEM_FIELD_NAMES,
@@ -60,7 +61,7 @@ def table_action_summary(log, changes):
     if log.action == AuditLog.Action.CREATE:
         return f"{noun} добавлена" if noun == "Заявка" else f"{noun} добавлены"
     if log.action == AuditLog.Action.DELETE:
-        return f"{noun} удалена" if noun == "Заявка" else f"{noun} удалены"
+        return f"{noun} перемещена в корзину" if noun == "Заявка" else f"{noun} перемещены в корзину"
     if changes:
         labels = ", ".join(row["label"] for row in changes[:3])
         if len(changes) > 3:
@@ -108,7 +109,14 @@ def audit_object_repr(log):
         return f"Товар «{audit_object_name(log, 'name')}»"
     if log.model_name == "TmcRequestItem":
         return f"Позиция ТМЦ «{audit_object_name(log, 'name')}»"
-    return typographic_quotes(log.object_repr)
+    value = typographic_quotes(log.object_repr).strip()
+    legacy_match = re.match(
+        r"^(?:Создан(?:а|о)?|Добавлен(?:а|о)?|Измен[её]н(?:а|о)?|Удал[её]н(?:а|о)?)\s+"
+        r"(?:запись|объект|изменение статуса заявки)\s*[«\"]?(.*?)[»\"]?$",
+        value,
+        flags=re.IGNORECASE,
+    )
+    return legacy_match.group(1).strip() if legacy_match else value
 
 
 def field_label(model_name, field_name):
@@ -124,13 +132,10 @@ def field_label(model_name, field_name):
 
 
 def field_display_value(model_name, field_name, value, related_value_cache=None):
-    if value in (None, "", "None"):
+    if value in (None, "", "None", "null"):
         return "Не указано"
-    if value == "True":
-        return "Да"
-    if value == "False":
-        return "Нет"
     model = model_class(model_name)
+    field = None
     if model:
         try:
             field = model._meta.get_field(field_name)
@@ -143,9 +148,33 @@ def field_display_value(model_name, field_name, value, related_value_cache=None)
                 return cache[cache_key]
             choices = dict(getattr(field, "choices", []) or [])
             if choices:
-                return str(choices.get(value, value))
+                normalized_choices = {str(key): label for key, label in choices.items()}
+                return str(normalized_choices.get(str(value), value))
         except Exception:
-            pass
+            field = None
+    field_type = field.get_internal_type() if field else ""
+    if field_type in {"BooleanField", "NullBooleanField"}:
+        normalized = str(value).strip().lower()
+        if normalized in {"true", "1"}:
+            return "Да"
+        if normalized in {"false", "0"}:
+            return "Нет"
+    if field_type == "DateField":
+        date_value = parse_date(str(value)[:10])
+        if date_value:
+            return date_value.strftime("%d.%m.%Y")
+    if field_type == "DateTimeField":
+        datetime_value = parse_datetime(str(value))
+        if datetime_value:
+            if timezone.is_aware(datetime_value):
+                datetime_value = timezone.localtime(datetime_value)
+            return datetime_value.strftime("%d.%m.%Y %H:%M:%S")
+    if field_type in {"FileField", "ImageField"}:
+        return Path(str(value)).name
+    if str(value) == "True":
+        return "Да"
+    if str(value) == "False":
+        return "Нет"
     datetime_value = parse_datetime(str(value))
     if datetime_value:
         if timezone.is_aware(datetime_value):
@@ -229,7 +258,7 @@ def audit_summary(log, changes=None):
         if log.action == AuditLog.Action.CREATE:
             return "Фотография добавлена"
         if log.action == AuditLog.Action.DELETE:
-            return "Фотография удалена"
+            return "Фотография перемещена в корзину"
         if set(changed_fields) == {"description"}:
             old_description = changed_fields["description"]["old"]
             new_description = changed_fields["description"]["new"]
@@ -248,7 +277,7 @@ def audit_summary(log, changes=None):
         if log.action == AuditLog.Action.CREATE:
             return "Папка фотографий создана"
         if log.action == AuditLog.Action.DELETE:
-            return "Папка фотографий удалена"
+            return "Папка фотографий перемещена в корзину"
         if "name" in changed_fields:
             return "Папка фотографий переименована"
         if "parent" in changed_fields:
@@ -262,7 +291,7 @@ def audit_summary(log, changes=None):
     if log.action == AuditLog.Action.CREATE:
         return "Запись добавлена"
     if log.action == AuditLog.Action.DELETE:
-        return "Запись удалена"
+        return "Запись перемещена в корзину"
     if changes:
         labels = ", ".join(row["label"] for row in changes[:3])
         if len(changes) > 3:
@@ -313,15 +342,39 @@ def audit_status_history(log):
 
 
 def prepare_log(log, *, include_status_history=True, department_names=None, related_value_cache=None):
-    log.action_badge = ACTION_BADGES.get(log.action, "audit-action-default")
+    log.action_badge = EVENT_BADGES.get(log.event_type, ACTION_BADGES.get(log.action, "audit-action-default"))
     log.action_display = ACTION_DISPLAY_LABELS.get(log.action, log.get_action_display())
     log.model_title = model_title(log.model_name)
     log.browser_summary = user_agent_summary(log.user_agent)
     log.change_rows = audit_changes(log, related_value_cache)
     log.summary = audit_summary(log, log.change_rows)
+    log.inline_detail = ""
+    if log.event_type == AuditLog.EventType.STATUS_CHANGED and log.change_rows:
+        row = log.change_rows[0]
+        log.inline_detail = f"{row['old']} → {row['new']}"
+    elif log.event_type in {AuditLog.EventType.PHOTOS_ATTACHED, AuditLog.EventType.PHOTOS_DETACHED} and log.change_rows:
+        row = log.change_rows[0]
+        log.inline_detail = row["new"] if log.event_type == AuditLog.EventType.PHOTOS_ATTACHED else row["old"]
+    elif log.event_type == AuditLog.EventType.TABLE_EXPORTED:
+        values = log.new_values or {}
+        log.inline_detail = f"{str(values.get('format', '')).upper()} · {values.get('table_title', '')}".strip(" ·")
+    values = log.new_values or {}
+    detail_labels = {
+        "format": "Формат",
+        "table_title": "Таблица",
+        "organ_count": "Территориальных органов",
+        "photo_count": "Фотографий",
+        "object_count": "Объектов",
+        "request_photo_link_count": "Связей с заявками",
+    }
+    log.event_details = [
+        (label, str(values[key]).upper() if key == "format" else values[key])
+        for key, label in detail_labels.items()
+        if values.get(key) not in (None, "")
+    ]
     log.detail_action_text = log.summary
     log.display_object_repr = audit_object_repr(log)
-    log.is_object_action = log.action in {AuditLog.Action.CREATE, AuditLog.Action.UPDATE, AuditLog.Action.DELETE}
+    log.is_object_action = bool(log.model_name) and log.action in {AuditLog.Action.CREATE, AuditLog.Action.UPDATE, AuditLog.Action.DELETE}
     log.show_territorial_organ = log.is_object_action and log.territorial_organ_id
     log.location_parts = audit_location(log, department_names)
     log.status_history = audit_status_history(log) if include_status_history else []

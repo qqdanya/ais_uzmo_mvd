@@ -2,13 +2,13 @@
 <section class="panel admin-command-panel admin-executive-panel" data-admin-summary-root>
   {% include "admin_panel/_executive_nav.html" with active_tab="summary" %}
 
-  <section class="admin-summary-screen" aria-label="Оперативная сводка">
+  <section class="admin-summary-screen" aria-label="Общее состояние">
     <div class="admin-summary-filter-layout">
       <section class="admin-section admin-period-card">
         <div class="admin-section-head">
           <div>
-            <h2>Период сводки</h2>
-            <span>Быстрый выбор или точный диапазон двумя кликами по календарю</span>
+            <h2>Период</h2>
+            <span>Выберите период для расчёта показателей</span>
           </div>
           <div class="admin-period-value" data-admin-period-label>{{ summary_payload.period.label }}</div>
         </div>
@@ -53,7 +53,7 @@
       {% include "partials/organ_selector.html" with selector_variant="admin" organs=organs %}
     </div>
 
-    <div class="admin-metric-grid admin-summary-kpi" aria-label="Ключевые показатели сводки">
+    <div class="admin-metric-grid admin-summary-kpi" aria-label="Состояние заявок">
       <div class="admin-metric-card">
         <span class="admin-metric-icon"><i class="bi bi-inboxes"></i></span>
         <span>Всего заявок</span>
@@ -64,7 +64,7 @@
         <span class="admin-metric-icon"><i class="bi bi-hourglass-split"></i></span>
         <span>В работе</span>
         <strong data-kpi="in_work">{{ summary_payload.kpi.in_work }}</strong>
-        <small>текущая нагрузка</small>
+        <small>в работе</small>
       </div>
       <div class="admin-metric-card">
         <span class="admin-metric-icon"><i class="bi bi-check2-circle"></i></span>
@@ -80,7 +80,7 @@
       </div>
       <div class="admin-metric-card admin-metric-card-warning">
         <span class="admin-metric-icon"><i class="bi bi-exclamation-triangle"></i></span>
-        <span>Зависшие заявки</span>
+        <span>Просроченные заявки</span>
         <strong data-kpi="stale">{{ summary_payload.kpi.stale }}</strong>
         <small>в работе более {{ request_stale_workdays }} рабочих дней</small>
       </div>
@@ -109,9 +109,9 @@
         <div class="admin-section-head">
           <div>
             <h2>Территориальные органы</h2>
-            <span>Все территориальные органы по выбранному показателю</span>
+            <span>Распределение по территориальным органам</span>
           </div>
-          {% single_select options="total:Всего заявок|in_work:В работе|done:Исполнено|rejected:Отклонено|stale:Зависшие" selected_value="in_work" aria_label="Показатель территориальных органов" css_class="form-select form-select-sm admin-native-select" data_admin_org_metric=True %}
+          {% single_select options="total:Всего заявок|in_work:В работе|done:Исполнено|rejected:Отклонено|stale:Просроченные" selected_value="in_work" aria_label="Показатель территориальных органов" css_class="form-select form-select-sm admin-native-select" data_admin_org_metric=True %}
         </div>
         <div class="admin-bar-list" data-org-chart></div>
       </section>
@@ -119,7 +119,7 @@
       <section class="admin-section">
         <div class="admin-section-head">
           <div>
-            <h2>Топ отделов по текущей нагрузке</h2>
+            <h2>Отделы с наибольшим числом заявок в работе</h2>
             <span>Количество заявок со статусом «В работе»</span>
           </div>
         </div>
@@ -130,7 +130,7 @@
     <section class="admin-section">
       <div class="admin-section-head">
         <div>
-          <h2>Заявки, требующие внимания</h2>
+          <h2>Заявки с превышенным сроком обработки</h2>
           <span>Заявки, находящиеся в работе более {{ request_stale_workdays }} рабочих дней</span>
         </div>
       </div>

@@ -2,6 +2,9 @@ from django.contrib import messages
 from django.shortcuts import redirect
 from django.urls import reverse
 
+from apps.audit.models import AuditLog
+from apps.audit.utils import write_audit
+
 from .admin_thresholds import (
     THRESHOLD_HINTS,
     THRESHOLD_LABELS,
@@ -51,8 +54,16 @@ def build_settings_context(values=None, errors=None):
 
 
 def handle_settings_post(request):
+    old_values = get_dashboard_thresholds()
     if "reset" in request.POST:
         reset_dashboard_thresholds()
+        write_audit(
+            AuditLog.Action.UPDATE,
+            user=request.user,
+            old_values=old_values,
+            new_values={"audit_event": AuditLog.EventType.SETTINGS_RESET, **default_thresholds()},
+            request=request,
+        )
         messages.success(request, "Пороговые значения возвращены к значениям по умолчанию.")
         return None
 
@@ -76,5 +87,12 @@ def handle_settings_post(request):
         return build_settings_context(values, errors)
 
     save_dashboard_thresholds(values)
+    write_audit(
+        AuditLog.Action.UPDATE,
+        user=request.user,
+        old_values=old_values,
+        new_values={"audit_event": AuditLog.EventType.SETTINGS_UPDATED, **values},
+        request=request,
+    )
     messages.success(request, "Настройки административной панели сохранены.")
     return None

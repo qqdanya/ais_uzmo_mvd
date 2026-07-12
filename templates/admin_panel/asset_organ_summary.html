@@ -17,11 +17,11 @@
         <div>
           <a class="admin-back-link" href="{{ back_url }}"><i class="bi bi-arrow-left"></i> Назад к материальной базе</a>
           <h2>{{ organ.order_number|floatformat:"-2" }}. {{ organ.name }}</h2>
-          <p>Актуальное состояние материальной базы по последним записям</p>
+          <p>Текущее состояние материальной базы по последним записям</p>
         </div>
         {% if row %}
           <div class="admin-organ-detail-meta">
-            <span>Сигналы: <strong>{{ row.issue_score }}</strong></span>
+            <span>Требует контроля: <strong>{{ row.issue_score }}</strong></span>
             <span>Проблемы: <strong>{{ row.danger }}</strong></span>
             <span>Нет данных: <strong>{{ row.no_data }}</strong></span>
             <span>Обновлено: <strong>{{ row.latest_display }}</strong></span>
@@ -33,8 +33,8 @@
         <section class="admin-section">
           <div class="admin-section-head">
             <div>
-              <h2>Текущий срез</h2>
-              <span>Актуальное состояние по каждой категории.</span>
+              <h2>Текущее состояние</h2>
+              <span>Последние данные по каждой категории.</span>
             </div>
           </div>
           <div class="admin-assets-organ-cards">
@@ -45,7 +45,7 @@
                   <h3>{{ cell.category.title }}</h3>
                   <span class="admin-asset-status-badge {{ cell.class }}">{{ cell.label }}</span>
                   <p>{{ cell.message }}</p>
-                  <small>Актуализация: {{ cell.state_date_display }}</small>
+                  <small>Обновлено: {{ cell.state_date_display }}</small>
                   <div class="admin-asset-metric-list">
                     {% for metric in cell.metrics %}<span>{{ metric }}</span>{% endfor %}
                   </div>
@@ -59,7 +59,7 @@
       <section class="admin-section">
         <div class="admin-section-head">
           <div>
-            <h2>История актуализаций</h2>
+            <h2>История обновлений</h2>
             <span>Исторические записи сгруппированы по категориям</span>
           </div>
         </div>

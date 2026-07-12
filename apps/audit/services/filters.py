@@ -180,7 +180,7 @@ def audit_pagination_fields(request, date_from, date_to, show_user_filter=True, 
         {"name": "date_from", "value": date_from},
         {"name": "date_to", "value": date_to},
     ]
-    names = ["action", "object", "organ"]
+    names = ["event_type", "action", "object", "organ"]
     if show_user_filter:
         names.insert(0, "user")
     if show_department_filter:
@@ -198,7 +198,7 @@ def audit_multiselect_label(selected_values, empty_label, options=None):
 
 
 def audit_has_filters(request, date_from, date_to, show_user_filter=True, show_department_filter=True):
-    meaningful = {"action", "object", "organ"}
+    meaningful = {"event_type", "action", "object", "organ"}
     if show_user_filter:
         meaningful.add("user")
     if show_department_filter:
@@ -216,6 +216,7 @@ def filtered_logs(request, logs=None, show_user_filter=True, show_department_fil
     if logs is None:
         logs = AuditLog.objects.select_related("user", "user__profile", "territorial_organ").all()
     users = audit_filter_values(request, "user") if show_user_filter else []
+    event_types = audit_filter_values(request, "event_type")
     actions = audit_filter_values(request, "action")
     organs = audit_filter_values(request, "organ")
     departments = audit_filter_values(request, "department") if show_department_filter else []
@@ -223,6 +224,8 @@ def filtered_logs(request, logs=None, show_user_filter=True, show_department_fil
     models = filtered_model_names(departments, objects)
     if users:
         logs = logs.filter(user__username__in=users)
+    if event_types:
+        logs = logs.filter(event_type__in=event_types)
     if actions:
         logs = logs.filter(action__in=actions)
     if organs:

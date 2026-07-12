@@ -13,7 +13,7 @@
       <span>Пользователь</span>
       <strong>{{ log.user|display_name }}</strong>
     </div>
-    <div class="audit-detail-card">
+    <div class="audit-detail-card audit-detail-card--action">
       <span>Действие</span>
       <strong class="audit-action {{ log.action_badge }}">{{ log.detail_action_text }}</strong>
     </div>
@@ -30,6 +30,17 @@
       <h3>Объект</h3>
       <div class="audit-object-box">
         <strong>{{ log.display_object_repr|default:log.action_display }}</strong>
+      </div>
+    </div>
+  {% endif %}
+
+  {% if log.event_details %}
+    <div class="audit-detail-section">
+      <h3>Сведения о событии</h3>
+      <div class="audit-detail-grid">
+        {% for label,value in log.event_details %}
+          <div class="audit-detail-card"><span>{{ label }}</span><strong>{{ value }}</strong></div>
+        {% endfor %}
       </div>
     </div>
   {% endif %}

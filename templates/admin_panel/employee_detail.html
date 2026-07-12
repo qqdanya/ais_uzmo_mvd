@@ -106,7 +106,7 @@
 
         <section class="admin-section admin-employee-actions-card">
           <div class="admin-section-head">
-            <div><h2>Действия</h2><span>Безопасное управление учетной записью</span></div>
+          <div><h2>Действия</h2><span>Управление доступом сотрудника</span></div>
           </div>
           <div class="admin-employee-actions-list">
             <form method="post" action="{% url 'admin_employee_action' employee.pk %}">
@@ -122,9 +122,9 @@
               <button class="btn btn-outline-primary" type="submit" name="action" value="reset_activation"{% if is_self %} disabled title="Нельзя сбросить активацию себе"{% endif %}><i class="bi bi-arrow-clockwise"></i> Сбросить активацию</button>
             </form>
             {% if request.user.is_superuser and not is_self %}
-              <form method="post" action="{% url 'admin_employee_action' employee.pk %}" data-confirm-title="Удаление сотрудника" data-confirm-message="Сотрудник будет удален из базы данных. Связанные заявки и события журнала останутся в системе без привязки к учетной записи." data-confirm-details="{{ display_name }} · {{ employee.username }}" data-confirm-confirm-label="Удалить сотрудника" data-confirm-variant="danger">
+              <form method="post" action="{% url 'admin_employee_action' employee.pk %}" data-confirm-title="Удаление сотрудника" data-confirm-message="Сотрудник будет удалён без возможности восстановления. Созданные им заявки и записи журнала сохранятся." data-confirm-details="{{ display_name }} · {{ employee.username }}" data-confirm-confirm-label="Удалить сотрудника" data-confirm-variant="danger">
                 {% csrf_token %}
-                <button class="btn btn-outline-danger" type="submit" name="action" value="delete"><i class="bi bi-trash3"></i> Удалить из базы</button>
+                <button class="btn btn-outline-danger" type="submit" name="action" value="delete"><i class="bi bi-trash3"></i> Удалить безвозвратно</button>
               </form>
             {% else %}
               <p>Для обычных администраторов доступна блокировка. Безвозвратное удаление может выполнить только руководитель.</p>

@@ -65,13 +65,13 @@ def handle_employee_action(request, pk):
         return redirect("admin_employee_detail", pk=user.pk)
     if action == "delete":
         if not request.user.is_superuser:
-            messages.error(request, "Удалить сотрудника из базы данных может только руководитель.")
+            messages.error(request, "Окончательно удалить сотрудника может только руководитель.")
             return redirect("admin_employee_detail", pk=user.pk)
         username = user.username
         display_name = employee_display_name(user)
         write_employee_audit(request, user, AuditLog.Action.DELETE, "employee_deleted", {"username": username})
         user.delete()
-        messages.success(request, f"Сотрудник {display_name} удален из базы данных.")
+        messages.success(request, f"Сотрудник {display_name} удалён.")
         return redirect("admin_employees_panel")
     profile, _ = UserProfile.objects.get_or_create(user=user)
     if action == "block":

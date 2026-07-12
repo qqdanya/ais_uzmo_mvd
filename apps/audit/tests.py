@@ -11,9 +11,21 @@ from apps.directory.models import Department, TerritorialOrgan
 from apps.requests_app.models import RequestStatusHistory, TmcRequest
 
 from .models import AuditLog
+from .services.display import field_display_value, prepare_log
 
 
 class AuditLogTests(TestCase):
+    def test_field_values_respect_model_field_types(self):
+        self.assertEqual(
+            field_display_value("TmcRequest", "request_date", "2026-07-01T00:00:00"),
+            "01.07.2026",
+        )
+        self.assertEqual(
+            field_display_value("RequestStatusHistory", "changed_at", "2026-07-01T12:34:56"),
+            "01.07.2026 12:34:56",
+        )
+        self.assertEqual(field_display_value("TmcRequest", "is_deleted", "0"), "Нет")
+
     def setUp(self):
         User = get_user_model()
         self.admin = User.objects.create_user("admin", password="pass12345")
@@ -46,7 +58,7 @@ class AuditLogTests(TestCase):
             self.create_log(object_id=str(index), object_repr=f"Запись {index}")
         self.client.login(username="admin", password="pass12345")
 
-        response = self.client.get(reverse("audit_log"), {"action": AuditLog.Action.UPDATE})
+        response = self.client.get(reverse("audit_log"), {"event_type": AuditLog.EventType.RECORD_UPDATED})
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Журнал действий")
@@ -59,20 +71,20 @@ class AuditLogTests(TestCase):
         self.assertContains(response, "data-admin-multiselect-clear")
         self.assertNotContains(response, "Поиск в журнале событий")
         self.assertContains(response, "записей найдено")
-        self.assertContains(response, "Google Chrome / Windows")
+        self.assertNotContains(response, "Google Chrome / Windows")
         self.assertContains(response, "Открыть")
         self.assertContains(response, "Событие")
-        self.assertContains(response, "Платформа")
+        self.assertNotContains(response, "Платформа")
         self.assertContains(response, "Подробности")
         self.assertNotContains(response, "<th>Действие</th>", html=True)
         self.assertContains(response, "Все территориальные органы")
-        self.assertContains(response, "Редактирование")
+        self.assertContains(response, "Изменение записи")
         self.assertContains(response, 'class="pagination-jump"')
         self.assertContains(response, "audit-detail-button")
         self.assertContains(response, 'hx-trigger="audit-filter-change"')
         self.assertContains(response, "js/audit_filters.js")
         self.assertContains(response, "Применены фильтры:")
-        self.assertContains(response, "Действия: Редактирование")
+        self.assertContains(response, "События: Изменение записи")
         self.assertContains(response, "Сбросить все")
         self.assertNotContains(response, "Применить")
         self.assertContains(response, "Страницы журнала действий")
@@ -174,7 +186,8 @@ class AuditLogTests(TestCase):
         self.assertContains(response, "Описание")
         self.assertContains(response, "Old description")
         self.assertContains(response, "New description")
-        self.assertContains(response, "Изменена запись «Заявка ТМЦ № 10/TMC»")
+        self.assertContains(response, "Заявка ТМЦ № 10/TMC")
+        self.assertNotContains(response, "Изменена запись «Заявка ТМЦ № 10/TMC»")
         self.assertNotContains(response, "Заявка тмц")
         self.assertContains(response, "Google Chrome / Windows")
         self.assertContains(response, "Сведения о браузере")
@@ -256,8 +269,8 @@ class AuditLogTests(TestCase):
         response = self.client.get(reverse("audit_detail", args=[log.pk]), HTTP_HX_REQUEST="true")
 
         self.assertContains(response, "Папка фотографий «333»")
-        self.assertContains(response, '<strong class="audit-action audit-action-create">Папка фотографий создана</strong>', html=True)
-        self.assertNotContains(response, '<span class="audit-action audit-action-create">Папка фотографий</span>', html=True)
+        self.assertContains(response, '<strong class="audit-action audit-event-create">Папка фотографий создана</strong>', html=True)
+        self.assertNotContains(response, '<span class="audit-action audit-event-create">Папка фотографий</span>', html=True)
         self.assertContains(response, "Наименование")
         self.assertNotContains(response, "Отдел автора")
 
@@ -315,7 +328,7 @@ class AuditLogTests(TestCase):
         self.assertContains(response, "Фотография восстановлена")
         self.assertContains(response, "Фотография «restore.jpg»")
         self.assertNotContains(response, "Изменена фотография «restore.jpg»")
-        self.assertContains(detail_response, '<strong class="audit-action audit-action-update">Фотография восстановлена</strong>', html=True)
+        self.assertContains(detail_response, '<strong class="audit-action audit-event-restore">Фотография восстановлена</strong>', html=True)
 
     def test_audit_event_summaries_use_clear_names(self):
         self.create_log(action=AuditLog.Action.DELETE, object_repr="Deleted request")
@@ -340,7 +353,7 @@ class AuditLogTests(TestCase):
 
         response = self.client.get(reverse("audit_log"))
 
-        self.assertContains(response, "Заявка удалена")
+        self.assertContains(response, "Заявка перемещена в корзину")
         self.assertContains(response, "Папка фотографий переименована")
         self.assertContains(response, "Папка фотографий создана")
         self.assertContains(response, "Папка фотографий «Folder»")
@@ -400,6 +413,44 @@ class AuditLogTests(TestCase):
         self.assertContains(response, "Fresh")
         self.assertNotContains(response, "Old")
 
+    def test_event_type_is_inferred_and_filterable(self):
+        restored = self.create_log(
+            new_values={"audit_event": AuditLog.EventType.REQUEST_RESTORED, "comment": "Restored"},
+            object_repr="Restored request",
+        )
+        self.create_log(object_repr="Regular update")
+        self.client.login(username="admin", password="pass12345")
+
+        response = self.client.get(reverse("audit_log"), {"event_type": AuditLog.EventType.REQUEST_RESTORED})
+
+        restored.refresh_from_db()
+        self.assertEqual(restored.event_type, AuditLog.EventType.REQUEST_RESTORED)
+        self.assertContains(response, "Заявка восстановлена из корзины")
+        self.assertContains(response, "Restored request")
+        self.assertNotContains(response, "Regular update")
+        self.assertContains(response, "audit-event-restore")
+
+    def test_special_trash_events_have_distinct_names_and_badges(self):
+        folder = self.create_log(
+            model_name="TerritorialOrganPhotoFolder",
+            new_values={"audit_event": AuditLog.EventType.FOLDER_RESTORED, "name": "Archive"},
+            object_repr='Папка "Archive"',
+        )
+        purged = self.create_log(
+            action=AuditLog.Action.DELETE,
+            model_name="TerritorialOrganPhoto",
+            new_values={"audit_event": AuditLog.EventType.PHOTO_PURGED, "original_filename": "old.jpg"},
+            object_repr='Фотография "old.jpg"',
+        )
+
+        prepare_log(folder, include_status_history=False)
+        prepare_log(purged, include_status_history=False)
+
+        self.assertEqual(folder.summary, "Папка и её содержимое восстановлены")
+        self.assertEqual(folder.action_badge, "audit-event-restore")
+        self.assertEqual(purged.summary, "Фотография удалена без возможности восстановления")
+        self.assertEqual(purged.action_badge, "audit-event-purge")
+
     def test_audit_log_date_to_includes_the_whole_day(self):
         late_log = self.create_log(object_repr="LateInDay")
         AuditLog.objects.filter(pk=late_log.pk).update(
@@ -429,7 +480,7 @@ class AuditLogTests(TestCase):
         self.create_log(object_repr="Shared component")
         self.client.login(username="admin", password="pass12345")
 
-        response = self.client.get(reverse("audit_log"), {"action": AuditLog.Action.UPDATE})
+        response = self.client.get(reverse("audit_log"), {"event_type": AuditLog.EventType.RECORD_UPDATED})
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'class="dropdown admin-multiselect audit-multiselect"')
@@ -437,7 +488,7 @@ class AuditLogTests(TestCase):
         self.assertContains(response, 'data-admin-multiselect-input')
         self.assertContains(response, "Выбрать все")
         self.assertContains(response, "Снять все")
-        self.assertContains(response, 'name="action" value="update" data-admin-multiselect-input checked')
+        self.assertContains(response, 'name="event_type" value="record_updated" data-admin-multiselect-input checked')
         self.assertNotContains(response, "audit-multiselect-trigger")
 
     def test_audit_log_filters_accept_multiple_checkbox_values(self):
@@ -448,14 +499,14 @@ class AuditLogTests(TestCase):
 
         response = self.client.get(
             reverse("audit_log"),
-            {"action": [AuditLog.Action.CREATE, AuditLog.Action.UPDATE]},
+            {"event_type": [AuditLog.EventType.RECORD_CREATED, AuditLog.EventType.RECORD_UPDATED]},
         )
 
         self.assertContains(response, "Created")
         self.assertContains(response, "Updated")
         self.assertNotContains(response, "Deleted")
-        self.assertContains(response, 'name="action" value="create" data-admin-multiselect-input checked')
-        self.assertContains(response, 'name="action" value="update" data-admin-multiselect-input checked')
+        self.assertContains(response, 'name="event_type" value="record_created" data-admin-multiselect-input checked')
+        self.assertContains(response, 'name="event_type" value="record_updated" data-admin-multiselect-input checked')
 
     def test_audit_log_filters_by_department_and_object_type(self):
         self.create_log(model_name="TmcRequest", object_repr="TMC request")

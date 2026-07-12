@@ -13,7 +13,7 @@
         {% for field in table_view_query_fields %}
           <input type="hidden" name="{{ field.name }}" value="{{ field.value }}">
         {% endfor %}
-        {% single_select name="group" options=request_group_choices selected_value=group_select_value aria_label="Группировка таблицы заявок" %}
+        {% single_select name="group" options=request_group_choices selected_value=group_select_value aria_label="Группировка таблицы заявок" icon_class="bi-layers" %}
       </form>
     {% elif is_state_snapshot_table %}
       <form class="table-view-form" hx-get="{% url 'table_data' organ.pk table.key %}" hx-target="#table-area" hx-trigger="change" hx-swap="innerHTML">
@@ -24,8 +24,8 @@
       </form>
     {% endif %}
     <div class="dropdown">
-      <button class="btn btn-sm btn-download" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-        <i class="bi bi-download"></i> Экспорт
+      <button class="btn btn-sm btn-download table-export-button" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="bi bi-download" aria-hidden="true"></i><span>Экспорт</span><i class="bi bi-chevron-down table-export-chevron" aria-hidden="true"></i>
       </button>
       <div class="dropdown-menu dropdown-menu-end">
         <a class="dropdown-item" href="{% url 'export_table' organ.pk table.key 'csv' %}{% if table_querystring %}?{{ table_querystring }}{% endif %}" data-download-preparing="Подготовка экспорта..."><i class="bi bi-filetype-csv"></i> Экспорт в CSV</a>
@@ -33,7 +33,7 @@
       </div>
     </div>
     {% if can_add %}
-      <button class="btn btn-sm btn-primary" hx-get="{% url 'record_create' organ.pk table.key %}" hx-target="#modal-content" data-open-modal="true"><i class="bi bi-plus-lg"></i> Добавить запись</button>
+      <button class="btn btn-sm btn-primary table-add-button" hx-get="{% url 'record_create' organ.pk table.key %}" hx-target="#modal-content" data-open-modal="true"><i class="bi bi-plus-lg" aria-hidden="true"></i> Добавить запись</button>
     {% endif %}
   </div>
 </div>

@@ -43,7 +43,7 @@ STATUS_FILTERS = {
     "in_work": "В работе",
     "done": "Исполнено",
     "rejected": "Отклонено",
-    "stale": "Зависшие",
+    "stale": "Просроченные",
 }
 REQUEST_LIST_ORDERING = ("-request_date", "-created_at", "-pk")
 REQUEST_DETAIL_REQUIRED_FIELDS = {"status", "request_date", "territorial_organ", "is_deleted"}
@@ -281,7 +281,7 @@ def request_kpis(counts, avg_completion_days):
             "hint": "по исполненным заявкам",
             "icon": "bi-stopwatch",
         },
-        {"label": "Зависшие", "value": counts.get("stale", 0), "hint": f"в работе более {get_request_stale_workdays()} рабочих дней", "icon": "bi-exclamation-triangle"},
+        {"label": "Просроченные", "value": counts.get("stale", 0), "hint": f"в работе более {get_request_stale_workdays()} рабочих дней", "icon": "bi-exclamation-triangle"},
     ]
 
 

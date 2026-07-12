@@ -12,6 +12,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from apps.audit.models import AuditLog
+from apps.audit.utils import write_audit
 from apps.audit.views import prepare_log
 from apps.directory.models import Department, TerritorialOrgan, TerritorialOrganPhoto, TerritorialOrganPhotoFolder
 from apps.requests_app.dev_state import is_dev_seed_running
@@ -43,7 +44,14 @@ from .models import UserProfile
 def activate_account(request):
     form = AccountActivationForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
-        form.save()
+        user = form.save()
+        write_audit(
+            AuditLog.Action.UPDATE,
+            user,
+            user=user,
+            new_values={"audit_event": AuditLog.EventType.ACCOUNT_ACTIVATED, "username": user.username},
+            request=request,
+        )
         messages.success(request, "Учетная запись активирована. Теперь можно войти в систему.")
         return redirect("login")
     return render(request, "registration/activate_account.html", {"form": form})

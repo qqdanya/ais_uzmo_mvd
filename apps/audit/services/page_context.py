@@ -49,6 +49,7 @@ def audit_context(
 ):
     users = list(scoped_user_queryset(request.user))
     actions = [(value, ACTION_DISPLAY_LABELS.get(value, label)) for value, label in AuditLog.Action.choices]
+    event_types = list(AuditLog.EventType.choices)
     organs = list(scoped_organ_queryset(request.user))
     department_filters = scoped_department_options(request.user)
     object_filters = [(key, label) for key, label, _ in OBJECT_FILTERS]
@@ -56,8 +57,11 @@ def audit_context(
     page = paginator.get_page(request.GET.get("page"))
     department_names = {department.slug: department.name for department in Department.objects.filter(is_active=True)}
     related_value_cache = {}
+    previous_operation_id = None
     for log in page.object_list:
         prepare_log(log, include_status_history=False, department_names=department_names, related_value_cache=related_value_cache)
+        log.is_related_event = bool(log.operation_id and log.operation_id == previous_operation_id)
+        previous_operation_id = log.operation_id or None
     querystring = request.GET.copy()
     querystring.pop("page", None)
     querystring.pop("q", None)
@@ -69,19 +73,21 @@ def audit_context(
     all_time_params["date_to"] = ""
     selected_users = audit_filter_values(request, "user") if show_user_filter else []
     selected_actions = audit_filter_values(request, "action")
+    selected_event_types = audit_filter_values(request, "event_type")
     selected_departments = audit_filter_values(request, "department") if show_department_filter else []
     selected_objects = audit_filter_values(request, "object")
     selected_organs = audit_filter_values(request, "organ")
     base_url = reverse(reset_url_name)
     user_labels = {account.username: user_display_name(account) for account in users}
     action_labels = dict(actions)
+    event_type_labels = dict(event_types)
     department_labels = dict(department_filters)
     object_labels = dict(object_filters)
     organ_labels = {str(organ.pk): organ.name for organ in organs}
     active_filter_chips = []
     chip_specs = [
         ("Пользователи", selected_users, user_labels, "user", show_user_filter),
-        ("Действия", selected_actions, action_labels, "action", True),
+        ("События", selected_event_types, event_type_labels, "event_type", True),
         ("Отделы", selected_departments, department_labels, "department", show_department_filter),
         ("Объекты", selected_objects, object_labels, "object", True),
         ("Органы", selected_organs, organ_labels, "organ", True),
@@ -106,6 +112,7 @@ def audit_context(
         "page": page,
         "logs": page.object_list,
         "actions": actions,
+        "event_types": event_types,
         "organs": organs,
         "department_filters": department_filters,
         "object_filters": object_filters,
@@ -117,6 +124,7 @@ def audit_context(
         "date_to": date_to,
         "selected_users": selected_users,
         "selected_actions": selected_actions,
+        "selected_event_types": selected_event_types,
         "selected_departments": selected_departments,
         "selected_objects": selected_objects,
         "selected_organs": selected_organs,
@@ -126,6 +134,7 @@ def audit_context(
             user_labels,
         ),
         "action_filter_label": audit_multiselect_label(selected_actions, "Все действия", action_labels),
+        "event_type_filter_label": audit_multiselect_label(selected_event_types, "Все события", event_type_labels),
         "department_filter_label": audit_multiselect_label(selected_departments, "Все отделы", department_labels),
         "object_filter_label": audit_multiselect_label(selected_objects, "Все объекты", object_labels),
         "organ_filter_label": audit_multiselect_label(

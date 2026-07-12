@@ -28,14 +28,14 @@ ASSET_CATEGORY_ICONS = {
 
 ASSET_CATEGORY_HINTS = {
     "fire-extinguishers": "Последняя запись по огнетушителям в каждом территориальном органе",
-    "fire-alarm": "Актуальное состояние объектов, подлежащих оборудованию пожарной сигнализацией",
-    "security-alarm": "Актуальное состояние объектов, подлежащих оборудованию охранной сигнализацией",
+    "fire-alarm": "Состояние объектов, подлежащих оборудованию пожарной сигнализацией",
+    "security-alarm": "Состояние объектов, подлежащих оборудованию охранной сигнализацией",
     "service-housing": "Последняя запись по служебному жилью по линии УОТО",
 }
 
 ASSET_STATUS_FILTERS = {
     "all": "Все",
-    "attention": "Требует внимания",
+    "attention": "Требует контроля",
     "danger": "Проблемные",
     "stale": "Давно не обновлялось",
     "no_data": "Нет данных",
@@ -44,7 +44,7 @@ ASSET_STATUS_FILTERS = {
 
 ASSET_STATUS_LABELS = {
     "ok": "Норма",
-    "warning": "Требует внимания",
+    "warning": "Требует контроля",
     "danger": "Проблема",
     "stale": "Устарело",
     "no_data": "Нет данных",
@@ -108,7 +108,7 @@ def asset_categories():
                 "department_name": departments.get(table["department"], table["department"]),
                 "fields": table.get("fields", []),
                 "icon": ASSET_CATEGORY_ICONS.get(key, "bi-box-seam"),
-                "hint": ASSET_CATEGORY_HINTS.get(key, "Актуальное состояние по последней записи"),
+                "hint": ASSET_CATEGORY_HINTS.get(key, "Текущее состояние по последней записи"),
                 "detail_url": reverse("admin_asset_category_detail", kwargs={"category_key": key}),
             }
         )
@@ -192,7 +192,7 @@ def with_stale_status(base_status, messages, state_date):
 
 def evaluate_fire_extinguishers(obj, category, organ):
     if not obj:
-        return make_status("no_data", "нет актуальной записи", category=category, organ=organ)
+        return make_status("no_data", "данные не внесены", category=category, organ=organ)
     danger = []
     warning = []
     if obj.available_count < obj.required_count:
@@ -226,7 +226,7 @@ def evaluate_fire_extinguishers(obj, category, organ):
 
 def evaluate_alarm(obj, category, organ, short_name):
     if not obj:
-        return make_status("no_data", "нет актуальной записи", category=category, organ=organ)
+        return make_status("no_data", "данные не внесены", category=category, organ=organ)
     danger = []
     warning = []
     if obj.equipped_objects < obj.required_objects:
@@ -255,7 +255,7 @@ def evaluate_alarm(obj, category, organ, short_name):
 
 def evaluate_service_housing(obj, category, organ):
     if not obj:
-        return make_status("no_data", "нет актуальной записи", category=category, organ=organ)
+        return make_status("no_data", "данные не внесены", category=category, organ=organ)
     warning = []
     if obj.total_count == 0:
         warning.append("служебное жильё отсутствует")
@@ -294,7 +294,7 @@ def evaluate_asset(category, obj, organ):
     if category["key"] == "service-housing":
         return evaluate_service_housing(obj, category, organ)
     if not obj:
-        return make_status("no_data", "нет актуальной записи", category=category, organ=organ)
+        return make_status("no_data", "данные не внесены", category=category, organ=organ)
     return make_status("ok", "показатели в норме", state_date=getattr(obj, "state_date", None), object_=obj, category=category, organ=organ)
 
 
@@ -426,9 +426,9 @@ def build_assets_kpis(rows, categories):
     no_data_organs = sum(1 for row in rows if row["no_data"] > 0)
     stale_organs = sum(1 for row in rows if row["stale"] > 0)
     return [
-        {"label": "Категорий на контроле", "value": len(categories), "hint": "актуальные срезы", "icon": "bi-grid-3x3-gap"},
-        {"label": "Полный актуальный срез", "value": complete_actual, "hint": f"из {total_organs} органов", "icon": "bi-check2-circle"},
-        {"label": "Требует внимания", "value": attention_organs, "hint": "органы с сигналами", "icon": "bi-exclamation-triangle"},
+        {"label": "Категории", "value": len(categories), "hint": "учитываются в разделе", "icon": "bi-grid-3x3-gap"},
+        {"label": "Данные представлены полностью", "value": complete_actual, "hint": f"из {total_organs} органов", "icon": "bi-check2-circle"},
+        {"label": "Требует контроля", "value": attention_organs, "hint": "территориальные органы", "icon": "bi-exclamation-triangle"},
         {"label": "Есть пробелы в данных", "value": no_data_organs, "hint": "нет записи в категории", "icon": "bi-database-x"},
         {"label": "Давно не обновлялось", "value": stale_organs, "hint": f"старше {get_asset_stale_days()} дней", "icon": "bi-clock-history"},
     ]
@@ -439,7 +439,7 @@ def build_category_charts(category_summaries):
         {
             "label": item["title"],
             "value": item["issue_score"],
-            "hint": f"внимание: {item['attention_count']}, нет данных: {item['no_data_count']}",
+            "hint": f"требует контроля: {item['attention_count']}, нет данных: {item['no_data_count']}",
             "url": item["detail_url"],
         }
         for item in category_summaries
@@ -458,7 +458,7 @@ def build_top_problem_organs(rows, limit=10):
             {
                 "label": row["organ"].name,
                 "value": value,
-                "hint": f"проблем: {row['danger']}, внимание: {row['warning'] + row['stale']}, нет данных: {row['no_data']}",
+                "hint": f"проблем: {row['danger']}, требует контроля: {row['warning'] + row['stale']}, нет данных: {row['no_data']}",
                 "url": row["detail_url"],
             }
         )

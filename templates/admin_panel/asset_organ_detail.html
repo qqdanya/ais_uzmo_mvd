@@ -34,27 +34,27 @@
         <section class="admin-section">
           <div class="admin-section-head">
             <div>
-              <h2>Актуальная запись</h2>
+              <h2>Последняя запись</h2>
               <span>Используется для текущей оценки состояния материальной базы</span>
             </div>
           </div>
           {% if cell and cell.object %}
             <dl class="admin-detail-list">
               <div><dt>Состояние</dt><dd><span class="admin-asset-status-badge {{ cell.class }}">{{ cell.label }}</span> {{ cell.message }}</dd></div>
-              <div><dt>Дата актуализации</dt><dd>{{ cell.state_date_display }}</dd></div>
+              <div><dt>Дата обновления</dt><dd>{{ cell.state_date_display }}</dd></div>
               {% for metric in cell.metrics %}<div><dt>Показатель</dt><dd>{{ metric }}</dd></div>{% endfor %}
             </dl>
             {% if cell.edit_url %}<a class="btn btn-sm btn-outline-primary" href="{{ cell.edit_url }}"><i class="bi bi-pencil-square"></i> Открыть запись в рабочем экране</a>{% endif %}
           {% else %}
-            <div class="admin-empty"><i class="bi bi-database-x"></i><strong>Актуальной записи нет</strong><span>Для этого органа данные по категории пока не внесены.</span></div>
+            <div class="admin-empty"><i class="bi bi-database-x"></i><strong>Данные не внесены</strong><span>Для этого органа данные по категории пока не внесены.</span></div>
           {% endif %}
         </section>
 
         <section class="admin-section">
           <div class="admin-section-head">
             <div>
-              <h2>История актуализаций</h2>
-              <span>Предыдущие записи используются только как история и не влияют на текущий срез</span>
+              <h2>История обновлений</h2>
+              <span>Предыдущие записи сохранены для просмотра истории и не влияют на текущее состояние</span>
             </div>
           </div>
           {% if history_rows %}

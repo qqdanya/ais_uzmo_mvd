@@ -48,9 +48,9 @@ from .admin_thresholds import get_request_stale_workdays
 DEPARTMENT_VIEW_FILTERS = {
     "all": "Все",
     "in_work": "С заявками в работе",
-    "stale": "С зависшими",
-    "no_activity": "Без активности",
-    "best": "Лучшие по срокам",
+    "stale": "С просроченными",
+    "no_activity": "Без заявок",
+    "best": "Сначала с меньшим сроком",
 }
 
 
@@ -156,9 +156,9 @@ def build_departments_kpis(visible_rows):
             "icon": "bi-bar-chart-line",
         },
         {
-            "label": "Больше всего зависших",
+            "label": "Больше всего просроченных",
             "value": most_stale["stale"] if most_stale else "—",
-            "hint": most_stale["name"] if most_stale and most_stale["stale"] else "нет зависших",
+            "hint": most_stale["name"] if most_stale and most_stale["stale"] else "нет просроченных",
             "icon": "bi-exclamation-triangle",
         },
         {
@@ -204,7 +204,7 @@ def active_filter_chips(filters, selected_organs_list, available_organs):
     if filters["query"]:
         chips.append(f"Поиск: {filters['query']}")
     if filters["view"] != "all":
-        chips.append(f"Срез: {DEPARTMENT_VIEW_FILTERS[filters['view']]}")
+        chips.append(f"Фильтр: {DEPARTMENT_VIEW_FILTERS[filters['view']]}")
     return chips
 
 
@@ -409,7 +409,7 @@ def build_department_detail_context(request, department_slug):
             {"label": "Всего заявок", "value": department_row["total"], "hint": filters["period"]["label"], "icon": "bi-inboxes"},
             {"label": "В работе", "value": department_row["in_work"], "hint": "текущие заявки", "icon": "bi-hourglass-split"},
             {"label": "Исполнено", "value": department_row["done"], "hint": "по текущим фильтрам", "icon": "bi-check2-circle"},
-            {"label": "Зависшие", "value": department_row["stale"], "hint": f"более {get_request_stale_workdays()} рабочих дней", "icon": "bi-exclamation-triangle"},
+            {"label": "Просроченные", "value": department_row["stale"], "hint": f"более {get_request_stale_workdays()} рабочих дней", "icon": "bi-exclamation-triangle"},
             {"label": "Средний срок", "value": department_row["avg_completion_display"], "hint": "по исполненным заявкам", "icon": "bi-stopwatch"},
         ],
         "organ_rows": organ_rows_for_department(organs, department, tables, filters),

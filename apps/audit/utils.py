@@ -1,5 +1,6 @@
 from django.forms.models import model_to_dict
 from pathlib import Path
+from uuid import uuid4
 
 from .middleware import get_current_request
 from .models import AuditLog
@@ -20,46 +21,38 @@ def serialize_instance(instance):
 def object_message(action, instance):
     if instance is None:
         return ""
-    feminine_action_words = {
-        AuditLog.Action.CREATE: "Создана",
-        AuditLog.Action.UPDATE: "Изменена",
-        AuditLog.Action.DELETE: "Удалена",
-    }
-    masculine_action_words = {
-        AuditLog.Action.CREATE: "Создан",
-        AuditLog.Action.UPDATE: "Изменен",
-        AuditLog.Action.DELETE: "Удален",
-    }
-    neuter_action_words = {
-        AuditLog.Action.CREATE: "Создано",
-        AuditLog.Action.UPDATE: "Изменено",
-        AuditLog.Action.DELETE: "Удалено",
-    }
-    action_word = feminine_action_words.get(action, "Изменена")
     if instance.__class__.__name__ == "TerritorialOrganPhoto":
         filename = Path(instance.image.name).name if getattr(instance, "image", None) else "фотография"
-        return f"{action_word} фотография «{filename}»"
+        return f"Фотография «{filename}»"
     if instance.__class__.__name__ == "TerritorialOrganPhotoFolder":
         folder_name = getattr(instance, "name", None) or str(instance)
-        return f"{action_word} папка фотографий «{folder_name}»"
+        return f"Папка фотографий «{folder_name}»"
     if instance.__class__.__name__ == "TmcProduct":
         product_name = getattr(instance, "name", None) or str(instance)
-        return f"{masculine_action_words.get(action, 'Изменен')} товар «{product_name}»"
+        return f"Товар «{product_name}»"
     if instance.__class__.__name__ == "TmcRequestItem":
         item_name = getattr(instance, "name", None) or str(instance)
-        return f"{feminine_action_words.get(action, 'Изменена')} позиция ТМЦ «{item_name}»"
+        return f"Позиция ТМЦ «{item_name}»"
     if instance.__class__.__name__ == "RequestStatusHistory":
-        return f"{neuter_action_words.get(action, 'Изменено')} изменение статуса заявки"
-    return f"{action_word} запись «{str(instance)}»"
+        return "Изменение статуса заявки"
+    return str(instance)
 
 
-def write_audit(action, instance=None, user=None, old_values=None, new_values=None, request=None):
+def write_audit(action, instance=None, user=None, old_values=None, new_values=None, request=None, event_type=""):
     request = request or get_current_request()
     user = user or (request.user if request and request.user.is_authenticated else None)
     organ = getattr(instance, "territorial_organ", None) if instance is not None else None
+    operation_id = ""
+    if request is not None:
+        operation_id = getattr(request, "_audit_operation_id", "")
+        if not operation_id:
+            operation_id = str(uuid4())
+            request._audit_operation_id = operation_id
     AuditLog.objects.create(
         user=user,
         action=action,
+        event_type=event_type,
+        operation_id=operation_id,
         model_name=instance.__class__.__name__ if instance is not None else "",
         object_id=str(instance.pk) if instance is not None and instance.pk else "",
         object_repr=object_message(action, instance)[:255],

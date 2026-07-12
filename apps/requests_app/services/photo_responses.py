@@ -5,6 +5,8 @@ from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import get_object_or_404, render
 
 from apps.accounts.models import UserProfile
+from apps.audit.models import AuditLog
+from apps.audit.utils import write_audit
 from apps.directory.models import TerritorialOrganPhoto, TerritorialOrganPhotoFolder
 
 from ..permissions import can_manage_photo_asset, can_view, can_write, role_for
@@ -117,6 +119,13 @@ def photos_download_all_response(request, organ):
     if not photos_qs.exists():
         raise Http404
     filename = safe_download_name(f"{organ.name}-photos.zip", f"organ-{organ.pk}-photos.zip")
+    write_audit(
+        AuditLog.Action.UPDATE,
+        organ,
+        user=request.user,
+        new_values={"audit_event": AuditLog.EventType.PHOTO_ARCHIVE_DOWNLOADED, "scope": "organ", "photo_count": photos_qs.count()},
+        request=request,
+    )
     return download_ready_response(request, photos_zip_response(photos_qs, filename))
 
 
@@ -143,6 +152,13 @@ def photo_folder_download_response(request, organ, pk):
         return "/".join([*parts, source_name]) if parts else source_name
 
     filename = safe_download_name(f"{folder.name}-photos.zip", f"folder-{folder.pk}-photos.zip")
+    write_audit(
+        AuditLog.Action.UPDATE,
+        folder,
+        user=request.user,
+        new_values={"audit_event": AuditLog.EventType.PHOTO_ARCHIVE_DOWNLOADED, "scope": "folder", "photo_count": photos_qs.count()},
+        request=request,
+    )
     return download_ready_response(request, photos_zip_response(photos_qs, filename, archive_path))
 
 
@@ -203,7 +219,7 @@ def photo_folder_delete_response(request, organ, pk):
         if not delete_photo_folder_tree(request, organ, folder):
             raise Http404
         response = render_photos(request, organ, parent.pk if parent else "")
-        response["HX-Trigger"] = htmx_triggers("Папка удалена.")
+        response["HX-Trigger"] = htmx_triggers("Папка перемещена в корзину.")
         return response
     return render(request, "partials/confirm_delete.html", {"object": folder, "organ": organ, "folder_delete": True})
 
@@ -246,6 +262,6 @@ def photo_delete_response(request, organ, pk):
     if request.method == "POST":
         soft_delete_photo(request, photo)
         response = render_photos(request, organ, photo.folder_id or "")
-        response["HX-Trigger"] = htmx_triggers("Фотография удалена.")
+        response["HX-Trigger"] = htmx_triggers("Фотография перемещена в корзину.")
         return response
     return render(request, "partials/confirm_delete.html", {"object": photo, "organ": organ, "photo_delete": True})

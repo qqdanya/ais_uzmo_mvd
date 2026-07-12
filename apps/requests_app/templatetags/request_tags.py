@@ -19,7 +19,18 @@ def get_attr(obj, name):
 def status_badge(obj):
     status = getattr(obj, "status", "")
     label = getattr(obj, "get_status_display", lambda: status)()
-    return format_html('<span class="status-badge status-{}">{}</span>', status, label)
+    status_icons = {
+        "in_work": "bi-clock-history",
+        "done": "bi-check-circle",
+        "rejected": "bi-x-circle",
+    }
+    icon = status_icons.get(status, "bi-info-circle")
+    return format_html(
+        '<span class="status-badge status-{}"><i class="bi {}" aria-hidden="true"></i>{}</span>',
+        status,
+        icon,
+        label,
+    )
 
 
 @register.simple_tag
