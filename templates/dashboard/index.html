@@ -28,6 +28,11 @@
           <button class="department-item" disabled><i class="bi {{ department.icon_class }}"></i><span>{{ department.name }}</span></button>
           {% endif %}
         {% endfor %}
+        {% if selected_organ %}
+          {% include "partials/organ_subunits.html" with organ=selected_organ %}
+        {% else %}
+          <div id="organ-subunits" class="subunits"></div>
+        {% endif %}
       </div>
     </section>
   </div>

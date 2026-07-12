@@ -320,16 +320,74 @@
   overflow-wrap: anywhere;
 }
 .organ-photo-btn {
-  display: inline-flex;
+  width: 100%;
+  min-height: 42px;
+  display: flex;
   align-items: center;
-  justify-content: center;
-  gap: .4rem;
+  gap: .58rem;
+  padding: .36rem .45rem;
+  border: 1px solid #b8d9ee;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #f4faff 0%, #e8f5fd 100%);
+  color: var(--navy);
+  text-align: left;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.9), 0 3px 9px rgba(23, 105, 170, .07);
+  transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease, background .18s ease;
+}
+.organ-photo-btn:hover {
+  border-color: #72b7df;
+  background: linear-gradient(135deg, #eef8ff 0%, #dff1fc 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.92), 0 8px 18px rgba(23, 105, 170, .14);
+  transform: translateY(-1px);
+}
+.organ-photo-btn:focus-visible {
+  outline: 0;
+  border-color: #2a8bcc;
+  box-shadow: 0 0 0 .2rem rgba(42, 139, 204, .18), 0 8px 18px rgba(23, 105, 170, .12);
+}
+.organ-photo-btn-icon {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(23, 105, 170, .16);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--blue);
+  box-shadow: 0 3px 8px rgba(23, 105, 170, .1);
+}
+.organ-photo-btn-label {
+  min-width: 0;
+  flex: 1 1 auto;
+  font-size: .84rem;
+  font-weight: 700;
+}
+.organ-photo-btn-arrow {
+  flex: 0 0 auto;
+  margin-right: .12rem;
+  color: #4d8fba;
+  font-size: .76rem;
+  transition: transform .18s ease, color .18s ease;
+}
+.organ-photo-btn:hover .organ-photo-btn-arrow {
+  color: var(--blue);
+  transform: translateX(2px);
 }
 .subunits {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-bottom: 12px;
+  margin-top: 4px;
+}
+.subunits.has-subunits::before {
+  content: "";
+  flex: 0 0 calc(100% - 12px);
+  height: 3px;
+  margin: 1px 6px 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent 0%, rgba(42, 139, 204, .18) 13%, rgba(23, 105, 170, .72) 50%, rgba(42, 139, 204, .18) 87%, transparent 100%);
+  clip-path: polygon(0 50%, 14% 34%, 50% 0, 86% 34%, 100% 50%, 86% 66%, 50% 100%, 14% 66%);
 }
 .subunits span {
   padding: .2rem .45rem;

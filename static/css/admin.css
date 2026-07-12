@@ -11,3 +11,36 @@
 @import url("admin/charts.css?v=20260705-009");
 @import url("admin/employees.css?v=20260705-009");
 @import url("admin/trash.css?v=20260705-016");
+
+/* A single alignment rule keeps every registry in the administrative panel consistent. */
+.admin-requests-table th,
+.admin-requests-table td {
+  text-align: center;
+}
+
+.admin-requests-table .admin-table-action-stack,
+.admin-requests-table .admin-inline-action-form {
+  justify-content: center;
+}
+
+.admin-organs-table th:first-child,
+.admin-organs-table td:first-child,
+.admin-departments-table th:first-child,
+.admin-departments-table td:first-child,
+.admin-assets-matrix-table th:first-child,
+.admin-assets-matrix-table td:first-child,
+.admin-asset-category-table th:first-child,
+.admin-asset-category-table td:first-child {
+  text-align: left;
+}
+
+.admin-organs-table th:last-child,
+.admin-organs-table td:last-child,
+.admin-departments-table th:last-child,
+.admin-departments-table td:last-child,
+.admin-assets-matrix-table th:last-child,
+.admin-assets-matrix-table td:last-child,
+.admin-asset-category-table th:last-child,
+.admin-asset-category-table td:last-child {
+  text-align: center;
+}

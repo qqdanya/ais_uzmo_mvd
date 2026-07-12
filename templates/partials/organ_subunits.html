@@ -1,0 +1,7 @@
+{% if organ.children.exists %}
+  <div id="organ-subunits" class="subunits has-subunits"{% if oob %} hx-swap-oob="outerHTML"{% endif %}>
+    {% for child in organ.children.all %}<span>{{ child.name }}</span>{% endfor %}
+  </div>
+{% else %}
+  <div id="organ-subunits" class="subunits"{% if oob %} hx-swap-oob="outerHTML"{% endif %}></div>
+{% endif %}

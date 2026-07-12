@@ -3,12 +3,14 @@
     <div class="small text-secondary">Выбранный территориальный орган</div>
     <strong>{{ organ.name }}</strong>
     <div class="mt-2">
-      <button class="btn btn-sm btn-outline-primary organ-photo-btn w-100" hx-get="{% url 'photos' organ.pk %}" hx-target="#workspace" hx-swap="innerHTML">
-        <i class="bi bi-images"></i> Фотографии
+      <button class="organ-photo-btn" type="button" hx-get="{% url 'photos' organ.pk %}" hx-target="#workspace" hx-swap="innerHTML">
+        <span class="organ-photo-btn-icon"><i class="bi bi-images"></i></span>
+        <span class="organ-photo-btn-label">Фотографии</span>
+        <i class="bi bi-chevron-right organ-photo-btn-arrow" aria-hidden="true"></i>
       </button>
     </div>
   </div>
 </div>
-{% if organ.children.exists %}
-  <div class="subunits">{% for child in organ.children.all %}<span>{{ child.name }}</span>{% endfor %}</div>
+{% if update_dashboard_subunits %}
+  {% include "partials/organ_subunits.html" with oob=True %}
 {% endif %}

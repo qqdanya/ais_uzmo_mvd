@@ -53,7 +53,7 @@ def organ_info(request, pk):
         # expected (e.g. an admin just revoked it) - tell the user plainly
         # instead of a generic error toast over a stuck loading spinner.
         return render(request, "partials/no_organ_access.html", {"organ": organ})
-    return render(request, "partials/organ_info.html", {"organ": organ})
+    return render(request, "partials/organ_info.html", {"organ": organ, "update_dashboard_subunits": True})
 
 
 @login_required

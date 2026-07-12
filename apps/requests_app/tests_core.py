@@ -18,6 +18,30 @@ class CoreAccessTests(RequestAppTestCase):
         self.assertContains(response, "bi-truck")
         self.assertContains(response, "bi-folder2-open")
 
+    def test_dashboard_places_organ_subunits_after_main_departments(self):
+        for index in range(2, 7):
+            Department.objects.create(name=f"Department {index}", slug=f"department-{index}", order_number=index)
+        child = TerritorialOrgan.objects.create(name="Local department", order_number=1, parent=self.organ)
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("dashboard"))
+        content = response.content.decode()
+
+        self.assertContains(response, 'id="organ-subunits"')
+        self.assertContains(response, 'class="subunits has-subunits"')
+        self.assertGreater(content.index(child.name), content.index("Department 6"))
+
+    def test_organ_info_updates_moved_subunits_out_of_band(self):
+        child = TerritorialOrgan.objects.create(name="Local department", order_number=1, parent=self.organ)
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("organ_info", args=[self.organ.pk]), HTTP_HX_REQUEST="true")
+
+        self.assertContains(response, 'id="organ-subunits"')
+        self.assertContains(response, 'class="subunits has-subunits"')
+        self.assertContains(response, 'hx-swap-oob="outerHTML"')
+        self.assertContains(response, child.name)
+
     def test_dashboard_exposes_server_default_state_for_js_redundant_fetch_check(self):
         # app.js's serverRenderedWorkspaceState() parses #table-area's hx-get
         # URL and the workspace's data-department-slug to detect when the
