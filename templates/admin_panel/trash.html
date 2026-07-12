@@ -43,10 +43,10 @@
       </section>
 
       <nav class="admin-status-tabs" aria-label="Разделы корзины">
-        <a class="admin-status-tab{% if section == 'all' %} active{% endif %}" href="{% url 'admin_trash_panel' %}{% if query %}?q={{ query|urlencode }}{% endif %}"><span>Все</span><strong>{{ counts.requests|add:counts.photos|add:counts.folders }}</strong></a>
-        <a class="admin-status-tab{% if section == 'requests' %} active{% endif %}" href="{% url 'admin_trash_panel' %}?section=requests{% if query %}&q={{ query|urlencode }}{% endif %}"><span>Записи таблиц</span><strong>{{ counts.requests }}</strong></a>
-        <a class="admin-status-tab{% if section == 'photos' %} active{% endif %}" href="{% url 'admin_trash_panel' %}?section=photos{% if query %}&q={{ query|urlencode }}{% endif %}"><span>Фотографии</span><strong>{{ counts.photos }}</strong></a>
-        <a class="admin-status-tab{% if section == 'folders' %} active{% endif %}" href="{% url 'admin_trash_panel' %}?section=folders{% if query %}&q={{ query|urlencode }}{% endif %}"><span>Папки</span><strong>{{ counts.folders }}</strong></a>
+        <a class="admin-status-tab{% if section == 'all' %} active{% endif %}" href="{% url trash_panel_url_name %}{% if query %}?q={{ query|urlencode }}{% endif %}"><span>Все</span><strong>{{ counts.requests|add:counts.photos|add:counts.folders }}</strong></a>
+        <a class="admin-status-tab{% if section == 'requests' %} active{% endif %}" href="{% url trash_panel_url_name %}?section=requests{% if query %}&q={{ query|urlencode }}{% endif %}"><span>Записи таблиц</span><strong>{{ counts.requests }}</strong></a>
+        <a class="admin-status-tab{% if section == 'photos' %} active{% endif %}" href="{% url trash_panel_url_name %}?section=photos{% if query %}&q={{ query|urlencode }}{% endif %}"><span>Фотографии</span><strong>{{ counts.photos }}</strong></a>
+        <a class="admin-status-tab{% if section == 'folders' %} active{% endif %}" href="{% url trash_panel_url_name %}?section=folders{% if query %}&q={{ query|urlencode }}{% endif %}"><span>Папки</span><strong>{{ counts.folders }}</strong></a>
       </nav>
 
       <form class="admin-section admin-assets-filter admin-trash-filter" method="get" hx-get="{{ request.path }}" hx-trigger="input changed delay:450ms from:input[name='q'], submit" hx-target=".admin-trash-screen" hx-select=".admin-trash-screen" hx-swap="outerHTML" hx-push-url="true">

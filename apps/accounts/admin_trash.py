@@ -32,8 +32,8 @@ def _is_admin_user(user):
     return user.is_superuser or getattr(getattr(user, "profile", None), "role", "") == UserProfile.Role.ADMIN
 
 
-def _dismissed_ids(user, kind, table_key=""):
-    if _is_admin_user(user):
+def _dismissed_ids(user, kind, table_key="", personal=False):
+    if _is_admin_user(user) and not personal:
         return set()
     return set(TrashDismissal.objects.filter(user=user, kind=kind, table_key=table_key).values_list("object_id", flat=True))
 
@@ -76,7 +76,7 @@ def _department_names_by_slug(slugs):
     return dict(Department.objects.filter(is_active=True, slug__in=set(slugs)).values_list("slug", "name"))
 
 
-def _request_deleted_rows(organs, query="", user=None):
+def _request_deleted_rows(organs, query="", user=None, personal=False):
     rows = []
     query = (query or "").strip()
     tables = list(_request_tables())
@@ -88,8 +88,8 @@ def _request_deleted_rows(organs, query="", user=None):
         if not _request_model_has_field(model, "is_deleted"):
             continue
         qs = model.objects.select_related("territorial_organ", "updated_by", "created_by").filter(is_deleted=True, territorial_organ__in=organs)
-        if user is not None and not _is_admin_user(user):
-            qs = qs.filter(updated_by=user, updated_at__gte=_personal_trash_cutoff()).exclude(pk__in=_dismissed_ids(user, "request", table["key"]))
+        if user is not None and (personal or not _is_admin_user(user)):
+            qs = qs.filter(updated_by=user, updated_at__gte=_personal_trash_cutoff()).exclude(pk__in=_dismissed_ids(user, "request", table["key"], personal=True))
         if query:
             filters = Q(territorial_organ__name__icontains=query) | Q(comment__icontains=query)
             if _request_model_has_field(model, "request_number"):
@@ -119,7 +119,7 @@ def _request_deleted_rows(organs, query="", user=None):
     return rows
 
 
-def _deleted_photos(organs, query="", user=None):
+def _deleted_photos(organs, query="", user=None, personal=False):
     qs = (
         TerritorialOrganPhoto.objects.select_related("territorial_organ", "folder", "updated_by", "created_by")
         .filter(is_deleted=True, territorial_organ__in=organs)
@@ -129,9 +129,9 @@ def _deleted_photos(organs, query="", user=None):
     if query:
         qs = qs.filter(Q(original_filename__icontains=query) | Q(description__icontains=query) | Q(territorial_organ__name__icontains=query) | Q(folder__name__icontains=query))
     photos = qs.order_by("-updated_at", "-pk")
-    if user is None or _is_admin_user(user):
+    if user is None or (_is_admin_user(user) and not personal):
         return photos
-    dismissed = _dismissed_ids(user, "photo")
+    dismissed = _dismissed_ids(user, "photo", personal=True)
     cutoff = _personal_trash_cutoff()
     return [photo for photo in photos if photo.updated_by_id == user.pk and photo.updated_at >= cutoff and photo.pk not in dismissed and can_manage_photo_asset(user, photo.territorial_organ, photo)]
 
@@ -158,7 +158,7 @@ def _attach_photo_folder_paths(photo_page):
         photo.trash_folder_path = _folder_path(photo.folder)
     return photo_page
 
-def _deleted_folders(organs, query="", user=None):
+def _deleted_folders(organs, query="", user=None, personal=False):
     # Показываем в общем списке только те удалённые папки, которыми можно управлять
     # напрямую: корневые удалённые папки и папки, чей родитель активен/отсутствует.
     # Дочерние папки внутри уже удалённой ветки отображаются в мини-проводнике родителя.
@@ -172,9 +172,9 @@ def _deleted_folders(organs, query="", user=None):
     if query:
         qs = qs.filter(Q(name__icontains=query) | Q(territorial_organ__name__icontains=query) | Q(parent__name__icontains=query))
     folders = qs.order_by("-updated_at", "-pk")
-    if user is None or _is_admin_user(user):
+    if user is None or (_is_admin_user(user) and not personal):
         return folders
-    dismissed = _dismissed_ids(user, "folder")
+    dismissed = _dismissed_ids(user, "folder", personal=True)
     cutoff = _personal_trash_cutoff()
     return [folder for folder in folders if folder.updated_by_id == user.pk and folder.updated_at >= cutoff and folder.pk not in dismissed and can_manage_photo_asset(user, folder.territorial_organ, folder)]
 
@@ -269,16 +269,16 @@ def _querystring_without(request, *names):
     return query.urlencode()
 
 
-def build_trash_context(request):
+def build_trash_context(request, *, personal=False):
     organs = list(available_organs_for_user(request.user))
     section = request.GET.get("section", "all")
     if section not in TRASH_SECTION_CHOICES:
         section = "all"
     query = request.GET.get("q", "").strip()
 
-    request_rows = _request_deleted_rows(organs, query, request.user) if section in {"all", "requests"} else []
-    photos = _deleted_photos(organs, query, request.user) if section in {"all", "photos"} else []
-    folders = _deleted_folders(organs, query, request.user) if section in {"all", "folders"} else []
+    request_rows = _request_deleted_rows(organs, query, request.user, personal) if section in {"all", "requests"} else []
+    photos = _deleted_photos(organs, query, request.user, personal) if section in {"all", "photos"} else []
+    folders = _deleted_folders(organs, query, request.user, personal) if section in {"all", "folders"} else []
 
     request_page, request_links = _paginate(request, request_rows, "requests_page")
     photo_page, photo_links = _paginate(request, photos, "photos_page")
@@ -291,8 +291,9 @@ def build_trash_context(request):
         "section": section,
         "query": query,
         "is_leader": request.user.is_superuser,
-        "is_personal_trash": not _is_admin_user(request.user),
-        "show_admin_navigation": request.user.is_superuser or getattr(getattr(request.user, "profile", None), "role", "") == "admin",
+        "is_personal_trash": personal,
+        "show_admin_navigation": not personal,
+        "trash_panel_url_name": "trash_panel" if personal else "admin_trash_panel",
         "request_page": request_page,
         "request_page_links": request_links,
         "photo_page": photo_page,
@@ -303,14 +304,14 @@ def build_trash_context(request):
         "photo_querystring": _querystring_without(request, "photos_page"),
         "folder_querystring": _querystring_without(request, "folders_page"),
         "counts": {
-            "requests": len(request_rows) if section in {"all", "requests"} else _request_deleted_count(organs, request.user),
-            "photos": len(photos) if section in {"all", "photos"} else len(_deleted_photos(organs, user=request.user)),
-            "folders": len(folders) if section in {"all", "folders"} else len(_deleted_folders(organs, user=request.user)),
+            "requests": len(request_rows) if section in {"all", "requests"} else _request_deleted_count(organs, request.user, personal),
+            "photos": len(photos) if section in {"all", "photos"} else len(_deleted_photos(organs, user=request.user, personal=personal)),
+            "folders": len(folders) if section in {"all", "folders"} else len(_deleted_folders(organs, user=request.user, personal=personal)),
         },
     }
 
 
-def _request_deleted_count(organs, user=None):
+def _request_deleted_count(organs, user=None, personal=False):
     total = 0
     for table in _request_tables():
         if user is not None and not can_write(user, department_slug=table["department"]):
@@ -318,8 +319,8 @@ def _request_deleted_count(organs, user=None):
         model = table["model"]
         if _request_model_has_field(model, "is_deleted"):
             qs = model.objects.filter(is_deleted=True, territorial_organ__in=organs)
-            if user is not None and not _is_admin_user(user):
-                qs = qs.filter(updated_by=user, updated_at__gte=_personal_trash_cutoff()).exclude(pk__in=_dismissed_ids(user, "request", table["key"]))
+            if user is not None and (personal or not _is_admin_user(user)):
+                qs = qs.filter(updated_by=user, updated_at__gte=_personal_trash_cutoff()).exclude(pk__in=_dismissed_ids(user, "request", table["key"], personal=True))
             total += qs.count()
     return total
 
@@ -331,12 +332,10 @@ def personal_trash_count(user):
     if not user.is_superuser and getattr(profile, "role", "") not in {UserProfile.Role.ADMIN, UserProfile.Role.OPERATOR}:
         return 0
     organs = list(available_organs_for_user(user))
-    return _request_deleted_count(organs, user) + len(_deleted_photos(organs, user=user)) + len(_deleted_folders(organs, user=user))
+    return _request_deleted_count(organs, user, personal=True) + len(_deleted_photos(organs, user=user, personal=True)) + len(_deleted_folders(organs, user=user, personal=True))
 
 
 def dismiss_trash_item(request, kind, pk, table_key=""):
-    if _is_admin_user(request.user):
-        raise PermissionDenied
     if kind == "request":
         table = get_table_or_404(table_key)
         obj = get_object_or_404(table["model"], pk=pk, is_deleted=True, updated_by=request.user)
@@ -357,8 +356,6 @@ def dismiss_trash_item(request, kind, pk, table_key=""):
 
 
 def clear_personal_trash(request):
-    if _is_admin_user(request.user):
-        raise PermissionDenied
     organs = list(available_organs_for_user(request.user))
     dismissals = []
     cutoff = _personal_trash_cutoff()
@@ -370,8 +367,8 @@ def clear_personal_trash(request):
             continue
         ids = model.objects.filter(is_deleted=True, territorial_organ__in=organs, updated_by=request.user, updated_at__gte=cutoff).values_list("pk", flat=True)
         dismissals.extend(TrashDismissal(user=request.user, kind="request", table_key=table["key"], object_id=pk) for pk in ids)
-    dismissals.extend(TrashDismissal(user=request.user, kind="photo", object_id=photo.pk) for photo in _deleted_photos(organs, user=request.user))
-    dismissals.extend(TrashDismissal(user=request.user, kind="folder", object_id=folder.pk) for folder in _deleted_folders(organs, user=request.user))
+    dismissals.extend(TrashDismissal(user=request.user, kind="photo", object_id=photo.pk) for photo in _deleted_photos(organs, user=request.user, personal=True))
+    dismissals.extend(TrashDismissal(user=request.user, kind="folder", object_id=folder.pk) for folder in _deleted_folders(organs, user=request.user, personal=True))
     TrashDismissal.objects.bulk_create(dismissals, ignore_conflicts=True)
     return TrashActionResult(True, "Личная корзина очищена. Данные сохранены в системе и общей корзине администратора.")
 

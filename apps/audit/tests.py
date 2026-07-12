@@ -69,6 +69,12 @@ class AuditLogTests(TestCase):
         self.assertContains(response, "Редактирование")
         self.assertContains(response, 'class="pagination-jump"')
         self.assertContains(response, "audit-detail-button")
+        self.assertContains(response, 'hx-trigger="audit-filter-change"')
+        self.assertContains(response, "js/audit_filters.js")
+        self.assertContains(response, "Применены фильтры:")
+        self.assertContains(response, "Действия: Редактирование")
+        self.assertContains(response, "Сбросить все")
+        self.assertNotContains(response, "Применить")
         self.assertContains(response, "Страницы журнала действий")
         self.assertContains(response, "Сбросить")
         self.assertContains(response, "Заявка отредактирована")
@@ -137,6 +143,7 @@ class AuditLogTests(TestCase):
         self.assertNotContains(response, "Old")
         self.assertContains(response, "Fresh")
         self.assertNotContains(response, "Сбросить")
+        self.assertNotContains(response, "Применены фильтры:")
         self.assertContains(response, "За всё время")
 
     def test_audit_log_all_time_link_surfaces_older_entries_without_scanning_by_default(self):
@@ -152,6 +159,8 @@ class AuditLogTests(TestCase):
         self.assertContains(response, "Old")
         self.assertContains(response, "Fresh")
         self.assertContains(response, "Сбросить")
+        self.assertContains(response, "Применены фильтры:")
+        self.assertContains(response, "Период: за всё время")
         self.assertNotContains(response, "За всё время")
 
     def test_audit_detail_shows_changed_values_and_user_agent(self):

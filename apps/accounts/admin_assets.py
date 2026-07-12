@@ -222,6 +222,7 @@ def build_asset_category_detail_context(request, category_key):
         "querystring": query_with(request),
         "pagination_url": reverse("admin_asset_category_detail", kwargs={"category_key": category_key}),
         "pagination_fields": category_pagination_fields(request),
+        "active_filter_chips": active_filter_chips(filters, organs, available_organs, []),
         "history_rows": category_history(category, organs),
         "reset_url": reverse("admin_asset_category_detail", kwargs={"category_key": category_key}),
         "back_url": reverse("admin_assets_panel"),

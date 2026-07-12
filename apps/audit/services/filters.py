@@ -247,6 +247,8 @@ def filtered_logs(request, logs=None, show_user_filter=True, show_department_fil
 
 __all__ = [
     "OBJECT_FILTERS",
+    "audit_default_date_from",
+    "audit_default_date_to",
     "audit_date_value",
     "audit_filter_values",
     "audit_has_filters",

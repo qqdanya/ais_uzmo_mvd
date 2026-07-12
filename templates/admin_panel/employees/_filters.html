@@ -1,13 +1,9 @@
 {% load account_tags %}
-      <form class="admin-section admin-employees-filter" method="get">
+      <form class="admin-section admin-employees-filter" method="get" data-admin-auto-filter>
         <div class="admin-section-head">
           <div>
             <h2>Фильтры</h2>
             <span>Кастомные мультивыборы по ролям, активности, активации, отделам и территориальным органам</span>
-          </div>
-          <div class="admin-filter-actions">
-            <a class="btn btn-sm btn-outline-secondary" href="{{ reset_url }}"><i class="bi bi-arrow-counterclockwise"></i> Сбросить</a>
-            <button class="btn btn-sm btn-primary" type="submit"><i class="bi bi-funnel"></i> Применить</button>
           </div>
         </div>
 
@@ -48,6 +44,7 @@
         {% if active_filter_chips %}
           <div class="admin-active-filter-row" aria-label="Активные фильтры">
             {% for chip in active_filter_chips %}<span>{{ chip }}</span>{% endfor %}
+            <a class="btn btn-sm btn-outline-secondary admin-active-filter-reset" href="{{ reset_url }}"><i class="bi bi-x-lg"></i> Сбросить все</a>
           </div>
         {% endif %}
       </form>

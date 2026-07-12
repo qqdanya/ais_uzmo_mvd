@@ -461,6 +461,20 @@
   gap: 8px;
   align-items: center;
 }
+
+.audit-active-filter-bar {
+  margin-top: 10px;
+}
+
+.audit-filter-chip {
+  align-items: center;
+  gap: 0.25rem;
+  text-decoration: none;
+}
+
+.audit-filter-chip:hover {
+  text-decoration: none;
+}
 .audit-filters-compact {
   grid-template-columns: repeat(4, minmax(145px, 1fr)) minmax(300px, 1fr) minmax(176px, max-content);
 }

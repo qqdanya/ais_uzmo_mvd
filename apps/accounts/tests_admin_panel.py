@@ -249,13 +249,13 @@ class AdminPanelEndpointTests(AdminPanelTestMixin, TestCase):
 
         profile_admin_response = self.client.get(reverse("admin_panel"))
         self.assertEqual(profile_admin_response.status_code, 200)
-        self.assertNotContains(profile_admin_response, "Таблицы БД")
+        self.assertNotContains(profile_admin_response, "Управление данными")
         self.assertNotContains(profile_admin_response, f'href="{reverse("admin:index")}"')
 
         self.client.logout()
         self.login_admin()
         leader_response = self.client.get(reverse("admin_panel"))
-        self.assertContains(leader_response, "Таблицы БД")
+        self.assertContains(leader_response, "Управление данными")
         self.assertContains(leader_response, f'href="{reverse("admin:index")}"')
 
     def test_django_admin_is_not_available_to_operator_or_observer(self):
@@ -1686,14 +1686,24 @@ class AdminTrashPanelTests(AdminPanelTestMixin, TestCase):
     def test_trash_panel_is_available_to_operator_without_admin_navigation(self):
         self.login_operator()
 
-        response = self.client.get(reverse("admin_trash_panel"))
+        response = self.client.get(reverse("trash_panel"))
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Корзина удаленных объектов")
         self.assertNotContains(response, "Административная панель")
         self.assertNotContains(response, "admin-top-tabs")
-        self.assertEqual(reverse("admin_trash_panel"), "/trash/")
-        self.assertEqual(self.client.get("/control/trash/").status_code, 404)
+        self.assertEqual(reverse("trash_panel"), "/trash/")
+        self.assertEqual(reverse("admin_trash_panel"), "/control/trash/")
+        self.assertEqual(self.client.get(reverse("admin_trash_panel")).status_code, 403)
+
+    def test_admin_personal_trash_has_no_admin_navigation(self):
+        self.login_admin()
+
+        response = self.client.get(reverse("trash_panel"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["is_personal_trash"])
+        self.assertNotContains(response, "admin-top-tabs")
 
     def test_authenticated_operator_menu_contains_trash_link(self):
         self.login_operator()
@@ -1701,7 +1711,7 @@ class AdminTrashPanelTests(AdminPanelTestMixin, TestCase):
         response = self.client.get(reverse("dashboard"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, reverse("admin_trash_panel"))
+        self.assertContains(response, reverse("trash_panel"))
         self.assertContains(response, '<i class="bi bi-trash3"></i> Корзина', html=False)
 
     def test_operator_personal_trash_can_hide_item_without_removing_it_from_admin_trash(self):
@@ -1715,7 +1725,7 @@ class AdminTrashPanelTests(AdminPanelTestMixin, TestCase):
         )
         self.login_operator()
 
-        personal_response = self.client.get(reverse("admin_trash_panel") + "?section=requests")
+        personal_response = self.client.get(reverse("trash_panel") + "?section=requests")
         self.assertContains(personal_response, "ТМЦ-PERSONAL")
         self.assertContains(personal_response, reverse("trash_dismiss_request", kwargs={"table_key": "tmc-requests", "pk": request_obj.pk}))
 
@@ -1752,7 +1762,7 @@ class AdminTrashPanelTests(AdminPanelTestMixin, TestCase):
     def test_trash_search_is_live_and_has_no_submit_or_reset_buttons(self):
         self.login_operator()
 
-        response = self.client.get(reverse("admin_trash_panel"))
+        response = self.client.get(reverse("trash_panel"))
 
         self.assertContains(response, 'hx-trigger="input changed delay:450ms from:input[name=\'q\'], submit"')
         self.assertContains(response, 'hx-select=".admin-trash-screen"')
@@ -1793,7 +1803,7 @@ class AdminTrashPanelTests(AdminPanelTestMixin, TestCase):
         TmcRequest.objects.filter(pk=request_obj.pk).update(updated_at=timezone.now() - timedelta(days=91))
         self.login_operator()
 
-        self.assertNotContains(self.client.get(reverse("admin_trash_panel") + "?section=requests"), "ТМЦ-OLD")
+        self.assertNotContains(self.client.get(reverse("trash_panel") + "?section=requests"), "ТМЦ-OLD")
         self.client.logout()
         self.login_admin()
         self.assertContains(self.client.get(reverse("admin_trash_panel") + "?section=requests"), "ТМЦ-OLD")
@@ -1831,10 +1841,10 @@ class AdminTrashPanelTests(AdminPanelTestMixin, TestCase):
         self.assertIn("transition: background-color .14s var(--motion-smooth), border-color .14s var(--motion-smooth)", requests_css)
         self.assertIn(".admin-requests-table td:last-child", requests_css)
         self.assertIn("justify-content: center", requests_css)
-        self.assertIn("admin/base.css?v=20260711-003", admin_css)
-        self.assertIn("admin/requests.css?v=20260707-001", admin_css)
+        self.assertIn("admin/base.css?v=20260711-005", admin_css)
+        self.assertIn("admin/requests.css?v=20260712-002", admin_css)
         self.assertIn("admin/trash.css?v=20260705-016", admin_css)
-        self.assertIn("css/admin.css' %}?v=20260711-004", trash_template)
+        self.assertIn("css/admin.css' %}?v=20260711-006", trash_template)
 
 
 

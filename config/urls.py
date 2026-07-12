@@ -5,7 +5,7 @@ from django.contrib.auth import views as auth_views
 from django.urls import include, path
 
 from apps.accounts.forms import RateLimitedAuthenticationForm
-from apps.accounts.views import activate_account, admin_asset_category_detail, admin_asset_organ_detail, admin_asset_organ_summary, admin_assets_panel, admin_department_detail, admin_departments_panel, admin_employee_action, admin_employee_create, admin_employee_detail, admin_employee_edit, admin_employees_panel, admin_employees_presence_data, admin_organ_detail, admin_organs_panel, admin_panel, admin_request_detail, admin_requests_panel, admin_summary_data, admin_threshold_settings, admin_trash_panel, admin_trash_purge_folder, admin_trash_purge_photo, admin_trash_restore_folder, admin_trash_restore_photo, admin_trash_restore_request, presence_ping, trash_clear_personal, trash_count_data, trash_dismiss_folder, trash_dismiss_photo, trash_dismiss_request
+from apps.accounts.views import activate_account, admin_asset_category_detail, admin_asset_organ_detail, admin_asset_organ_summary, admin_assets_panel, admin_department_detail, admin_departments_panel, admin_employee_action, admin_employee_create, admin_employee_detail, admin_employee_edit, admin_employees_panel, admin_employees_presence_data, admin_organ_detail, admin_organs_panel, admin_panel, admin_request_detail, admin_requests_panel, admin_summary_data, admin_threshold_settings, admin_trash_panel, admin_trash_purge_folder, admin_trash_purge_photo, admin_trash_restore_folder, admin_trash_restore_photo, admin_trash_restore_request, presence_ping, trash_clear_personal, trash_count_data, trash_dismiss_folder, trash_dismiss_photo, trash_dismiss_request, trash_panel
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -28,7 +28,8 @@ urlpatterns = [
     path("control/employees/<int:pk>/action/", admin_employee_action, name="admin_employee_action"),
     path("control/summary-data/", admin_summary_data, name="admin_summary_data"),
     path("control/settings/", admin_threshold_settings, name="admin_threshold_settings"),
-    path("trash/", admin_trash_panel, name="admin_trash_panel"),
+    path("control/trash/", admin_trash_panel, name="admin_trash_panel"),
+    path("trash/", trash_panel, name="trash_panel"),
     path("trash/requests/<slug:table_key>/<int:pk>/restore/", admin_trash_restore_request, name="admin_trash_restore_request"),
     path("trash/photos/<int:pk>/restore/", admin_trash_restore_photo, name="admin_trash_restore_photo"),
     path("trash/photos/<int:pk>/purge/", admin_trash_purge_photo, name="admin_trash_purge_photo"),

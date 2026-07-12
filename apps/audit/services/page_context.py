@@ -7,6 +7,8 @@ from apps.directory.models import Department
 from .constants import ACTION_DISPLAY_LABELS, OBJECT_FILTERS
 from .display import prepare_log, user_display_name
 from .filters import (
+    audit_default_date_from,
+    audit_default_date_to,
     audit_date_value,
     audit_filter_values,
     audit_has_filters,
@@ -16,6 +18,22 @@ from .filters import (
     scoped_organ_queryset,
     scoped_user_queryset,
 )
+
+
+def _filter_url(request, base_url, *names):
+    query = request.GET.copy()
+    query.pop("page", None)
+    for name in names:
+        query.pop(name, None)
+    encoded = query.urlencode()
+    return f"{base_url}?{encoded}" if encoded else base_url
+
+
+def _selection_chip(label, selected, labels, request, base_url, parameter):
+    if not selected:
+        return None
+    value = labels.get(selected[0], selected[0]) if len(selected) == 1 else f"{label}: {len(selected)}"
+    return {"label": f"{label}: {value}" if len(selected) == 1 else value, "url": _filter_url(request, base_url, parameter)}
 
 
 def audit_context(
@@ -54,6 +72,34 @@ def audit_context(
     selected_departments = audit_filter_values(request, "department") if show_department_filter else []
     selected_objects = audit_filter_values(request, "object")
     selected_organs = audit_filter_values(request, "organ")
+    base_url = reverse(reset_url_name)
+    user_labels = {account.username: user_display_name(account) for account in users}
+    action_labels = dict(actions)
+    department_labels = dict(department_filters)
+    object_labels = dict(object_filters)
+    organ_labels = {str(organ.pk): organ.name for organ in organs}
+    active_filter_chips = []
+    chip_specs = [
+        ("Пользователи", selected_users, user_labels, "user", show_user_filter),
+        ("Действия", selected_actions, action_labels, "action", True),
+        ("Отделы", selected_departments, department_labels, "department", show_department_filter),
+        ("Объекты", selected_objects, object_labels, "object", True),
+        ("Органы", selected_organs, organ_labels, "organ", True),
+    ]
+    for label, selected, labels, parameter, visible in chip_specs:
+        chip = _selection_chip(label, selected, labels, request, base_url, parameter) if visible else None
+        if chip:
+            active_filter_chips.append(chip)
+    date_is_filter = (
+        ("date_from" in request.GET and request.GET.get("date_from", "").strip() != audit_default_date_from())
+        or ("date_to" in request.GET and request.GET.get("date_to", "").strip() != audit_default_date_to())
+    )
+    if date_is_filter:
+        if not date_from and not date_to:
+            period_label = "Период: за всё время"
+        else:
+            period_label = f"Период: {date_from or '…'} — {date_to or '…'}"
+        active_filter_chips.append({"label": period_label, "url": _filter_url(request, base_url, "date_from", "date_to")})
     return {
         "title": title,
         "subtitle": subtitle,
@@ -77,18 +123,19 @@ def audit_context(
         "user_filter_label": audit_multiselect_label(
             selected_users,
             "Все пользователи",
-            {account.username: user_display_name(account) for account in users},
+            user_labels,
         ),
-        "action_filter_label": audit_multiselect_label(selected_actions, "Все действия", dict(actions)),
-        "department_filter_label": audit_multiselect_label(selected_departments, "Все отделы", dict(department_filters)),
-        "object_filter_label": audit_multiselect_label(selected_objects, "Все объекты", dict(object_filters)),
+        "action_filter_label": audit_multiselect_label(selected_actions, "Все действия", action_labels),
+        "department_filter_label": audit_multiselect_label(selected_departments, "Все отделы", department_labels),
+        "object_filter_label": audit_multiselect_label(selected_objects, "Все объекты", object_labels),
         "organ_filter_label": audit_multiselect_label(
             selected_organs,
             "Все территориальные органы",
-            {str(organ.pk): organ.name for organ in organs},
+            organ_labels,
         ),
         "has_filters": audit_has_filters(request, date_from, date_to, show_user_filter, show_department_filter),
         "reset_url": reverse(reset_url_name),
+        "active_filter_chips": active_filter_chips,
         "is_all_time": is_all_time,
         "all_time_url": f"{reverse(pagination_url_name)}?{all_time_params.urlencode()}",
         "querystring": querystring.urlencode(),

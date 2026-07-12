@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load account_tags %}
+{% load account_tags static %}
 {% block content %}
 <div class="container-fluid py-3 audit-page">
   <section class="panel audit-panel">
@@ -11,7 +11,13 @@
       <a class="btn btn-outline-primary" href="{% url 'dashboard' %}"><i class="bi bi-arrow-left"></i> На главную</a>
     </div>
 
-    <form class="audit-filters{% if not show_user_filter %} audit-filters-compact{% endif %}">
+    <form class="audit-filters{% if not show_user_filter %} audit-filters-compact{% endif %}"
+          hx-get="{{ pagination_url }}"
+          hx-trigger="audit-filter-change"
+          hx-target=".audit-panel"
+          hx-select=".audit-panel"
+          hx-swap="outerHTML"
+          hx-push-url="true">
       {% if show_user_filter %}
         {% admin_multiselect name="user" options=users selected_values=selected_users current_label=user_filter_label empty_label="Все пользователи" value_attr="username" label_attr="user_display_name" root_class="audit-multiselect" menu_class="audit-multiselect-menu" %}
       {% endif %}
@@ -23,15 +29,25 @@
       {% admin_multiselect name="organ" options=organs selected_values=selected_organs current_label=organ_filter_label empty_label="Все территориальные органы" value_attr="pk" label_attr="name" root_class="audit-multiselect" menu_class="audit-multiselect-menu" %}
       {% include "partials/date_range_picker.html" with from_name="date_from" to_name="date_to" from_value=date_from to_value=date_to picker_class="audit-date-picker" %}
       <div class="audit-filter-actions">
-        <button class="btn btn-sm btn-primary"><i class="bi bi-funnel"></i> Применить</button>
         {% if not is_all_time %}
-          <a class="btn btn-sm btn-outline-secondary" href="{{ all_time_url }}"><i class="bi bi-clock-history"></i> За всё время</a>
-        {% endif %}
-        {% if has_filters %}
-          <a class="btn btn-sm btn-outline-secondary" href="{{ reset_url }}"><i class="bi bi-x-lg"></i> Сбросить</a>
+          <a class="btn btn-sm btn-outline-secondary" href="{{ all_time_url }}" hx-get="{{ all_time_url }}" hx-target=".audit-panel" hx-select=".audit-panel" hx-swap="outerHTML" hx-push-url="true"><i class="bi bi-clock-history"></i> За всё время</a>
         {% endif %}
       </div>
     </form>
+
+    {% if active_filter_chips %}
+      <div class="active-filter-bar audit-active-filter-bar">
+        <div class="active-filter-content">
+          <span class="active-filter-title"><i class="bi bi-funnel-fill"></i> Применены фильтры:</span>
+          <span class="active-filter-list">
+            {% for chip in active_filter_chips %}
+              <a class="active-filter-chip audit-filter-chip" href="{{ chip.url }}" hx-get="{{ chip.url }}" hx-target=".audit-panel" hx-select=".audit-panel" hx-swap="outerHTML" hx-push-url="true">{{ chip.label }} <i class="bi bi-x" aria-hidden="true"></i></a>
+            {% endfor %}
+          </span>
+        </div>
+        <a class="btn btn-sm btn-outline-secondary" href="{{ reset_url }}" hx-get="{{ reset_url }}" hx-target=".audit-panel" hx-select=".audit-panel" hx-swap="outerHTML" hx-push-url="true"><i class="bi bi-x-lg"></i> Сбросить все</a>
+      </div>
+    {% endif %}
 
     <div class="audit-toolbar">
       <span class="metric-card metric-card-horizontal audit-count-card">
@@ -98,4 +114,7 @@
 </div>
 {% endblock %}
 
-{% block extra_scripts %}{% include "partials/scripts/admin_scripts.html" %}{% endblock %}
+{% block extra_scripts %}
+  {% include "partials/scripts/admin_scripts.html" %}
+  <script src="{% static 'js/audit_filters.js' %}?v=20260712-001"></script>
+{% endblock %}

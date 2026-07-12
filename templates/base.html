@@ -8,7 +8,7 @@
   <link rel="icon" href="{% static 'img/favicon.svg' %}?v=5" type="image/svg+xml">
   <link href="{% static 'vendor/bootstrap/bootstrap.min.css' %}" rel="stylesheet">
   <link href="{% static 'vendor/bootstrap-icons/bootstrap-icons.css' %}" rel="stylesheet">
-  <link href="{% static 'css/app.css' %}?v=20260711-026" rel="stylesheet">
+  <link href="{% static 'css/app.css' %}?v=20260712-027" rel="stylesheet">
   {% block extra_css %}{% endblock %}
   <script src="{% static 'vendor/htmx/htmx.min.js' %}"></script>
 </head>
@@ -38,7 +38,7 @@
           <a class="dropdown-item" href="{% url 'my_audit_log' %}"><i class="bi bi-activity"></i> Журнал действий</a>
           {% if user.is_superuser or user.profile.role == "admin" or user.profile.role == "operator" %}
             {% trash_count user as user_trash_count %}
-            <a class="dropdown-item" href="{% url 'admin_trash_panel' %}" data-trash-menu-link data-trash-count-url="{% url 'trash_count_data' %}"><i class="bi bi-trash3"></i> Корзина<span class="user-menu-count" data-trash-menu-count{% if not user_trash_count %} hidden{% endif %}>{{ user_trash_count }}</span></a>
+            <a class="dropdown-item" href="{% url 'trash_panel' %}" data-trash-menu-link data-trash-count-url="{% url 'trash_count_data' %}"><i class="bi bi-trash3"></i> Корзина<span class="user-menu-count" data-trash-menu-count{% if not user_trash_count %} hidden{% endif %}>{{ user_trash_count }}</span></a>
           {% endif %}
           <a class="dropdown-item" href="{% url 'password_change' %}"><i class="bi bi-key"></i> Сменить пароль</a>
           <div class="dropdown-divider"></div>

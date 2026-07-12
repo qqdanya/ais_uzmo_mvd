@@ -202,8 +202,23 @@
 }
 .admin-active-filter-row {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
   gap: 6px;
+  padding: 7px 8px;
+  border: 1px solid #c9e2f4;
+  border-radius: 8px;
+  background: #f4faff;
+}
+.admin-active-filter-row::before {
+  content: "Применены фильтры:";
+  color: var(--navy);
+  font-size: .82rem;
+  font-weight: 700;
+}
+.admin-active-filter-reset {
+  margin-left: auto;
+  white-space: nowrap;
 }
 .admin-active-filter-row span {
   display: inline-flex;
