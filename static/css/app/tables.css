@@ -305,19 +305,22 @@
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18);
   transition: border-color .16s var(--motion-smooth), background .16s var(--motion-smooth), color .16s var(--motion-smooth), box-shadow .16s var(--motion-smooth);
 }
+/* Neutral light-blue ghost, matching the toolbar's other controls (date
+ * toggle, selects). Green is reserved for the "Исполнено" status - a green
+ * button next to the green status pill read as related to it. */
 .table-actions .table-export-button {
-  border-color: #78a98c;
-  background: #edf4f0;
-  color: #236741;
+  border-color: #9fc8df;
+  background: linear-gradient(180deg, #f8fcff 0%, #edf7ff 100%);
+  color: var(--navy);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .7);
 }
 .table-actions .table-export-button:hover,
 .table-actions .table-export-button:focus-visible,
 .table-actions .table-export-button.show {
-  border-color: #4f906b;
-  background: #e2eee7;
-  color: #185533;
-  box-shadow: 0 2px 6px rgba(33, 115, 70, .11);
+  border-color: var(--blue);
+  background: #e5f3fd;
+  color: var(--blue);
+  box-shadow: 0 2px 6px rgba(23, 105, 170, .11);
 }
 .table-actions .table-export-chevron {
   margin-left: .1rem;
@@ -327,19 +330,10 @@
 .table-actions .table-export-button.show .table-export-chevron {
   transform: rotate(180deg);
 }
-.table-actions .table-add-button {
-  border-color: #76add1;
-  background: #edf5fb;
-  color: #145b88;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .72);
-}
-.table-actions .table-add-button:hover,
-.table-actions .table-add-button:focus-visible {
-  border-color: #4b94c2;
-  background: #e1eff9;
-  color: #0d4c75;
-  box-shadow: 0 2px 6px rgba(23, 105, 170, .11);
-}
+/* The add button is the table's primary action - it keeps its Bootstrap
+ * btn-primary solid fill (same as the admin panel's primary actions) and
+ * only takes the shared sizing above; the old rule here dimmed it into a
+ * ghost that looked interchangeable with the secondary "Экспорт". */
 .table-actions .table-export-button > i:first-child,
 .table-actions .table-add-button > i {
   font-size: .9rem;
