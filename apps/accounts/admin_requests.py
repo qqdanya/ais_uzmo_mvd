@@ -453,5 +453,4 @@ def build_request_detail_context(request, table_key, pk):
         "attached_photos": attached_photos,
         "back_url": request.META.get("HTTP_REFERER") or (reverse("admin_trash_panel") + "?section=requests" if show_deleted else reverse("admin_requests_panel")),
         "is_deleted_detail": show_deleted,
-        "edit_url": "" if show_deleted else reverse("record_update", kwargs={"organ_id": obj.territorial_organ_id, "table_key": table_key, "pk": obj.pk}),
     }

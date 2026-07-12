@@ -78,6 +78,20 @@ def department_names():
     return {item.slug: item.name for item in Department.objects.filter(is_active=True)}
 
 
+def workspace_table_url(organ_id, table_key):
+    """Deep link into the dashboard work screen at a given organ and table.
+
+    record_update ("/organs/.../edit/") is an htmx-only endpoint that returns
+    a bare form fragment for the dashboard's modal - linking a browser
+    straight to it renders an unstyled page. The dashboard restores
+    ?organ/?department/?table from the URL on load (organ_navigation.js), so
+    this is the address that actually opens the record's table in the
+    workspace.
+    """
+    table = TABLE_BY_KEY[table_key]
+    return f"{reverse('dashboard')}?organ={organ_id}&department={table['department']}&table={table_key}"
+
+
 def asset_categories():
     departments = department_names()
     categories = []
@@ -341,7 +355,7 @@ def build_asset_matrix(organs, categories):
             cell = evaluate_asset(category, obj, organ)
             if obj:
                 cell["history_url"] = reverse("admin_asset_organ_detail", kwargs={"category_key": category["key"], "organ_id": organ.pk})
-                cell["edit_url"] = reverse("record_update", kwargs={"organ_id": organ.pk, "table_key": category["key"], "pk": obj.pk})
+                cell["edit_url"] = workspace_table_url(organ.pk, category["key"])
             else:
                 cell["history_url"] = reverse("admin_asset_organ_detail", kwargs={"category_key": category["key"], "organ_id": organ.pk})
                 cell["edit_url"] = None

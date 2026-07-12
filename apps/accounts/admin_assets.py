@@ -22,6 +22,7 @@ from .admin_asset_services import (
     selected_asset_statuses,
     sort_asset_rows,
     visible_categories,
+    workspace_table_url,
 )
 from .admin_common import (
     DEFAULT_PER_PAGE,
@@ -181,7 +182,7 @@ def category_history(category, organs, limit=12):
                 "organ": obj.territorial_organ,
                 "date_display": date_display(obj.state_date),
                 "fields": field_rows(category, obj),
-                "edit_url": reverse("record_update", kwargs={"organ_id": obj.territorial_organ_id, "table_key": category["key"], "pk": obj.pk}),
+                "edit_url": workspace_table_url(obj.territorial_organ_id, category["key"]),
             }
         )
     return rows
@@ -273,7 +274,7 @@ def build_asset_organ_detail_context(request, category_key, organ_id):
                 "object": obj,
                 "date_display": date_display(obj.state_date),
                 "fields": field_rows(category, obj),
-                "edit_url": reverse("record_update", kwargs={"organ_id": organ.pk, "table_key": category["key"], "pk": obj.pk}),
+                "edit_url": workspace_table_url(organ.pk, category["key"]),
             }
         )
     return {
