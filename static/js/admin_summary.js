@@ -182,7 +182,7 @@
 
   function metricLabel(value) {
     return {
-      total: "Всего заявок",
+      total: "Поступило заявок",
       in_work: "В работе",
       done: "Исполнено",
       rejected: "Отклонено",

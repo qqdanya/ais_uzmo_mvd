@@ -56,7 +56,7 @@
     <div class="admin-metric-grid admin-summary-kpi" aria-label="Состояние заявок">
       <div class="admin-metric-card">
         <span class="admin-metric-icon"><i class="bi bi-inboxes"></i></span>
-        <span>Всего заявок</span>
+        <span>Поступило заявок</span>
         <strong data-kpi="total">{{ summary_payload.kpi.total }}</strong>
         <small>за выбранный период</small>
       </div>
@@ -111,7 +111,7 @@
             <h2>Территориальные органы</h2>
             <span>Распределение по территориальным органам</span>
           </div>
-          {% single_select options="total:Всего заявок|in_work:В работе|done:Исполнено|rejected:Отклонено|stale:Просроченные" selected_value="in_work" aria_label="Показатель территориальных органов" css_class="form-select form-select-sm admin-native-select" data_admin_org_metric=True %}
+          {% single_select options="total:Поступило заявок|in_work:В работе|done:Исполнено|rejected:Отклонено|stale:Просроченные" selected_value="in_work" aria_label="Показатель территориальных органов" css_class="form-select form-select-sm admin-native-select" data_admin_org_metric=True %}
         </div>
         <div class="admin-bar-list" data-org-chart></div>
       </section>

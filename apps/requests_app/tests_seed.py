@@ -25,6 +25,7 @@ from apps.requests_app.models import (
     FireAlarm,
     FireDepartmentRequest,
     FireExtinguisher,
+    NeedStatus,
     SecurityAlarm,
     BuildingRepairRequest,
     RequestPhotoLink,
@@ -50,3 +51,46 @@ class SeedCommandTests(TestCase):
         first_count = TerritorialOrgan.objects.count()
         call_command("seed_initial_data")
         self.assertEqual(TerritorialOrgan.objects.count(), first_count)
+
+    def test_recent_request_is_not_forced_to_resolve_today(self):
+        from apps.requests_app.management.commands.seed_demo_data import Command
+
+        class PlannedFutureResolution:
+            def choices(self, *args, **kwargs):
+                return [NeedStatus.DONE]
+
+            def randint(self, start, end):
+                return end
+
+        command = Command()
+        command.review_days_max = 14
+        command.status_weights = (0, 1, 0)
+        command.resolved_weights = (1, 0)
+        command.rng = PlannedFutureResolution()
+
+        status, resolved_date = command._lifecycle(timezone.localdate())
+
+        self.assertEqual(status, NeedStatus.IN_WORK)
+        self.assertIsNone(resolved_date)
+
+    def test_same_day_resolution_remains_possible(self):
+        from apps.requests_app.management.commands.seed_demo_data import Command
+
+        class PlannedSameDayResolution:
+            def choices(self, *args, **kwargs):
+                return [NeedStatus.DONE]
+
+            def randint(self, start, end):
+                return 0
+
+        command = Command()
+        command.review_days_max = 14
+        command.status_weights = (0, 1, 0)
+        command.resolved_weights = (1, 0)
+        command.rng = PlannedSameDayResolution()
+
+        today = timezone.localdate()
+        status, resolved_date = command._lifecycle(today)
+
+        self.assertEqual(status, NeedStatus.DONE)
+        self.assertEqual(resolved_date, today)

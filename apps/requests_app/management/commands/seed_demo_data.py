@@ -379,6 +379,11 @@ class Command(BaseCommand):
         so it must have resolved by now - no request stays "В работе"
         forever. Requests filed too recently for the window to have closed
         yet may still legitimately be open, same as a live backlog would.
+
+        Pick the planned resolution delay from the full review window before
+        comparing it with the request's age. Sampling only from the elapsed
+        part of the window makes every recent cohort capable of resolving
+        today and creates an artificial spike on the last chart day.
         """
         today = timezone.localdate()
         elapsed = (today - request_date).days
@@ -388,8 +393,10 @@ class Command(BaseCommand):
             status = self.rng.choices(STATUS_CHOICES, weights=self.status_weights, k=1)[0]
         if status == NeedStatus.IN_WORK:
             return status, None
-        max_delay = min(self.review_days_max, max(elapsed, 1))
-        resolved_date = min(request_date + timedelta(days=self.rng.randint(1, max_delay)), today)
+        planned_delay = self.rng.randint(0, self.review_days_max)
+        if planned_delay > elapsed:
+            return NeedStatus.IN_WORK, None
+        resolved_date = request_date + timedelta(days=planned_delay)
         return status, resolved_date
 
     def _as_datetime(self, date_value, *, after=None):
