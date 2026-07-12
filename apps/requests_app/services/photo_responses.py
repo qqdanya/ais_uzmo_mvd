@@ -72,14 +72,11 @@ def photo_download_response(request, organ, pk):
 
 
 def _photo_for_preview(user, organ, pk):
-    # Mirrors photo_download_response's checks, except a soft-deleted photo
-    # is only visible to admins/superusers (the trash UI), not to anyone who
-    # can merely view the organ — can_view() alone would let a regular
-    # operator assigned to that organ see a photo that's supposed to be
-    # trash-only.
+    # Mirrors photo_download_response's checks. A soft-deleted photo is visible
+    # only to a user who is allowed to manage that specific asset in the trash.
     photo = get_object_or_404(TerritorialOrganPhoto.objects.select_related("folder"), pk=pk, territorial_organ=organ)
     if photo.is_deleted:
-        if role_for(user) != UserProfile.Role.ADMIN:
+        if role_for(user) != UserProfile.Role.ADMIN and not can_manage_photo_asset(user, organ, photo):
             raise Http404
     else:
         if not can_view(user, organ):

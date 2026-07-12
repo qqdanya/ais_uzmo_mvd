@@ -4,6 +4,13 @@ from django import template
 register = template.Library()
 
 
+@register.simple_tag
+def trash_count(user):
+    from apps.accounts.admin_trash import personal_trash_count
+
+    return personal_trash_count(user)
+
+
 @register.filter
 def display_name(user):
     if not user:
@@ -215,4 +222,3 @@ def single_select(
         "data_admin_org_metric": data_admin_org_metric,
         "data_custom_select_skip": data_custom_select_skip,
     }
-

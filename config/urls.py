@@ -5,7 +5,7 @@ from django.contrib.auth import views as auth_views
 from django.urls import include, path
 
 from apps.accounts.forms import RateLimitedAuthenticationForm
-from apps.accounts.views import activate_account, admin_asset_category_detail, admin_asset_organ_detail, admin_asset_organ_summary, admin_assets_panel, admin_department_detail, admin_departments_panel, admin_employee_action, admin_employee_create, admin_employee_detail, admin_employee_edit, admin_employees_panel, admin_employees_presence_data, admin_organ_detail, admin_organs_panel, admin_panel, admin_request_detail, admin_requests_panel, admin_summary_data, admin_threshold_settings, admin_trash_panel, admin_trash_purge_folder, admin_trash_purge_photo, admin_trash_restore_folder, admin_trash_restore_photo, admin_trash_restore_request, presence_ping
+from apps.accounts.views import activate_account, admin_asset_category_detail, admin_asset_organ_detail, admin_asset_organ_summary, admin_assets_panel, admin_department_detail, admin_departments_panel, admin_employee_action, admin_employee_create, admin_employee_detail, admin_employee_edit, admin_employees_panel, admin_employees_presence_data, admin_organ_detail, admin_organs_panel, admin_panel, admin_request_detail, admin_requests_panel, admin_summary_data, admin_threshold_settings, admin_trash_panel, admin_trash_purge_folder, admin_trash_purge_photo, admin_trash_restore_folder, admin_trash_restore_photo, admin_trash_restore_request, presence_ping, trash_clear_personal, trash_count_data, trash_dismiss_folder, trash_dismiss_photo, trash_dismiss_request
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -28,12 +28,17 @@ urlpatterns = [
     path("control/employees/<int:pk>/action/", admin_employee_action, name="admin_employee_action"),
     path("control/summary-data/", admin_summary_data, name="admin_summary_data"),
     path("control/settings/", admin_threshold_settings, name="admin_threshold_settings"),
-    path("control/trash/", admin_trash_panel, name="admin_trash_panel"),
-    path("control/trash/requests/<slug:table_key>/<int:pk>/restore/", admin_trash_restore_request, name="admin_trash_restore_request"),
-    path("control/trash/photos/<int:pk>/restore/", admin_trash_restore_photo, name="admin_trash_restore_photo"),
-    path("control/trash/photos/<int:pk>/purge/", admin_trash_purge_photo, name="admin_trash_purge_photo"),
-    path("control/trash/folders/<int:pk>/restore/", admin_trash_restore_folder, name="admin_trash_restore_folder"),
-    path("control/trash/folders/<int:pk>/purge/", admin_trash_purge_folder, name="admin_trash_purge_folder"),
+    path("trash/", admin_trash_panel, name="admin_trash_panel"),
+    path("trash/requests/<slug:table_key>/<int:pk>/restore/", admin_trash_restore_request, name="admin_trash_restore_request"),
+    path("trash/photos/<int:pk>/restore/", admin_trash_restore_photo, name="admin_trash_restore_photo"),
+    path("trash/photos/<int:pk>/purge/", admin_trash_purge_photo, name="admin_trash_purge_photo"),
+    path("trash/folders/<int:pk>/restore/", admin_trash_restore_folder, name="admin_trash_restore_folder"),
+    path("trash/folders/<int:pk>/purge/", admin_trash_purge_folder, name="admin_trash_purge_folder"),
+    path("trash/requests/<slug:table_key>/<int:pk>/dismiss/", trash_dismiss_request, name="trash_dismiss_request"),
+    path("trash/photos/<int:pk>/dismiss/", trash_dismiss_photo, name="trash_dismiss_photo"),
+    path("trash/folders/<int:pk>/dismiss/", trash_dismiss_folder, name="trash_dismiss_folder"),
+    path("trash/clear/", trash_clear_personal, name="trash_clear_personal"),
+    path("trash/count/", trash_count_data, name="trash_count_data"),
     path("accounts/login/", auth_views.LoginView.as_view(authentication_form=RateLimitedAuthenticationForm), name="login"),
     path("accounts/activate/", activate_account, name="account_activate"),
     path("accounts/presence/", presence_ping, name="presence_ping"),

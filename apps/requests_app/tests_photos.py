@@ -488,16 +488,15 @@ class PhotoAssetTests(RequestAppTestCase):
         self.assertEqual(self.client.get(reverse("photo_preview", args=[other_organ.pk, foreign_photo.pk])).status_code, 404)
         self.assertEqual(self.client.get(reverse("photo_thumbnail", args=[other_organ.pk, foreign_photo.pk, "small"])).status_code, 404)
 
-    def test_soft_deleted_photo_preview_is_admin_only(self):
+    def test_soft_deleted_photo_preview_is_available_to_asset_manager_and_admin(self):
         photo = self.create_photo()
         photo.is_deleted = True
         photo.save(update_fields=["is_deleted"])
 
-        # An operator assigned to the organ can normally view its photos, but
-        # a soft-deleted (trash) photo must stay admin-only regardless.
+        # The operator who can manage the asset needs its preview in the trash.
         self.client.login(username="operator", password="pass12345")
-        self.assertEqual(self.client.get(reverse("photo_preview", args=[self.organ.pk, photo.pk])).status_code, 404)
-        self.assertEqual(self.client.get(reverse("photo_thumbnail", args=[self.organ.pk, photo.pk, "small"])).status_code, 404)
+        self.assertEqual(self.client.get(reverse("photo_preview", args=[self.organ.pk, photo.pk])).status_code, 200)
+        self.assertEqual(self.client.get(reverse("photo_thumbnail", args=[self.organ.pk, photo.pk, "small"])).status_code, 200)
         self.client.logout()
 
         User = get_user_model()

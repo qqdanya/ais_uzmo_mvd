@@ -100,3 +100,16 @@ class LoginAttempt(FailedAttempt):
     class Meta(FailedAttempt.Meta):
         verbose_name = "Попытка входа"
         verbose_name_plural = "Попытки входа"
+
+
+class TrashDismissal(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="trash_dismissals")
+    kind = models.CharField(max_length=16)
+    table_key = models.CharField(max_length=64, blank=True)
+    object_id = models.PositiveBigIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=("user", "kind", "table_key", "object_id"), name="unique_user_trash_dismissal"),
+        ]

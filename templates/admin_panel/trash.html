@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Корзина — Административная панель{% endblock %}
+{% block title %}Корзина — АИС УЗМО{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260711-006">
@@ -10,27 +10,22 @@
 {% block content %}
 <div class="container-fluid py-3 admin-command-page admin-trash-page">
   <section class="panel admin-command-panel admin-executive-panel">
-    {% include "admin_panel/_executive_nav.html" with active_tab="trash" %}
+    {% if show_admin_navigation %}{% include "admin_panel/_executive_nav.html" with active_tab="trash" %}{% endif %}
 
     <section class="admin-trash-screen" aria-label="Корзина удаленных объектов">
       <div class="admin-requests-hero admin-trash-hero">
         <div>
           <h2>Корзина удаленных объектов</h2>
-          <p>Мягко удалённые записи не отображаются в рабочих таблицах, но остаются в системе. Здесь их можно восстановить; безвозвратная очистка файлов доступна только руководителю.</p>
+          <p>{% if is_personal_trash %}Здесь отображаются объекты, удалённые вами. Их можно восстановить или убрать только из своей корзины — данные останутся в системе и общей корзине администратора. Через 90 дней после удаления объект автоматически исчезнет из вашей корзины.{% else %}Мягко удалённые записи не отображаются в рабочих таблицах, но остаются в системе. Здесь их можно восстановить; безвозвратная очистка файлов доступна только руководителю.{% endif %}</p>
         </div>
         <div class="admin-requests-total">
           <span>Удалённых объектов</span>
           <strong>{{ counts.requests|add:counts.photos|add:counts.folders }}</strong>
         </div>
+        {% if is_personal_trash and counts.requests|add:counts.photos|add:counts.folders %}
+          <form method="post" action="{% url 'trash_clear_personal' %}" class="admin-inline-action-form" data-confirm-title="Очистить личную корзину" data-confirm-message="Объекты исчезнут только из вашей корзины. Данные останутся в системе и общей корзине администратора." data-confirm-confirm-label="Очистить корзину">{% csrf_token %}<button class="btn btn-sm btn-outline-secondary" type="submit"><i class="bi bi-trash3"></i> Очистить корзину</button></form>
+        {% endif %}
       </div>
-
-      {% if messages %}
-        <div class="admin-message-stack" aria-live="polite">
-          {% for message in messages %}
-            <div class="alert {% if 'error' in message.tags %}alert-danger{% elif 'success' in message.tags %}alert-success{% elif 'warning' in message.tags %}alert-warning{% else %}alert-info{% endif %} mb-2">{{ message }}</div>
-          {% endfor %}
-        </div>
-      {% endif %}
 
       <section class="admin-assets-kpi admin-trash-kpi" aria-label="Сводка корзины">
         <article class="admin-requests-kpi-card admin-assets-kpi-card">
@@ -54,7 +49,7 @@
         <a class="admin-status-tab{% if section == 'folders' %} active{% endif %}" href="{% url 'admin_trash_panel' %}?section=folders{% if query %}&q={{ query|urlencode }}{% endif %}"><span>Папки</span><strong>{{ counts.folders }}</strong></a>
       </nav>
 
-      <form class="admin-section admin-assets-filter admin-trash-filter" method="get">
+      <form class="admin-section admin-assets-filter admin-trash-filter" method="get" hx-get="{{ request.path }}" hx-trigger="input changed delay:450ms from:input[name='q'], submit" hx-target=".admin-trash-screen" hx-select=".admin-trash-screen" hx-swap="outerHTML" hx-push-url="true">
         <div class="admin-section-head">
           <div>
             <h2>Фильтр</h2>
@@ -67,10 +62,6 @@
             <span>Поиск</span>
             <input class="form-control form-control-sm" type="search" name="q" value="{{ query }}" placeholder="Например: номер заявки, IMG_001, ОП №1">
           </label>
-          <div class="admin-filter-actions admin-trash-filter-actions">
-            <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_trash_panel' %}"><i class="bi bi-arrow-counterclockwise"></i> Сбросить</a>
-            <button class="btn btn-sm btn-primary" type="submit"><i class="bi bi-search"></i> Найти</button>
-          </div>
         </div>
       </form>
 
@@ -90,8 +81,9 @@
                       <td>{{ row.updated_at|date:"d.m.Y H:i" }}{% if row.updated_by %}<small class="d-block text-muted">{{ row.updated_by.get_full_name|default:row.updated_by.username }}</small>{% endif %}</td>
                       <td class="admin-trash-action-cell">
                         <div class="admin-trash-actions">
-                          <a class="btn btn-sm btn-outline-primary" href="{{ row.detail_url }}">Открыть</a>
+                          {% if show_admin_navigation %}<a class="btn btn-sm btn-outline-primary" href="{{ row.detail_url }}">Открыть</a>{% endif %}
                           <form method="post" action="{{ row.restore_url }}" class="admin-inline-action-form">{% csrf_token %}<button class="btn btn-sm btn-outline-primary" type="submit"><i class="bi bi-arrow-counterclockwise"></i> Восстановить</button></form>
+                          {% if is_personal_trash %}<form method="post" action="{% url 'trash_dismiss_request' row.table_key row.pk %}" class="admin-inline-action-form">{% csrf_token %}<button class="btn btn-sm btn-outline-danger" type="submit"><i class="bi bi-x-lg"></i> Удалить из корзины</button></form>{% endif %}
                         </div>
                       </td>
                     </tr>
@@ -135,6 +127,7 @@
                       <td class="admin-trash-action-cell">
                         <div class="admin-trash-actions">
                           <form method="post" action="{% url 'admin_trash_restore_photo' photo.pk %}" class="admin-inline-action-form">{% csrf_token %}<button class="btn btn-sm btn-outline-primary" type="submit"><i class="bi bi-arrow-counterclockwise"></i> Восстановить</button></form>
+                          {% if is_personal_trash %}<form method="post" action="{% url 'trash_dismiss_photo' photo.pk %}" class="admin-inline-action-form">{% csrf_token %}<button class="btn btn-sm btn-outline-danger" type="submit"><i class="bi bi-x-lg"></i> Удалить из корзины</button></form>{% endif %}
                           {% if is_leader %}
                             <form method="post" action="{% url 'admin_trash_purge_photo' photo.pk %}" class="admin-inline-action-form" data-confirm-title="Безвозвратное удаление фотографии" data-confirm-message="Фотография и файл будут удалены с сервера без возможности восстановления." data-confirm-details="{{ photo.original_filename|default:photo.image.name }}" data-confirm-confirm-label="Удалить файл" data-confirm-variant="danger">{% csrf_token %}<button class="btn btn-sm btn-outline-danger" type="submit"><i class="bi bi-trash3"></i> Удалить файл</button></form>
                           {% endif %}
@@ -172,6 +165,7 @@
                       <td class="admin-trash-action-cell">
                         <div class="admin-trash-actions">
                           <form method="post" action="{% url 'admin_trash_restore_folder' folder.pk %}" class="admin-inline-action-form">{% csrf_token %}<button class="btn btn-sm btn-outline-primary" type="submit"><i class="bi bi-arrow-counterclockwise"></i> Восстановить</button></form>
+                          {% if is_personal_trash %}<form method="post" action="{% url 'trash_dismiss_folder' folder.pk %}" class="admin-inline-action-form">{% csrf_token %}<button class="btn btn-sm btn-outline-danger" type="submit"><i class="bi bi-x-lg"></i> Удалить из корзины</button></form>{% endif %}
                           {% if is_leader %}
                             <form method="post" action="{% url 'admin_trash_purge_folder' folder.pk %}" class="admin-inline-action-form" data-confirm-title="Безвозвратное удаление папки" data-confirm-message="Папка, вложенные папки и файлы фотографий будут удалены с сервера без возможности восстановления." data-confirm-details="{{ folder.name }} · {{ folder.trash_tree_photo_count }} фото · {{ folder.trash_tree_folder_count }} влож. папок" data-confirm-confirm-label="Удалить папку" data-confirm-variant="danger">{% csrf_token %}<button class="btn btn-sm btn-outline-danger" type="submit"><i class="bi bi-trash3"></i> Удалить папку</button></form>
                           {% endif %}

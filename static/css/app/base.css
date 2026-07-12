@@ -293,6 +293,18 @@ body.modal-open .toast-stack {
   gap: .55rem;
   font-size: .88rem;
 }
+.user-menu-count {
+  min-width: 1.45rem;
+  margin-left: .15rem;
+  padding: .1rem .42rem;
+  border-radius: 999px;
+  background: #dff2ff;
+  color: var(--navy);
+  font-size: .72rem;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: center;
+}
 .user-menu .dropdown-header {
   color: var(--muted);
   max-width: 260px;

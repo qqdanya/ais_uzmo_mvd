@@ -28,6 +28,8 @@ from .admin_summary import SUMMARY_DATA_CACHE_SECONDS, build_summary_context, bu
 from .admin_trash import (
     add_action_message,
     build_trash_context,
+    clear_personal_trash,
+    dismiss_trash_item,
     permanently_delete_folder_tree,
     permanently_delete_photo,
     restore_folder_tree,
@@ -57,6 +59,19 @@ def admin_required(view_func):
     @login_required
     def wrapped(request, *args, **kwargs):
         if not admin_access_allowed(request.user):
+            raise PermissionDenied
+        return view_func(request, *args, **kwargs)
+
+    return wrapped
+
+
+def trash_required(view_func):
+    @wraps(view_func)
+    @login_required
+    def wrapped(request, *args, **kwargs):
+        profile = getattr(request.user, "profile", None)
+        role = getattr(profile, "role", "")
+        if not request.user.is_superuser and role not in {UserProfile.Role.ADMIN, UserProfile.Role.OPERATOR}:
             raise PermissionDenied
         return view_func(request, *args, **kwargs)
 
@@ -294,19 +309,19 @@ def admin_threshold_settings(request):
 
 
 
-@admin_required
+@trash_required
 def admin_trash_panel(request):
     return render(request, "admin_panel/trash.html", build_trash_context(request))
 
 
-@admin_required
+@trash_required
 @require_POST
 def admin_trash_restore_request(request, table_key, pk):
     add_action_message(request, restore_request_record(request, table_key, pk))
     return redirect("admin_trash_panel")
 
 
-@admin_required
+@trash_required
 @require_POST
 def admin_trash_restore_photo(request, pk):
     add_action_message(request, restore_photo(request, pk))
@@ -320,11 +335,46 @@ def admin_trash_purge_photo(request, pk):
     return redirect("admin_trash_panel")
 
 
-@admin_required
+@trash_required
 @require_POST
 def admin_trash_restore_folder(request, pk):
     add_action_message(request, restore_folder_tree(request, pk))
     return redirect("admin_trash_panel")
+
+
+@trash_required
+@require_POST
+def trash_dismiss_request(request, table_key, pk):
+    add_action_message(request, dismiss_trash_item(request, "request", pk, table_key))
+    return redirect("admin_trash_panel")
+
+
+@trash_required
+@require_POST
+def trash_dismiss_photo(request, pk):
+    add_action_message(request, dismiss_trash_item(request, "photo", pk))
+    return redirect("admin_trash_panel")
+
+
+@trash_required
+@require_POST
+def trash_dismiss_folder(request, pk):
+    add_action_message(request, dismiss_trash_item(request, "folder", pk))
+    return redirect("admin_trash_panel")
+
+
+@trash_required
+@require_POST
+def trash_clear_personal(request):
+    add_action_message(request, clear_personal_trash(request))
+    return redirect("admin_trash_panel")
+
+
+@trash_required
+def trash_count_data(request):
+    from .admin_trash import personal_trash_count
+
+    return JsonResponse({"count": personal_trash_count(request.user)})
 
 
 @admin_required

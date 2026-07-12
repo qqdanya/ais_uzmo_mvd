@@ -1683,6 +1683,121 @@ class AdminTrashPanelTests(AdminPanelTestMixin, TestCase):
         self.assertContains(response, "Корзина удаленных объектов")
         self.assertContains(response, "admin-top-tab admin-top-tab-separated active")
 
+    def test_trash_panel_is_available_to_operator_without_admin_navigation(self):
+        self.login_operator()
+
+        response = self.client.get(reverse("admin_trash_panel"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Корзина удаленных объектов")
+        self.assertNotContains(response, "Административная панель")
+        self.assertNotContains(response, "admin-top-tabs")
+        self.assertEqual(reverse("admin_trash_panel"), "/trash/")
+        self.assertEqual(self.client.get("/control/trash/").status_code, 404)
+
+    def test_authenticated_operator_menu_contains_trash_link(self):
+        self.login_operator()
+
+        response = self.client.get(reverse("dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("admin_trash_panel"))
+        self.assertContains(response, '<i class="bi bi-trash3"></i> Корзина', html=False)
+
+    def test_operator_personal_trash_can_hide_item_without_removing_it_from_admin_trash(self):
+        request_obj = TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            created_by=self.operator,
+            updated_by=self.operator,
+            request_number="ТМЦ-PERSONAL",
+            request_date=timezone.localdate(),
+            is_deleted=True,
+        )
+        self.login_operator()
+
+        personal_response = self.client.get(reverse("admin_trash_panel") + "?section=requests")
+        self.assertContains(personal_response, "ТМЦ-PERSONAL")
+        self.assertContains(personal_response, reverse("trash_dismiss_request", kwargs={"table_key": "tmc-requests", "pk": request_obj.pk}))
+
+        dismiss_response = self.client.post(reverse("trash_dismiss_request", kwargs={"table_key": "tmc-requests", "pk": request_obj.pk}), follow=True)
+        self.assertEqual(dismiss_response.status_code, 200)
+        self.assertNotContains(dismiss_response, "ТМЦ-PERSONAL")
+        request_obj.refresh_from_db()
+        self.assertTrue(request_obj.is_deleted)
+
+        self.client.logout()
+        self.login_admin()
+        admin_response = self.client.get(reverse("admin_trash_panel") + "?section=requests")
+        self.assertContains(admin_response, "ТМЦ-PERSONAL")
+
+    def test_burger_trash_badge_counts_personal_items(self):
+        TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            created_by=self.operator,
+            updated_by=self.operator,
+            request_number="ТМЦ-BADGE",
+            request_date=timezone.localdate(),
+            is_deleted=True,
+        )
+        self.login_operator()
+
+        response = self.client.get(reverse("dashboard"))
+
+        self.assertContains(response, '<span class="user-menu-count" data-trash-menu-count>1</span>', html=True)
+
+        count_response = self.client.get(reverse("trash_count_data"))
+        self.assertEqual(count_response.status_code, 200)
+        self.assertEqual(count_response.json(), {"count": 1})
+
+    def test_trash_search_is_live_and_has_no_submit_or_reset_buttons(self):
+        self.login_operator()
+
+        response = self.client.get(reverse("admin_trash_panel"))
+
+        self.assertContains(response, 'hx-trigger="input changed delay:450ms from:input[name=\'q\'], submit"')
+        self.assertContains(response, 'hx-select=".admin-trash-screen"')
+        self.assertNotContains(response, ">Сбросить</a>", html=False)
+        self.assertNotContains(response, ">Найти</button>", html=False)
+        self.assertContains(response, "Через 90 дней")
+
+    def test_operator_can_clear_personal_trash_without_affecting_admin_trash(self):
+        request_obj = TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            created_by=self.operator,
+            updated_by=self.operator,
+            request_number="ТМЦ-CLEAR",
+            request_date=timezone.localdate(),
+            is_deleted=True,
+        )
+        self.login_operator()
+
+        response = self.client.post(reverse("trash_clear_personal"), follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "ТМЦ-CLEAR")
+        request_obj.refresh_from_db()
+        self.assertTrue(request_obj.is_deleted)
+        self.client.logout()
+        self.login_admin()
+        self.assertContains(self.client.get(reverse("admin_trash_panel") + "?section=requests"), "ТМЦ-CLEAR")
+
+    def test_personal_trash_hides_items_older_than_ninety_days_but_admin_keeps_them(self):
+        request_obj = TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            created_by=self.operator,
+            updated_by=self.operator,
+            request_number="ТМЦ-OLD",
+            request_date=timezone.localdate(),
+            is_deleted=True,
+        )
+        TmcRequest.objects.filter(pk=request_obj.pk).update(updated_at=timezone.now() - timedelta(days=91))
+        self.login_operator()
+
+        self.assertNotContains(self.client.get(reverse("admin_trash_panel") + "?section=requests"), "ТМЦ-OLD")
+        self.client.logout()
+        self.login_admin()
+        self.assertContains(self.client.get(reverse("admin_trash_panel") + "?section=requests"), "ТМЦ-OLD")
+
     def test_trash_tab_has_separate_right_alignment_and_card_spacing_styles(self):
         project_root = Path(__file__).resolve().parents[2]
         base_css = (project_root / "static" / "css" / "admin" / "base.css").read_text(encoding="utf-8")
@@ -1895,7 +2010,8 @@ class AdminTrashPanelTests(AdminPanelTestMixin, TestCase):
         response = self.client.post(reverse("admin_trash_restore_folder", kwargs={"pk": child.pk}), follow=True)
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "alert-danger")
+        self.assertContains(response, "app-toast alert alert-danger")
+        self.assertNotContains(response, "admin-message-stack")
         self.assertContains(response, "Нельзя восстановить папку: сначала восстановите родительскую папку.")
 
     def test_trash_restores_deleted_request_and_registry_number(self):
@@ -1917,6 +2033,23 @@ class AdminTrashPanelTests(AdminPanelTestMixin, TestCase):
         self.assertFalse(request_obj.is_deleted)
         self.assertTrue(RequestNumberRegistry.objects.filter(object_id=request_obj.pk, request_number="ТМЦ-777").exists())
         self.assertTrue(AuditLog.objects.filter(model_name="TmcRequest", object_id=str(request_obj.pk), new_values__audit_event="request_restored_from_trash").exists())
+
+    def test_operator_can_restore_deleted_request_in_assigned_department(self):
+        self.login_operator()
+        request_obj = TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            created_by=self.operator,
+            updated_by=self.operator,
+            request_number="ТМЦ-778",
+            request_date=timezone.localdate(),
+            is_deleted=True,
+        )
+
+        response = self.client.post(reverse("admin_trash_restore_request", kwargs={"table_key": "tmc-requests", "pk": request_obj.pk}))
+
+        self.assertEqual(response.status_code, 302)
+        request_obj.refresh_from_db()
+        self.assertFalse(request_obj.is_deleted)
 
     def test_trash_restores_deleted_photo(self):
         self.login_admin()
