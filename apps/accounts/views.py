@@ -382,9 +382,12 @@ def trash_clear_personal(request):
 
 @trash_required
 def trash_count_data(request):
-    from .admin_trash import personal_trash_count
+    # The badge JS calls this right after every mutating htmx request, so it
+    # must return a fresh value - it also writes through to the cache the
+    # per-page-render badge reads from.
+    from .admin_trash import refresh_personal_trash_count
 
-    return JsonResponse({"count": personal_trash_count(request.user)})
+    return JsonResponse({"count": refresh_personal_trash_count(request.user)})
 
 
 @admin_required

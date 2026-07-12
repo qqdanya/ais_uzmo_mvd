@@ -1634,6 +1634,10 @@ class PerformanceRegressionTests(AdminPanelTestMixin, TestCase):
         self.seed_tmc_requests()
         self.login_admin()
 
+        # Warm request first: the user-menu trash badge computes its count
+        # once per cache TTL, so steady-state page cost - what this ceiling
+        # protects - is measured on the second render.
+        self.client.get(reverse("admin_requests_panel"))
         with CaptureQueriesContext(connection) as queries:
             response = self.client.get(reverse("admin_requests_panel"))
 
@@ -1996,6 +2000,10 @@ class AdminTrashPanelTests(AdminPanelTestMixin, TestCase):
                 ]
             )
 
+        # Warm request: the user-menu trash badge counts folders/photos once
+        # per cache TTL - without this the first captured render pays that
+        # cost and the second doesn't, breaking the equality below.
+        self.client.get(reverse("admin_trash_panel") + "?section=folders")
         with CaptureQueriesContext(connection) as few_queries:
             response = self.client.get(reverse("admin_trash_panel") + "?section=folders")
         self.assertEqual(response.status_code, 200)

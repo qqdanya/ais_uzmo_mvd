@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from django.contrib import messages
+from django.core.cache import cache
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
 from django.db import IntegrityError, transaction
@@ -14,7 +15,7 @@ from apps.audit.models import AuditLog
 from apps.audit.utils import serialize_instance, write_audit
 from apps.directory.models import Department, TerritorialOrganPhoto, TerritorialOrganPhotoFolder
 from apps.requests_app.models import RequestPhotoLink
-from apps.requests_app.permissions import can_manage_photo_asset, can_write
+from apps.requests_app.permissions import can_manage_photo_asset, can_write, cached_allowed_department_ids, cached_allowed_organ_ids
 from apps.requests_app.registry import TABLE_BY_KEY, get_table_or_404
 from apps.requests_app.services.request_numbers import request_number_conflict, sync_request_number_registry
 
@@ -305,8 +306,8 @@ def build_trash_context(request, *, personal=False):
         "folder_querystring": _querystring_without(request, "folders_page"),
         "counts": {
             "requests": len(request_rows) if section in {"all", "requests"} else _request_deleted_count(organs, request.user, personal),
-            "photos": len(photos) if section in {"all", "photos"} else len(_deleted_photos(organs, user=request.user, personal=personal)),
-            "folders": len(folders) if section in {"all", "folders"} else len(_deleted_folders(organs, user=request.user, personal=personal)),
+            "photos": len(photos) if section in {"all", "photos"} else _deleted_photos_count(organs, user=request.user, personal=personal),
+            "folders": len(folders) if section in {"all", "folders"} else _deleted_folders_count(organs, user=request.user, personal=personal),
         },
     }
 
@@ -325,14 +326,87 @@ def _request_deleted_count(organs, user=None, personal=False):
     return total
 
 
-def personal_trash_count(user):
+def _personal_asset_count_qs(qs, user, kind):
+    """SQL equivalent of the python filter chain in _deleted_photos/_deleted_folders
+    (updated_by / retention cutoff / dismissals / can_manage_photo_asset), so the
+    menu badge can COUNT instead of loading every deleted object with its
+    annotations and running a per-object permission check.
+    """
+    qs = qs.filter(updated_by=user, updated_at__gte=_personal_trash_cutoff()).exclude(pk__in=_dismissed_ids(user, kind, personal=True))
+    if _is_admin_user(user):
+        return qs
+    # can_manage_photo_asset for an operator: can_write(user, organ) - which
+    # requires a non-empty allowed-departments set and the asset's organ to be
+    # allowed - plus either the asset's created_department is writable, or it
+    # has no created_department and was created by this user (or nobody).
+    department_ids = cached_allowed_department_ids(user)
+    if not department_ids:
+        return qs.none()
+    return qs.filter(territorial_organ_id__in=cached_allowed_organ_ids(user)).filter(
+        Q(created_department_id__in=department_ids)
+        | (Q(created_department__isnull=True) & (Q(created_by__isnull=True) | Q(created_by=user)))
+    )
+
+
+def _deleted_photos_count(organs, user=None, personal=False):
+    qs = TerritorialOrganPhoto.objects.filter(is_deleted=True, territorial_organ__in=organs)
+    if user is None or (_is_admin_user(user) and not personal):
+        return qs.count()
+    return _personal_asset_count_qs(qs, user, "photo").count()
+
+
+def _deleted_folders_count(organs, user=None, personal=False):
+    qs = TerritorialOrganPhotoFolder.objects.filter(is_deleted=True, territorial_organ__in=organs).filter(
+        Q(parent__isnull=True) | Q(parent__is_deleted=False)
+    )
+    if user is None or (_is_admin_user(user) and not personal):
+        return qs.count()
+    return _personal_asset_count_qs(qs, user, "folder").count()
+
+
+PERSONAL_TRASH_COUNT_CACHE_TTL = 60
+
+
+def _personal_trash_count_cache_key(user):
+    return f"personal-trash-count:{user.pk}"
+
+
+def _compute_personal_trash_count(user):
     if not getattr(user, "is_authenticated", False):
         return 0
     profile = getattr(user, "profile", None)
     if not user.is_superuser and getattr(profile, "role", "") not in {UserProfile.Role.ADMIN, UserProfile.Role.OPERATOR}:
         return 0
     organs = list(available_organs_for_user(user))
-    return _request_deleted_count(organs, user, personal=True) + len(_deleted_photos(organs, user=user, personal=True)) + len(_deleted_folders(organs, user=user, personal=True))
+    return (
+        _request_deleted_count(organs, user, personal=True)
+        + _deleted_photos_count(organs, user=user, personal=True)
+        + _deleted_folders_count(organs, user=user, personal=True)
+    )
+
+
+def personal_trash_count(user):
+    """Cached: this runs on every page render (the user-menu badge), so it
+    must not cost a dozen COUNTs per request. Staleness is bounded by the
+    TTL, and refresh_personal_trash_count() writes through after any action
+    that changes this user's own trash (the badge JS also refetches the
+    fresh endpoint after every mutating htmx request).
+    """
+    if not getattr(user, "is_authenticated", False):
+        return 0
+    key = _personal_trash_count_cache_key(user)
+    count = cache.get(key)
+    if count is None:
+        count = _compute_personal_trash_count(user)
+        cache.set(key, count, PERSONAL_TRASH_COUNT_CACHE_TTL)
+    return count
+
+
+def refresh_personal_trash_count(user):
+    count = _compute_personal_trash_count(user)
+    if getattr(user, "is_authenticated", False):
+        cache.set(_personal_trash_count_cache_key(user), count, PERSONAL_TRASH_COUNT_CACHE_TTL)
+    return count
 
 
 def dismiss_trash_item(request, kind, pk, table_key=""):
@@ -352,6 +426,7 @@ def dismiss_trash_item(request, kind, pk, table_key=""):
     else:
         raise PermissionDenied
     TrashDismissal.objects.get_or_create(user=request.user, kind=kind, table_key=table_key, object_id=pk)
+    refresh_personal_trash_count(request.user)
     return TrashActionResult(True, "Объект удалён из вашей корзины. В системе и общей корзине администратора он сохранён.")
 
 
@@ -370,6 +445,7 @@ def clear_personal_trash(request):
     dismissals.extend(TrashDismissal(user=request.user, kind="photo", object_id=photo.pk) for photo in _deleted_photos(organs, user=request.user, personal=True))
     dismissals.extend(TrashDismissal(user=request.user, kind="folder", object_id=folder.pk) for folder in _deleted_folders(organs, user=request.user, personal=True))
     TrashDismissal.objects.bulk_create(dismissals, ignore_conflicts=True)
+    refresh_personal_trash_count(request.user)
     return TrashActionResult(True, "Личная корзина очищена. Данные сохранены в системе и общей корзине администратора.")
 
 
