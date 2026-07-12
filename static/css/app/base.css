@@ -411,6 +411,24 @@ body.modal-open .toast-stack {
   border-left-width: 0;
   border-right-color: rgba(11, 47, 91, .94);
 }
+.app-tooltip.tooltip {
+  --bs-tooltip-zindex: 2100;
+  --bs-tooltip-max-width: min(240px, calc(100vw - 16px));
+  --bs-tooltip-padding-x: .48rem;
+  --bs-tooltip-padding-y: .28rem;
+  --bs-tooltip-color: #fff;
+  --bs-tooltip-bg: rgba(11, 47, 91, .96);
+  --bs-tooltip-border-radius: 6px;
+  --bs-tooltip-opacity: 1;
+  pointer-events: none;
+}
+.app-tooltip .tooltip-inner {
+  overflow-wrap: anywhere;
+  hyphens: auto;
+  font-size: .76rem;
+  line-height: 1.2;
+  box-shadow: 0 8px 20px rgba(11, 47, 91, .22);
+}
 .app-footer {
   flex: 0 0 auto;
   padding: .55rem 1rem;

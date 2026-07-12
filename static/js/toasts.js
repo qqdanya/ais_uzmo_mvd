@@ -60,8 +60,21 @@ function positionTooltip() {
     return;
   }
 
+  // Measure the bubble parked at the viewport origin, not wherever the
+  // previous show left it: max-width is calc(100vw - 16px), so a stale
+  // `left` beyond the current viewport (typical right after a browser-zoom
+  // reflow) squeezes the measured box into a wrapped sliver and every
+  // coordinate computed from it lands wide of the trigger.
+  portal.style.left = "0px";
+  portal.style.top = "0px";
+
   const triggerRect = trigger.getBoundingClientRect();
   const tooltipRect = portal.getBoundingClientRect();
+  // clientWidth/Height exclude scrollbars, unlike window.innerWidth/Height;
+  // at high zoom a scrollbar is tens of CSS pixels, enough for an
+  // innerWidth-based clamp to leave the bubble half-hidden underneath it.
+  const viewportWidth = document.documentElement.clientWidth;
+  const viewportHeight = document.documentElement.clientHeight;
   const margin = 8;
   const gap = 9;
   let selected = null;
@@ -69,8 +82,8 @@ function positionTooltip() {
     const point = tooltipCoordinates(placement, triggerRect, tooltipRect, gap);
     const fits = point.x >= margin
       && point.y >= margin
-      && point.x + tooltipRect.width <= window.innerWidth - margin
-      && point.y + tooltipRect.height <= window.innerHeight - margin;
+      && point.x + tooltipRect.width <= viewportWidth - margin
+      && point.y + tooltipRect.height <= viewportHeight - margin;
     if (fits) {
       selected = { placement, ...point };
       break;
@@ -78,8 +91,8 @@ function positionTooltip() {
     if (!selected) selected = { placement, ...point };
   }
 
-  const maxX = Math.max(margin, window.innerWidth - tooltipRect.width - margin);
-  const maxY = Math.max(margin, window.innerHeight - tooltipRect.height - margin);
+  const maxX = Math.max(margin, viewportWidth - tooltipRect.width - margin);
+  const maxY = Math.max(margin, viewportHeight - tooltipRect.height - margin);
   const x = Math.min(Math.max(selected.x, margin), maxX);
   const y = Math.min(Math.max(selected.y, margin), maxY);
   portal.dataset.placement = selected.placement;
@@ -150,14 +163,56 @@ function registerTooltipPortal() {
 }
 
 function initTooltips() {
-  registerTooltipPortal();
+  if (!window.bootstrap?.Tooltip) return;
   document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((el) => {
     const title = el.getAttribute("data-bs-title") || el.getAttribute("title") || el.dataset.cssTooltip;
     if (!title) return;
     el.removeAttribute("title");
     el.removeAttribute("data-ui-tooltip");
-    window.bootstrap?.Tooltip?.getInstance(el)?.dispose();
     el.dataset.cssTooltip = title;
+    el.setAttribute("data-bs-title", title);
+    window.bootstrap.Tooltip.getInstance(el)?.dispose();
+    new window.bootstrap.Tooltip(el, {
+      boundary: "viewport",
+      container: document.body,
+      customClass: "app-tooltip",
+      delay: { show: 300, hide: 0 },
+      fallbackPlacements: ["top", "bottom", "left", "right"],
+      placement: el.dataset.tooltipPlacement
+        || el.dataset.bsPlacement
+        || (el.classList.contains("navigation-float-toggle") ? "right" : "top"),
+      popperConfig(defaultConfig) {
+        const managedNames = new Set(["flip", "preventOverflow"]);
+        const modifiers = (defaultConfig.modifiers || []).filter((modifier) => !managedNames.has(modifier.name));
+        return {
+          ...defaultConfig,
+          strategy: "fixed",
+          modifiers: [
+            ...modifiers,
+            {
+              name: "flip",
+              options: {
+                boundary: "viewport",
+                rootBoundary: "viewport",
+                fallbackPlacements: ["top", "bottom", "left", "right"],
+                padding: 8,
+              },
+            },
+            {
+              name: "preventOverflow",
+              options: {
+                boundary: "viewport",
+                rootBoundary: "viewport",
+                padding: 8,
+                altAxis: true,
+                tether: true,
+              },
+            },
+          ],
+        };
+      },
+      trigger: "hover focus",
+    });
   });
 }
 

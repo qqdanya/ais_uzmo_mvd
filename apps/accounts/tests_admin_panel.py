@@ -1439,43 +1439,34 @@ class FrontendModuleSplitTests(TestCase):
         # template doesn't need a placement attribute on this button.
         self.assertIn("navigation-float-toggle", dashboard_template)
         self.assertNotIn("data-tooltip-align", dashboard_template)
-        self.assertIn('trigger.classList.contains("navigation-float-toggle")', toasts_js)
-        self.assertIn('return ["right", "bottom", "top", "left"];', toasts_js)
+        self.assertIn('el.classList.contains("navigation-float-toggle") ? "right" : "top"', toasts_js)
 
-    def test_table_action_stack_tooltip_shows_to_the_left(self):
+    def test_table_action_stack_tooltip_is_not_forced_to_the_left(self):
         toasts_js = self.read_static_js("toasts.js")
 
-        # .table-action-stack stacks its row-action icons vertically, so a
-        # tooltip above/below one icon would cover the icon next to it -
-        # driven by the container class alone, no per-button attribute.
-        self.assertIn('trigger.closest(".table-action-stack")', toasts_js)
-        self.assertIn('return ["left", "right", "top", "bottom"];', toasts_js)
+        # Popper keeps the bubble next to the trigger and flips it at the
+        # viewport boundary. A hard-coded left placement drifts across wide
+        # tables when the page is zoomed out.
+        init_tooltips = toasts_js[toasts_js.index("function initTooltips"):]
+        self.assertNotIn('closest(".table-action-stack")', init_tooltips)
+        self.assertIn('fallbackPlacements: ["top", "bottom", "left", "right"]', init_tooltips)
 
-    def test_tooltips_render_as_a_body_level_portal(self):
+    def test_tooltips_use_body_level_popper_with_viewport_boundary(self):
         base_css = (self.project_root() / "static" / "css" / "app" / "base.css").read_text(encoding="utf-8")
         toasts_js = self.read_static_js("toasts.js")
 
-        # Tooltips used to be ::before/::after pseudo-elements positioned
-        # absolute on the trigger, which .organ-panel/.department-panel
-        # clipped (overflow-x: hidden forces overflow-y: visible to compute
-        # as auto per the CSS Overflow spec, so both axes clip regardless of
-        # z-index). Rendering a single element straight on <body>, positioned
-        # fixed and recomputed from getBoundingClientRect(), escapes any
-        # ancestor's overflow instead of fighting it.
-        self.assertIn(".app-tooltip-portal {", base_css)
-        self.assertIn("position: fixed;", base_css)
-        self.assertIn('portal = document.createElement("div")', toasts_js)
-        self.assertIn('document.body.append(portal)', toasts_js)
-        self.assertIn("function positionTooltip", toasts_js)
-        self.assertIn('window.addEventListener("resize", scheduleTooltipPosition)', toasts_js)
-        self.assertIn('document.addEventListener("scroll", scheduleTooltipPosition, true)', toasts_js)
-
-        # The arrow is drawn as a single ::after triangle that never overlaps
-        # the bubble - two overlapping semi-transparent layers previously
-        # alpha-composited into a visibly darker seam than the rest of the
-        # tooltip.
-        self.assertIn(".app-tooltip-portal::after {", base_css)
-        self.assertNotIn("rotate(45deg)", base_css)
+        # Bootstrap's bundled Popper handles browser zoom, flipping and
+        # overflow. Appending to body escapes table/panel overflow clipping.
+        init_tooltips = toasts_js[toasts_js.index("function initTooltips"):]
+        self.assertIn("new window.bootstrap.Tooltip", init_tooltips)
+        self.assertIn('boundary: "viewport"', init_tooltips)
+        self.assertIn("container: document.body", init_tooltips)
+        self.assertIn('strategy: "fixed"', init_tooltips)
+        self.assertIn('name: "preventOverflow"', init_tooltips)
+        self.assertIn('name: "flip"', init_tooltips)
+        self.assertNotIn("registerTooltipPortal();", init_tooltips)
+        self.assertIn(".app-tooltip.tooltip {", base_css)
+        self.assertIn("calc(100vw - 16px)", base_css)
 
     def test_htmx_modal_lifecycle_dependencies_are_stable_after_module_split(self):
         htmx_js = self.read_static_js("htmx_lifecycle.js")
