@@ -148,7 +148,7 @@ function markPreparingDownload(trigger, key = downloadKey(trigger), label = null
     trigger.append(spinner, text);
   }
 
-  bootstrap.Tooltip.getInstance(trigger)?.hide();
+  if (typeof hideAppTooltip === "function") hideAppTooltip(trigger);
   showDownloadPreparingNotice(label);
 }
 

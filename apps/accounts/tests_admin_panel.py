@@ -1229,8 +1229,11 @@ class FrontendModuleSplitTests(TestCase):
     frontend_globals = {
         "toasts.js": [
             "autoDismissAlerts",
-            "initTooltips",
             "showToast",
+        ],
+        "tooltips.js": [
+            "initTooltips",
+            "hideAppTooltip",
         ],
         "photo_upload.js": [
             "PhotoUpload",
@@ -1392,6 +1395,7 @@ class FrontendModuleSplitTests(TestCase):
             "js/photo_lightbox.js",
             "js/presence_ping.js",
             "js/toasts.js",
+            "js/tooltips.js",
             "js/tmc_products.js",
             "js/app_storage.js",
             "js/app_dom_utils.js",
@@ -1430,47 +1434,64 @@ class FrontendModuleSplitTests(TestCase):
     def test_floating_navigation_tooltip_shows_to_the_right(self):
         project_root = Path(__file__).resolve().parents[2]
         dashboard_template = (project_root / "templates" / "dashboard" / "index.html").read_text(encoding="utf-8")
-        toasts_js = self.read_static_js("toasts.js")
+        tooltips_js = self.read_static_js("tooltips.js")
 
         # .navigation-float-toggle sits pinned to the left screen edge and
         # the top of the panel, so its tooltip can't go above (clips the
-        # panel top) or to the left (clips the viewport edge) - it needs to
-        # go right, vertically centered, driven by the class alone so the
+        # panel top) or to the left (clips the viewport edge) - it prefers
+        # right, vertically centered, driven by the class alone so the
         # template doesn't need a placement attribute on this button.
         self.assertIn("navigation-float-toggle", dashboard_template)
         self.assertNotIn("data-tooltip-align", dashboard_template)
-        self.assertIn('el.classList.contains("navigation-float-toggle") ? "right" : "top"', toasts_js)
+        self.assertIn('trigger.classList.contains("navigation-float-toggle") && "right"', tooltips_js)
 
-    def test_table_action_stack_tooltip_is_not_forced_to_the_left(self):
-        toasts_js = self.read_static_js("toasts.js")
+    def test_table_action_stack_tooltip_keeps_top_placement_at_right_edge(self):
+        tooltips_js = self.read_static_js("tooltips.js")
 
-        # Popper keeps the bubble next to the trigger and flips it at the
-        # viewport boundary. A hard-coded left placement drifts across wide
-        # tables when the page is zoomed out.
-        init_tooltips = toasts_js[toasts_js.index("function initTooltips"):]
-        self.assertNotIn('closest(".table-action-stack")', init_tooltips)
-        self.assertIn('fallbackPlacements: ["top", "bottom", "left", "right"]', init_tooltips)
+        # Cross-axis overflow must shift a top tooltip horizontally, not flip
+        # the whole bubble to the left of the last-column button. The latter
+        # creates the visible sideways jump below 100% browser zoom.
+        self.assertNotIn('closest(".table-action-stack', tooltips_js)
+        self.assertIn('top: ["top", "bottom", "left", "right"]', tooltips_js)
+        self.assertIn("A placement flips only when it lacks room on its main axis", tooltips_js)
 
-    def test_tooltips_use_body_level_popper_with_viewport_boundary(self):
+    def test_tooltips_use_scoped_fixed_layer_and_track_layout_changes(self):
         base_css = (self.project_root() / "static" / "css" / "app" / "base.css").read_text(encoding="utf-8")
         toasts_js = self.read_static_js("toasts.js")
+        tooltips_js = self.read_static_js("tooltips.js")
 
-        # Bootstrap's bundled Popper handles browser zoom, flipping and
-        # overflow. Appending to body escapes table/panel overflow clipping.
-        init_tooltips = toasts_js[toasts_js.index("function initTooltips"):]
-        self.assertIn("new window.bootstrap.Tooltip", init_tooltips)
-        self.assertIn('boundary: "viewport"', init_tooltips)
-        self.assertIn("container: document.body", init_tooltips)
-        self.assertIn('strategy: "fixed"', init_tooltips)
-        self.assertIn('name: "preventOverflow"', init_tooltips)
-        self.assertIn('name: "flip"', init_tooltips)
-        self.assertNotIn("registerTooltipPortal();", init_tooltips)
-        self.assertIn(".app-tooltip.tooltip {", base_css)
+        # The fixed layer is measured directly and every trigger coordinate is
+        # converted to that layer's local space. Continuous tracking covers
+        # browser zoom, sticky scrolling and layout transitions.
+        self.assertIn("const layerRect = layer.getBoundingClientRect()", tooltips_js)
+        self.assertIn("right: layerRect.width - VIEWPORT_MARGIN", tooltips_js)
+        self.assertIn("bottom: layerRect.height - VIEWPORT_MARGIN", tooltips_js)
+        self.assertNotIn("document.documentElement.clientWidth", tooltips_js)
+        self.assertNotIn("document.documentElement.clientHeight", tooltips_js)
+        self.assertIn("viewportTriggerRect.left - layerRect.left", tooltips_js)
+        self.assertIn("window.requestAnimationFrame(trackTooltip)", tooltips_js)
+        self.assertNotIn("new window.bootstrap.Tooltip", tooltips_js)
+        self.assertIn("window.bootstrap?.Tooltip?.getInstance(trigger)?.dispose()", tooltips_js)
+        self.assertNotIn("window.innerWidth", tooltips_js)
+        self.assertNotIn("visualViewport", tooltips_js)
+        self.assertIn("window.hideAppTooltip = hideTooltip", tooltips_js)
+        self.assertTrue(tooltips_js.lstrip().startswith("// One body-level tooltip engine"))
+        self.assertIn('(() => {', tooltips_js)
+        # toasts.js is toasts-only again; the portal owns every tooltip rule.
+        self.assertNotIn("tooltip", toasts_js.lower())
+        self.assertIn(".app-tooltip-layer {", base_css)
+        self.assertIn(".app-tooltip-portal {", base_css)
+        self.assertIn("position: fixed", base_css)
+        self.assertIn("position: absolute", base_css)
         self.assertIn("calc(100vw - 16px)", base_css)
+        self.assertNotIn("overflow-y: auto", base_css[base_css.index(".app-tooltip-portal {"):base_css.index(".app-footer {")])
+        self.assertNotIn(".app-tooltip.tooltip {", base_css)
+        self.assertNotIn("app-overlay-root", base_css)
 
     def test_htmx_modal_lifecycle_dependencies_are_stable_after_module_split(self):
         htmx_js = self.read_static_js("htmx_lifecycle.js")
         toasts_js = self.read_static_js("toasts.js")
+        tooltips_js = self.read_static_js("tooltips.js")
 
         self.assertIn('htmx:afterSwap', htmx_js)
         self.assertIn('bootstrap.Modal.getOrCreateInstance(document.getElementById("modal-root")).show()', htmx_js)
@@ -1480,7 +1501,8 @@ class FrontendModuleSplitTests(TestCase):
         self.assertIn('showToast(detail.message, detail.level || "success")', htmx_js)
         self.assertIn('refreshCurrentTableArea();', htmx_js)
         self.assertIn("initTooltips();", htmx_js)
-        self.assertIn("window.initTooltips = initTooltips", toasts_js)
+        self.assertIn("window.initTooltips = initTooltips", tooltips_js)
+        self.assertIn("window.showToast = showToast", toasts_js)
 
     def test_app_js_skips_redundant_fetch_only_when_state_matches_server_default(self):
         # A returning visitor whose saved organ/department/table happen to
