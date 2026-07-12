@@ -731,6 +731,11 @@
   border-bottom: 2px solid #8fbfdd;
   box-shadow: inset 0 1px 0 #8fbfdd;
   z-index: 3;
+  text-align: center;
+  vertical-align: middle;
+}
+.data-table .tmc-grouped-head tr:nth-child(2) .tmc-name-head {
+  text-align: left;
 }
 .tmc-boundary-right {
   border-right: 2px solid #7faed0 !important;
