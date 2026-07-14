@@ -52,7 +52,7 @@ def activate_account(request):
             new_values={"audit_event": AuditLog.EventType.ACCOUNT_ACTIVATED, "username": user.username},
             request=request,
         )
-        messages.success(request, "Учетная запись активирована. Теперь можно войти в систему.")
+        messages.success(request, "Учётная запись активирована. Теперь можно войти в систему.")
         return redirect("login")
     return render(request, "registration/activate_account.html", {"form": form})
 

@@ -80,7 +80,7 @@ OBJECT_FILTERS = (
 )
 OBJECT_MODEL_NAMES = {key: set(models) for key, _, models in OBJECT_FILTERS}
 AUDIT_EVENT_SUMMARIES = {
-    "request_status_changed": "Изменен статус заявки",
+    "request_status_changed": "Изменён статус заявки",
     "request_photos_attached": "Прикреплены фотографии к заявке",
     "request_photos_detached": "Откреплены фотографии от заявки",
     "photo_restored_from_trash": "Фотография восстановлена",

@@ -47,7 +47,7 @@
 
   {% if log.is_object_action and log.change_rows %}
     <div class="audit-detail-section">
-      <h3>{% if log.action == "update" %}Измененные поля{% elif log.action == "delete" %}Данные до удаления{% else %}Заполненные параметры{% endif %}</h3>
+      <h3>{% if log.action == "update" %}Изменённые поля{% elif log.action == "delete" %}Данные до удаления{% else %}Заполненные параметры{% endif %}</h3>
       <div class="audit-change-list">
         {% for row in log.change_rows %}
           <div class="audit-change-row">

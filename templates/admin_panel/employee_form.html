@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static account_tags %}
 
-{% block title %}{{ title }} — Сотрудники{% endblock %}
+{% block title %}{{ title }} | Сотрудники{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260711-006">
@@ -61,7 +61,7 @@
           </section>
 
           <section class="admin-employee-form-card admin-employee-account-card">
-            <h3>Учетная запись</h3>
+            <h3>Учётная запись</h3>
             <div class="admin-employee-account-grid">
               <label class="admin-filter-field{% if form.username.errors %} has-error{% endif %}">
                 <span>{{ form.username.label }}</span>
@@ -100,7 +100,7 @@
 
         <section class="admin-employee-form-card admin-employee-system-rights admin-employee-account-status">
           <div class="admin-section-head admin-section-head-compact">
-            <div><h2>Статус учетной записи</h2><span>Доступ к разделам определяется ролью и назначенными правами.</span></div>
+            <div><h2>Статус учётной записи</h2><span>Доступ к разделам определяется ролью и назначенными правами.</span></div>
           </div>
           <label class="admin-employee-switch{% if form.is_active.errors %} has-error{% endif %}">
             {{ form.is_active }}

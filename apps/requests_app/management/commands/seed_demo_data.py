@@ -739,7 +739,7 @@ class Command(BaseCommand):
             new_status=obj.status,
             completed_at=completed_at,
             changed_by=user,
-            note="Статус изменен генератором демо-данных",
+            note="Статус изменён генератором демо-данных",
         )
         resolved_at = self._as_datetime(resolved_date, after=filed_at)
         RequestStatusHistory.objects.filter(pk=resolved_entry.pk).update(changed_at=resolved_at)

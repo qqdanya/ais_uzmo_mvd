@@ -80,7 +80,7 @@ class EmployeeAdmin(DjangoUserAdmin):
         ),
     )
     fieldsets = (
-        ("Учетная запись", {"fields": ("username", "password")}),
+        ("Учётная запись", {"fields": ("username", "password")}),
         ("Сотрудник", {"fields": ("last_name", "first_name")}),
         ("Права Django", {"fields": ("is_active", "is_staff", "is_superuser", "groups", "user_permissions")}),
         ("Служебные даты", {"fields": ("last_login", "date_joined")}),

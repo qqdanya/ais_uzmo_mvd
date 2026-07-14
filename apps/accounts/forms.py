@@ -46,9 +46,9 @@ class AccountActivationForm(forms.Form):
         self.user = User.objects.filter(username=username, is_active=True).first()
         profile = getattr(self.user, "profile", None) if self.user else None
         if not self.user or not profile:
-            raise ValidationError("Учетная запись для активации не найдена.")
+            raise ValidationError("Учётная запись для активации не найдена.")
         if self.user.has_usable_password():
-            raise ValidationError("Учетная запись уже активирована. Используйте обычный вход в систему.")
+            raise ValidationError("Учётная запись уже активирована. Используйте обычный вход в систему.")
 
         if recent_failed_attempts(ActivationAttempt, username, ACTIVATION_LOCKOUT_SECONDS) >= ACTIVATION_MAX_ATTEMPTS:
             raise ValidationError("Слишком много попыток активации. Повторите позже.")

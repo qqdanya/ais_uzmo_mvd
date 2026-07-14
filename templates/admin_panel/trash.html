@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Корзина — АИС УЗМО{% endblock %}
+{% block title %}Корзина | АИС УЗМО{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260712-008">
@@ -12,10 +12,10 @@
   <section class="panel admin-command-panel admin-executive-panel">
     {% if show_admin_navigation %}{% include "admin_panel/_executive_nav.html" with active_tab="trash" %}{% endif %}
 
-    <section class="admin-trash-screen" aria-label="Корзина удаленных объектов">
+    <section class="admin-trash-screen" aria-label="Корзина удалённых объектов">
       <div class="admin-requests-hero admin-trash-hero">
         <div>
-          <h2>Корзина удаленных объектов</h2>
+          <h2>Корзина удалённых объектов</h2>
           <p>{% if is_personal_trash %}Здесь отображаются удалённые вами объекты. Их можно восстановить или убрать из списка. Через 90 дней объекты автоматически исчезнут из вашей корзины.{% else %}Здесь отображаются удалённые записи, фотографии и папки. Их можно восстановить или удалить окончательно.{% endif %}</p>
         </div>
         <div class="admin-requests-total">
@@ -53,7 +53,6 @@
         <div class="admin-section-head">
           <div>
             <h2>Фильтр</h2>
-            <span>Поиск по номеру, названию органа, папке, файлу или описанию</span>
           </div>
         </div>
         <input type="hidden" name="section" value="{{ section }}">

@@ -1,15 +1,7 @@
 {% extends "base.html" %}
-{% load static %}
 {% block content %}
 <div class="auth-wrap">
   <div class="auth-shell">
-    <div class="auth-system-title">
-      <div class="auth-system-mark"><img src="{% static 'img/ais-uzmo-mark.svg' %}" alt="" aria-hidden="true"></div>
-      <div>
-        <div class="auth-system-name">АИС УЗМО</div>
-        <div class="auth-system-subtitle">Активация учетной записи сотрудника</div>
-      </div>
-    </div>
     <form method="post" class="auth-card">
       {% csrf_token %}
       <h1>Регистрация</h1>
@@ -45,7 +37,7 @@
       </div>
       {% for error in form.password2.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
 
-      <button class="btn btn-primary w-100 mt-4">Активировать учетную запись</button>
+      <button class="btn btn-primary w-100 mt-4">Активировать учётную запись</button>
       <a class="btn btn-outline-secondary w-100 mt-2" href="{% url 'login' %}">Вернуться ко входу</a>
     </form>
   </div>

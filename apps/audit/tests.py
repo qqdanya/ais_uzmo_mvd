@@ -309,7 +309,7 @@ class AuditLogTests(TestCase):
         self.assertContains(response, "Вход в систему")
         self.assertNotContains(response, "Территориальный орган")
         self.assertNotContains(response, "Детальные изменения не зафиксированы")
-        self.assertNotContains(response, "Измененные поля")
+        self.assertNotContains(response, "Изменённые поля")
 
     def test_audit_detail_hides_empty_change_section_for_object_action(self):
         log = self.create_log(old_values={}, new_values={})
@@ -318,7 +318,7 @@ class AuditLogTests(TestCase):
         response = self.client.get(reverse("audit_detail", args=[log.pk]), HTTP_HX_REQUEST="true")
 
         self.assertContains(response, "Объект")
-        self.assertNotContains(response, "Измененные поля")
+        self.assertNotContains(response, "Изменённые поля")
         self.assertNotContains(response, "Дополнительные параметры по этому действию отсутствуют")
 
     def test_audit_detail_hides_folder_author_department_field(self):
@@ -423,7 +423,7 @@ class AuditLogTests(TestCase):
         self.assertContains(response, "Папка фотографий «Folder»")
         self.assertContains(response, "Папка фотографий «333»")
         self.assertNotContains(response, "Создана запись «333»")
-        self.assertContains(response, "Изменен статус заявки")
+        self.assertContains(response, "Изменён статус заявки")
 
     def test_user_audit_log_shows_available_department_actions_with_filters(self):
         User = get_user_model()

@@ -144,7 +144,7 @@ class EmployeeForm(forms.ModelForm):
                 self.add_error("username", "Пользователь с таким логином уже существует.")
         if self.instance and self.current_user and self.instance.pk == self.current_user.pk:
             if cleaned.get("is_active") is False:
-                self.add_error("is_active", "Нельзя заблокировать собственную учетную запись.")
+                self.add_error("is_active", "Нельзя заблокировать собственную учётную запись.")
             if cleaned.get("role") != UserProfile.Role.ADMIN and not self.instance.is_superuser:
                 self.add_error("role", "Нельзя снять с себя административные права.")
         return cleaned

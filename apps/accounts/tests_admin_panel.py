@@ -1827,7 +1827,7 @@ class AdminTrashPanelTests(AdminPanelTestMixin, TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["active_tab"], "trash")
-        self.assertContains(response, "Корзина удаленных объектов")
+        self.assertContains(response, "Корзина удалённых объектов")
         self.assertContains(response, "admin-top-tab admin-top-tab-separated active")
 
     def test_trash_panel_is_available_to_operator_without_admin_navigation(self):
@@ -1836,7 +1836,7 @@ class AdminTrashPanelTests(AdminPanelTestMixin, TestCase):
         response = self.client.get(reverse("trash_panel"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Корзина удаленных объектов")
+        self.assertContains(response, "Корзина удалённых объектов")
         self.assertNotContains(response, "Административная панель")
         self.assertNotContains(response, "admin-top-tabs")
         self.assertEqual(reverse("trash_panel"), "/trash/")

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static account_tags %}
 
-{% block title %}{{ department.name }} — Отделы{% endblock %}
+{% block title %}{{ department.name }} | Отделы{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260712-008">
@@ -33,7 +33,6 @@
         <div class="admin-section-head">
           <div>
             <h2>Фильтры карточки</h2>
-            <span>Период, территориальные органы и статус заявок</span>
           </div>
         </div>
 

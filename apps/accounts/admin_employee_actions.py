@@ -61,7 +61,7 @@ def handle_employee_action(request, pk):
     user = get_object_or_404(get_user_model(), pk=pk)
     action = request.POST.get("action")
     if user.pk == request.user.pk and action in {"block", "reset_activation", "delete"}:
-        messages.error(request, "Нельзя выполнить это действие над собственной учетной записью.")
+        messages.error(request, "Нельзя выполнить это действие над собственной учётной записью.")
         return redirect("admin_employee_detail", pk=user.pk)
     if action == "delete":
         if not request.user.is_superuser:
