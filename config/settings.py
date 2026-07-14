@@ -143,12 +143,17 @@ CACHES = {
 }
 
 if not DEBUG:
+    # When the site is served over plain HTTP (e.g. by bare IP without a TLS
+    # certificate), Secure cookies would never be sent by the browser and
+    # login would silently fail - so these follow SECURE_SSL_REDIRECT, which
+    # deployments without HTTPS must set to False in .env.
     SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=True)
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
-    SECURE_HSTS_SECONDS = 31536000
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-    SECURE_HSTS_PRELOAD = True
+    SESSION_COOKIE_SECURE = env.bool("SESSION_COOKIE_SECURE", default=SECURE_SSL_REDIRECT)
+    CSRF_COOKIE_SECURE = env.bool("CSRF_COOKIE_SECURE", default=SECURE_SSL_REDIRECT)
+    if SECURE_SSL_REDIRECT:
+        SECURE_HSTS_SECONDS = 31536000
+        SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+        SECURE_HSTS_PRELOAD = True
 
 LOGGING = {
     "version": 1,

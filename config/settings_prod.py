@@ -11,11 +11,29 @@ if "postgresql" not in DATABASES["default"]["ENGINE"]:  # noqa: F405
 
 DEBUG = False
 SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=True)  # noqa: F405
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
-SECURE_HSTS_SECONDS = 31536000
-SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-SECURE_HSTS_PRELOAD = True
+SESSION_COOKIE_SECURE = env.bool(  # noqa: F405
+    "SESSION_COOKIE_SECURE",
+    default=SECURE_SSL_REDIRECT,
+)
+CSRF_COOKIE_SECURE = env.bool(  # noqa: F405
+    "CSRF_COOKIE_SECURE",
+    default=SECURE_SSL_REDIRECT,
+)
+
+# HSTS is meaningful only after the site has working HTTPS. Keeping it at zero
+# in the temporary bare-IP/HTTP mode also makes ``check --deploy`` accurately
+# report that transport security is not enabled yet.
+if SECURE_SSL_REDIRECT:
+    SECURE_HSTS_SECONDS = env.int("SECURE_HSTS_SECONDS", default=31536000)  # noqa: F405
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = env.bool(  # noqa: F405
+        "SECURE_HSTS_INCLUDE_SUBDOMAINS",
+        default=True,
+    )
+    SECURE_HSTS_PRELOAD = env.bool("SECURE_HSTS_PRELOAD", default=True)  # noqa: F405
+else:
+    SECURE_HSTS_SECONDS = 0
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+    SECURE_HSTS_PRELOAD = False
 
 # In addition to stderr (captured by journald via gunicorn), keep a rotating
 # on-disk log so incidents can be investigated without journald access.
