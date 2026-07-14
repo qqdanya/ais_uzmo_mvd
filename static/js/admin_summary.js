@@ -18,6 +18,8 @@
   let pendingRangeStart = null;
   let dynamicsChart = null;
   let dynamicsMode = "all";
+  let dynamicsGranularity = "day";
+  let dynamicsPeriodKey = "";
 
   const periodLabel = root.querySelector("[data-admin-period-label]");
   const calendar = root.querySelector("[data-admin-calendar]");
@@ -319,8 +321,28 @@
     });
   }
 
-  function chartDatasets() {
+  function activeDynamicsSeries() {
     const dynamics = state.dynamics || {};
+    return dynamics[dynamicsGranularity] || dynamics.day || dynamics;
+  }
+
+  function syncDynamicsControls() {
+    root.querySelectorAll("[data-dynamics-mode]").forEach((button) => {
+      const isActive = button.dataset.dynamicsMode === dynamicsMode;
+      button.classList.toggle("active", isActive);
+      button.setAttribute("aria-pressed", String(isActive));
+    });
+    root.querySelectorAll("[data-dynamics-granularity]").forEach((button) => {
+      const isActive = button.dataset.dynamicsGranularity === dynamicsGranularity;
+      button.classList.toggle("active", isActive);
+      button.setAttribute("aria-pressed", String(isActive));
+    });
+    const subtitle = root.querySelector("[data-dynamics-subtitle]");
+    const labels = { day: "дням", week: "неделям", month: "месяцам" };
+    if (subtitle) subtitle.textContent = `Поступление, исполнение и отклонение заявок по ${labels[dynamicsGranularity] || labels.day}`;
+  }
+
+  function chartDatasets(dynamics) {
     const datasets = {
       incoming: {
         label: "Поступило",
@@ -356,10 +378,10 @@
   function renderDynamicsChart() {
     const canvas = document.getElementById("admin-dynamics-chart");
     if (!canvas || !window.Chart) return;
-    const dynamics = state.dynamics || {};
+    const dynamics = activeDynamicsSeries();
     const data = {
       labels: dynamics.labels || [],
-      datasets: chartDatasets(),
+      datasets: chartDatasets(dynamics),
     };
     if (dynamicsChart) {
       dynamicsChart.data = data;
@@ -457,8 +479,14 @@
       if (state.period.date_from) selectedStart = parseIsoDate(state.period.date_from);
       if (state.period.date_to) selectedEnd = parseIsoDate(state.period.date_to);
     }
+    const nextDynamicsPeriodKey = `${state.period?.code || ""}:${state.period?.date_from || ""}:${state.period?.date_to || ""}`;
+    if (nextDynamicsPeriodKey !== dynamicsPeriodKey) {
+      dynamicsPeriodKey = nextDynamicsPeriodKey;
+      dynamicsGranularity = state.dynamics?.default_granularity || "day";
+    }
     updatePeriodLabel();
     renderKpi();
+    syncDynamicsControls();
     renderDynamicsChart();
     renderBarList("[data-org-chart]", state.org_chart, "Нет данных по территориальным органам");
     const metric = root.querySelector("[data-admin-org-metric]")?.value || "in_work";
@@ -619,7 +647,15 @@
     if (mode) {
       event.preventDefault();
       dynamicsMode = mode.dataset.dynamicsMode;
-      root.querySelectorAll("[data-dynamics-mode]").forEach((button) => button.classList.toggle("active", button === mode));
+      syncDynamicsControls();
+      renderDynamicsChart();
+      return;
+    }
+    const granularity = event.target.closest("[data-dynamics-granularity]");
+    if (granularity) {
+      event.preventDefault();
+      dynamicsGranularity = granularity.dataset.dynamicsGranularity;
+      syncDynamicsControls();
       renderDynamicsChart();
     }
   });

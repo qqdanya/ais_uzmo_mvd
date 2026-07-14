@@ -28,6 +28,20 @@ STATUS_LABELS = {
     NeedStatus.DONE: "Исполнено",
     NeedStatus.REJECTED: "Отклонено",
 }
+DYNAMICS_MONTH_LABELS = (
+    "Январь",
+    "Февраль",
+    "Март",
+    "Апрель",
+    "Май",
+    "Июнь",
+    "Июль",
+    "Август",
+    "Сентябрь",
+    "Октябрь",
+    "Ноябрь",
+    "Декабрь",
+)
 
 
 def _table_field_names(model):
@@ -334,6 +348,52 @@ def build_kpi(tables, organs, period, history_flags=None, base_metrics=None):
     }
 
 
+def dynamics_bucket_key(day, granularity):
+    if granularity == "week":
+        return day - timedelta(days=day.weekday())
+    if granularity == "month":
+        return day.replace(day=1)
+    return day
+
+
+def dynamics_bucket_label(bucket_days, granularity):
+    first_day = bucket_days[0]
+    last_day = bucket_days[-1]
+    if granularity == "month":
+        return f"{DYNAMICS_MONTH_LABELS[first_day.month - 1]} {first_day.year}"
+    if granularity == "week" and first_day != last_day:
+        return f"{first_day:%d.%m}–{last_day:%d.%m}"
+    return first_day.strftime("%d.%m")
+
+
+def build_dynamics_series(days, counters, granularity):
+    buckets = {}
+    for day in days:
+        key = dynamics_bucket_key(day, granularity)
+        bucket = buckets.setdefault(
+            key,
+            {"days": [], **{series_name: 0 for series_name in counters}},
+        )
+        bucket["days"].append(day)
+        for series_name, counter in counters.items():
+            bucket[series_name] += counter[day]
+    return {
+        "labels": [dynamics_bucket_label(bucket["days"], granularity) for bucket in buckets.values()],
+        **{
+            series_name: [bucket[series_name] for bucket in buckets.values()]
+            for series_name in counters
+        },
+    }
+
+
+def default_dynamics_granularity(days):
+    if len(days) > 180:
+        return "month"
+    if len(days) > 45:
+        return "week"
+    return "day"
+
+
 def build_dynamics(tables, organs, period, history_flags=None):
     days = period_day_labels(period, organs, tables=tables)
     incoming = Counter()
@@ -347,11 +407,12 @@ def build_dynamics(tables, organs, period, history_flags=None):
         add_request_date_series(incoming, apply_request_period(qs, dynamics_period))
         add_status_history_series(done, table, qs, NeedStatus.DONE, days, done_flag)
         add_status_history_series(rejected, table, qs, NeedStatus.REJECTED, days, rejected_flag)
+    counters = {"incoming": incoming, "done": done, "rejected": rejected}
     return {
-        "labels": [day.strftime("%d.%m") for day in days],
-        "incoming": [incoming[day] for day in days],
-        "done": [done[day] for day in days],
-        "rejected": [rejected[day] for day in days],
+        "default_granularity": default_dynamics_granularity(days),
+        "day": build_dynamics_series(days, counters, "day"),
+        "week": build_dynamics_series(days, counters, "week"),
+        "month": build_dynamics_series(days, counters, "month"),
     }
 
 
@@ -477,6 +538,7 @@ def summary_data_cache_key(request, metric):
     return ":".join(
         [
             "admin-summary-data",
+            "v2",
             str(request.user.pk),
             metric,
             request.GET.get("period", ""),

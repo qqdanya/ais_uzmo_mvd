@@ -118,6 +118,9 @@ class AdminPanelEndpointTests(AdminPanelTestMixin, TestCase):
         self.assertContains(response, reverse("admin_summary_data"))
         self.assertContains(response, "data-admin-calendar-jump-toggle")
         self.assertContains(response, "data-admin-calendar-month-picker")
+        self.assertContains(response, 'data-dynamics-granularity="day"')
+        self.assertContains(response, 'data-dynamics-granularity="week"')
+        self.assertContains(response, 'data-dynamics-granularity="month"')
         self.assertLess(response.content.index("previous_month".encode()), response.content.index("today".encode()))
 
     def test_summary_data_returns_json_for_admin(self):
@@ -138,6 +141,34 @@ class AdminPanelEndpointTests(AdminPanelTestMixin, TestCase):
         self.assertIn("request_stale_workdays", payload)
         for key in ("total", "in_work", "done", "rejected", "stale"):
             self.assertIn(key, payload["kpi"])
+
+    def test_summary_dynamics_returns_day_week_and_month_series(self):
+        self.login_admin()
+        for number, request_date in (("jan-1", "2026-01-05"), ("jan-2", "2026-01-20"), ("feb-1", "2026-02-02")):
+            TmcRequest.objects.create(
+                territorial_organ=self.organ,
+                created_by=self.admin,
+                request_number=number,
+                request_date=request_date,
+            )
+
+        response = self.client.get(
+            reverse("admin_summary_data"),
+            {
+                "period": "custom",
+                "date_from": "2026-01-01",
+                "date_to": "2026-12-31",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        dynamics = response.json()["dynamics"]
+        self.assertEqual(dynamics["default_granularity"], "month")
+        self.assertEqual(len(dynamics["day"]["labels"]), 365)
+        self.assertEqual(sum(dynamics["day"]["incoming"]), 3)
+        self.assertEqual(sum(dynamics["week"]["incoming"]), 3)
+        self.assertEqual(dynamics["month"]["labels"][:2], ["Январь 2026", "Февраль 2026"])
+        self.assertEqual(dynamics["month"]["incoming"][:2], [2, 1])
 
     def test_summary_data_is_cached_per_user_and_params(self):
         self.login_admin()

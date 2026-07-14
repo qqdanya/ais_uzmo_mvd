@@ -451,7 +451,18 @@
   box-shadow: inset 0 0 0 1px rgba(240,217,141,.85);
 }
 .admin-chart-section {
+  min-width: 0;
   min-height: 330px;
+  grid-template-columns: minmax(0, 1fr);
+}
+.admin-chart-controls {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 .admin-chart-tabs {
   display: inline-flex;
@@ -477,7 +488,12 @@
 }
 .admin-chart-wrap {
   position: relative;
+  min-width: 0;
   height: 260px;
+  overflow: hidden;
+}
+.admin-chart-wrap canvas {
+  max-width: 100%;
 }
 .admin-summary-charts-grid {
   display: grid;
@@ -626,6 +642,15 @@
 }
 
 @media (max-width: 520px) {
+  .admin-chart-controls {
+    justify-content: flex-start;
+  }
+  .admin-chart-granularity {
+    width: 100%;
+  }
+  .admin-chart-granularity button {
+    flex: 1 1 0;
+  }
   .admin-summary-kpi,
   .admin-attention-row {
     grid-template-columns: 1fr;

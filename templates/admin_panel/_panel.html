@@ -89,13 +89,20 @@
       <div class="admin-section-head">
         <div>
           <h2>Динамика заявок</h2>
-          <span>Поступление, исполнение и отклонение заявок по дням</span>
+          <span data-dynamics-subtitle>Поступление, исполнение и отклонение заявок по дням</span>
         </div>
-        <div class="admin-chart-tabs" role="group" aria-label="Режим графика динамики">
-          <button class="active" type="button" data-dynamics-mode="all">Все</button>
-          <button type="button" data-dynamics-mode="incoming">Поступило</button>
-          <button type="button" data-dynamics-mode="done">Исполнено</button>
-          <button type="button" data-dynamics-mode="rejected">Отклонено</button>
+        <div class="admin-chart-controls">
+          <div class="admin-chart-tabs" role="group" aria-label="Показатели графика динамики">
+            <button class="active" type="button" data-dynamics-mode="all" aria-pressed="true">Все</button>
+            <button type="button" data-dynamics-mode="incoming" aria-pressed="false">Поступило</button>
+            <button type="button" data-dynamics-mode="done" aria-pressed="false">Исполнено</button>
+            <button type="button" data-dynamics-mode="rejected" aria-pressed="false">Отклонено</button>
+          </div>
+          <div class="admin-chart-tabs admin-chart-granularity" role="group" aria-label="Группировка графика динамики">
+            <button class="active" type="button" data-dynamics-granularity="day" aria-pressed="true">Дни</button>
+            <button type="button" data-dynamics-granularity="week" aria-pressed="false">Недели</button>
+            <button type="button" data-dynamics-granularity="month" aria-pressed="false">Месяцы</button>
+          </div>
         </div>
       </div>
       <div class="admin-chart-wrap">

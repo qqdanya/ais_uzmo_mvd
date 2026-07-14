@@ -2,7 +2,7 @@
  * Administrative panel stylesheet entrypoint.
  * Keep imports in this order: later modules intentionally refine earlier shared rules.
  */
-@import url("admin/base.css?v=20260711-005");
+@import url("admin/base.css?v=20260714-002");
 @import url("admin/requests.css?v=20260712-002");
 @import url("admin/organs.css?v=20260705-009");
 @import url("admin/departments.css?v=20260705-009");
