@@ -6,6 +6,24 @@ from .middleware import get_current_request
 from .models import AuditLog
 
 
+def has_meaningful_changes(instance, old_values, new_values):
+    """Return whether an update contains anything shown as an audit change."""
+    if not isinstance(old_values, dict) or not isinstance(new_values, dict):
+        return True
+
+    # Import lazily because audit display constants build their model mapping
+    # from the requests registry, which itself imports the request models.
+    from .services.constants import MODEL_HIDDEN_FIELD_NAMES, SYSTEM_FIELD_NAMES
+
+    model_name = instance.__class__.__name__ if instance is not None else ""
+    hidden_fields = SYSTEM_FIELD_NAMES | MODEL_HIDDEN_FIELD_NAMES.get(model_name, set())
+    keys = set(old_values) | set(new_values)
+    return any(
+        str(old_values.get(key)) != str(new_values.get(key))
+        for key in keys - hidden_fields
+    )
+
+
 def client_ip(request):
     if not request:
         return None
@@ -39,6 +57,11 @@ def object_message(action, instance):
 
 
 def write_audit(action, instance=None, user=None, old_values=None, new_values=None, request=None, event_type=""):
+    values = new_values if isinstance(new_values, dict) else {}
+    explicit_event = event_type or values.get("audit_event")
+    if action == AuditLog.Action.UPDATE and not explicit_event and not has_meaningful_changes(instance, old_values, new_values):
+        return None
+
     request = request or get_current_request()
     user = user or (request.user if request and request.user.is_authenticated else None)
     organ = getattr(instance, "territorial_organ", None) if instance is not None else None

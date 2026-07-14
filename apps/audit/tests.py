@@ -12,6 +12,7 @@ from apps.requests_app.models import RequestStatusHistory, TmcRequest
 
 from .models import AuditLog
 from .services.display import field_display_value, prepare_log
+from .utils import write_audit
 
 
 class AuditLogTests(TestCase):
@@ -52,6 +53,69 @@ class AuditLogTests(TestCase):
         }
         defaults.update(kwargs)
         return AuditLog.objects.create(**defaults)
+
+    def test_write_audit_skips_update_without_visible_changes(self):
+        request_obj = TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            request_number="10/TMC",
+            request_date="2026-07-01",
+            status="in_work",
+        )
+
+        result = write_audit(
+            AuditLog.Action.UPDATE,
+            request_obj,
+            user=self.operator,
+            old_values={"id": str(request_obj.pk), "updated_by": "None", "comment": "Same"},
+            new_values={"id": str(request_obj.pk), "updated_by": str(self.operator.pk), "comment": "Same"},
+        )
+
+        self.assertIsNone(result)
+        self.assertFalse(AuditLog.objects.exists())
+
+    def test_write_audit_keeps_update_with_visible_changes(self):
+        request_obj = TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            request_number="11/TMC",
+            request_date="2026-07-01",
+            status="in_work",
+        )
+
+        write_audit(
+            AuditLog.Action.UPDATE,
+            request_obj,
+            user=self.operator,
+            old_values={"updated_by": "None", "comment": "Before"},
+            new_values={"updated_by": str(self.operator.pk), "comment": "After"},
+        )
+
+        log = AuditLog.objects.get()
+        self.assertEqual(log.event_type, AuditLog.EventType.RECORD_UPDATED)
+        self.assertEqual(log.old_values["comment"], "Before")
+        self.assertEqual(log.new_values["comment"], "After")
+
+    def test_write_audit_keeps_explicit_event_with_only_system_field_change(self):
+        request_obj = TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            request_number="12/TMC",
+            request_date="2026-07-01",
+            status="in_work",
+            is_deleted=False,
+        )
+
+        write_audit(
+            AuditLog.Action.UPDATE,
+            request_obj,
+            user=self.operator,
+            old_values={"is_deleted": "True"},
+            new_values={
+                "audit_event": AuditLog.EventType.REQUEST_RESTORED,
+                "is_deleted": "False",
+            },
+        )
+
+        log = AuditLog.objects.get()
+        self.assertEqual(log.event_type, AuditLog.EventType.REQUEST_RESTORED)
 
     def test_audit_log_uses_admin_layout_filters_and_pagination(self):
         for index in range(30):

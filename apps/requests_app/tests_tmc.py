@@ -9,6 +9,49 @@ from .tests_base import *
 
 class TmcRequestTests(RequestAppTestCase):
 
+    def test_saving_unchanged_tmc_request_does_not_create_update_event(self):
+        product = TmcProduct.objects.create(name="Chair", unit="pcs")
+        request_obj = TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            request_number="14/TMC",
+            request_date="2026-06-27",
+            status="in_work",
+            comment="Unchanged",
+        )
+        TmcRequestItem.objects.create(
+            request=request_obj,
+            product=product,
+            name=product.name,
+            quantity=1,
+            unit=product.unit,
+        )
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.post(
+            reverse("record_update", args=[self.organ.pk, "tmc-requests", request_obj.pk]),
+            {
+                "request_number": "14/TMC",
+                "request_date": "2026-06-27",
+                "status": "in_work",
+                "due_date": "",
+                "comment": "Unchanged",
+                "item_product": [str(product.pk)],
+                "item_name": [product.name],
+                "item_quantity": ["1"],
+                "item_unit": [product.unit],
+            },
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(
+            AuditLog.objects.filter(
+                model_name="TmcRequest",
+                object_id=str(request_obj.pk),
+                event_type=AuditLog.EventType.RECORD_UPDATED,
+            ).exists()
+        )
+
     def test_crud_creates_tmc_request_with_multiple_items_and_audit_log(self):
         self.client.login(username="operator", password="pass12345")
         response = self.client.post(
