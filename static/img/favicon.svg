@@ -9,7 +9,7 @@
   <path fill="none" stroke="#FFF" stroke-opacity=".3" stroke-width="2" d="m32 7.4 21 6.9v16c0 12.6-7.4 21.6-21 27-13.6-5.4-21-14.4-21-27v-16l21-6.9Z"/>
   <path fill="#DFF2FF" d="m31 17 13 6.5L31 30l-13-6.5L31 17Z"/>
   <path fill="#75C8EF" d="m18 23.5 13 6.5v15l-13-6.5v-15Z"/>
-  <path fill="#FFF" d="m31 30 13-6.5v15L31 45V30Z"/>
+  <path fill="#0E558D" d="m31 30 13-6.5v15L31 45V30Z"/>
   <path fill="#1769AA" fill-opacity=".48" d="m25.4 19.8 13 6.5 2.8-1.4-13-6.5-2.8 1.4Z"/>
   <circle cx="46" cy="44" r="10.5" fill="#FFF"/>
   <circle cx="46" cy="44" r="8.2" fill="#1F8A4C"/>
