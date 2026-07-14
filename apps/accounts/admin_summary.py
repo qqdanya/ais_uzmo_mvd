@@ -408,11 +408,17 @@ def build_dynamics(tables, organs, period, history_flags=None):
         add_status_history_series(done, table, qs, NeedStatus.DONE, days, done_flag)
         add_status_history_series(rejected, table, qs, NeedStatus.REJECTED, days, rejected_flag)
     counters = {"incoming": incoming, "done": done, "rejected": rejected}
-    return {
-        "default_granularity": default_dynamics_granularity(days),
+    series = {
         "day": build_dynamics_series(days, counters, "day"),
         "week": build_dynamics_series(days, counters, "week"),
         "month": build_dynamics_series(days, counters, "month"),
+    }
+    return {
+        "default_granularity": default_dynamics_granularity(days),
+        # Keep the former top-level daily series until every deployed/static
+        # client has picked up the granularity-aware JavaScript bundle.
+        **series["day"],
+        **series,
     }
 
 

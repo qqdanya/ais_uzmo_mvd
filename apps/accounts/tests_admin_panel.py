@@ -169,6 +169,10 @@ class AdminPanelEndpointTests(AdminPanelTestMixin, TestCase):
         self.assertEqual(sum(dynamics["week"]["incoming"]), 3)
         self.assertEqual(dynamics["month"]["labels"][:2], ["Январь 2026", "Февраль 2026"])
         self.assertEqual(dynamics["month"]["incoming"][:2], [2, 1])
+        self.assertEqual(dynamics["labels"], dynamics["day"]["labels"])
+        self.assertEqual(dynamics["incoming"], dynamics["day"]["incoming"])
+        self.assertEqual(dynamics["done"], dynamics["day"]["done"])
+        self.assertEqual(dynamics["rejected"], dynamics["day"]["rejected"])
 
     def test_summary_data_is_cached_per_user_and_params(self):
         self.login_admin()
