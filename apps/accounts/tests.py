@@ -1,3 +1,6 @@
+from pathlib import Path
+
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
@@ -10,6 +13,47 @@ from .models import UserProfile
 
 
 class AccountFoundationTests(TestCase):
+    def test_full_page_templates_define_browser_titles_without_dash_separators(self):
+        template_root = Path(settings.BASE_DIR) / "templates"
+        missing_titles = []
+
+        for template_path in template_root.rglob("*.html"):
+            source = template_path.read_text(encoding="utf-8")
+            if '{% extends "base.html" %}' not in source:
+                continue
+            if "{% block title %}" not in source:
+                missing_titles.append(template_path.relative_to(template_root).as_posix())
+                continue
+            title_line = next(line for line in source.splitlines() if "{% block title %}" in line)
+            self.assertNotIn("—", title_line)
+            self.assertNotIn("–", title_line)
+
+        self.assertEqual(missing_titles, [])
+
+    def test_account_pages_render_specific_browser_titles(self):
+        self.assertContains(self.client.get(reverse("login")), "<title>Вход | АИС УЗМО</title>", html=True)
+        self.assertContains(
+            self.client.get(reverse("account_activate")),
+            "<title>Активация учётной записи | АИС УЗМО</title>",
+            html=True,
+        )
+
+        User = get_user_model()
+        user = User.objects.create_user("title-check", password="pass12345")
+        UserProfile.objects.create(user=user, role=UserProfile.Role.OPERATOR)
+        self.client.force_login(user)
+
+        self.assertContains(
+            self.client.get(reverse("password_change")),
+            "<title>Смена пароля | АИС УЗМО</title>",
+            html=True,
+        )
+        self.assertContains(
+            self.client.get(reverse("password_change_done")),
+            "<title>Пароль изменён | АИС УЗМО</title>",
+            html=True,
+        )
+
     def test_profile_display_name_uses_last_name_and_initials(self):
         User = get_user_model()
         user = User.objects.create_user("petrov", first_name="Алексей", last_name="Петров", password="pass12345")

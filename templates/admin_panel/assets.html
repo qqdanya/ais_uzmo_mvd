@@ -46,7 +46,7 @@
               <p>{{ item.department_name }}</p>
               <dl>
                 <div><dt>Данные есть</dt><dd>{{ item.data_label }}</dd></div>
-                <div><dt>Требует контроля</dt><dd>{{ item.attention_count }}</dd></div>
+                <div><dt>Требует внимания</dt><dd>{{ item.attention_count }}</dd></div>
                 <div><dt>Нет данных</dt><dd>{{ item.no_data_count }}</dd></div>
                 <div><dt>Последнее обновление</dt><dd>{{ item.latest_display }}</dd></div>
               </dl>
@@ -185,7 +185,7 @@
                   {% for category in matrix_categories %}
                     <th>{{ category.title }}</th>
                   {% endfor %}
-                  <th>Требует контроля</th>
+                  <th>Требует внимания</th>
                   <th>Последнее обновление</th>
                   <th>Действие</th>
                 </tr>

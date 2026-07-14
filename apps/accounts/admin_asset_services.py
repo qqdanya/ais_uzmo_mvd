@@ -35,7 +35,7 @@ ASSET_CATEGORY_HINTS = {
 
 ASSET_STATUS_FILTERS = {
     "all": "Все",
-    "attention": "Требует контроля",
+    "attention": "Требует внимания",
     "danger": "Проблемные",
     "stale": "Давно не обновлялось",
     "no_data": "Нет данных",
@@ -44,7 +44,7 @@ ASSET_STATUS_FILTERS = {
 
 ASSET_STATUS_LABELS = {
     "ok": "Норма",
-    "warning": "Требует контроля",
+    "warning": "Требует внимания",
     "danger": "Проблема",
     "stale": "Устарело",
     "no_data": "Нет данных",
@@ -428,7 +428,7 @@ def build_assets_kpis(rows, categories):
     return [
         {"label": "Категории", "value": len(categories), "hint": "учитываются в разделе", "icon": "bi-grid-3x3-gap"},
         {"label": "Данные представлены полностью", "value": complete_actual, "hint": f"из {total_organs} органов", "icon": "bi-check2-circle"},
-        {"label": "Требует контроля", "value": attention_organs, "hint": "территориальные органы", "icon": "bi-exclamation-triangle"},
+        {"label": "Требует внимания", "value": attention_organs, "hint": "территориальные органы", "icon": "bi-exclamation-triangle"},
         {"label": "Есть пробелы в данных", "value": no_data_organs, "hint": "нет записи в категории", "icon": "bi-database-x"},
         {"label": "Давно не обновлялось", "value": stale_organs, "hint": f"старше {get_asset_stale_days()} дней", "icon": "bi-clock-history"},
     ]
@@ -439,7 +439,7 @@ def build_category_charts(category_summaries):
         {
             "label": item["title"],
             "value": item["issue_score"],
-            "hint": f"требует контроля: {item['attention_count']}, нет данных: {item['no_data_count']}",
+            "hint": f"требует внимания: {item['attention_count']}, нет данных: {item['no_data_count']}",
             "url": item["detail_url"],
         }
         for item in category_summaries
@@ -458,7 +458,7 @@ def build_top_problem_organs(rows, limit=10):
             {
                 "label": row["organ"].name,
                 "value": value,
-                "hint": f"проблем: {row['danger']}, требует контроля: {row['warning'] + row['stale']}, нет данных: {row['no_data']}",
+                "hint": f"проблем: {row['danger']}, требует внимания: {row['warning'] + row['stale']}, нет данных: {row['no_data']}",
                 "url": row["detail_url"],
             }
         )

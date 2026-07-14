@@ -125,6 +125,7 @@ class AuditLogTests(TestCase):
         response = self.client.get(reverse("audit_log"), {"event_type": AuditLog.EventType.RECORD_UPDATED})
 
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "<title>Журнал действий | АИС УЗМО</title>", html=True)
         self.assertContains(response, "Журнал действий")
         self.assertContains(response, "audit-filters")
         self.assertContains(response, "audit-table")
