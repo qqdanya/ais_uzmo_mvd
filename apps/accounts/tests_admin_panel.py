@@ -1,5 +1,7 @@
 import json
 import shutil
+import subprocess
+import sys
 import tempfile
 from io import BytesIO
 from datetime import timedelta
@@ -1110,24 +1112,152 @@ class ProductionReadinessDocsTests(TestCase):
             "CSRF_TRUSTED_ORIGINS=https://",
             "SECURE_SSL_REDIRECT=True",
             "SUPERUSER_PASSWORD",
+            "ADMIN_THRESHOLDS_FILE=/srv/ais_uzmo/runtime/dashboard_thresholds.json",
         ]:
             with self.subTest(required_name=required_name):
                 self.assertIn(required_name, env_template)
 
-    def test_deploy_checklist_documents_required_commands_and_risks(self):
+    def test_production_deploy_preserves_and_checks_dashboard_thresholds(self):
+        project_root = Path(__file__).resolve().parents[2]
+        settings_source = (project_root / "config" / "settings.py").read_text(encoding="utf-8")
+        install_script = (project_root / "deploy" / "install.sh").read_text(encoding="utf-8")
+        update_script = (project_root / "deploy" / "update.sh").read_text(encoding="utf-8")
+        backup_script = (project_root / "deploy" / "backup.sh").read_text(encoding="utf-8")
+        check_script = (project_root / "deploy" / "check.sh").read_text(encoding="utf-8")
+        thresholds_helper = (project_root / "deploy" / "thresholds.sh").read_text(encoding="utf-8")
+
+        self.assertIn("ADMIN_THRESHOLDS_FILE = BASE_DIR / env(", settings_source)
+        self.assertIn('"ADMIN_THRESHOLDS_FILE"', settings_source)
+        self.assertIn('ADMIN_THRESHOLDS_FILE=/srv/ais_uzmo/runtime/dashboard_thresholds.json', install_script)
+        self.assertIn("--exclude '/runtime/'", update_script)
+        self.assertIn('LEGACY_THRESHOLDS_FILE="$APP/dashboard_thresholds.json"', update_script)
+        self.assertIn("dashboard_thresholds.absent", backup_script)
+        self.assertIn("dashboard_thresholds.json", backup_script)
+        self.assertIn(".deployment-write-check.", check_script)
+        self.assertIn("thresholds_select_source", thresholds_helper)
+        self.assertIn("thresholds_validate_json", thresholds_helper)
+
+    def test_thresholds_shell_helper_handles_upgrade_matrix(self):
+        bash = shutil.which("bash")
+        if bash is None:
+            git_bash = Path("C:/Program Files/Git/bin/bash.exe")
+            if git_bash.exists():
+                bash = str(git_bash)
+        if bash is None:
+            self.skipTest("bash is not available")
+
+        project_root = Path(__file__).resolve().parents[2]
+        helper = project_root / "deploy" / "thresholds.sh"
+
+        with tempfile.TemporaryDirectory(prefix="threshold-helper-") as temp_dir:
+            runtime_file = Path(temp_dir) / "runtime.json"
+            legacy_file = Path(temp_dir) / "legacy.json"
+
+            def run_helper(command):
+                return subprocess.run(
+                    [
+                        bash,
+                        "-lc",
+                        command,
+                        "threshold-helper-test",
+                        helper.as_posix(),
+                        runtime_file.as_posix(),
+                        legacy_file.as_posix(),
+                        Path(sys.executable).as_posix(),
+                    ],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                )
+
+            select_command = 'source "$1"; thresholds_select_source "$2" "$3"'
+            validate_command = (
+                'source "$1"; selected="$(thresholds_select_source "$2" "$3")"; '
+                'thresholds_validate_json "$4" "$selected"'
+            )
+
+            result = run_helper(select_command)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout, "")
+
+            legacy_file.write_text('{"request_stale_workdays": 14}\n', encoding="utf-8")
+            result = run_helper(select_command)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), legacy_file.as_posix())
+
+            legacy_file.unlink()
+            runtime_file.write_text('{"asset_stale_days": 60}\n', encoding="utf-8")
+            result = run_helper(select_command)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), runtime_file.as_posix())
+
+            legacy_file.write_bytes(runtime_file.read_bytes())
+            result = run_helper(select_command)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), runtime_file.as_posix())
+
+            legacy_file.write_text('{"asset_stale_days": 90}\n', encoding="utf-8")
+            result = run_helper(select_command)
+            self.assertNotEqual(result.returncode, 0)
+
+            legacy_file.unlink()
+            runtime_file.write_text("[]\n", encoding="utf-8")
+            result = run_helper(validate_command)
+            self.assertNotEqual(result.returncode, 0)
+
+    def test_update_script_reexecs_once_and_cleans_temporary_copy(self):
+        bash = shutil.which("bash")
+        if bash is None:
+            git_bash = Path("C:/Program Files/Git/usr/bin/bash.exe")
+            if git_bash.exists():
+                bash = str(git_bash)
+        if bash is None:
+            self.skipTest("bash is not available")
+
+        project_root = Path(__file__).resolve().parents[2]
+        update_script = project_root / "deploy" / "update.sh"
+        update_source = update_script.read_text(encoding="utf-8")
+        self.assertIn("AIS_UZMO_UPDATE_REEXEC=1", update_source)
+        self.assertIn("trap cleanup_update_self_copy EXIT", update_source)
+        self.assertIn("exec env", update_source)
+        self.assertGreaterEqual(update_source.count("cleanup_update_self_copy"), 4)
+
+        with tempfile.TemporaryDirectory(prefix="update-reexec-") as temp_dir:
+            result = subprocess.run(
+                [
+                    bash,
+                    "-lc",
+                    '/bin/bash "$1" --self-test-reexec "$2"',
+                    "update-reexec-test",
+                    update_script.as_posix(),
+                    Path(temp_dir).as_posix(),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                timeout=15,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.count("SELF-TEST OK"), 1)
+            self.assertEqual(list(Path(temp_dir).iterdir()), [])
+
+    def test_release_checklist_documents_canonical_handoff(self):
         project_root = Path(__file__).resolve().parents[2]
         checklist = (project_root / "docs" / "DEPLOY_CHECKLIST.md").read_text(encoding="utf-8")
 
         for required_text in [
-            "check --deploy --settings=config.settings_prod",
-            "migrate --settings=config.settings_prod",
-            "collectstatic --noinput --settings=config.settings_prod",
-            "DATABASE_URL",
-            "SESSION_COOKIE_SECURE",
-            "CSRF_COOKIE_SECURE",
-            "static/vendor/",
-            "pip-compile requirements.in --output-file=requirements.txt",
-            "X-Accel-Redirect",
+            "FINAL_CHECKLIST.md",
+            "DEPLOY_LINUX.md",
+            "DEPLOY_LINUX_MANUAL.md",
+            "TRANSFER_TO_IC.md",
+            "MAINTENANCE.md",
+            "git status --short",
+            "bash deploy/release.sh",
+            "sha256sum -c SHA256SUMS",
+            "QA_CHECKLIST.md",
         ]:
             with self.subTest(required_text=required_text):
                 self.assertIn(required_text, checklist)

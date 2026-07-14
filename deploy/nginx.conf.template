@@ -1,0 +1,45 @@
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name __SERVER_NAME__;
+    server_tokens off;
+
+    # Only the network approved during installation can open the application.
+    allow 127.0.0.1;
+    allow ::1;
+    allow __TRUSTED_CIDR__;
+    deny all;
+
+    client_max_body_size 250M;
+    client_body_timeout 180s;
+    send_timeout 180s;
+
+    location ^~ /static/ {
+        alias /srv/ais_uzmo/staticfiles/;
+        access_log off;
+        expires 30d;
+    }
+
+    # Uploaded files are served only by protected Django endpoints.
+    location ^~ /media/ {
+        return 404;
+    }
+
+    location ~ /\.(?!well-known/) {
+        return 404;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection "";
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 180s;
+        proxy_send_timeout 180s;
+        proxy_redirect off;
+    }
+}

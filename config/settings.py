@@ -105,6 +105,10 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / env("MEDIA_ROOT", default="media")
+ADMIN_THRESHOLDS_FILE = BASE_DIR / env(
+    "ADMIN_THRESHOLDS_FILE",
+    default="dashboard_thresholds.json",
+)
 # Bulk photo upload must accept 300+ files in a single request even without
 # the JS batching (locked by test_photo_bulk_upload_accepts_more_than_300_files),
 # so 500 keeps that working while still bounding what a malicious or broken

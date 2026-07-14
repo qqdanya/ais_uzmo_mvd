@@ -1,154 +1,176 @@
-# Сопровождение проекта
+# Сопровождение установленной АИС УЗМО
 
-Документ предназначен для администратора или специалиста, который сопровождает установленную систему.
+Этот документ нужен администратору после установки. Все команды выполняются с
+правами `root`.
 
-## 1. Обновление кода на Linux-сервере
+Не запускайте `systemctl start` или `systemctl enable` для приложения и таймера
+резервного копирования после неудачного обновления. В таком состоянии сначала
+нужно передать разработчику полный вывод обновления.
 
-```bash
-sudo -iu ais
-cd ~/apps/ais_uzmo
-source .venv/bin/activate
+## Проверка состояния
 
-git pull
-pip install -r requirements.txt
-python manage.py migrate
-python manage.py collectstatic --noinput
-python manage.py test --parallel 4
-sudo systemctl restart ais_uzmo
-```
-
-После обновления пройти основные пункты из `docs/QA_CHECKLIST.md`.
-
-## 2. Проверка состояния сервиса
+Основная проверка:
 
 ```bash
-sudo systemctl status ais_uzmo
-journalctl -u ais_uzmo -n 100 --no-pager
-journalctl -u ais_uzmo -f
+bash /srv/ais_uzmo/deploy/check.sh
 ```
 
-Проверка Nginx:
+В конце должно появиться `Все проверки пройдены.`
+
+Если проверка не прошла, сохраните полный вывод следующих команд:
 
 ```bash
-sudo nginx -t
-sudo systemctl status nginx
+systemctl status \
+  postgresql.service redis-server.service nginx.service ais_uzmo.service \
+  ais-uzmo-backup.timer ais-uzmo-backup.service --no-pager
+journalctl -u ais_uzmo.service -b -n 200 --no-pager
+journalctl -u ais-uzmo-backup.service -n 100 --no-pager
+nginx -t
+df -h /srv /var /var/backups
+df -i /srv /var /var/backups
 ```
 
-## 3. Резервное копирование PostgreSQL
+Передайте вывод разработчику. Не прикладывайте `.env`, дамп базы, фотографии или
+саму резервную копию.
 
-Создать дамп:
+## Обновление
+
+Номер нового релиза должен быть строго выше установленного. Текущая версия:
 
 ```bash
-pg_dump -U uzmo_user -h 127.0.0.1 -d uzmo_db -F c -f uzmo_db_$(date +%Y-%m-%d).dump
+cat /srv/ais_uzmo/RELEASE
 ```
 
-Восстановить дамп в подготовленную базу:
+Повторная установка той же версии и понижение версии запрещены самим скриптом.
+
+Получите у разработчика новый архив и `SHA256SUMS`. Для каждой версии используйте
+отдельный каталог. Пример для версии `1.1.0`:
 
 ```bash
-pg_restore -U uzmo_user -h 127.0.0.1 -d uzmo_db --clean --if-exists uzmo_db_YYYY-MM-DD.dump
+cd /root/releases/1.1.0
+sha256sum -c SHA256SUMS
 ```
 
-Команды могут отличаться в зависимости от политики доступа PostgreSQL на сервере.
+Продолжайте только если показано `OK`. Запустите обновление, явно указав архив и
+его файл контрольной суммы:
 
-## 4. Резервное копирование media
+```bash
+bash /srv/ais_uzmo/deploy/update.sh \
+  /root/releases/1.1.0/ais_uzmo-1.1.0.tar.gz \
+  /root/releases/1.1.0/SHA256SUMS
+```
 
-Фотографии и загруженные файлы находятся в `MEDIA_ROOT`, обычно:
+Укажите реальные каталог, имя и номер версии. Скрипт сам создаёт резервную копию,
+обновляет зависимости, применяет миграции, собирает статические файлы и выполняет
+проверку. `git pull` на сервере не требуется.
+
+После успешного завершения проверьте версию и состояние:
+
+```bash
+cat /srv/ais_uzmo/RELEASE
+bash /srv/ais_uzmo/deploy/check.sh
+```
+
+Если обновление завершилось ошибкой, не запускайте его повторно, не выполняйте
+`systemctl start`/`systemctl enable` для приложения и резервного копирования и не
+удаляйте файлы. Сохраните полный вывод, включая показанные скриптом пути к
+резервной копии и копии предыдущего исходного кода, и передайте разработчику.
+
+## Резервные копии
+
+Копии создаются автоматически около 03:30 и находятся в:
 
 ```text
-/home/ais/apps/ais_uzmo/media/
+/var/backups/ais_uzmo/daily/
 ```
 
-Пример архивации:
+Проверить расписание, включая отключённый таймер:
 
 ```bash
-tar -czf media_$(date +%Y-%m-%d).tar.gz /home/ais/apps/ais_uzmo/media
+systemctl list-timers --all ais-uzmo-backup.timer
 ```
 
-Для полноценного восстановления нужны и дамп PostgreSQL, и копия `media/`.
-
-После обновления старого проекта до версии с серверными миниатюрами фотографий запустить генерацию thumbnail-файлов для уже загруженных изображений:
+Создать копию вручную и проверить результат:
 
 ```bash
-python manage.py generate_photo_thumbnails
+systemctl start ais-uzmo-backup.service
+RESULT="$(systemctl show -p Result --value ais-uzmo-backup.service)"
+printf 'Результат: %s\n' "$RESULT"
+test "$RESULT" = success
 ```
 
-Если нужно пересоздать миниатюры заново, использовать:
+Если последняя команда завершилась ошибкой, копию не используйте и сохраните
+журнал `ais-uzmo-backup.service`. Во время копирования программа ненадолго
+останавливается.
+
+Выберите последнюю завершённую копию и проверьте её:
 
 ```bash
-python manage.py generate_photo_thumbnails --force
+BACKUP="$(find /var/backups/ais_uzmo/daily -mindepth 1 -maxdepth 1 \
+  -type d -name '????????T??????.?????????Z' | sort | tail -n 1)"
+if [ -z "$BACKUP" ] || [ ! -f "$BACKUP/COMPLETE" ]; then
+  echo 'Завершённая резервная копия не найдена.' >&2
+  exit 1
+fi
+if ! (cd "$BACKUP" && sha256sum -c SHA256SUMS); then
+  echo 'Контрольные суммы резервной копии не совпали.' >&2
+  exit 1
+fi
+printf 'Проверенная копия: %s\n' "$BACKUP"
 ```
 
-## 5. Начальные данные
+Переносить во внешнее хранилище можно только показанный каталог с `COMPLETE` и
+успешной проверкой всех строк `SHA256SUMS`. Не копируйте каталоги `.staging-*`.
+
+Локальные копии хранятся примерно 14 дней. Они содержат базу, фотографии,
+настройки порогов панели и закрытые настройки, поэтому доступ к ним должен иметь
+только ответственный администратор. Регулярно переносите копии на другой
+защищённый сервер или учтённый носитель. Вместе с копиями сохраняйте проверенный
+релизный архив, `SHA256SUMS` и `RELEASE.txt` соответствующей версии: резервная
+копия не содержит исходный код приложения.
+
+Восстановление выполняйте только по согласованному плану с разработчиком. Не
+копируйте дамп поверх работающей базы вручную и не распаковывайте `media.tar.gz`
+в работающую систему.
+
+## Изменение настроек
+
+Не редактируйте `/srv/ais_uzmo/.env` произвольно. Меняйте только конкретные строки
+по письменной инструкции разработчика или ответственного администратора.
+
+Адрес сервера, доверенная сеть, PostgreSQL, Redis и HTTPS зависят также от файлов
+в `/etc`, Nginx и сетевого экрана. Их нельзя изменить только в `.env`: требуется
+отдельный согласованный план.
+
+Перед разрешённым изменением создайте резервную копию и убедитесь, что результат
+равен `success`. После изменения выполните:
 
 ```bash
-python manage.py seed_initial_data
+systemctl restart ais_uzmo.service
+bash /srv/ais_uzmo/deploy/check.sh
 ```
 
-Команду можно запускать повторно: она не должна создавать дубликаты справочников.
+Если перезапуск или проверка завершились ошибкой, не продолжайте изменения и не
+включайте отключённые службы вручную. Сохраните вывод и обратитесь к разработчику.
 
-## 6. Изменение production-переменных
+Не отправляйте содержимое `.env` в обычной переписке и не добавляйте его в Git.
 
-Файл `.env` находится в корне проекта на сервере. После изменения `.env` перезапустить сервис:
+## Что нельзя удалять
 
-```bash
-sudo systemctl restart ais_uzmo
-```
-
-Не хранить в `.env` временный пароль руководителя после первичного создания учётной записи.
-
-## 7. Обновление Python-зависимостей
-
-Обычное обновление сервера использует уже зафиксированный `requirements.txt`:
-
-```bash
-pip install -r requirements.txt
-```
-
-Обновлять версии зависимостей должен разработчик в отдельной ветке:
-
-```bash
-pip install pip-tools
-pip-compile requirements.in --output-file=requirements.txt
-pip install -r requirements.txt
-python manage.py test --parallel 4
-```
-
-После успешной проверки обновлённые `requirements.in` и `requirements.txt` коммитятся вместе.
-
-## 8. Static/vendor
-
-Проект использует локальные vendor-файлы в `static/vendor/`. Если требуется заново скачать зафиксированные версии:
-
-```bash
-python scripts/download_vendor_static.py
-python scripts/download_bootstrap_icons.py
-```
-
-Подробности: `docs/VENDOR_STATIC.md`.
-
-## 9. Что не удалять
-
-Не удалять из проекта:
+Не удаляйте и не заменяйте без согласованного восстановления:
 
 ```text
-migrations/
-requirements.in
-requirements.txt
-.env.example
-.env.production.example
-static/vendor/
-docs/
-scripts/
-```
-
-Не хранить в Git и не передавать в релизном архиве:
-
-```text
-.env
-.venv/
-db.sqlite3
-media/
-staticfiles/
-*.log
-*.zip
+базу PostgreSQL ais_uzmo
+/srv/ais_uzmo/.env
+/srv/ais_uzmo/RELEASE
+/srv/ais_uzmo/media/
+/srv/ais_uzmo/runtime/
+/srv/ais_uzmo/.venv/
+/etc/ais_uzmo/deploy.env
+/etc/redis/ais_uzmo.conf
+/etc/nginx/sites-available/ais_uzmo
+/etc/systemd/system/ais_uzmo.service
+/etc/systemd/system/ais-uzmo-backup.service
+/etc/systemd/system/ais-uzmo-backup.timer
+/var/backups/ais_uzmo/
 ```

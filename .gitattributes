@@ -1,0 +1,9 @@
+# Files useful only in the developer workspace are omitted from release archives.
+*.sh text eol=lf
+/deploy/*.service text eol=lf
+/deploy/*.timer text eol=lf
+/deploy/*.template text eol=lf
+
+/.agents/** export-ignore
+/.claude/** export-ignore
+/.codex_tmp/** export-ignore

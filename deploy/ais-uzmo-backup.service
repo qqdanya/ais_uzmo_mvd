@@ -1,0 +1,13 @@
+[Unit]
+Description=Consistent AIS UZMO PostgreSQL and media backup
+Requires=postgresql.service
+After=postgresql.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/ais-uzmo-backup
+TimeoutStartSec=30min
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+UMask=0077

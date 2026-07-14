@@ -1,164 +1,106 @@
-# Чеклист перед развёртыванием
+# Чеклист подготовки релиза
 
-Краткий список проверок перед тестовым или боевым запуском. Подробная Linux-инструкция находится в `docs/DEPLOY_LINUX.md`, локальный запуск на Windows — в `docs/RUN_WINDOWS.md`.
+Этот документ предназначен для разработчика, который выпускает новую версию
+АИС УЗМО. Это не инструкция для выполнения команд на сервере.
 
-## 1. Окружение
+Канонические документы:
 
-- Создано виртуальное окружение `.venv`.
-- Зависимости установлены из lock-файла:
+- [`FINAL_CHECKLIST.md`](FINAL_CHECKLIST.md) — локальные и CI-проверки кода;
+- [`DEPLOY_LINUX.md`](DEPLOY_LINUX.md) — штатная установка сотрудником ИЦ;
+- [`DEPLOY_LINUX_MANUAL.md`](DEPLOY_LINUX_MANUAL.md) — ручная установка
+  Linux-администратором;
+- [`TRANSFER_TO_IC.md`](TRANSFER_TO_IC.md) — подготовка и безопасная передача
+  комплекта;
+- [`MAINTENANCE.md`](MAINTENANCE.md) — обновление и сопровождение.
 
-```bash
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-```
+## 1. Проверить готовность к выпуску
 
-- Реальный `.env` создан из `.env.production.example` и не попадает в Git.
-- Для сервера используется `DEBUG=False`.
+- Все пункты `FINAL_CHECKLIST.md` выполнены в локальном или CI-окружении.
+- Нужные изменения сохранены в Git; временных и несохранённых файлов нет.
+- Миграции для изменений моделей созданы, проверены и добавлены в коммит.
+- `requirements.txt` содержит зафиксированные версии зависимостей.
+- Изменения установщика, обновления, systemd, Nginx или production-настроек
+  согласованы между собой и отражены в канонических инструкциях.
+- Реальные секреты, базы, фотографии и локальные файлы разработчика никогда не
+  добавлялись в релизный коммит.
 
-## 2. Обязательные production-переменные
-
-```env
-SECRET_KEY=...
-DEBUG=False
-ALLOWED_HOSTS=example.ru,www.example.ru
-CSRF_TRUSTED_ORIGINS=https://example.ru,https://www.example.ru
-DATABASE_URL=postgres://uzmo_user:strong-password@127.0.0.1:5432/uzmo_db
-MEDIA_ROOT=media
-SECURE_SSL_REDIRECT=True
-SESSION_COOKIE_SECURE=True
-CSRF_COOKIE_SECURE=True
-```
-
-## 3. PostgreSQL
-
-Production должен использовать PostgreSQL через `DATABASE_URL`. SQLite подходит только для локальной разработки и тестов.
-
-Для общего кэша всех Gunicorn workers должен быть запущен Redis, а `REDIS_URL`
-в `.env` должен указывать на отдельную базу Redis, например
-`redis://127.0.0.1:6379/1`.
-
-Проверить:
-
-- база создана;
-- пользователь базы имеет права на базу и schema `public`;
-- `migrate --settings=config.settings_prod` проходит без ошибок;
-- `seed_initial_data --settings=config.settings_prod` выполнен, если нужны начальные справочники.
-
-## 4. Команды проверки
+Проверить состояние репозитория:
 
 ```bash
-python manage.py check --deploy --settings=config.settings_prod
-python manage.py makemigrations --check --dry-run --settings=config.settings_prod
-python manage.py migrate --settings=config.settings_prod
-python manage.py collectstatic --noinput --settings=config.settings_prod
-python manage.py test --parallel 4
-python scripts/refactor_static_check.py
+git diff --check
+git status --short
 ```
 
-## 5. Static и vendor-файлы
+Перед сборкой вывод `git status --short` должен быть пустым.
 
-Перед запуском обязательно выполнить:
+## 2. Зафиксировать версию
+
+1. Записать новый номер версии в `deploy/VERSION`.
+2. Сохранить все изменения одним или несколькими проверенными коммитами.
+3. Создать тег `vНОМЕР_ВЕРСИИ` на итоговом коммите.
+
+Пример для версии `1.0.0`:
 
 ```bash
-python manage.py collectstatic --noinput --settings=config.settings_prod
+git tag -a v1.0.0 -m "AIS UZMO 1.0.0"
 ```
 
-Проект использует локальные vendor-файлы в `static/vendor/`, а не CDN. Подробности в `docs/VENDOR_STATIC.md`.
+Номер в теге должен полностью совпадать с `deploy/VERSION`, а тег должен
+указывать на текущий коммит.
 
-Проверить наличие:
+## 3. Собрать комплект
 
-```text
-static/vendor/bootstrap/bootstrap.min.css
-static/vendor/bootstrap/bootstrap.bundle.min.js
-static/vendor/bootstrap-icons/bootstrap-icons.css
-static/vendor/bootstrap-icons/fonts/bootstrap-icons.woff
-static/vendor/bootstrap-icons/fonts/bootstrap-icons.woff2
-static/vendor/htmx/htmx.min.js
-static/vendor/chartjs/chart.umd.min.js
-```
-
-## 6. Media files
-
-Фотографии находятся в `MEDIA_ROOT`.
-
-Для тестового стенда media можно отдавать через Nginx напрямую. Если доступ к файлам должен строго зависеть от роли или территориального органа, безопасный production-вариант — отдавать файлы через Django-проверку прав и Nginx `X-Accel-Redirect`.
-
-## 7. HTTPS и cookies
-
-В production-настройках используются защищённые cookies:
-
-```text
-SESSION_COOKIE_SECURE=True
-CSRF_COOKIE_SECURE=True
-SECURE_SSL_REDIRECT=True
-```
-
-Поэтому для полноценного production нужен HTTPS. Если HTTPS завершается на Nginx, должен прокидываться заголовок:
-
-```text
-X-Forwarded-Proto: https
-```
-
-## 8. Файлы, которых не должно быть в релизе
-
-```text
-.env
-.env.local
-.env.prod
-db.sqlite3
-*.sqlite3
-media/
-staticfiles/
-__pycache__/
-*.pyc
-.venv/
-venv/
-env/
-.pytest_cache/
-.coverage
-htmlcov/
-*.log
-*.zip
-dashboard_thresholds.json
-dashboard_thresholds.json.tmp
-.idea/
-.vscode/
-```
-
-## 9. Dependency lock
-
-В проекте используются:
-
-```text
-requirements.in   прямые зависимости проекта
-requirements.txt  lock-файл с точными версиями, созданный через pip-compile
-```
-
-На сервере устанавливать зависимости только так:
+Из корня репозитория в Git Bash или Linux выполнить:
 
 ```bash
-pip install -r requirements.txt
+bash deploy/release.sh
 ```
 
-Для обновления lock-файла разработчик использует:
+Скрипт сам выполняет проверки Django, тесты, статический анализ и проверку
+синтаксиса файлов `deploy/*.sh`. Он остановит сборку, если проверка не прошла,
+рабочая папка не чистая, версия не совпадает с тегом, тег указывает не на текущий
+коммит или в архив попал запрещённый файл.
+Не заменяйте эту проверку ручным списком исключений и не собирайте архив через
+проводник.
+
+Базовый комплект текущей версии в каталоге `dist` состоит из трёх файлов:
+
+```text
+ais_uzmo-НОМЕР_ВЕРСИИ.tar.gz
+SHA256SUMS
+RELEASE.txt
+```
+
+Если для закрытой сети отдельно подготовлен `wheelhouse`, он передаётся как
+дополнительный проверенный комплект и не заменяет эти три файла.
+
+## 4. Проверить готовый комплект
+
+В каталоге `dist` выполнить:
 
 ```bash
-pip install pip-tools
-pip-compile requirements.in --output-file=requirements.txt
-pip install -r requirements.txt
-python manage.py test --parallel 4
+sha256sum -c SHA256SUMS
 ```
 
+Проверка должна завершиться сообщением `OK`. Дополнительно убедиться, что:
 
-## 10. Smoke-test в браузере
+- версия, коммит и имя архива в `RELEASE.txt` верны;
+- внутри архива есть `apps`, `config`, `deploy`, `static`, `templates`,
+  `manage.py`, `requirements.txt` и канонические инструкции;
+- архив не изменялся после создания `SHA256SUMS`.
 
-После запуска пройти `docs/QA_CHECKLIST.md`. Минимально проверить:
+## 5. Передать комплект
 
-1. Вход под руководителем.
-2. `/control/` и основные разделы административной панели.
-3. Создание и редактирование заявки.
-4. Прикрепление фотографий к заявке.
-5. Экспорт данных.
-6. Журнал действий.
-7. Доступы оператора и наблюдателя.
-8. `/admin/` доступен только уполномоченному пользователю.
+- Передавать все три файла вместе только согласованным защищённым способом.
+- Контрольную сумму подтвердить независимым согласованным каналом либо принятой
+  в организации электронной подписью.
+- Не передавать каталог `.git`, рабочую папку разработчика или доступ к личному
+  репозиторию вместо релизного комплекта.
+- Не добавлять к исходникам рабочую базу, фотографии, `.env`, пароли, ключи или
+  сертификаты. Если перенос данных действительно нужен, он оформляется
+  отдельным защищённым комплектом по `TRANSFER_TO_IC.md`.
+- Зафиксировать номер версии, имя архива, SHA-256, дату, получателя и способ
+  передачи.
+
+После установки техническая и браузерная приёмка проводится по
+[`QA_CHECKLIST.md`](QA_CHECKLIST.md).

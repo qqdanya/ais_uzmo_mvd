@@ -11,6 +11,11 @@ env/
 __pycache__/
 *.py[cod]
 *.sqlite3
+*.sqlite
+*.db
+*.sqlite3-*
+*-wal
+*-shm
 db.sqlite3
 staticfiles/
 media/
@@ -18,12 +23,16 @@ media/
 # Local IDE / OS
 .vscode/
 .idea/
+.agents/
+.codex_tmp/
+.claude/settings.local.json
 .DS_Store
 Thumbs.db
 
 # Local runtime settings
 dashboard_thresholds.json
 dashboard_thresholds.json.tmp
+runtime/
 
 # Test / coverage
 .pytest_cache/
@@ -35,3 +44,23 @@ htmlcov/
 *.log
 logs/
 *.zip
+*.tar.gz
+*.tgz
+*.7z
+*.rar
+*.sql
+*.dump
+*.bak
+SHA256SUMS
+release/
+dist/
+wheelhouse/
+
+# Deployment secrets and private keys
+deploy/install.env
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*

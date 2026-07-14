@@ -1,8 +1,13 @@
 # Запуск проекта на Windows
 
-Эта инструкция предназначена для локальной проверки, разработки или демонстрационного запуска на рабочей станции Windows.
+Эта инструкция предназначена только для локальной проверки, разработки или
+демонстрационного запуска на рабочей станции Windows. `runserver` открывается по
+HTTP на локальном адресе и не должен быть доступен из внешней сети.
 
-Для боевого режима рекомендуется Linux-сервер с PostgreSQL, Gunicorn, Nginx и HTTPS. См. `docs/DEPLOY_LINUX.md`.
+Для серверного запуска используйте `docs/DEPLOY_LINUX.md`. Штатный комплект
+развёртывания использует HTTP только внутри утверждённой закрытой сети. Если в
+целевом контуре обязателен HTTPS, нужен отдельно подготовленный и проверенный
+комплект конфигурации; локальная Windows-инструкция его не заменяет.
 
 ## 1. Требования
 
@@ -40,8 +45,7 @@ python -m venv .venv
 ## 4. Установка зависимостей
 
 ```powershell
-python -m pip install --upgrade pip
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 
 `requirements.txt` — зафиксированный lock-файл. Для обычной установки не нужно запускать `pip-compile`.
@@ -97,24 +101,61 @@ http://127.0.0.1:8000/
 
 ## 9. Локальный запуск с PostgreSQL на Windows
 
-Создать базу и пользователя в PostgreSQL, затем указать в `.env`:
+Этот вариант нужен, когда требуется проверить именно PostgreSQL. Миграциям
+PostgreSQL требуется расширение `pg_trgm`.
 
-```env
-DATABASE_URL=postgres://uzmo_user:strong-password@127.0.0.1:5432/uzmo_db
+Откройте установленную вместе с PostgreSQL программу **SQL Shell (psql)**,
+подключитесь пользователем `postgres` и один раз выполните:
+
+```sql
+CREATE ROLE ais_uzmo_local LOGIN PASSWORD 'local-app-change-me';
+CREATE DATABASE ais_uzmo_local OWNER ais_uzmo_local;
+\connect ais_uzmo_local
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+\connect postgres
+CREATE ROLE ais_uzmo_test LOGIN PASSWORD 'local-test-change-me' CREATEDB;
+CREATE DATABASE ais_uzmo_test OWNER ais_uzmo_test;
+\connect ais_uzmo_test
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
 ```
 
-После изменения базы выполнить:
+`ais_uzmo_local` используется приложением и не получает право создавать базы.
+Отдельная роль `ais_uzmo_test` имеет `CREATEDB`, потому что Django создаёт и
+удаляет временные базы во время тестов. Эти пароли предназначены только для
+локального компьютера; замените их и не используйте в рабочем контуре.
+
+Для запуска приложения укажите в `.env`:
+
+```env
+DATABASE_URL=postgresql://ais_uzmo_local:local-app-change-me@127.0.0.1:5432/ais_uzmo_local
+```
+
+Подготовьте базу и запустите приложение:
 
 ```powershell
 python manage.py migrate
 python manage.py seed_initial_data
-python manage.py test --parallel 4
 python manage.py runserver 127.0.0.1:8000
 ```
 
+Для отдельной проверки тестов на PostgreSQL временно задайте подключение тестовой
+роли только в текущем окне PowerShell:
+
+```powershell
+$env:DATABASE_URL = "postgresql://ais_uzmo_test:local-test-change-me@127.0.0.1:5432/ais_uzmo_test"
+python manage.py test --parallel 4
+Remove-Item Env:DATABASE_URL
+```
+
+Если тесты были прерваны, всё равно удалите переменную командой
+`Remove-Item Env:DATABASE_URL`, прежде чем снова запускать приложение.
+
 ## 10. Важно
 
-`runserver` предназначен только для локальной проверки. Не использовать его как production-сервер.
+`runserver` предназначен только для локальной проверки по HTTP. Не используйте
+его как production-сервер и не публикуйте порт `8000` в локальной или внешней
+сети.
 
 Не коммитить и не передавать:
 
@@ -123,5 +164,9 @@ python manage.py runserver 127.0.0.1:8000
 .venv/
 db.sqlite3
 media/
+runtime/
+dashboard_thresholds.json
+dashboard_thresholds.json.tmp
+logs/
 staticfiles/
 ```

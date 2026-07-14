@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily AIS UZMO backup
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+RandomizedDelaySec=10m
+Persistent=true
+Unit=ais-uzmo-backup.service
+
+[Install]
+WantedBy=timers.target
