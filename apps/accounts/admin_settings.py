@@ -56,12 +56,16 @@ def build_settings_context(values=None, errors=None):
 def handle_settings_post(request):
     old_values = get_dashboard_thresholds()
     if "reset" in request.POST:
+        defaults = default_thresholds()
+        if old_values == defaults:
+            messages.info(request, "Пороговые значения уже установлены по умолчанию.")
+            return None
         reset_dashboard_thresholds()
         write_audit(
             AuditLog.Action.UPDATE,
             user=request.user,
             old_values=old_values,
-            new_values={"audit_event": AuditLog.EventType.SETTINGS_RESET, **default_thresholds()},
+            new_values={"audit_event": AuditLog.EventType.SETTINGS_RESET, **defaults},
             request=request,
         )
         messages.success(request, "Пороговые значения возвращены к значениям по умолчанию.")
@@ -85,6 +89,10 @@ def handle_settings_post(request):
     if errors:
         messages.error(request, "Проверьте значения настроек.")
         return build_settings_context(values, errors)
+
+    if values == old_values:
+        messages.info(request, "Пороговые значения не изменились.")
+        return None
 
     save_dashboard_thresholds(values)
     write_audit(

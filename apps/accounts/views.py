@@ -4,6 +4,7 @@ from functools import wraps
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.views import PasswordChangeView
 from django.core.cache import cache
 from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse, JsonResponse
@@ -42,6 +43,20 @@ from .forms import AccountActivationForm
 from .models import UserProfile
 
 
+class AuditedPasswordChangeView(PasswordChangeView):
+    template_name = "registration/password_change_form.html"
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        write_audit(
+            AuditLog.Action.UPDATE,
+            self.request.user,
+            new_values={"audit_event": AuditLog.EventType.PASSWORD_CHANGED},
+            request=self.request,
+        )
+        return response
+
+
 def activate_account(request):
     form = AccountActivationForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
@@ -50,7 +65,11 @@ def activate_account(request):
             AuditLog.Action.UPDATE,
             user,
             user=user,
-            new_values={"audit_event": AuditLog.EventType.ACCOUNT_ACTIVATED, "username": user.username},
+            old_values={"activation_status": "needs_activation"},
+            new_values={
+                "audit_event": AuditLog.EventType.ACCOUNT_ACTIVATED,
+                "activation_status": "activated",
+            },
             request=request,
         )
         messages.success(request, "Учётная запись активирована. Теперь можно войти в систему.")

@@ -27,7 +27,26 @@ SYSTEM_FIELD_NAMES = {
     "deleted_file_names",
     "deleted_file_names_truncated",
     "request_photo_link_count",
+    "photo_items",
+    "normalized_name",
 }
+
+# Employee and control-panel administration is intentionally visible only in
+# the full administrator journal.  Keep this list in one place so that the
+# queryset scope and the event-type filter cannot drift apart.
+ADMIN_ONLY_EVENT_TYPES = {
+    AuditLog.EventType.EMPLOYEE_CREATED,
+    AuditLog.EventType.EMPLOYEE_PERMISSIONS,
+    AuditLog.EventType.EMPLOYEE_BLOCKED,
+    AuditLog.EventType.EMPLOYEE_UNBLOCKED,
+    AuditLog.EventType.EMPLOYEE_ACTIVATION_RESET,
+    AuditLog.EventType.EMPLOYEE_DELETED,
+    AuditLog.EventType.ACCOUNT_ACTIVATED,
+    AuditLog.EventType.PASSWORD_CHANGED,
+    AuditLog.EventType.SETTINGS_UPDATED,
+    AuditLog.EventType.SETTINGS_RESET,
+}
+ADMIN_ONLY_MODEL_NAMES = {"User"}
 MODEL_HIDDEN_FIELD_NAMES = {
     "TerritorialOrganPhoto": {"created_department"},
     "TerritorialOrganPhotoFolder": {"created_department"},
@@ -50,6 +69,7 @@ EVENT_BADGES = {
     AuditLog.EventType.RECORD_CREATED: "audit-event-create",
     AuditLog.EventType.RECORD_UPDATED: "audit-event-update",
     AuditLog.EventType.MOVED_TO_TRASH: "audit-event-trash",
+    AuditLog.EventType.RECORD_PURGED: "audit-event-purge",
     AuditLog.EventType.REQUEST_RESTORED: "audit-event-restore",
     AuditLog.EventType.PHOTO_RESTORED: "audit-event-restore",
     AuditLog.EventType.FOLDER_RESTORED: "audit-event-restore",
@@ -64,7 +84,9 @@ EVENT_BADGES = {
     AuditLog.EventType.EMPLOYEE_ACTIVATION_RESET: "audit-event-access",
     AuditLog.EventType.SETTINGS_UPDATED: "audit-event-access",
     AuditLog.EventType.SETTINGS_RESET: "audit-event-access",
+    AuditLog.EventType.PASSWORD_CHANGED: "audit-event-access",
     AuditLog.EventType.TABLE_EXPORTED: "audit-event-export",
+    AuditLog.EventType.PHOTO_DOWNLOADED: "audit-event-export",
     AuditLog.EventType.PHOTO_ARCHIVE_DOWNLOADED: "audit-event-export",
     AuditLog.EventType.LOGIN: "audit-event-login",
     AuditLog.EventType.LOGOUT: "audit-event-logout",
@@ -80,6 +102,7 @@ OBJECT_FILTERS = (
 )
 OBJECT_MODEL_NAMES = {key: set(models) for key, _, models in OBJECT_FILTERS}
 AUDIT_EVENT_SUMMARIES = {
+    "record_permanently_deleted": "Запись удалена без возможности восстановления",
     "request_status_changed": "Изменён статус заявки",
     "request_photos_attached": "Прикреплены фотографии к заявке",
     "request_photos_detached": "Откреплены фотографии от заявки",
@@ -101,7 +124,9 @@ AUDIT_EVENT_SUMMARIES = {
     "account_activated": "Учётная запись активирована",
     "settings_updated": "Изменены настройки контроля",
     "settings_reset": "Настройки контроля сброшены",
+    "password_changed": "Пользователь изменил пароль",
     "table_exported": "Таблица экспортирована",
+    "photo_downloaded": "Скачана фотография",
     "photo_archive_downloaded": "Скачан архив фотографий",
     "personal_trash_item_removed": "Объект убран из личной корзины",
     "personal_trash_cleared": "Личная корзина очищена",

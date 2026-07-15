@@ -17,6 +17,7 @@ from apps.directory.models import Department, TerritorialOrganPhoto, Territorial
 from apps.requests_app.models import RequestPhotoLink
 from apps.requests_app.permissions import can_manage_photo_asset, can_write, cached_allowed_department_ids, cached_allowed_organ_ids
 from apps.requests_app.registry import TABLE_BY_KEY, get_table_or_404
+from apps.requests_app.services.request_photos import photo_snapshot_for_audit
 from apps.requests_app.services.request_numbers import request_number_conflict, sync_request_number_registry
 
 from .admin_common import DEPARTMENT_ICONS, field_value, request_number, request_title
@@ -528,6 +529,12 @@ def restore_folder_tree(request, pk):
 
     folder_ids = _deleted_folder_descendant_ids(folder)
     old_values = serialize_instance(folder)
+    restored_photos = TerritorialOrganPhoto.objects.filter(
+        territorial_organ=folder.territorial_organ,
+        folder_id__in=folder_ids,
+        is_deleted=True,
+    )
+    photo_snapshot = photo_snapshot_for_audit(photos=restored_photos)
     try:
         with transaction.atomic():
             now = timezone.now()
@@ -539,7 +546,12 @@ def restore_folder_tree(request, pk):
                 AuditLog.Action.UPDATE,
                 folder,
                 old_values=old_values,
-                new_values={"audit_event": "photo_folder_tree_restored_from_trash", "restored_folder_ids": folder_ids, **serialize_instance(folder)},
+                new_values={
+                    "audit_event": "photo_folder_tree_restored_from_trash",
+                    "restored_folder_ids": folder_ids,
+                    **photo_snapshot,
+                    **serialize_instance(folder),
+                },
                 request=request,
             )
     except IntegrityError:
@@ -597,6 +609,7 @@ def permanently_delete_folder_tree(request, pk):
 
     photos = list(photos_qs.filter(is_deleted=True))
     old_values = serialize_instance(folder)
+    photo_snapshot = photo_snapshot_for_audit(photos=photos_qs.filter(is_deleted=True))
     file_names = [photo.image.name for photo in photos if photo.image]
     with transaction.atomic():
         write_audit(
@@ -606,7 +619,7 @@ def permanently_delete_folder_tree(request, pk):
             new_values={
                 "audit_event": "photo_folder_tree_permanently_deleted",
                 "folder_ids": folder_ids,
-                "photo_count": len(photos),
+                **photo_snapshot,
                 "deleted_file_names": file_names[:30],
                 "deleted_file_names_truncated": len(file_names) > 30,
             },

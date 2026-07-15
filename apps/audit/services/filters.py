@@ -8,11 +8,13 @@ from apps.directory.models import Department, TerritorialOrgan
 
 from apps.audit.models import AuditLog
 from .constants import (
+    ADMIN_ONLY_EVENT_TYPES,
+    ADMIN_ONLY_MODEL_NAMES,
+    FOLDER_OBJECT_MODELS,
     MODEL_TABLES,
     OBJECT_FILTERS,
     OBJECT_MODEL_NAMES,
     PHOTO_OBJECT_MODELS,
-    FOLDER_OBJECT_MODELS,
 )
 
 
@@ -122,6 +124,7 @@ def audit_department_q(department_slugs):
 def scope_logs_for_user(logs, user):
     if is_admin(user):
         return logs
+    logs = logs.exclude(Q(event_type__in=ADMIN_ONLY_EVENT_TYPES) | Q(model_name__in=ADMIN_ONLY_MODEL_NAMES))
     scoped_users = scoped_user_queryset(user)
     department_slugs = profile_department_slugs(user)
     organ_ids = profile_organ_ids(user)

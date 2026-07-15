@@ -4,7 +4,7 @@ from django.urls import reverse
 
 from apps.audit.models import AuditLog
 from apps.directory.models import Department
-from .constants import ACTION_DISPLAY_LABELS, OBJECT_FILTERS
+from .constants import ACTION_DISPLAY_LABELS, ADMIN_ONLY_EVENT_TYPES, OBJECT_FILTERS
 from .display import prepare_log, user_display_name
 from .filters import (
     audit_default_date_from,
@@ -14,6 +14,7 @@ from .filters import (
     audit_has_filters,
     audit_multiselect_label,
     audit_pagination_fields,
+    is_admin,
     scoped_department_options,
     scoped_organ_queryset,
     scoped_user_queryset,
@@ -49,7 +50,11 @@ def audit_context(
 ):
     users = list(scoped_user_queryset(request.user))
     actions = [(value, ACTION_DISPLAY_LABELS.get(value, label)) for value, label in AuditLog.Action.choices]
-    event_types = list(AuditLog.EventType.choices)
+    event_types = [
+        choice
+        for choice in AuditLog.EventType.choices
+        if is_admin(request.user) or choice[0] not in ADMIN_ONLY_EVENT_TYPES
+    ]
     organs = list(scoped_organ_queryset(request.user))
     department_filters = scoped_department_options(request.user)
     object_filters = [(key, label) for key, label, _ in OBJECT_FILTERS]
@@ -73,7 +78,10 @@ def audit_context(
     all_time_params["date_to"] = ""
     selected_users = audit_filter_values(request, "user") if show_user_filter else []
     selected_actions = audit_filter_values(request, "action")
-    selected_event_types = audit_filter_values(request, "event_type")
+    visible_event_types = {value for value, _label in event_types}
+    selected_event_types = [
+        value for value in audit_filter_values(request, "event_type") if value in visible_event_types
+    ]
     selected_departments = audit_filter_values(request, "department") if show_department_filter else []
     selected_objects = audit_filter_values(request, "object")
     selected_organs = audit_filter_values(request, "organ")

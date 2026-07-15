@@ -45,7 +45,43 @@
     </div>
   {% endif %}
 
-  {% if log.is_object_action and log.change_rows %}
+  {% if log.photo_previews %}
+    <div class="audit-detail-section" data-lightbox-scope>
+      <h3>{{ log.photo_preview_title }}</h3>
+      <div class="request-photo-thumbnails" aria-label="{{ log.photo_preview_title }}">
+        {% for item in log.photo_previews %}
+          {% if item.photo %}
+            <button
+              class="request-photo-thumbnail"
+              type="button"
+              data-lightbox-photo
+              data-lightbox-group="audit-log-{{ log.pk }}"
+              data-src="{% url 'photo_preview' item.photo.territorial_organ_id item.photo.pk %}"
+              data-download-url="{% if item.photo.is_deleted %}{% url 'photo_preview' item.photo.territorial_organ_id item.photo.pk %}{% else %}{% url 'photo_download' item.photo.territorial_organ_id item.photo.pk %}{% endif %}"
+              data-description="{{ item.photo.description|default:item.name }}"
+              data-meta="{{ item.photo.created_at|date:'d.m.Y H:i' }} · {{ item.photo.created_by|display_name }}"
+              aria-label="Открыть фотографию {{ item.name }}"
+              title="{{ item.name }}"
+            >
+              <img src="{% url 'photo_thumbnail' item.photo.territorial_organ_id item.photo.pk 'small' %}" alt="{{ item.photo.description|default:item.name }}" loading="lazy" decoding="async">
+            </button>
+          {% else %}
+            <span class="request-photo-thumbnail audit-photo-thumbnail-unavailable" aria-label="{{ item.name }} — фотография недоступна" title="{{ item.name }} — фотография недоступна">
+              <i class="bi bi-image" aria-hidden="true"></i>
+              <span class="audit-photo-thumbnail-name">{{ item.name }}</span>
+            </span>
+          {% endif %}
+        {% endfor %}
+        {% if log.photo_preview_extra_count %}
+          <span class="request-photo-thumbnail request-photo-thumbnail-more" aria-label="Ещё {{ log.photo_preview_extra_count }} фотографий">
+            +{{ log.photo_preview_extra_count }}
+          </span>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+
+  {% if log.change_rows and not log.photo_previews_replace_changes %}
     <div class="audit-detail-section">
       <h3>{% if log.action == "update" %}Изменённые поля{% elif log.action == "delete" %}Данные до удаления{% else %}Заполненные параметры{% endif %}</h3>
       <div class="audit-change-list">
@@ -54,9 +90,15 @@
             <div class="audit-change-field">{{ row.label }}</div>
             {% if log.action == "update" %}
               <div class="audit-change-values">
-                <span>{{ row.old }}</span>
-                <i class="bi bi-arrow-right"></i>
-                <strong>{{ row.new }}</strong>
+                {% if row.one_sided_value == "new" %}
+                  <strong>{{ row.new }}</strong>
+                {% elif row.one_sided_value == "old" %}
+                  <span>{{ row.old }}</span>
+                {% else %}
+                  <span>{{ row.old }}</span>
+                  <i class="bi bi-arrow-right"></i>
+                  <strong>{{ row.new }}</strong>
+                {% endif %}
               </div>
             {% elif log.action == "delete" %}
               <div class="audit-change-values"><span>{{ row.old }}</span></div>

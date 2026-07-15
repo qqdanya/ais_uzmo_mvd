@@ -7,8 +7,10 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date, parse_datetime
 from django.utils.text import capfirst
 
-from apps.directory.models import Department
+from apps.accounts.models import UserProfile
+from apps.directory.models import Department, TerritorialOrganPhoto
 from apps.requests_app.models import RequestStatusHistory
+from apps.requests_app.permissions import can_preview_photo_asset
 
 from apps.audit.models import AuditLog
 from .constants import (
@@ -20,6 +22,43 @@ from .constants import (
     MODEL_TABLES,
     SYSTEM_FIELD_NAMES,
 )
+
+
+AUDIT_FIELD_LABELS = {
+    "username": "Логин",
+    "middle_name": "Отчество",
+    "role": "Роль в системе",
+    "allowed_departments": "Доступные отделы",
+    "allowed_organs": "Доступные территориальные органы",
+    "is_active": "Вход разрешён",
+    "is_staff": "Доступ к стандартной админ-панели",
+    "is_superuser": "Полные права Django",
+    "activation_status": "Состояние активации",
+    "password_changed": "Пароль изменён",
+    "django_groups": "Группы доступа Django",
+    "django_permissions": "Дополнительные права Django",
+    "request_stale_workdays": "Просроченные заявки, рабочих дней",
+    "asset_stale_days": "Устаревшие сведения материальной базы, календарных дней",
+}
+
+LEGACY_EMPLOYEE_UPDATE_EVENTS = {
+    AuditLog.EventType.EMPLOYEE_PERMISSIONS,
+    AuditLog.EventType.EMPLOYEE_BLOCKED,
+    AuditLog.EventType.EMPLOYEE_UNBLOCKED,
+    AuditLog.EventType.EMPLOYEE_ACTIVATION_RESET,
+    AuditLog.EventType.ACCOUNT_ACTIVATED,
+}
+AUDIT_PHOTO_PREVIEW_LIMIT = 24
+TMC_ONE_SIDED_EVENTS = {
+    AuditLog.EventType.TMC_ITEM_ADDED: "new",
+    AuditLog.EventType.TMC_ITEM_REMOVED: "old",
+}
+EXPORT_GROUP_MODE_LABELS = {
+    "requests": "По заявкам",
+    "products": "По товарам",
+    "organs": "По территориальным органам",
+    "dates": "По датам",
+}
 
 
 def model_class(model_name):
@@ -120,6 +159,10 @@ def audit_object_repr(log):
 
 
 def field_label(model_name, field_name):
+    if field_name in AUDIT_FIELD_LABELS:
+        return AUDIT_FIELD_LABELS[field_name]
+    if field_name == "photos":
+        return "Прикрепленные фотографии"
     if field_name == "items":
         return "Сведения о потребности ТМЦ"
     model = model_class(model_name)
@@ -134,6 +177,20 @@ def field_label(model_name, field_name):
 def field_display_value(model_name, field_name, value, related_value_cache=None):
     if value in (None, "", "None", "null"):
         return "Не указано"
+    if field_name == "role":
+        return str(dict(UserProfile.Role.choices).get(str(value), value))
+    if field_name == "activation_status":
+        return {
+            "activated": "Активирована",
+            "needs_activation": "Ожидает активации",
+            "new_activation_code": "Ожидает активации по новому коду",
+        }.get(str(value), str(value))
+    if field_name == "allowed_departments" and isinstance(value, list):
+        return ", ".join(str(item) for item in value) or "Отделы не выбраны"
+    if field_name == "allowed_organs" and isinstance(value, list):
+        return ", ".join(str(item) for item in value) or "Территориальные органы не выбраны"
+    if field_name in {"django_groups", "django_permissions"} and isinstance(value, list):
+        return ", ".join(str(item) for item in value) or "Не назначены"
     model = model_class(model_name)
     field = None
     if model:
@@ -214,6 +271,14 @@ def user_agent_summary(value):
     return f"{browser} / {os_name}"
 
 
+def event_detail_value(key, value):
+    if key == "format":
+        return str(value).upper()
+    if key == "group_mode":
+        return EXPORT_GROUP_MODE_LABELS.get(str(value), value)
+    return value
+
+
 def relevant_keys(log):
     old_values = log.old_values or {}
     new_values = log.new_values or {}
@@ -229,6 +294,12 @@ def audit_changes(log, related_value_cache=None):
     for key in relevant_keys(log):
         old_raw = old_values.get(key)
         new_raw = new_values.get(key)
+        if key == "username" and log.event_type in LEGACY_EMPLOYEE_UPDATE_EVENTS:
+            if old_raw in (None, "", "None") and new_raw not in (None, "", "None"):
+                continue
+        if key == "username" and log.event_type == AuditLog.EventType.EMPLOYEE_DELETED:
+            if old_raw in (None, "", "None") and new_raw not in (None, "", "None"):
+                old_raw = new_raw
         if log.action == AuditLog.Action.UPDATE and str(old_raw) == str(new_raw):
             continue
         if log.action == AuditLog.Action.CREATE and new_raw in (None, "", "None"):
@@ -239,6 +310,7 @@ def audit_changes(log, related_value_cache=None):
                 "label": field_label(log.model_name, key),
                 "old": field_display_value(log.model_name, key, old_raw, related_value_cache),
                 "new": field_display_value(log.model_name, key, new_raw, related_value_cache),
+                "one_sided_value": TMC_ONE_SIDED_EVENTS.get(log.event_type) if key == "items" else "",
             }
         )
     return rows
@@ -341,7 +413,124 @@ def audit_status_history(log):
     )
 
 
-def prepare_log(log, *, include_status_history=True, department_names=None, related_value_cache=None):
+def audit_photo_snapshot(log):
+    old_values = log.old_values if isinstance(log.old_values, dict) else {}
+    new_values = log.new_values if isinstance(log.new_values, dict) else {}
+    if log.event_type == AuditLog.EventType.PHOTOS_ATTACHED:
+        values = new_values
+    elif log.event_type == AuditLog.EventType.PHOTOS_DETACHED:
+        values = old_values
+    else:
+        values = next(
+            (item for item in (new_values, old_values) if isinstance(item.get("photo_items"), list)),
+            None,
+        )
+
+    if values is not None:
+        raw_items = values.get("photo_items")
+        if isinstance(raw_items, list):
+            try:
+                photo_count = max(int(values.get("photo_count", len(raw_items))), len(raw_items))
+            except (TypeError, ValueError):
+                photo_count = len(raw_items)
+            return raw_items, True, photo_count
+        if log.event_type in {AuditLog.EventType.PHOTOS_ATTACHED, AuditLog.EventType.PHOTOS_DETACHED}:
+            names = [name.strip() for name in str(values.get("photos") or "").split(", ") if name.strip()]
+            return [{"id": None, "name": name} for name in names], False, len(names)
+
+    if log.model_name != "TerritorialOrganPhoto":
+        return [], False, 0
+    try:
+        photo_id = int(log.object_id)
+    except (TypeError, ValueError):
+        return [], True, 0
+    name = first_present_value(
+        new_values.get("original_filename"),
+        old_values.get("original_filename"),
+        new_values.get("image"),
+        old_values.get("image"),
+    )
+    return [{"id": photo_id, "name": Path(str(name)).name or "Фотография"}], True, 1
+
+
+def audit_photo_previews(log, viewer):
+    if not log.territorial_organ_id:
+        return [], 0
+    raw_items, has_structured_snapshot, photo_count = audit_photo_snapshot(log)
+    snapshots = []
+    if has_structured_snapshot:
+        for item in raw_items:
+            if not isinstance(item, dict):
+                continue
+            try:
+                photo_id = int(item.get("id"))
+            except (TypeError, ValueError):
+                continue
+            snapshots.append({"id": photo_id, "name": str(item.get("name") or "Фотография")})
+    else:
+        snapshots = raw_items
+    snapshots = snapshots[:AUDIT_PHOTO_PREVIEW_LIMIT]
+    if not snapshots:
+        return [], photo_count
+
+    photos = TerritorialOrganPhoto.objects.select_related("folder", "created_by", "created_by__profile").filter(
+        territorial_organ_id=log.territorial_organ_id
+    )
+    if has_structured_snapshot:
+        photos_by_id = {photo.pk: photo for photo in photos.filter(pk__in=[item["id"] for item in snapshots])}
+    else:
+        photos_by_name = {}
+        for photo in photos.filter(original_filename__in=[item["name"] for item in snapshots]):
+            photos_by_name.setdefault(photo.original_filename, []).append(photo)
+        if any(len(photos_by_name.get(item["name"], [])) != 1 for item in snapshots):
+            return [], photo_count
+
+    previews = []
+    for item in snapshots:
+        photo = photos_by_id.get(item["id"]) if has_structured_snapshot else photos_by_name[item["name"]][0]
+        if photo and not can_preview_photo_asset(viewer, log.territorial_organ, photo):
+            if not has_structured_snapshot:
+                return [], photo_count
+            photo = None
+        previews.append({**item, "photo": photo})
+    return previews, photo_count
+
+
+def audit_photo_preview_title(log):
+    if log.event_type == AuditLog.EventType.PHOTOS_ATTACHED:
+        return "Прикрепленные фотографии"
+    if log.event_type == AuditLog.EventType.PHOTOS_DETACHED:
+        return "Открепленные фотографии"
+    if log.event_type == AuditLog.EventType.PHOTO_RESTORED:
+        return "Восстановленная фотография"
+    if log.event_type == AuditLog.EventType.PHOTO_PURGED:
+        return "Удалённая фотография"
+    if log.event_type == AuditLog.EventType.FOLDER_RESTORED:
+        return "Восстановленные фотографии"
+    if log.event_type == AuditLog.EventType.FOLDER_PURGED:
+        return "Удалённые фотографии"
+    if log.event_type == AuditLog.EventType.PHOTO_DOWNLOADED:
+        return "Скачанная фотография"
+    if log.event_type == AuditLog.EventType.PHOTO_ARCHIVE_DOWNLOADED:
+        return "Фотографии в архиве"
+    if log.model_name == "TerritorialOrganPhoto":
+        if log.action == AuditLog.Action.CREATE:
+            return "Созданная фотография"
+        if log.action == AuditLog.Action.DELETE:
+            return "Удалённая фотография"
+        return "Фотография"
+    return "Фотографии в папке"
+
+
+def prepare_log(
+    log,
+    *,
+    include_status_history=True,
+    include_photo_previews=False,
+    viewer=None,
+    department_names=None,
+    related_value_cache=None,
+):
     log.action_badge = EVENT_BADGES.get(log.event_type, ACTION_BADGES.get(log.action, "audit-action-default"))
     log.action_display = ACTION_DISPLAY_LABELS.get(log.action, log.get_action_display())
     log.model_title = model_title(log.model_name)
@@ -363,12 +552,13 @@ def prepare_log(log, *, include_status_history=True, department_names=None, rela
         "format": "Формат",
         "table_title": "Таблица",
         "organ_count": "Территориальных органов",
+        "group_mode": "Группировка",
         "photo_count": "Фотографий",
         "object_count": "Объектов",
         "request_photo_link_count": "Связей с заявками",
     }
     log.event_details = [
-        (label, str(values[key]).upper() if key == "format" else values[key])
+        (label, event_detail_value(key, values[key]))
         for key, label in detail_labels.items()
         if values.get(key) not in (None, "")
     ]
@@ -378,6 +568,16 @@ def prepare_log(log, *, include_status_history=True, department_names=None, rela
     log.show_territorial_organ = log.is_object_action and log.territorial_organ_id
     log.location_parts = audit_location(log, department_names)
     log.status_history = audit_status_history(log) if include_status_history else []
+    photo_previews, photo_preview_count = (
+        audit_photo_previews(log, viewer) if include_photo_previews and viewer else ([], 0)
+    )
+    log.photo_preview_extra_count = max(photo_preview_count - len(photo_previews), 0)
+    log.photo_previews = photo_previews
+    log.photo_previews_replace_changes = bool(log.photo_previews) and log.event_type in {
+        AuditLog.EventType.PHOTOS_ATTACHED,
+        AuditLog.EventType.PHOTOS_DETACHED,
+    }
+    log.photo_preview_title = audit_photo_preview_title(log) if log.photo_previews else ""
     return log
 
 

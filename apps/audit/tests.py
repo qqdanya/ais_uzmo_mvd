@@ -16,6 +16,19 @@ from .utils import write_audit
 
 
 class AuditLogTests(TestCase):
+    ADMIN_ONLY_EVENT_TYPES = (
+        AuditLog.EventType.EMPLOYEE_CREATED,
+        AuditLog.EventType.EMPLOYEE_PERMISSIONS,
+        AuditLog.EventType.EMPLOYEE_BLOCKED,
+        AuditLog.EventType.EMPLOYEE_UNBLOCKED,
+        AuditLog.EventType.EMPLOYEE_ACTIVATION_RESET,
+        AuditLog.EventType.EMPLOYEE_DELETED,
+        AuditLog.EventType.ACCOUNT_ACTIVATED,
+        AuditLog.EventType.PASSWORD_CHANGED,
+        AuditLog.EventType.SETTINGS_UPDATED,
+        AuditLog.EventType.SETTINGS_RESET,
+    )
+
     def test_field_values_respect_model_field_types(self):
         self.assertEqual(
             field_display_value("TmcRequest", "request_date", "2026-07-01T00:00:00"),
@@ -258,6 +271,170 @@ class AuditLogTests(TestCase):
         self.assertContains(response, "Сведения о браузере")
         self.assertNotContains(response, "ID: 10")
 
+    def test_employee_role_change_detail_has_complete_old_and_new_values(self):
+        log = self.create_log(
+            event_type=AuditLog.EventType.EMPLOYEE_PERMISSIONS,
+            model_name="User",
+            object_repr="Петрова Анна",
+            old_values={"role": UserProfile.Role.OPERATOR},
+            new_values={
+                "audit_event": AuditLog.EventType.EMPLOYEE_PERMISSIONS,
+                "role": UserProfile.Role.ADMIN,
+            },
+            territorial_organ=None,
+        )
+        self.client.login(username="admin", password="pass12345")
+
+        response = self.client.get(reverse("audit_detail", args=[log.pk]), HTTP_HX_REQUEST="true")
+
+        self.assertContains(response, "Роль в системе")
+        self.assertContains(response, "Оператор")
+        self.assertContains(response, "Администратор")
+        self.assertNotContains(response, "Не указано")
+        self.assertNotContains(response, "Имя пользователя")
+
+    def test_legacy_employee_event_hides_false_missing_username_change(self):
+        log = self.create_log(
+            event_type=AuditLog.EventType.EMPLOYEE_PERMISSIONS,
+            model_name="User",
+            object_repr="Петрова Анна",
+            old_values=None,
+            new_values={
+                "audit_event": AuditLog.EventType.EMPLOYEE_PERMISSIONS,
+                "username": "petrova",
+            },
+            territorial_organ=None,
+        )
+        self.client.login(username="admin", password="pass12345")
+
+        response = self.client.get(reverse("audit_detail", args=[log.pk]), HTTP_HX_REQUEST="true")
+
+        self.assertContains(response, "Обновлены права сотрудника")
+        self.assertNotContains(response, "Не указано")
+        self.assertNotContains(response, "Изменённые поля")
+
+    def test_settings_event_detail_shows_changes_with_russian_labels(self):
+        log = self.create_log(
+            event_type=AuditLog.EventType.SETTINGS_UPDATED,
+            model_name="",
+            object_id="",
+            object_repr="",
+            old_values={"request_stale_workdays": 5, "asset_stale_days": 30},
+            new_values={
+                "audit_event": AuditLog.EventType.SETTINGS_UPDATED,
+                "request_stale_workdays": 7,
+                "asset_stale_days": 45,
+            },
+            territorial_organ=None,
+        )
+        self.client.login(username="admin", password="pass12345")
+
+        response = self.client.get(reverse("audit_detail", args=[log.pk]), HTTP_HX_REQUEST="true")
+
+        self.assertContains(response, "Просроченные заявки, рабочих дней")
+        self.assertContains(response, "Устаревшие сведения материальной базы, календарных дней")
+        self.assertContains(response, ">5<", html=False)
+        self.assertContains(response, ">7<", html=False)
+        self.assertNotContains(response, "Request stale workdays")
+
+    def test_tmc_item_add_and_remove_details_are_one_sided(self):
+        self.client.login(username="admin", password="pass12345")
+        event_values = (
+            (
+                AuditLog.EventType.TMC_ITEM_ADDED,
+                {"items": ""},
+                {"audit_event": AuditLog.EventType.TMC_ITEM_ADDED, "items": "Бумага - 10 пач."},
+                "Бумага - 10 пач.",
+            ),
+            (
+                AuditLog.EventType.TMC_ITEM_REMOVED,
+                {"items": "Картридж - 2 шт."},
+                {"audit_event": AuditLog.EventType.TMC_ITEM_REMOVED, "items": ""},
+                "Картридж - 2 шт.",
+            ),
+        )
+
+        for event_type, old_values, new_values, expected_value in event_values:
+            with self.subTest(event_type=event_type):
+                log = self.create_log(
+                    event_type=event_type,
+                    old_values=old_values,
+                    new_values=new_values,
+                )
+                response = self.client.get(reverse("audit_detail", args=[log.pk]), HTTP_HX_REQUEST="true")
+
+                self.assertContains(response, expected_value)
+                self.assertNotContains(response, "Не указано")
+                self.assertNotContains(response, "bi-arrow-right")
+
+    def test_tmc_quantity_change_detail_keeps_old_new_comparison(self):
+        log = self.create_log(
+            event_type=AuditLog.EventType.TMC_QUANTITY_CHANGED,
+            old_values={"items": "Бумага - 5 пач."},
+            new_values={
+                "audit_event": AuditLog.EventType.TMC_QUANTITY_CHANGED,
+                "items": "Бумага - 10 пач.",
+            },
+        )
+        self.client.login(username="admin", password="pass12345")
+
+        response = self.client.get(reverse("audit_detail", args=[log.pk]), HTTP_HX_REQUEST="true")
+
+        self.assertContains(response, "Бумага - 5 пач.")
+        self.assertContains(response, "Бумага - 10 пач.")
+        self.assertContains(response, "bi-arrow-right")
+
+    def test_tmc_product_detail_hides_normalized_name(self):
+        log = self.create_log(
+            action=AuditLog.Action.CREATE,
+            event_type=AuditLog.EventType.TMC_PRODUCT_CREATED,
+            model_name="TmcProduct",
+            object_id="25",
+            object_repr='Товар «Бумага А4»',
+            old_values=None,
+            new_values={
+                "audit_event": AuditLog.EventType.TMC_PRODUCT_CREATED,
+                "name": "Бумага А4",
+                "normalized_name": "бумага а4",
+                "unit": "пач.",
+                "is_active": True,
+            },
+            territorial_organ=None,
+        )
+        self.client.login(username="admin", password="pass12345")
+
+        response = self.client.get(reverse("audit_detail", args=[log.pk]), HTTP_HX_REQUEST="true")
+
+        self.assertContains(response, "Бумага А4")
+        self.assertContains(response, "Единица измерения")
+        self.assertNotContains(response, "Нормализованное наименование")
+        self.assertNotContains(response, "бумага а4")
+
+    def test_table_export_detail_shows_human_readable_group_mode(self):
+        log = self.create_log(
+            event_type=AuditLog.EventType.TABLE_EXPORTED,
+            model_name="",
+            object_id="",
+            object_repr="",
+            old_values=None,
+            new_values={
+                "audit_event": AuditLog.EventType.TABLE_EXPORTED,
+                "format": "xlsx",
+                "table_key": "tmc-requests",
+                "table_title": "Заявки ТМЦ",
+                "organ_count": 2,
+                "group_mode": "dates",
+            },
+            territorial_organ=None,
+        )
+        self.client.login(username="admin", password="pass12345")
+
+        response = self.client.get(reverse("audit_detail", args=[log.pk]), HTTP_HX_REQUEST="true")
+
+        self.assertContains(response, "Группировка")
+        self.assertContains(response, "По датам")
+        self.assertNotContains(response, ">dates<", html=False)
+
     def test_audit_detail_displays_foreign_keys_dates_and_request_history(self):
         request_obj = TmcRequest.objects.create(
             territorial_organ=self.organ,
@@ -353,6 +530,44 @@ class AuditLogTests(TestCase):
         self.assertContains(response, "Фотография «building.jpg»")
         self.assertContains(response, "Фотография добавлена")
         self.assertNotContains(response, "Отдел автора")
+
+    def test_legacy_request_photo_event_uses_russian_field_label(self):
+        log = self.create_log(
+            event_type=AuditLog.EventType.PHOTOS_ATTACHED,
+            old_values={"photos": ""},
+            new_values={
+                "audit_event": AuditLog.EventType.PHOTOS_ATTACHED,
+                "photos": "building.jpg",
+            },
+        )
+        self.client.login(username="admin", password="pass12345")
+
+        response = self.client.get(reverse("audit_detail", args=[log.pk]), HTTP_HX_REQUEST="true")
+
+        self.assertContains(response, "Прикрепленные фотографии")
+        self.assertNotContains(response, ">Photos<")
+
+    def test_request_photo_event_marks_a_missing_photo_as_unavailable(self):
+        log = self.create_log(
+            event_type=AuditLog.EventType.PHOTOS_DETACHED,
+            old_values={
+                "photos": "removed.jpg",
+                "photo_items": [{"id": 999999, "name": "removed.jpg"}],
+            },
+            new_values={"audit_event": AuditLog.EventType.PHOTOS_DETACHED, "photos": ""},
+        )
+        self.client.login(username="admin", password="pass12345")
+
+        response = self.client.get(reverse("audit_detail", args=[log.pk]), HTTP_HX_REQUEST="true")
+
+        self.assertContains(response, "Открепленные фотографии")
+        self.assertContains(response, "removed.jpg — фотография недоступна")
+        self.assertContains(
+            response,
+            '<span class="audit-photo-thumbnail-name">removed.jpg</span>',
+            html=True,
+        )
+        self.assertNotContains(response, "/thumbnail/small/")
 
     def test_audit_empty_result_keeps_panel_rows_compact(self):
         self.create_log(object_repr="Visible")
@@ -466,6 +681,91 @@ class AuditLogTests(TestCase):
         self.assertNotContains(response, "Hidden action")
         self.assertEqual(detail_response.status_code, 404)
         self.assertEqual(self.client.get(reverse("audit_detail", args=[visible_log.pk]), HTTP_HX_REQUEST="true").status_code, 200)
+
+    def test_user_audit_log_hides_admin_only_events_and_their_filter_options(self):
+        private_logs = [
+            self.create_log(
+                event_type=event_type,
+                object_repr=f"Private admin event {event_type}",
+            )
+            for event_type in self.ADMIN_ONLY_EVENT_TYPES
+        ]
+        self.create_log(object_repr="Ordinary request update")
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("my_audit_log"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Ordinary request update")
+        for event_type, private_log in zip(self.ADMIN_ONLY_EVENT_TYPES, private_logs):
+            with self.subTest(event_type=event_type):
+                self.assertNotContains(response, private_log.object_repr)
+                self.assertNotContains(response, f'name="event_type" value="{event_type}"')
+                detail_response = self.client.get(
+                    reverse("audit_detail", args=[private_log.pk]),
+                    HTTP_HX_REQUEST="true",
+                )
+                self.assertEqual(detail_response.status_code, 404)
+
+    def test_user_audit_event_filter_cannot_restore_admin_only_events(self):
+        private_logs = [
+            self.create_log(
+                event_type=event_type,
+                object_repr=f"Filtered private event {event_type}",
+            )
+            for event_type in self.ADMIN_ONLY_EVENT_TYPES
+        ]
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(
+            reverse("my_audit_log"),
+            {"event_type": list(self.ADMIN_ONLY_EVENT_TYPES)},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        for private_log in private_logs:
+            with self.subTest(event_type=private_log.event_type):
+                self.assertNotContains(response, private_log.object_repr)
+
+    def test_user_audit_log_hides_legacy_user_model_events(self):
+        private_log = self.create_log(
+            event_type=AuditLog.EventType.RECORD_UPDATED,
+            model_name="User",
+            object_repr="Legacy employee account update",
+        )
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("my_audit_log"))
+        detail_response = self.client.get(
+            reverse("audit_detail", args=[private_log.pk]),
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertNotContains(response, private_log.object_repr)
+        self.assertEqual(detail_response.status_code, 404)
+
+    def test_profile_admin_keeps_admin_only_events_details_and_filter_options(self):
+        private_logs = [
+            self.create_log(
+                event_type=event_type,
+                object_repr=f"Visible admin event {event_type}",
+            )
+            for event_type in self.ADMIN_ONLY_EVENT_TYPES
+        ]
+        self.client.login(username="admin", password="pass12345")
+
+        response = self.client.get(reverse("my_audit_log"))
+
+        self.assertEqual(response.status_code, 200)
+        for event_type, private_log in zip(self.ADMIN_ONLY_EVENT_TYPES, private_logs):
+            with self.subTest(event_type=event_type):
+                self.assertContains(response, private_log.object_repr)
+                self.assertContains(response, f'name="event_type" value="{event_type}"')
+                detail_response = self.client.get(
+                    reverse("audit_detail", args=[private_log.pk]),
+                    HTTP_HX_REQUEST="true",
+                )
+                self.assertEqual(detail_response.status_code, 200)
 
     def test_audit_log_filters_by_date_and_action(self):
         old_log = self.create_log(action=AuditLog.Action.CREATE, object_repr="Old")

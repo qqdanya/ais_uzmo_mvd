@@ -2,12 +2,16 @@ from django.db.models import Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404, render
 
+from apps.audit.models import AuditLog
+from apps.audit.utils import write_audit
+
 from ..models import RequestPhotoLink
 from ..permissions import can_view, can_write
 from .downloads import download_ready_response, photos_zip_response, safe_download_name
 from .http import toast_trigger
 from .request_numbers import request_content_type_for_object
 from .request_photos import (
+    photo_snapshot_for_audit,
     request_photo_form_context,
     request_photo_picker_context,
     sync_request_photos,
@@ -63,15 +67,26 @@ def request_photos_download_response(request, organ, table_key, pk):
     if not can_view(request.user, organ):
         raise Http404
     content_type = request_content_type_for_object(obj)
-    links = (
+    links = list(
         RequestPhotoLink.objects.select_related("photo")
         .filter(territorial_organ=organ, content_type=content_type, object_id=obj.pk, photo__is_deleted=False)
         .filter(Q(photo__folder__isnull=True) | Q(photo__folder__is_deleted=False))
         .order_by("created_at", "id")
     )
-    if not links.exists():
+    if not links:
         raise Http404
     filename = safe_download_name(f"{obj}-photos.zip", f"request-{obj.pk}-photos.zip")
+    write_audit(
+        AuditLog.Action.UPDATE,
+        obj,
+        user=request.user,
+        new_values={
+            "audit_event": AuditLog.EventType.PHOTO_ARCHIVE_DOWNLOADED,
+            "scope": "request",
+            **photo_snapshot_for_audit(link.photo_id for link in links),
+        },
+        request=request,
+    )
     return download_ready_response(request, photos_zip_response((link.photo for link in links), filename))
 
 

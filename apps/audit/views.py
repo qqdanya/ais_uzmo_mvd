@@ -45,9 +45,10 @@ def my_audit_log(request):
 
 @login_required
 def audit_detail(request, pk):
-    log = prepare_log(get_object_or_404(AuditLog.objects.select_related("user", "user__profile", "territorial_organ"), pk=pk))
+    log = get_object_or_404(AuditLog.objects.select_related("user", "user__profile", "territorial_organ"), pk=pk)
     if not user_can_view_log(request.user, log):
         raise Http404
+    prepare_log(log, include_photo_previews=True, viewer=request.user)
     return render(request, "partials/audit_detail.html", {"log": log})
 
 

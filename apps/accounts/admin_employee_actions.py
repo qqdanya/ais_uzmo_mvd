@@ -17,14 +17,58 @@ def client_ip(request):
     return request.META.get("REMOTE_ADDR")
 
 
-def write_employee_audit(request, user, action, summary, values=None):
+def _sorted_names(items):
+    return sorted((str(item) for item in items), key=str.casefold)
+
+
+def employee_audit_values(user):
+    profile = getattr(user, "profile", None)
+    return {
+        "username": user.username,
+        "last_name": user.last_name,
+        "first_name": user.first_name,
+        "middle_name": getattr(profile, "middle_name", ""),
+        "role": getattr(profile, "role", UserProfile.Role.OBSERVER),
+        "allowed_departments": _sorted_names(profile.allowed_departments.all()) if profile else [],
+        "allowed_organs": _sorted_names(profile.allowed_organs.all()) if profile else [],
+        "is_active": user.is_active,
+        "activation_status": "activated" if user.has_usable_password() else "needs_activation",
+    }
+
+
+def employee_form_audit_values(form, user):
+    values = form.cleaned_data
+    return {
+        "username": user.username,
+        "last_name": user.last_name,
+        "first_name": user.first_name,
+        "middle_name": values.get("middle_name", ""),
+        "role": values.get("role") or UserProfile.Role.OBSERVER,
+        "allowed_departments": _sorted_names(values.get("allowed_departments") or []),
+        "allowed_organs": _sorted_names(values.get("allowed_organs") or []),
+        "is_active": user.is_active,
+        "activation_status": "activated" if user.has_usable_password() else "needs_activation",
+    }
+
+
+def changed_employee_values(old_values, new_values):
+    keys = dict.fromkeys([*old_values, *new_values])
+    changed = [key for key in keys if old_values.get(key) != new_values.get(key)]
+    return (
+        {key: old_values.get(key) for key in changed},
+        {key: new_values.get(key) for key in changed},
+    )
+
+
+def write_employee_audit(request, user, action, summary, *, old_values=None, new_values=None):
     AuditLog.objects.create(
         user=request.user,
         action=action,
         model_name="User",
         object_id=str(user.pk),
         object_repr=employee_display_name(user),
-        new_values={"audit_event": summary, **(values or {})},
+        old_values=old_values,
+        new_values={"audit_event": summary, **(new_values or {})},
         ip_address=client_ip(request),
         user_agent=request.META.get("HTTP_USER_AGENT", ""),
     )
@@ -35,7 +79,13 @@ def create_employee(request):
         form = EmployeeForm(request.POST, current_user=request.user)
         if form.is_valid():
             user = form.save()
-            write_employee_audit(request, user, AuditLog.Action.CREATE, "employee_created", {"username": user.username})
+            write_employee_audit(
+                request,
+                user,
+                AuditLog.Action.CREATE,
+                AuditLog.EventType.EMPLOYEE_CREATED,
+                new_values=employee_form_audit_values(form, user),
+            )
             messages.success(request, "Сотрудник создан. Передайте ему логин и код активации.")
             return redirect("admin_employee_detail", pk=user.pk)
     else:
@@ -46,10 +96,23 @@ def create_employee(request):
 def edit_employee(request, pk):
     user = get_object_or_404(employee_queryset(), pk=pk)
     if request.method == "POST":
+        old_values = employee_audit_values(user)
         form = EmployeeForm(request.POST, instance=user, current_user=request.user)
         if form.is_valid():
-            form.save()
-            write_employee_audit(request, user, AuditLog.Action.UPDATE, "employee_permissions_updated", {"username": user.username})
+            user = form.save()
+            old_changes, new_changes = changed_employee_values(
+                old_values,
+                employee_form_audit_values(form, user),
+            )
+            if new_changes:
+                write_employee_audit(
+                    request,
+                    user,
+                    AuditLog.Action.UPDATE,
+                    AuditLog.EventType.EMPLOYEE_PERMISSIONS,
+                    old_values=old_changes,
+                    new_values=new_changes,
+                )
             messages.success(request, "Права сотрудника обновлены.")
             return redirect("admin_employee_detail", pk=user.pk)
     else:
@@ -67,23 +130,51 @@ def handle_employee_action(request, pk):
         if not request.user.is_superuser:
             messages.error(request, "Окончательно удалить сотрудника может только руководитель.")
             return redirect("admin_employee_detail", pk=user.pk)
-        username = user.username
         display_name = employee_display_name(user)
-        write_employee_audit(request, user, AuditLog.Action.DELETE, "employee_deleted", {"username": username})
+        write_employee_audit(
+            request,
+            user,
+            AuditLog.Action.DELETE,
+            AuditLog.EventType.EMPLOYEE_DELETED,
+            old_values=employee_audit_values(user),
+        )
         user.delete()
         messages.success(request, f"Сотрудник {display_name} удалён.")
         return redirect("admin_employees_panel")
     profile, _ = UserProfile.objects.get_or_create(user=user)
+    old_values = employee_audit_values(user)
     if action == "block":
         user.is_active = False
         user.save(update_fields=["is_active"])
-        write_employee_audit(request, user, AuditLog.Action.UPDATE, "employee_blocked", {"username": user.username})
-        messages.success(request, "Сотрудник заблокирован.")
+        old_changes, new_changes = changed_employee_values(old_values, employee_audit_values(user))
+        if new_changes:
+            write_employee_audit(
+                request,
+                user,
+                AuditLog.Action.UPDATE,
+                AuditLog.EventType.EMPLOYEE_BLOCKED,
+                old_values=old_changes,
+                new_values=new_changes,
+            )
+            messages.success(request, "Сотрудник заблокирован.")
+        else:
+            messages.info(request, "Сотрудник уже заблокирован.")
     elif action == "unblock":
         user.is_active = True
         user.save(update_fields=["is_active"])
-        write_employee_audit(request, user, AuditLog.Action.UPDATE, "employee_unblocked", {"username": user.username})
-        messages.success(request, "Сотрудник разблокирован.")
+        old_changes, new_changes = changed_employee_values(old_values, employee_audit_values(user))
+        if new_changes:
+            write_employee_audit(
+                request,
+                user,
+                AuditLog.Action.UPDATE,
+                AuditLog.EventType.EMPLOYEE_UNBLOCKED,
+                old_values=old_changes,
+                new_values=new_changes,
+            )
+            messages.success(request, "Сотрудник разблокирован.")
+        else:
+            messages.info(request, "Сотрудник уже разблокирован.")
     elif action == "reset_activation":
         user.set_unusable_password()
         user.is_active = True
@@ -91,7 +182,17 @@ def handle_employee_action(request, pk):
         profile.activation_code = ""
         profile.ensure_activation_code()
         profile.save(update_fields=["activation_code"])
-        write_employee_audit(request, user, AuditLog.Action.UPDATE, "employee_activation_reset", {"username": user.username})
+        new_values = employee_audit_values(user)
+        new_values["activation_status"] = "new_activation_code"
+        old_changes, new_changes = changed_employee_values(old_values, new_values)
+        write_employee_audit(
+            request,
+            user,
+            AuditLog.Action.UPDATE,
+            AuditLog.EventType.EMPLOYEE_ACTIVATION_RESET,
+            old_values=old_changes,
+            new_values=new_changes,
+        )
         messages.success(request, "Активация сброшена. Сотруднику нужно выдать новый код.")
     else:
         raise Http404

@@ -4,12 +4,11 @@ from django.db.models import Q
 from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import get_object_or_404, render
 
-from apps.accounts.models import UserProfile
 from apps.audit.models import AuditLog
-from apps.audit.utils import write_audit
+from apps.audit.utils import serialize_instance, write_audit
 from apps.directory.models import TerritorialOrganPhoto, TerritorialOrganPhotoFolder
 
-from ..permissions import can_manage_photo_asset, can_view, can_write, role_for
+from ..permissions import can_manage_photo_asset, can_preview_photo_asset, can_view, can_write
 from .downloads import download_ready_response, photo_download_name, photos_zip_response, safe_download_name
 from .http import htmx_triggers
 from .photo_asset_actions import (
@@ -30,7 +29,7 @@ from .photo_assets import (
     photo_folder_descendant_ids,
     photo_gallery_context,
 )
-from .request_photos import folder_path_from_map
+from .request_photos import folder_path_from_map, photo_snapshot_for_audit
 
 
 def render_photos(request, organ, folder_id_override=None):
@@ -70,6 +69,17 @@ def photo_download_response(request, organ, pk):
         raise Http404
     filename = photo_download_name(photo)
     content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    write_audit(
+        AuditLog.Action.UPDATE,
+        photo,
+        user=request.user,
+        new_values={
+            "audit_event": AuditLog.EventType.PHOTO_DOWNLOADED,
+            "scope": "photo",
+            **photo_snapshot_for_audit([photo.pk]),
+        },
+        request=request,
+    )
     return FileResponse(file_handle, as_attachment=True, filename=filename, content_type=content_type)
 
 
@@ -77,14 +87,8 @@ def _photo_for_preview(user, organ, pk):
     # Mirrors photo_download_response's checks. A soft-deleted photo is visible
     # only to a user who is allowed to manage that specific asset in the trash.
     photo = get_object_or_404(TerritorialOrganPhoto.objects.select_related("folder"), pk=pk, territorial_organ=organ)
-    if photo.is_deleted:
-        if role_for(user) != UserProfile.Role.ADMIN and not can_manage_photo_asset(user, organ, photo):
-            raise Http404
-    else:
-        if not can_view(user, organ):
-            raise Http404
-        if photo.folder_id and photo.folder.is_deleted:
-            raise Http404
+    if not can_preview_photo_asset(user, organ, photo):
+        raise Http404
     return photo
 
 
@@ -123,7 +127,11 @@ def photos_download_all_response(request, organ):
         AuditLog.Action.UPDATE,
         organ,
         user=request.user,
-        new_values={"audit_event": AuditLog.EventType.PHOTO_ARCHIVE_DOWNLOADED, "scope": "organ", "photo_count": photos_qs.count()},
+        new_values={
+            "audit_event": AuditLog.EventType.PHOTO_ARCHIVE_DOWNLOADED,
+            "scope": "organ",
+            **photo_snapshot_for_audit(photos=photos_qs),
+        },
         request=request,
     )
     return download_ready_response(request, photos_zip_response(photos_qs, filename))
@@ -156,7 +164,11 @@ def photo_folder_download_response(request, organ, pk):
         AuditLog.Action.UPDATE,
         folder,
         user=request.user,
-        new_values={"audit_event": AuditLog.EventType.PHOTO_ARCHIVE_DOWNLOADED, "scope": "folder", "photo_count": photos_qs.count()},
+        new_values={
+            "audit_event": AuditLog.EventType.PHOTO_ARCHIVE_DOWNLOADED,
+            "scope": "folder",
+            **photo_snapshot_for_audit(photos=photos_qs),
+        },
         request=request,
     )
     return download_ready_response(request, photos_zip_response(photos_qs, filename, archive_path))
@@ -168,9 +180,10 @@ def photo_form_response(request, organ, pk=None):
     photo = get_object_or_404(TerritorialOrganPhoto, pk=pk, territorial_organ=organ) if pk else None
     if photo and not can_manage_photo_asset(request.user, organ, photo):
         raise Http404
+    old_values = serialize_instance(photo) if photo else None
     form = photo_form_for_request(request, organ, photo)
     if request.method == "POST" and form.is_valid():
-        obj = save_photo_asset(request, organ, photo, form)
+        obj = save_photo_asset(request, organ, photo, form, old_values)
         response = render_photos(request, organ, obj.folder_id or "")
         response["HX-Trigger"] = htmx_triggers("Фотография сохранена.")
         return response
@@ -188,9 +201,10 @@ def photo_folder_form_response(request, organ, pk=None):
     current_folder = current_folder_for_form(request, organ, folder)
     if not can_upload_to_photo_folder(request.user, organ, current_folder):
         raise Http404
+    old_values = serialize_instance(folder) if folder else None
     form = folder_form_for_request(request, organ, folder, current_folder)
     if request.method == "POST" and form.is_valid():
-        obj = save_photo_folder(request, organ, folder, form, current_folder)
+        obj = save_photo_folder(request, organ, folder, form, current_folder, old_values)
         response = render_photos(request, organ, obj.parent_id or "")
         response["HX-Trigger"] = htmx_triggers("Папка переименована." if folder else "Папка создана.")
         return response
@@ -233,10 +247,20 @@ def photo_bulk_upload_response(request, organ):
     if not can_upload_to_photo_folder(request.user, organ, current_folder):
         raise Http404
     if request.method == "POST":
-        folder, current_folder, allowed = resolve_bulk_upload_folder(request, organ, current_folder)
+        folder, current_folder, allowed, folder_created = resolve_bulk_upload_folder(request, organ, current_folder)
         if not allowed:
             raise Http404
-        created, errors = bulk_create_photos(request, organ, folder)
+        created, errors, created_photo_ids = bulk_create_photos(request, organ, folder)
+        if folder_created:
+            new_values = serialize_instance(folder)
+            new_values.update(photo_snapshot_for_audit(created_photo_ids))
+            write_audit(
+                AuditLog.Action.CREATE,
+                folder,
+                old_values=None,
+                new_values=new_values,
+                request=request,
+            )
         if request.headers.get("X-Bulk-Photo-Batch") == "true":
             return JsonResponse(
                 {

@@ -11,6 +11,7 @@ from .table_filters import search_query_variants
 
 
 REQUEST_PHOTO_PICKER_PAGE_SIZE = 12
+AUDIT_PHOTO_SNAPSHOT_LIMIT = 24
 
 
 def photo_search_q(query, include_folder=True):
@@ -181,33 +182,55 @@ def sync_request_photos(obj, photo_ids, user):
     return {"added": added_ids, "removed": removed_ids}
 
 
-def photo_names_for_audit(photo_ids):
-    if not photo_ids:
-        return ""
-    names = list(
-        TerritorialOrganPhoto.objects.filter(pk__in=photo_ids)
-        .order_by("original_filename", "pk")
-        .values_list("original_filename", flat=True)
-    )
-    return ", ".join(name or "фотография" for name in names)
+def photo_snapshot_for_audit(photo_ids=None, *, photos=None, limit=AUDIT_PHOTO_SNAPSHOT_LIMIT):
+    if photos is None:
+        photo_ids = list(photo_ids or [])
+        photos = TerritorialOrganPhoto.objects.filter(pk__in=photo_ids)
+    ordered_photos = photos.order_by("original_filename", "pk")
+    photo_count = ordered_photos.count()
+    photo_items = [
+        {"id": photo_id, "name": original_filename or "фотография"}
+        for photo_id, original_filename in ordered_photos.values_list("pk", "original_filename")[:limit]
+    ]
+    return {"photo_items": photo_items, "photo_count": photo_count}
+
+
+def photo_names_for_audit(photo_items, photo_count=None):
+    names = ", ".join(item["name"] for item in photo_items)
+    if photo_count is not None and photo_count > len(photo_items):
+        names = f"{names}, …" if names else "…"
+    return names
 
 
 def write_request_photo_audit_events(obj, changes, request):
     added = changes.get("added") or set()
     removed = changes.get("removed") or set()
     if added:
+        snapshot = photo_snapshot_for_audit(added)
+        photo_items = snapshot["photo_items"]
+        photo_count = snapshot["photo_count"]
         write_audit(
             AuditLog.Action.UPDATE,
             obj,
             old_values={"photos": ""},
-            new_values={"audit_event": "request_photos_attached", "photos": photo_names_for_audit(added)},
+            new_values={
+                "audit_event": "request_photos_attached",
+                "photos": photo_names_for_audit(photo_items, photo_count),
+                **snapshot,
+            },
             request=request,
         )
     if removed:
+        snapshot = photo_snapshot_for_audit(removed)
+        photo_items = snapshot["photo_items"]
+        photo_count = snapshot["photo_count"]
         write_audit(
             AuditLog.Action.UPDATE,
             obj,
-            old_values={"photos": photo_names_for_audit(removed)},
+            old_values={
+                "photos": photo_names_for_audit(photo_items, photo_count),
+                **snapshot,
+            },
             new_values={"audit_event": "request_photos_detached", "photos": ""},
             request=request,
         )

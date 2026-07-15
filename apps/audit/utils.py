@@ -65,6 +65,8 @@ def write_audit(action, instance=None, user=None, old_values=None, new_values=No
     request = request or get_current_request()
     user = user or (request.user if request and request.user.is_authenticated else None)
     organ = getattr(instance, "territorial_organ", None) if instance is not None else None
+    if organ is None and instance is not None and instance.__class__.__name__ == "TerritorialOrgan":
+        organ = instance
     operation_id = ""
     if request is not None:
         operation_id = getattr(request, "_audit_operation_id", "")

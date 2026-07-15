@@ -7,6 +7,7 @@ from io import BytesIO
 from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
+from unittest.mock import patch
 
 from PIL import Image
 from django.contrib.auth import get_user_model
@@ -845,6 +846,19 @@ class AdminOrgansDepartmentsPanelTests(AdminPanelTestMixin, TestCase):
 
 
 class AdminEmployeesPanelTests(AdminPanelTestMixin, TestCase):
+    def employee_audit_log(self, user, event):
+        return AuditLog.objects.get(
+            model_name="User",
+            object_id=str(user.pk),
+            new_values__audit_event=event,
+        )
+
+    def assert_employee_audit_has_no_secrets(self, log):
+        for values in (log.old_values, log.new_values):
+            values = values or {}
+            self.assertNotIn("password", values)
+            self.assertNotIn("activation_code", values)
+
     def test_employees_panel_search_is_case_insensitive_for_cyrillic(self):
         self.login_admin()
         target = self.User.objects.create_user("case_user", first_name="Марина", last_name="Соколова")
@@ -930,6 +944,220 @@ class AdminEmployeesPanelTests(AdminPanelTestMixin, TestCase):
         self.assertEqual(list(user.profile.allowed_departments.all()), [self.department_tmc])
         self.assertEqual(list(user.profile.allowed_organs.all()), [self.organ])
         self.assertTrue(AuditLog.objects.filter(action=AuditLog.Action.CREATE, object_id=str(user.pk)).exists())
+
+    def test_employee_create_audit_contains_full_snapshot_without_credentials(self):
+        self.login_admin()
+
+        response = self.client.post(
+            reverse("admin_employee_create"),
+            {
+                "last_name": "Петрова",
+                "first_name": "Анна",
+                "middle_name": "Сергеевна",
+                "username": "petrova",
+                "role": UserProfile.Role.OPERATOR,
+                "allowed_departments": [str(self.department_transport.pk), str(self.department_tmc.pk)],
+                "allowed_organs": [str(self.other_organ.pk), str(self.organ.pk)],
+                "is_active": "on",
+            },
+        )
+
+        user = self.User.objects.get(username="petrova")
+        self.assertRedirects(response, reverse("admin_employee_detail", kwargs={"pk": user.pk}))
+        log = self.employee_audit_log(user, "employee_created")
+        self.assertFalse(log.old_values)
+        self.assertEqual(
+            log.new_values,
+            {
+                "audit_event": "employee_created",
+                "username": "petrova",
+                "last_name": "Петрова",
+                "first_name": "Анна",
+                "middle_name": "Сергеевна",
+                "role": UserProfile.Role.OPERATOR,
+                "allowed_departments": sorted([self.department_tmc.name, self.department_transport.name]),
+                "allowed_organs": sorted([self.organ.name, self.other_organ.name]),
+                "is_active": True,
+                "activation_status": "needs_activation",
+            },
+        )
+        self.assert_employee_audit_has_no_secrets(log)
+
+    def test_employee_role_change_audit_contains_only_changed_role(self):
+        self.login_admin()
+        target = self.User.objects.create_user(
+            "petrova",
+            password="pass12345",
+            first_name="Анна",
+            last_name="Петрова",
+        )
+        profile = UserProfile.objects.create(
+            user=target,
+            middle_name="Сергеевна",
+            role=UserProfile.Role.OPERATOR,
+        )
+        profile.allowed_departments.set([self.department_tmc])
+        profile.allowed_organs.set([self.organ])
+
+        response = self.client.post(
+            reverse("admin_employee_edit", kwargs={"pk": target.pk}),
+            {
+                "last_name": target.last_name,
+                "first_name": target.first_name,
+                "middle_name": profile.middle_name,
+                "username": target.username,
+                "role": UserProfile.Role.ADMIN,
+                "allowed_departments": [str(self.department_tmc.pk)],
+                "allowed_organs": [str(self.organ.pk)],
+                "is_active": "on",
+            },
+        )
+
+        self.assertRedirects(response, reverse("admin_employee_detail", kwargs={"pk": target.pk}))
+        log = self.employee_audit_log(target, "employee_permissions_updated")
+        self.assertEqual(log.old_values, {"role": UserProfile.Role.OPERATOR})
+        self.assertEqual(
+            log.new_values,
+            {
+                "audit_event": "employee_permissions_updated",
+                "role": UserProfile.Role.ADMIN,
+            },
+        )
+        self.assertNotIn("username", log.old_values)
+        self.assertNotIn("username", log.new_values)
+        self.assert_employee_audit_has_no_secrets(log)
+
+    def test_employee_access_change_audit_contains_old_and_new_named_lists(self):
+        self.login_admin()
+        target = self.User.objects.create_user(
+            "access_user",
+            password="pass12345",
+            first_name="Ирина",
+            last_name="Соколова",
+        )
+        profile = UserProfile.objects.create(user=target, role=UserProfile.Role.OPERATOR)
+        profile.allowed_departments.set([self.department_tmc])
+        profile.allowed_organs.set([self.organ])
+
+        response = self.client.post(
+            reverse("admin_employee_edit", kwargs={"pk": target.pk}),
+            {
+                "last_name": target.last_name,
+                "first_name": target.first_name,
+                "middle_name": "",
+                "username": target.username,
+                "role": UserProfile.Role.OPERATOR,
+                "allowed_departments": [str(self.department_transport.pk)],
+                "allowed_organs": [str(self.other_organ.pk)],
+                "is_active": "on",
+            },
+        )
+
+        self.assertRedirects(response, reverse("admin_employee_detail", kwargs={"pk": target.pk}))
+        log = self.employee_audit_log(target, "employee_permissions_updated")
+        self.assertEqual(
+            log.old_values,
+            {
+                "allowed_departments": [self.department_tmc.name],
+                "allowed_organs": [self.organ.name],
+            },
+        )
+        self.assertEqual(
+            log.new_values,
+            {
+                "audit_event": "employee_permissions_updated",
+                "allowed_departments": [self.department_transport.name],
+                "allowed_organs": [self.other_organ.name],
+            },
+        )
+        self.assert_employee_audit_has_no_secrets(log)
+
+    def test_employee_state_actions_audit_only_business_state_changes(self):
+        self.login_admin()
+        target = self.User.objects.create_user("state_user", password="pass12345", is_active=True)
+        UserProfile.objects.create(user=target, role=UserProfile.Role.OPERATOR)
+
+        self.client.post(reverse("admin_employee_action", kwargs={"pk": target.pk}), {"action": "block"})
+        block_log = self.employee_audit_log(target, "employee_blocked")
+        self.assertEqual(block_log.old_values, {"is_active": True})
+        self.assertEqual(
+            block_log.new_values,
+            {
+                "audit_event": "employee_blocked",
+                "is_active": False,
+            },
+        )
+        self.assert_employee_audit_has_no_secrets(block_log)
+
+        self.client.post(reverse("admin_employee_action", kwargs={"pk": target.pk}), {"action": "unblock"})
+        unblock_log = self.employee_audit_log(target, "employee_unblocked")
+        self.assertEqual(unblock_log.old_values, {"is_active": False})
+        self.assertEqual(
+            unblock_log.new_values,
+            {
+                "audit_event": "employee_unblocked",
+                "is_active": True,
+            },
+        )
+        self.assert_employee_audit_has_no_secrets(unblock_log)
+
+        self.client.post(reverse("admin_employee_action", kwargs={"pk": target.pk}), {"action": "reset_activation"})
+        reset_log = self.employee_audit_log(target, "employee_activation_reset")
+        self.assertEqual(reset_log.old_values, {"activation_status": "activated"})
+        self.assertEqual(
+            reset_log.new_values,
+            {
+                "audit_event": "employee_activation_reset",
+                "activation_status": "new_activation_code",
+            },
+        )
+        self.assert_employee_audit_has_no_secrets(reset_log)
+
+    def test_repeated_employee_block_and_unblock_do_not_create_empty_audit_logs(self):
+        self.login_admin()
+        target = self.User.objects.create_user("repeat_state_user", password="pass12345", is_active=True)
+        UserProfile.objects.create(user=target, role=UserProfile.Role.OPERATOR)
+        action_url = reverse("admin_employee_action", kwargs={"pk": target.pk})
+
+        self.client.post(action_url, {"action": "block"})
+        self.assertEqual(
+            AuditLog.objects.filter(
+                model_name="User",
+                object_id=str(target.pk),
+                new_values__audit_event="employee_blocked",
+            ).count(),
+            1,
+        )
+
+        self.client.post(action_url, {"action": "block"})
+        self.assertEqual(
+            AuditLog.objects.filter(
+                model_name="User",
+                object_id=str(target.pk),
+                new_values__audit_event="employee_blocked",
+            ).count(),
+            1,
+        )
+
+        self.client.post(action_url, {"action": "unblock"})
+        self.assertEqual(
+            AuditLog.objects.filter(
+                model_name="User",
+                object_id=str(target.pk),
+                new_values__audit_event="employee_unblocked",
+            ).count(),
+            1,
+        )
+
+        self.client.post(action_url, {"action": "unblock"})
+        self.assertEqual(
+            AuditLog.objects.filter(
+                model_name="User",
+                object_id=str(target.pk),
+                new_values__audit_event="employee_unblocked",
+            ).count(),
+            1,
+        )
 
     def test_employee_actions_block_unblock_and_reset_activation(self):
         self.login_admin()
@@ -1075,6 +1303,49 @@ class AdminEmployeesPanelTests(AdminPanelTestMixin, TestCase):
                 new_values__audit_event="employee_deleted",
             ).exists()
         )
+
+    def test_employee_delete_audit_keeps_full_old_snapshot_without_credentials(self):
+        self.login_admin()
+        target = self.User.objects.create_user(
+            "delete_snapshot",
+            password="pass12345",
+            first_name="Денис",
+            last_name="Удаляемый",
+            is_active=True,
+        )
+        target_id = target.pk
+        profile = UserProfile.objects.create(
+            user=target,
+            middle_name="Олегович",
+            role=UserProfile.Role.OBSERVER,
+        )
+        profile.allowed_departments.set([self.department_transport, self.department_tmc])
+        profile.allowed_organs.set([self.other_organ, self.organ])
+
+        response = self.client.post(reverse("admin_employee_action", kwargs={"pk": target.pk}), {"action": "delete"})
+
+        self.assertRedirects(response, reverse("admin_employees_panel"))
+        log = AuditLog.objects.get(
+            model_name="User",
+            object_id=str(target_id),
+            new_values__audit_event="employee_deleted",
+        )
+        self.assertEqual(
+            log.old_values,
+            {
+                "username": "delete_snapshot",
+                "last_name": "Удаляемый",
+                "first_name": "Денис",
+                "middle_name": "Олегович",
+                "role": UserProfile.Role.OBSERVER,
+                "allowed_departments": sorted([self.department_tmc.name, self.department_transport.name]),
+                "allowed_organs": sorted([self.organ.name, self.other_organ.name]),
+                "is_active": True,
+                "activation_status": "activated",
+            },
+        )
+        self.assertEqual(log.new_values, {"audit_event": "employee_deleted"})
+        self.assert_employee_audit_has_no_secrets(log)
 
     def test_regular_admin_cannot_delete_employee_from_database(self):
         regular_admin = self.User.objects.create_user("regular_admin", password="pass12345")
@@ -1307,6 +1578,45 @@ class AdminAssetsPanelTests(AdminPanelTestMixin, TestCase):
         self.assertEqual(values["request_stale_workdays"], 21)
         self.assertEqual(values["asset_stale_days"], 75)
         self.assertEqual(json.loads(self.thresholds_file.read_text(encoding="utf-8"))["asset_stale_days"], 75)
+
+    def test_settings_post_skips_unchanged_thresholds_and_audit_event(self):
+        self.login_admin()
+        self.thresholds_file.write_text(
+            json.dumps({"request_stale_workdays": 21, "asset_stale_days": 75}),
+            encoding="utf-8",
+        )
+        self.clear_threshold_cache()
+
+        with self.settings(ADMIN_THRESHOLDS_FILE=str(self.thresholds_file)):
+            with patch("apps.accounts.admin_settings.save_dashboard_thresholds") as save_mock:
+                response = self.client.post(
+                    reverse("admin_threshold_settings"),
+                    {
+                        "request_stale_workdays": "21",
+                        "asset_stale_days": "75",
+                    },
+                    follow=True,
+                )
+
+        save_mock.assert_not_called()
+        self.assertContains(response, "Пороговые значения не изменились.")
+        self.assertFalse(AuditLog.objects.filter(event_type=AuditLog.EventType.SETTINGS_UPDATED).exists())
+
+    def test_settings_reset_at_defaults_skips_reset_and_audit_event(self):
+        self.login_admin()
+
+        with self.settings(ADMIN_THRESHOLDS_FILE=str(self.thresholds_file)):
+            with patch("apps.accounts.admin_settings.reset_dashboard_thresholds") as reset_mock:
+                response = self.client.post(
+                    reverse("admin_threshold_settings"),
+                    {"reset": "1"},
+                    follow=True,
+                )
+
+        reset_mock.assert_not_called()
+        self.assertContains(response, "Пороговые значения уже установлены по умолчанию.")
+        self.assertFalse(AuditLog.objects.filter(event_type=AuditLog.EventType.SETTINGS_RESET).exists())
+        self.assertFalse(self.thresholds_file.exists())
 
     def test_settings_invalid_values_return_form_errors_without_saving(self):
         self.login_admin()

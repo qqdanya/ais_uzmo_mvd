@@ -6,6 +6,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
+from apps.audit.models import AuditLog
 from apps.directory.models import Department, TerritorialOrgan
 
 from .forms import ACTIVATION_MAX_ATTEMPTS, LOGIN_MAX_ATTEMPTS
@@ -54,6 +55,36 @@ class AccountFoundationTests(TestCase):
             html=True,
         )
 
+    def test_password_change_writes_safe_audit_event(self):
+        User = get_user_model()
+        user = User.objects.create_user("password-owner", password="OldStrongPass123")
+        UserProfile.objects.create(user=user, role=UserProfile.Role.ADMIN)
+        self.client.force_login(user)
+
+        response = self.client.post(
+            reverse("password_change"),
+            {
+                "old_password": "OldStrongPass123",
+                "new_password1": "NewStrongPass456",
+                "new_password2": "NewStrongPass456",
+            },
+        )
+
+        self.assertRedirects(response, reverse("password_change_done"))
+        user.refresh_from_db()
+        self.assertTrue(user.check_password("NewStrongPass456"))
+        log = AuditLog.objects.get(event_type=AuditLog.EventType.PASSWORD_CHANGED)
+        self.assertEqual(log.user, user)
+        self.assertEqual(log.model_name, "User")
+        self.assertEqual(log.object_id, str(user.pk))
+        self.assertIsNone(log.old_values)
+        self.assertEqual(log.new_values, {"audit_event": AuditLog.EventType.PASSWORD_CHANGED})
+        detail = self.client.get(reverse("audit_detail", args=[log.pk]), HTTP_HX_REQUEST="true")
+        self.assertContains(detail, "Пользователь изменил пароль")
+        self.assertNotContains(detail, "Изменённые поля")
+        self.assertNotContains(detail, "OldStrongPass123")
+        self.assertNotContains(detail, "NewStrongPass456")
+
     def test_profile_display_name_uses_last_name_and_initials(self):
         User = get_user_model()
         user = User.objects.create_user("petrov", first_name="Алексей", last_name="Петров", password="pass12345")
@@ -85,6 +116,17 @@ class AccountFoundationTests(TestCase):
         profile.refresh_from_db()
         self.assertTrue(user.check_password("StrongPass12345"))
         self.assertEqual(profile.activation_code, "")
+        log = AuditLog.objects.get(event_type=AuditLog.EventType.ACCOUNT_ACTIVATED)
+        self.assertEqual(log.old_values, {"activation_status": "needs_activation"})
+        self.assertEqual(
+            log.new_values,
+            {
+                "audit_event": AuditLog.EventType.ACCOUNT_ACTIVATED,
+                "activation_status": "activated",
+            },
+        )
+        self.assertNotIn("password", log.new_values)
+        self.assertNotIn("activation_code", log.new_values)
 
     def test_activation_locks_out_after_too_many_wrong_codes(self):
         User = get_user_model()

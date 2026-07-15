@@ -114,3 +114,13 @@ def can_view(user, organ=None):
     if not profile:
         return False
     return organ.pk in cached_allowed_organ_ids(user)
+
+
+def can_preview_photo_asset(user, organ, photo):
+    if photo.territorial_organ_id != organ.pk:
+        return False
+    if photo.is_deleted:
+        return role_for(user) == UserProfile.Role.ADMIN or can_manage_photo_asset(user, organ, photo)
+    if not can_view(user, organ):
+        return False
+    return not photo.folder_id or not photo.folder.is_deleted

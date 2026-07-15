@@ -96,6 +96,27 @@
 .modal-error-list div {
   min-width: 0;
 }
+.audit-photo-thumbnail-unavailable {
+  flex-direction: column;
+  gap: 3px;
+  padding: 5px;
+}
+.audit-photo-thumbnail-unavailable > i {
+  flex: 0 0 auto;
+  font-size: 1rem;
+}
+.audit-photo-thumbnail-name {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: .56rem;
+  font-weight: 600;
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
 .admin-command-page {
   min-height: 0;
   padding: 10px !important;

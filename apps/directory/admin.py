@@ -2,11 +2,13 @@ from django.contrib import admin
 from django.urls import reverse
 from django.utils.html import format_html
 
+from apps.audit.admin_audit import AuditedModelAdminMixin
+
 from .models import Department, TerritorialOrgan, TerritorialOrganPhoto, TerritorialOrganPhotoFolder
 
 
 @admin.register(TerritorialOrgan)
-class TerritorialOrganAdmin(admin.ModelAdmin):
+class TerritorialOrganAdmin(AuditedModelAdminMixin, admin.ModelAdmin):
     list_display = ("order_number", "name", "parent", "is_active")
     list_filter = ("is_active", "parent")
     search_fields = ("name", "description")
@@ -14,7 +16,7 @@ class TerritorialOrganAdmin(admin.ModelAdmin):
 
 
 @admin.register(Department)
-class DepartmentAdmin(admin.ModelAdmin):
+class DepartmentAdmin(AuditedModelAdminMixin, admin.ModelAdmin):
     list_display = ("order_number", "name", "slug", "is_active")
     list_filter = ("is_active",)
     search_fields = ("name", "slug")
@@ -22,7 +24,7 @@ class DepartmentAdmin(admin.ModelAdmin):
 
 
 @admin.register(TerritorialOrganPhoto)
-class TerritorialOrganPhotoAdmin(admin.ModelAdmin):
+class TerritorialOrganPhotoAdmin(AuditedModelAdminMixin, admin.ModelAdmin):
     list_display = ("preview", "territorial_organ", "folder", "file_size", "mime_type", "created_at", "created_by", "created_department", "is_deleted")
     list_filter = ("territorial_organ", "folder", "mime_type", "created_department", "created_by", "is_deleted")
     search_fields = ("description", "original_filename", "territorial_organ__name", "folder__name", "created_by__username", "created_by__last_name")
@@ -41,7 +43,7 @@ class TerritorialOrganPhotoAdmin(admin.ModelAdmin):
 
 
 @admin.register(TerritorialOrganPhotoFolder)
-class TerritorialOrganPhotoFolderAdmin(admin.ModelAdmin):
+class TerritorialOrganPhotoFolderAdmin(AuditedModelAdminMixin, admin.ModelAdmin):
     list_display = ("name", "parent", "territorial_organ", "created_at", "created_by", "created_department", "is_deleted")
     list_filter = ("territorial_organ", "parent", "created_department", "created_by", "is_deleted")
     search_fields = ("name", "parent__name", "territorial_organ__name", "created_by__username", "created_by__last_name")

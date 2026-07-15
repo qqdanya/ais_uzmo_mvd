@@ -4,6 +4,14 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 from django.contrib.auth.forms import UserChangeForm
 
+from apps.audit.admin_audit import (
+    AuditedModelAdminMixin,
+    capture_admin_object,
+    model_audit_snapshot,
+    write_admin_audit,
+)
+from apps.audit.models import AuditLog
+
 from .models import UserProfile
 
 
@@ -62,7 +70,9 @@ class UserProfileInline(admin.StackedInline):
 
 
 @admin.register(User)
-class EmployeeAdmin(DjangoUserAdmin):
+class EmployeeAdmin(AuditedModelAdminMixin, DjangoUserAdmin):
+    audit_defer_save_related = True
+    audit_inline_models = False
     form = UserChangeForm
     add_form = EmployeeCreationForm
     inlines = (UserProfileInline,)
@@ -113,11 +123,34 @@ class EmployeeAdmin(DjangoUserAdmin):
 
     def save_related(self, request, form, formsets, change):
         super().save_related(request, form, formsets, change)
-        if not isinstance(form, EmployeeCreationForm):
-            return
-        profile, _ = UserProfile.objects.get_or_create(user=form.instance)
-        profile.role = form.cleaned_data["role"]
-        profile.middle_name = form.cleaned_data.get("middle_name", "")
-        profile.save()
-        profile.allowed_organs.set(form.cleaned_data["allowed_organs"])
-        profile.allowed_departments.set(form.cleaned_data["allowed_departments"])
+        if isinstance(form, EmployeeCreationForm):
+            profile, _ = UserProfile.objects.get_or_create(user=form.instance)
+            profile.role = form.cleaned_data["role"]
+            profile.middle_name = form.cleaned_data.get("middle_name", "")
+            profile.save()
+            profile.allowed_organs.set(form.cleaned_data["allowed_organs"])
+            profile.allowed_departments.set(form.cleaned_data["allowed_departments"])
+        self.finalize_admin_audit(request, form)
+
+    def user_change_password(self, request, id, form_url=""):
+        user = self.get_object(request, id)
+        old_password = user.password if user is not None else None
+        old_values = model_audit_snapshot(user) if user is not None else None
+        response = super().user_change_password(request, id, form_url)
+
+        if request.method == "POST" and response.status_code in {301, 302} and user is not None:
+            stored = self.model._default_manager.filter(pk=user.pk).first()
+            if stored is not None and stored.password != old_password:
+                new_values = model_audit_snapshot(stored)
+                old_values["password_changed"] = False
+                new_values["password_changed"] = True
+                write_admin_audit(
+                    request,
+                    AuditLog.Action.UPDATE,
+                    instance=stored,
+                    captured=capture_admin_object(stored),
+                    old_values=old_values,
+                    new_values=new_values,
+                    event_type=AuditLog.EventType.PASSWORD_CHANGED,
+                )
+        return response

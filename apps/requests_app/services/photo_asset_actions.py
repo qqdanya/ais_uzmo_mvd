@@ -15,6 +15,7 @@ from .photo_assets import (
     manageable_photo_folders_queryset,
     photo_folder_descendant_ids,
 )
+from .request_photos import photo_snapshot_for_audit
 
 
 def photo_form_for_request(request, organ, photo=None):
@@ -28,8 +29,9 @@ def photo_form_for_request(request, organ, photo=None):
     )
 
 
-def save_photo_asset(request, organ, photo, form):
-    old_values = serialize_instance(photo) if photo else None
+def save_photo_asset(request, organ, photo, form, old_values=None):
+    if photo and old_values is None:
+        old_values = serialize_instance(photo)
     obj = form.save(commit=False)
     obj.territorial_organ = organ
     if photo and request.FILES.get("image"):
@@ -68,8 +70,9 @@ def folder_form_for_request(request, organ, folder=None, current_folder=None):
     )
 
 
-def save_photo_folder(request, organ, folder, form, current_folder):
-    old_values = serialize_instance(folder) if folder else None
+def save_photo_folder(request, organ, folder, form, current_folder, old_values=None):
+    if folder and old_values is None:
+        old_values = serialize_instance(folder)
     obj = form.save(commit=False)
     obj.territorial_organ = organ
     if not folder:
@@ -81,11 +84,20 @@ def save_photo_folder(request, organ, folder, form, current_folder):
     else:
         obj.updated_by = request.user
     obj.save()
+    new_values = serialize_instance(obj)
+    if folder:
+        folder_ids = photo_folder_descendant_ids(obj)
+        active_photos = TerritorialOrganPhoto.objects.filter(
+            territorial_organ=organ,
+            folder_id__in=folder_ids,
+            is_deleted=False,
+        )
+        new_values.update(photo_snapshot_for_audit(photos=active_photos))
     write_audit(
         AuditLog.Action.UPDATE if folder else AuditLog.Action.CREATE,
         obj,
         old_values=old_values,
-        new_values=serialize_instance(obj),
+        new_values=new_values,
         request=request,
     )
     return obj
@@ -97,11 +109,13 @@ def delete_photo_folder_tree(request, organ, folder):
     with transaction.atomic():
         old_values = serialize_instance(folder)
         folder_ids = photo_folder_descendant_ids(folder)
-        TerritorialOrganPhoto.objects.filter(
+        photos = TerritorialOrganPhoto.objects.filter(
             territorial_organ=organ,
             folder_id__in=folder_ids,
             is_deleted=False,
-        ).update(
+        )
+        old_values.update(photo_snapshot_for_audit(photos=photos))
+        photos.update(
             is_deleted=True,
             updated_by=request.user,
             updated_at=timezone.now(),
@@ -116,11 +130,12 @@ def delete_photo_folder_tree(request, organ, folder):
 
 def resolve_bulk_upload_folder(request, organ, current_folder):
     folder = None
+    folder_created = False
     folder_id = request.POST.get("folder")
     if folder_id and current_folder is None:
         current_folder = get_object_or_404(TerritorialOrganPhotoFolder, pk=folder_id, territorial_organ=organ, is_deleted=False)
     if not can_upload_to_photo_folder(request.user, organ, current_folder):
-        return None, current_folder, False
+        return None, current_folder, False, False
 
     new_folder_name = request.POST.get("new_folder", "").strip()
     if new_folder_name:
@@ -131,14 +146,15 @@ def resolve_bulk_upload_folder(request, organ, current_folder):
             is_deleted=False,
         ).first()
         if folder and not can_manage_photo_asset(request.user, organ, folder):
-            return None, current_folder, False
+            return None, current_folder, False, False
         if folder is None:
             folder = TerritorialOrganPhotoFolder(territorial_organ=organ, parent=current_folder, name=new_folder_name)
             assign_photo_asset_author(folder, request.user)
             folder.save()
+            folder_created = True
     elif folder_id:
         folder = current_folder
-    return folder, current_folder, True
+    return folder, current_folder, True, folder_created
 
 
 BULK_PHOTO_BATCH_SIZE = 50
@@ -155,6 +171,7 @@ def bulk_create_photos(request, organ, folder):
     descriptions = request.POST.getlist("descriptions")
     errors = []
     created = 0
+    created_photo_ids = []
     folder_queryset = manageable_photo_folders_queryset(request.user, organ)
     # Batched in groups rather than one atomic() for all files (up to 500 per
     # request) or one per file - bounds how long a single transaction holds
@@ -174,9 +191,10 @@ def bulk_create_photos(request, organ, folder):
                     obj.save()
                     write_audit(AuditLog.Action.CREATE, obj, old_values=None, new_values=serialize_instance(obj), request=request)
                     created += 1
+                    created_photo_ids.append(obj.pk)
                 else:
                     errors.append(f"{image.name}: {form.errors.as_text()}")
-    return created, errors
+    return created, errors, created_photo_ids
 
 
 def soft_delete_photo(request, photo):

@@ -3,6 +3,25 @@ from .tests_base import *
 
 class PhotoAssetTests(RequestAppTestCase):
 
+    def assert_audit_detail_has_photo_thumbnail(self, log, photo):
+        response = self.client.get(
+            reverse("audit_detail", args=[log.pk]),
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "request-photo-thumbnails")
+        self.assertContains(response, "data-lightbox-photo")
+        self.assertContains(
+            response,
+            reverse("photo_thumbnail", args=[self.organ.pk, photo.pk, "small"]),
+        )
+        self.assertContains(
+            response,
+            reverse("photo_preview", args=[self.organ.pk, photo.pk]),
+        )
+        return response
+
     def test_tmc_request_can_attach_and_show_photos(self):
         photo = self.create_photo("request-photo.png")
         photo.description = "Repair evidence"
@@ -48,6 +67,17 @@ class PhotoAssetTests(RequestAppTestCase):
         archive_data = b"".join(download_response.streaming_content)
         with zipfile.ZipFile(BytesIO(archive_data)) as archive:
             self.assertTrue(any(name.endswith(".png") for name in archive.namelist()))
+        archive_log = AuditLog.objects.get(event_type=AuditLog.EventType.PHOTO_ARCHIVE_DOWNLOADED)
+        self.assertEqual(archive_log.model_name, "TmcRequest")
+        self.assertEqual(archive_log.object_id, str(request_obj.pk))
+        self.assertEqual(archive_log.territorial_organ, self.organ)
+        self.assertEqual(archive_log.new_values["scope"], "request")
+        self.assertEqual(
+            archive_log.new_values["photo_items"],
+            [{"id": photo.pk, "name": "request-photo.png"}],
+        )
+        self.assertEqual(archive_log.new_values["photo_count"], 1)
+        self.assert_audit_detail_has_photo_thumbnail(archive_log, photo)
 
 
     def test_table_request_photo_thumbnails_stay_compact(self):
@@ -113,6 +143,113 @@ class PhotoAssetTests(RequestAppTestCase):
         self.assertContains(response, f'data-request-linked-photo="{second.pk}"')
         self.assertNotContains(response, f'data-request-linked-photo="{first.pk}"')
         self.assertIn("requestPhotosChanged", response["HX-Trigger"])
+
+    def test_request_photo_audit_events_store_ordered_photo_snapshots(self):
+        zulu_photo = self.create_photo("zulu-proof.png")
+        alpha_photo = self.create_photo("alpha-proof.png")
+        request_obj = TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            created_by=self.user,
+            updated_by=self.user,
+            request_number="15-AuditPhotos/TMC",
+            request_date="2026-06-27",
+            status="in_work",
+        )
+        TmcRequestItem.objects.create(request=request_obj, name="Desk", quantity=1, unit="шт.")
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.post(
+            reverse("request_photos", args=[self.organ.pk, "tmc-requests", request_obj.pk]),
+            {"attached_photos": [str(zulu_photo.pk), str(alpha_photo.pk)]},
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        attached_event = AuditLog.objects.get(event_type=AuditLog.EventType.PHOTOS_ATTACHED)
+        self.assertEqual(
+            attached_event.new_values["photo_items"],
+            [
+                {"id": alpha_photo.pk, "name": "alpha-proof.png"},
+                {"id": zulu_photo.pk, "name": "zulu-proof.png"},
+            ],
+        )
+        self.assertNotIn("photo_items", attached_event.old_values)
+        attached_detail = self.client.get(
+            reverse("audit_detail", args=[attached_event.pk]),
+            HTTP_HX_REQUEST="true",
+        )
+        self.assertContains(attached_detail, "Прикрепленные фотографии")
+        self.assertContains(attached_detail, "request-photo-thumbnails")
+        self.assertContains(
+            attached_detail,
+            reverse("photo_thumbnail", args=[self.organ.pk, alpha_photo.pk, "small"]),
+        )
+        self.assertContains(
+            attached_detail,
+            reverse("photo_preview", args=[self.organ.pk, zulu_photo.pk]),
+        )
+        self.assertNotContains(attached_detail, ">Photos<")
+
+        response = self.client.post(
+            reverse("request_photos", args=[self.organ.pk, "tmc-requests", request_obj.pk]),
+            {"attached_photos": []},
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        detached_event = AuditLog.objects.get(event_type=AuditLog.EventType.PHOTOS_DETACHED)
+        self.assertEqual(
+            detached_event.old_values["photo_items"],
+            [
+                {"id": alpha_photo.pk, "name": "alpha-proof.png"},
+                {"id": zulu_photo.pk, "name": "zulu-proof.png"},
+            ],
+        )
+        self.assertNotIn("photo_items", detached_event.new_values)
+        detached_detail = self.client.get(
+            reverse("audit_detail", args=[detached_event.pk]),
+            HTTP_HX_REQUEST="true",
+        )
+        self.assertContains(detached_detail, "Открепленные фотографии")
+        self.assertContains(
+            detached_detail,
+            reverse("photo_thumbnail", args=[self.organ.pk, alpha_photo.pk, "small"]),
+        )
+
+    def test_legacy_request_photo_audit_event_reuses_unique_existing_thumbnail(self):
+        photo = self.create_photo("legacy-audit-proof.png")
+        request_obj = TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            created_by=self.user,
+            updated_by=self.user,
+            request_number="15-LegacyAuditPhoto/TMC",
+            request_date="2026-06-27",
+            status="in_work",
+        )
+        log = AuditLog.objects.create(
+            user=self.user,
+            action=AuditLog.Action.UPDATE,
+            event_type=AuditLog.EventType.PHOTOS_ATTACHED,
+            model_name="TmcRequest",
+            object_id=str(request_obj.pk),
+            object_repr=str(request_obj),
+            old_values={"photos": ""},
+            new_values={
+                "audit_event": AuditLog.EventType.PHOTOS_ATTACHED,
+                "photos": photo.original_filename,
+            },
+            territorial_organ=self.organ,
+        )
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("audit_detail", args=[log.pk]), HTTP_HX_REQUEST="true")
+
+        self.assertContains(response, "Прикрепленные фотографии")
+        self.assertContains(
+            response,
+            reverse("photo_thumbnail", args=[self.organ.pk, photo.pk, "small"]),
+        )
+        self.assertNotContains(response, ">Photos<")
 
     def test_request_photos_ignore_photos_from_other_organ(self):
         other_organ = TerritorialOrgan.objects.create(name="Other photo organ", order_number=2)
@@ -246,6 +383,113 @@ class PhotoAssetTests(RequestAppTestCase):
         photo.refresh_from_db()
         self.assertTrue(photo.is_deleted)
         self.assertTrue(AuditLog.objects.filter(action=AuditLog.Action.DELETE, model_name="TerritorialOrganPhoto").exists())
+
+    def test_photo_create_audit_detail_uses_existing_thumbnail_and_lightbox(self):
+        self.client.login(username="operator", password="pass12345")
+        buffer = BytesIO()
+        Image.new("RGB", (2, 2), "white").save(buffer, format="PNG")
+        image = SimpleUploadedFile("audit-created-photo.png", buffer.getvalue(), content_type="image/png")
+
+        response = self.client.post(
+            reverse("photo_create", args=[self.organ.pk]),
+            {"image": image, "description": "Created for audit"},
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        photo = TerritorialOrganPhoto.objects.get(original_filename="audit-created-photo.png")
+        log = AuditLog.objects.get(
+            action=AuditLog.Action.CREATE,
+            model_name="TerritorialOrganPhoto",
+            object_id=str(photo.pk),
+        )
+        self.assert_audit_detail_has_photo_thumbnail(log, photo)
+
+    def test_photo_description_and_folder_change_audit_details_use_thumbnail(self):
+        target_folder = TerritorialOrganPhotoFolder.objects.create(
+            territorial_organ=self.organ,
+            name="Target",
+            created_by=self.user,
+            updated_by=self.user,
+            created_department=self.department,
+        )
+        photo = self.create_photo("audit-updated-photo.png")
+        photo.created_department = self.department
+        photo.description = "Before update"
+        photo.save(update_fields=["created_department", "description"])
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.post(
+            reverse("photo_update", args=[self.organ.pk, photo.pk]),
+            {"folder": "", "description": "After update"},
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        description_log = AuditLog.objects.get(
+            action=AuditLog.Action.UPDATE,
+            model_name="TerritorialOrganPhoto",
+            object_id=str(photo.pk),
+        )
+        self.assert_audit_detail_has_photo_thumbnail(description_log, photo)
+
+        response = self.client.post(
+            reverse("photo_update", args=[self.organ.pk, photo.pk]),
+            {"folder": target_folder.pk, "description": "After update"},
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        move_log = (
+            AuditLog.objects.filter(
+                action=AuditLog.Action.UPDATE,
+                model_name="TerritorialOrganPhoto",
+                object_id=str(photo.pk),
+            )
+            .order_by("-pk")
+            .first()
+        )
+        self.assertEqual(move_log.new_values["folder"], str(target_folder.pk))
+        self.assert_audit_detail_has_photo_thumbnail(move_log, photo)
+
+    def test_photo_soft_delete_audit_detail_keeps_thumbnail_available(self):
+        photo = self.create_photo("audit-deleted-photo.png")
+        photo.created_department = self.department
+        photo.save(update_fields=["created_department"])
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.post(
+            reverse("photo_delete", args=[self.organ.pk, photo.pk]),
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        photo.refresh_from_db()
+        self.assertTrue(photo.is_deleted)
+        log = AuditLog.objects.get(
+            action=AuditLog.Action.DELETE,
+            model_name="TerritorialOrganPhoto",
+            object_id=str(photo.pk),
+        )
+        self.assert_audit_detail_has_photo_thumbnail(log, photo)
+
+    def test_legacy_photo_audit_log_resolves_thumbnail_from_object_id(self):
+        photo = self.create_photo("legacy-object-id-photo.png")
+        photo.created_department = self.department
+        photo.save(update_fields=["created_department"])
+        log = AuditLog.objects.create(
+            user=self.user,
+            action=AuditLog.Action.UPDATE,
+            model_name="TerritorialOrganPhoto",
+            object_id=str(photo.pk),
+            object_repr=str(photo),
+            old_values={"description": "Old description", "created_department": str(self.department.pk)},
+            new_values={"description": "New description", "created_department": str(self.department.pk)},
+            territorial_organ=self.organ,
+        )
+        self.client.login(username="operator", password="pass12345")
+
+        self.assert_audit_detail_has_photo_thumbnail(log, photo)
 
     def test_photo_form_uses_custom_single_file_picker(self):
         self.client.login(username="operator", password="pass12345")
@@ -444,11 +688,25 @@ class PhotoAssetTests(RequestAppTestCase):
 
     def test_photo_download_single_and_zip(self):
         photo = self.create_photo()
+        self.profile.role = UserProfile.Role.ADMIN
+        self.profile.save(update_fields=["role"])
         self.client.login(username="operator", password="pass12345")
 
         response = self.client.get(reverse("photo_download", args=[self.organ.pk, photo.pk]))
         self.assertEqual(response.status_code, 200)
         self.assertIn("attachment", response["Content-Disposition"])
+        download_log = AuditLog.objects.get(event_type=AuditLog.EventType.PHOTO_DOWNLOADED)
+        self.assertEqual(download_log.model_name, "TerritorialOrganPhoto")
+        self.assertEqual(download_log.object_id, str(photo.pk))
+        self.assertEqual(download_log.territorial_organ, self.organ)
+        self.assertEqual(download_log.new_values["scope"], "photo")
+        self.assertEqual(
+            download_log.new_values["photo_items"],
+            [{"id": photo.pk, "name": "photo.png"}],
+        )
+        self.assertEqual(download_log.new_values["photo_count"], 1)
+        download_detail = self.assert_audit_detail_has_photo_thumbnail(download_log, photo)
+        self.assertContains(download_detail, "Скачанная фотография")
 
         response = self.client.get(reverse("photos_download_all", args=[self.organ.pk]), {"download_token": "photostest"})
         self.assertEqual(response.status_code, 200)
@@ -457,6 +715,51 @@ class PhotoAssetTests(RequestAppTestCase):
         archive_data = b"".join(response.streaming_content)
         with zipfile.ZipFile(BytesIO(archive_data)) as archive:
             self.assertTrue(any(name.endswith(".png") for name in archive.namelist()))
+        log = AuditLog.objects.get(event_type=AuditLog.EventType.PHOTO_ARCHIVE_DOWNLOADED)
+        self.assertEqual(log.territorial_organ, self.organ)
+        self.assertEqual(log.new_values["scope"], "organ")
+        self.assertEqual(
+            log.new_values["photo_items"],
+            [{"id": photo.pk, "name": "photo.png"}],
+        )
+        self.assertEqual(log.new_values["photo_count"], 1)
+        detail_response = self.assert_audit_detail_has_photo_thumbnail(log, photo)
+        self.assertContains(detail_response, "Фотографии в архиве")
+
+    def test_photo_archive_audit_snapshot_is_limited_and_detail_shows_extra_count(self):
+        photos = [self.create_photo(f"audit-limit-{index:02d}.png") for index in range(27)]
+        self.profile.role = UserProfile.Role.ADMIN
+        self.profile.save(update_fields=["role"])
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("photos_download_all", args=[self.organ.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        b"".join(response.streaming_content)
+        log = AuditLog.objects.get(event_type=AuditLog.EventType.PHOTO_ARCHIVE_DOWNLOADED)
+        self.assertEqual(log.new_values["photo_count"], 27)
+        self.assertEqual(len(log.new_values["photo_items"]), 24)
+        self.assertEqual(
+            log.new_values["photo_items"],
+            [
+                {"id": photo.pk, "name": f"audit-limit-{index:02d}.png"}
+                for index, photo in enumerate(photos[:24])
+            ],
+        )
+
+        detail_response = self.client.get(
+            reverse("audit_detail", args=[log.pk]),
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(detail_response.status_code, 200)
+        self.assertContains(detail_response, "data-lightbox-photo", count=24)
+        self.assertContains(detail_response, "request-photo-thumbnail-more")
+        self.assertContains(detail_response, "+3")
+        self.assertNotContains(
+            detail_response,
+            reverse("photo_thumbnail", args=[self.organ.pk, photos[24].pk, "small"]),
+        )
 
     def test_photo_preview_and_thumbnail_are_permission_gated(self):
         photo = self.create_photo()
@@ -481,6 +784,8 @@ class PhotoAssetTests(RequestAppTestCase):
         self.assertEqual(small_response.status_code, 200)
         medium_response = self.client.get(reverse("photo_thumbnail", args=[self.organ.pk, photo.pk, "medium"]))
         self.assertEqual(medium_response.status_code, 200)
+
+        self.assertFalse(AuditLog.objects.filter(event_type=AuditLog.EventType.PHOTO_DOWNLOADED).exists())
 
         self.assertEqual(self.client.get(reverse("photo_thumbnail", args=[self.organ.pk, photo.pk, "huge"])).status_code, 404)
 
@@ -516,6 +821,8 @@ class PhotoAssetTests(RequestAppTestCase):
         child_photo.save(update_fields=["folder"])
         outside_photo = self.create_photo("folder-outside-marker.png")
         outside_photo.save()
+        self.profile.role = UserProfile.Role.ADMIN
+        self.profile.save(update_fields=["role"])
         self.client.login(username="operator", password="pass12345")
 
         response = self.client.get(reverse("photo_folder_download", args=[self.organ.pk, folder.pk]))
@@ -528,6 +835,29 @@ class PhotoAssetTests(RequestAppTestCase):
             self.assertTrue(any(name.endswith("folder-parent-download.png") for name in names))
             self.assertTrue(any(name.startswith("Child/") and name.endswith("folder-child-download.png") for name in names))
             self.assertFalse(any("outside-marker" in name for name in names))
+        log = AuditLog.objects.get(event_type=AuditLog.EventType.PHOTO_ARCHIVE_DOWNLOADED)
+        self.assertEqual(log.new_values["scope"], "folder")
+        self.assertEqual(
+            log.new_values["photo_items"],
+            [
+                {"id": child_photo.pk, "name": "folder-child-download.png"},
+                {"id": parent_photo.pk, "name": "folder-parent-download.png"},
+            ],
+        )
+        self.assertEqual(log.new_values["photo_count"], 2)
+        detail_response = self.assert_audit_detail_has_photo_thumbnail(log, parent_photo)
+        self.assertContains(
+            detail_response,
+            reverse("photo_thumbnail", args=[self.organ.pk, child_photo.pk, "small"]),
+        )
+        self.assertContains(
+            detail_response,
+            reverse("photo_preview", args=[self.organ.pk, child_photo.pk]),
+        )
+        self.assertNotContains(
+            detail_response,
+            reverse("photo_thumbnail", args=[self.organ.pk, outside_photo.pk, "small"]),
+        )
 
     def test_photos_direct_visit_renders_full_page_htmx_returns_fragment(self):
         # /organs/<id>/photos/ is a real, shareable URL - a direct/bookmarked
@@ -607,8 +937,45 @@ class PhotoAssetTests(RequestAppTestCase):
 
         self.assertEqual(response.status_code, 200)
         folder = TerritorialOrganPhotoFolder.objects.get(name="Check")
-        self.assertEqual(TerritorialOrganPhoto.objects.filter(folder=folder).count(), 2)
+        uploaded_photos = list(TerritorialOrganPhoto.objects.filter(folder=folder).order_by("original_filename", "pk"))
+        self.assertEqual(len(uploaded_photos), 2)
         self.assertTrue(TerritorialOrganPhoto.objects.filter(description="First photo").exists())
+        folder_log = AuditLog.objects.get(
+            action=AuditLog.Action.CREATE,
+            model_name="TerritorialOrganPhotoFolder",
+            object_id=str(folder.pk),
+        )
+        self.assertEqual(
+            folder_log.new_values["photo_items"],
+            [
+                {"id": uploaded_photos[0].pk, "name": "bulk-1.png"},
+                {"id": uploaded_photos[1].pk, "name": "bulk-2.png"},
+            ],
+        )
+        self.assertEqual(folder_log.new_values["photo_count"], 2)
+        detail_response = self.assert_audit_detail_has_photo_thumbnail(folder_log, uploaded_photos[0])
+        self.assertContains(
+            detail_response,
+            reverse("photo_thumbnail", args=[self.organ.pk, uploaded_photos[1].pk, "small"]),
+        )
+
+        extra_buffer = BytesIO()
+        Image.new("RGB", (2, 2), "white").save(extra_buffer, format="PNG")
+        extra_image = SimpleUploadedFile("bulk-3.png", extra_buffer.getvalue(), content_type="image/png")
+        second_response = self.client.post(
+            reverse("photo_bulk_upload", args=[self.organ.pk]),
+            {"images": [extra_image], "new_folder": "Check"},
+            HTTP_HX_REQUEST="true",
+        )
+        self.assertEqual(second_response.status_code, 200)
+        self.assertEqual(
+            AuditLog.objects.filter(
+                action=AuditLog.Action.CREATE,
+                model_name="TerritorialOrganPhotoFolder",
+                object_id=str(folder.pk),
+            ).count(),
+            1,
+        )
 
     def test_photo_bulk_upload_form_has_progress_state(self):
         self.client.login(username="operator", password="pass12345")
@@ -690,7 +1057,17 @@ class PhotoAssetTests(RequestAppTestCase):
 
     def test_photo_folder_can_be_renamed(self):
         parent = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Parent")
-        folder = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, parent=parent, name="Old name")
+        folder = TerritorialOrganPhotoFolder.objects.create(
+            territorial_organ=self.organ,
+            parent=parent,
+            name="Old name",
+            created_by=self.user,
+            updated_by=self.user,
+            created_department=self.department,
+        )
+        photo = self.create_photo("renamed-folder-photo.png")
+        photo.folder = folder
+        photo.save(update_fields=["folder"])
         self.client.login(username="operator", password="pass12345")
 
         form_response = self.client.get(reverse("photo_folder_update", args=[self.organ.pk, folder.pk]), HTTP_HX_REQUEST="true")
@@ -709,14 +1086,38 @@ class PhotoAssetTests(RequestAppTestCase):
         self.assertEqual(folder.parent, parent)
         self.assertContains(response, "New name")
         self.assertNotContains(response, "Old name")
-        self.assertTrue(AuditLog.objects.filter(action=AuditLog.Action.UPDATE, model_name="TerritorialOrganPhotoFolder").exists())
+        log = AuditLog.objects.get(
+            action=AuditLog.Action.UPDATE,
+            model_name="TerritorialOrganPhotoFolder",
+            object_id=str(folder.pk),
+        )
+        self.assertEqual(
+            log.new_values["photo_items"],
+            [{"id": photo.pk, "name": "renamed-folder-photo.png"}],
+        )
+        self.assertEqual(log.new_values["photo_count"], 1)
+        self.assert_audit_detail_has_photo_thumbnail(log, photo)
 
     def test_photo_folder_can_be_moved_to_another_folder(self):
         parent = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Parent")
         target = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Target")
         child = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, parent=parent, name="Child")
-        folder = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, parent=parent, name="Moved")
+        folder = TerritorialOrganPhotoFolder.objects.create(
+            territorial_organ=self.organ,
+            parent=parent,
+            name="Moved",
+            created_by=self.user,
+            updated_by=self.user,
+            created_department=self.department,
+        )
         nested = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, parent=folder, name="Nested")
+        direct_photo = self.create_photo("folder-move-direct.png")
+        direct_photo.folder = folder
+        direct_photo.save(update_fields=["folder"])
+        nested_photo = self.create_photo("folder-move-nested.png")
+        nested_photo.folder = nested
+        nested_photo.save(update_fields=["folder"])
+        outside_photo = self.create_photo("folder-move-outside.png")
         self.client.login(username="operator", password="pass12345")
 
         form_response = self.client.get(reverse("photo_folder_update", args=[self.organ.pk, folder.pk]), HTTP_HX_REQUEST="true")
@@ -746,15 +1147,41 @@ class PhotoAssetTests(RequestAppTestCase):
         self.assertEqual(folder.parent, target)
         self.assertEqual(nested.parent, folder)
         self.assertEqual(response.context["selected_folder"], target)
+        log = AuditLog.objects.get(
+            action=AuditLog.Action.UPDATE,
+            model_name="TerritorialOrganPhotoFolder",
+            object_id=str(folder.pk),
+        )
+        self.assertEqual(
+            log.new_values["photo_items"],
+            [
+                {"id": direct_photo.pk, "name": "folder-move-direct.png"},
+                {"id": nested_photo.pk, "name": "folder-move-nested.png"},
+            ],
+        )
+        self.assertEqual(log.new_values["photo_count"], 2)
+        detail_response = self.assert_audit_detail_has_photo_thumbnail(log, nested_photo)
+        self.assertNotContains(
+            detail_response,
+            reverse("photo_thumbnail", args=[self.organ.pk, outside_photo.pk, "small"]),
+        )
 
     def test_photo_folder_delete_soft_deletes_content(self):
         parent = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Parent")
-        folder = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, parent=parent, name="Delete me")
+        folder = TerritorialOrganPhotoFolder.objects.create(
+            territorial_organ=self.organ,
+            parent=parent,
+            name="Delete me",
+            created_by=self.user,
+            updated_by=self.user,
+            created_department=self.department,
+        )
         child = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, parent=folder, name="Child")
         photo = self.create_photo("folder-photo.png")
         photo.folder = folder
         photo.description = "Folder photo"
-        photo.save(update_fields=["folder", "description"])
+        photo.created_department = self.department
+        photo.save(update_fields=["folder", "description", "created_department"])
         self.client.login(username="operator", password="pass12345")
 
         response = self.client.post(reverse("photo_folder_delete", args=[self.organ.pk, folder.pk]), HTTP_HX_REQUEST="true")
@@ -770,6 +1197,16 @@ class PhotoAssetTests(RequestAppTestCase):
         self.assertEqual(child.parent, folder)
         self.assertNotContains(response, "Folder photo")
         self.assertNotContains(response, "Delete me")
+        log = AuditLog.objects.get(
+            action=AuditLog.Action.DELETE,
+            model_name="TerritorialOrganPhotoFolder",
+            object_id=str(folder.pk),
+        )
+        self.assertEqual(
+            log.old_values["photo_items"],
+            [{"id": photo.pk, "name": "folder-photo.png"}],
+        )
+        self.assert_audit_detail_has_photo_thumbnail(log, photo)
 
     def test_photos_show_nested_folders_in_current_folder(self):
         parent = TerritorialOrganPhotoFolder.objects.create(territorial_organ=self.organ, name="Parent")

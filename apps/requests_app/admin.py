@@ -1,10 +1,12 @@
 from django.contrib import admin
 from django.contrib.contenttypes.admin import GenericTabularInline
 
+from apps.audit.admin_audit import AuditedModelAdminMixin
+
 from . import models
 
 
-class RequestAdmin(admin.ModelAdmin):
+class RequestAdmin(AuditedModelAdminMixin, admin.ModelAdmin):
     list_display = ("__str__", "territorial_organ", "created_at", "updated_at", "is_deleted")
     list_filter = ("territorial_organ", "is_deleted", "created_at")
     search_fields = ("comment", "territorial_organ__name")
@@ -17,7 +19,7 @@ class TmcRequestItemInline(admin.TabularInline):
 
 
 @admin.register(models.TmcProduct)
-class TmcProductAdmin(admin.ModelAdmin):
+class TmcProductAdmin(AuditedModelAdminMixin, admin.ModelAdmin):
     list_display = ("name", "unit", "is_active", "updated_at")
     list_filter = ("is_active", "unit")
     search_fields = ("name", "normalized_name")
@@ -59,7 +61,7 @@ for model in [
 
 
 @admin.register(models.RequestStatusHistory)
-class RequestStatusHistoryAdmin(admin.ModelAdmin):
+class RequestStatusHistoryAdmin(AuditedModelAdminMixin, admin.ModelAdmin):
     list_display = ("request", "old_status", "new_status", "completed_at", "changed_by", "changed_at")
     list_filter = ("content_type", "new_status", "changed_at")
     search_fields = ("note",)
@@ -67,7 +69,7 @@ class RequestStatusHistoryAdmin(admin.ModelAdmin):
 
 
 @admin.register(models.RequestPhotoLink)
-class RequestPhotoLinkAdmin(admin.ModelAdmin):
+class RequestPhotoLinkAdmin(AuditedModelAdminMixin, admin.ModelAdmin):
     list_display = ("request", "photo", "territorial_organ", "created_by", "created_at")
     list_filter = ("territorial_organ", "content_type", "created_at")
     search_fields = ("photo__description", "photo__original_filename", "territorial_organ__name")
@@ -75,7 +77,7 @@ class RequestPhotoLinkAdmin(admin.ModelAdmin):
 
 
 @admin.register(models.RequestNumberRegistry)
-class RequestNumberRegistryAdmin(admin.ModelAdmin):
+class RequestNumberRegistryAdmin(AuditedModelAdminMixin, admin.ModelAdmin):
     list_display = ("request_number", "territorial_organ", "department", "request", "updated_at")
     list_filter = ("territorial_organ", "department", "content_type")
     search_fields = ("request_number", "territorial_organ__name")
