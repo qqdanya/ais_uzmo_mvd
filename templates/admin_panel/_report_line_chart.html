@@ -1,0 +1,37 @@
+<article class="report-separated-chart">
+  <h3>{{ panel.title }}</h3>
+  <svg class="report-line-chart" viewBox="0 0 1000 150" role="img" aria-label="Динамика заявок за период {{ panel.title }}">
+    <g class="report-chart-grid">
+      {% for tick in panel.y_ticks %}
+        <line x1="{{ chart.plot_left }}" y1="{{ tick.y }}" x2="976" y2="{{ tick.y }}"></line>
+        <text x="40" y="{{ tick.y }}" dy="0.35em">{{ tick.label }}</text>
+      {% endfor %}
+    </g>
+    <g class="report-chart-ticks">
+      {% for tick in panel.ticks %}
+        <line x1="{{ tick.x }}" y1="{{ panel.bottom }}" x2="{{ tick.x }}" y2="{{ panel.tick_bottom }}"></line>
+        <text x="{{ tick.x }}" y="{{ panel.tick_label_y }}">{{ tick.label }}</text>
+      {% endfor %}
+    </g>
+    <g class="report-chart-lines">
+      {% if chart.show_incoming %}<polyline class="report-line report-line-incoming" points="{{ panel.lines.incoming }}"></polyline>{% endif %}
+      {% if chart.show_done %}<polyline class="report-line report-line-done" points="{{ panel.lines.done }}"></polyline>{% endif %}
+      {% if chart.show_rejected %}<polyline class="report-line report-line-rejected" points="{{ panel.lines.rejected }}"></polyline>{% endif %}
+    </g>
+    <g class="report-chart-direct-labels">
+      {% for label in panel.line_labels %}
+        <g class="report-direct-label report-direct-label-{{ label.key }}">
+          <polyline points="169,{{ label.label_y }} {{ chart.plot_left }},{{ label.point_y }}"></polyline>
+          <text x="156" y="{{ label.label_y }}" dy="0.35em">{{ label.label }}</text>
+          {% if label.marker == "circle" %}
+            <circle cx="164" cy="{{ label.label_y }}" r="3.5"></circle>
+          {% elif label.marker == "square" %}
+            <rect x="-3.5" y="-3.5" width="7" height="7" transform="translate(164 {{ label.label_y }})"></rect>
+          {% else %}
+            <polygon points="0,-4 4,3 -4,3" transform="translate(164 {{ label.label_y }})"></polygon>
+          {% endif %}
+        </g>
+      {% endfor %}
+    </g>
+  </svg>
+</article>

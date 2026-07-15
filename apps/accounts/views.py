@@ -24,6 +24,7 @@ from .admin_departments import build_department_detail_context, build_department
 from .admin_employees import build_employees_context, create_employee, edit_employee, employee_detail_context, employee_presence_payload, handle_employee_action
 from .admin_organs import build_organ_detail_context, build_organs_context
 from .admin_requests import build_request_detail_context, build_requests_context
+from .admin_reports import CHART_METRIC_CHOICES, build_summary_report_context
 from .admin_settings import build_settings_context, handle_settings_post
 from .admin_summary import SUMMARY_DATA_CACHE_SECONDS, build_summary_context, build_summary_payload, summary_data_cache_key
 from .admin_trash import (
@@ -212,8 +213,15 @@ def admin_panel(request):
         ],
     }
     context.update(build_summary_context(request))
+    context["summary_report_metric_options"] = CHART_METRIC_CHOICES
+    context["summary_report_selected_metrics"] = [key for key, _label in CHART_METRIC_CHOICES]
     template_name = "admin_panel/_panel.html" if request.headers.get("HX-Request") else "admin_panel/index.html"
     return render(request, template_name, context)
+
+
+@admin_required
+def admin_summary_report(request):
+    return render(request, "admin_panel/summary_report.html", build_summary_report_context(request))
 
 
 @admin_required

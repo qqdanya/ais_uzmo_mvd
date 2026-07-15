@@ -1,0 +1,253 @@
+{% load static account_tags %}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Сводка руководителя | АИС УЗМО</title>
+  <link rel="icon" href="{% static 'img/favicon.svg' %}?v=6" type="image/svg+xml">
+  <link rel="stylesheet" href="{% static 'vendor/bootstrap/bootstrap.min.css' %}">
+  <link rel="stylesheet" href="{% static 'vendor/bootstrap-icons/bootstrap-icons.css' %}">
+  <link rel="stylesheet" href="{% static 'css/app/forms-controls.css' %}?v=20260712-013">
+  <link rel="stylesheet" href="{% static 'css/app/tables.css' %}?v=20260712-019">
+  <link rel="stylesheet" href="{% static 'css/admin/employees.css' %}?v=20260705-009">
+  <link rel="stylesheet" href="{% static 'css/admin/report.css' %}?v=20260715-010">
+</head>
+<body>
+  <div class="report-toolbar report-no-print">
+    <div class="report-toolbar-inner">
+      <div class="report-toolbar-head">
+        <a class="report-button report-button-secondary" href="{{ dashboard_url }}"><i class="bi bi-arrow-left"></i> В административную панель</a>
+        <div class="report-toolbar-title">
+          <strong>Настройки сводки</strong>
+          <span>Изменения применяются после обновления отчёта</span>
+        </div>
+        <button class="report-button report-button-primary" type="button" data-report-print><i class="bi bi-printer"></i> Печать / Сохранить в PDF</button>
+      </div>
+      <form method="get" action="{{ report_url }}" class="report-comparison-form">
+        {% for name, value in report_filter_fields %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+        <div class="report-control-field">
+          <label for="report-comparison">Период сравнения</label>
+          {% single_select id="report-comparison" name="comparison" options=comparison_choices selected_value=comparison_mode aria_label="Период сравнения отчёта" css_class="form-select report-comparison-select" %}
+        </div>
+        <div class="report-control-field">
+          <span>Показатели</span>
+          {% admin_multiselect name="metrics" options=chart_metric_choices selected_values=chart.selected_metrics current_label=chart_metric_label empty_label="Выберите показатели" all_label="Все показатели" root_class="report-metrics" menu_class="admin-multiselect-menu-small" %}
+        </div>
+        <div class="report-control-field" data-report-layout-field{% if not comparison_period %} hidden{% endif %}>
+          <label for="report-chart-layout">Расположение графиков</label>
+          {% single_select id="report-chart-layout" name="chart_layout" options=chart_layout_choices selected_value=chart.layout aria_label="Расположение графиков сравнения" css_class="form-select report-chart-layout-select" %}
+        </div>
+        <div class="report-control-action">
+          <button class="report-button report-button-secondary" type="submit"><i class="bi bi-arrow-clockwise"></i> Обновить отчёт</button>
+        </div>
+        <div class="report-custom-period">
+          <span>Произвольный период сравнения</span>
+          {% include "partials/date_range_picker.html" with from_name="comparison_date_from" to_name="comparison_date_to" from_value=comparison_date_from to_value=comparison_date_to picker_class="report-date-picker" %}
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <main class="report-page">
+    <header class="report-header">
+      <div class="report-brand">
+        <img src="{% static 'img/ais-uzmo-mark.svg' %}" alt="">
+        <div><strong>АИС УЗМО</strong><span>Учёт заявок на материальное обеспечение</span></div>
+      </div>
+      <div class="report-header-meta">
+        <span>Сформировано</span>
+        <strong>{{ generated_at|date:"d.m.Y H:i" }}</strong>
+      </div>
+    </header>
+
+    <section class="report-title-block">
+      <div class="report-title-copy">
+        <p>Аналитическая сводка</p>
+        <h1>Сводка руководителя</h1>
+        <span>Краткая картина работы с заявками за выбранный период</span>
+      </div>
+      <dl class="report-conditions">
+        <div><dt>Основной период</dt><dd>{{ period.label }}{% if period_days %} ({{ period_days }} дн.){% endif %}</dd></div>
+        <div><dt>Сравнение</dt><dd>{{ comparison_label }}{% if comparison_days %} ({{ comparison_days }} дн.){% endif %}</dd></div>
+        <div><dt>Территориальные органы</dt><dd>{{ selected_organs_label }}</dd></div>
+      </dl>
+      {% if different_period_lengths %}
+        <p class="report-period-warning">Периоды различаются по длительности. Для корректной оценки в таблице дополнительно указано среднее количество заявок за день.</p>
+      {% endif %}
+    </section>
+
+    <section class="report-section">
+      <div class="report-section-heading">
+        <div><span>01</span><h2>Ключевые показатели</h2></div>
+        <p>Текущее состояние и результаты за выбранный период</p>
+      </div>
+      <div class="report-kpi-grid">
+        {% for row in metric_rows %}
+          <article class="report-kpi-card report-kpi-{{ row.key }}">
+            <span>{{ row.label }}</span>
+            <strong>{{ row.current }}</strong>
+            {% if row.comparable %}
+              <small>{{ row.percent_display }} к периоду сравнения</small>
+            {% elif row.period_metric %}
+              <small>За выбранный период</small>
+            {% else %}
+              <small>На дату формирования отчёта</small>
+            {% endif %}
+          </article>
+        {% endfor %}
+      </div>
+    </section>
+
+    {% if comparison_period %}
+      <section class="report-section report-keep-together">
+        <div class="report-section-heading">
+          <div><span>02</span><h2>Сравнение периодов</h2></div>
+          <p>{{ period.label }} и {{ comparison_period.label }}</p>
+        </div>
+        <div class="report-table-scroll">
+        <table class="report-table report-comparison-table">
+          <thead><tr><th>Показатель</th><th>Основной период</th><th>Период сравнения</th><th>Изменение</th></tr></thead>
+          <tbody>
+            {% for row in metric_rows %}
+              {% if row.comparable %}
+                <tr>
+                  <th>{{ row.label }}</th>
+                  <td>{{ row.current }}{% if row.show_daily_average %}<span>{{ row.current_daily_display }} в день</span>{% endif %}</td>
+                  <td>{{ row.comparison }}{% if row.show_daily_average %}<span>{{ row.comparison_daily_display }} в день</span>{% endif %}</td>
+                  <td><strong>{{ row.delta_display }}</strong><span>{{ row.percent_display }}</span></td>
+                </tr>
+              {% endif %}
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+      </section>
+    {% endif %}
+
+    <section class="report-section report-chart-section report-keep-together">
+      <div class="report-section-heading">
+        <div><span>{% if comparison_period %}03{% else %}02{% endif %}</span><h2>Динамика заявок</h2></div>
+        <p>{{ chart.metric_label }}, {{ chart.granularity_label }}</p>
+      </div>
+      <div class="report-chart-legend">
+        {% if chart.show_incoming %}<span><i class="report-color-incoming"></i>Поступило</span>{% endif %}
+        {% if chart.show_done %}<span><i class="report-color-done"></i>Исполнено</span>{% endif %}
+        {% if chart.show_rejected %}<span><i class="report-color-rejected"></i>Отклонено</span>{% endif %}
+        {% if chart.has_comparison and chart.layout == "combined" %}
+          <span class="report-period-legend"><i></i>Основной период</span>
+          <span class="report-period-legend report-period-legend-comparison"><i></i>Период сравнения</span>
+        {% endif %}
+      </div>
+      {% if chart.layout == "separate" and chart.has_comparison %}
+        <div class="report-separated-charts">
+          {% for panel in chart.panels %}
+            {% include "admin_panel/_report_line_chart.html" with panel=panel chart=chart %}
+          {% endfor %}
+        </div>
+      {% else %}
+      <div class="report-line-chart-wrap">
+        <svg class="report-line-chart" viewBox="0 0 1000 260" role="img" aria-label="Линейный график динамики заявок">
+          <g class="report-chart-grid">
+            {% for tick in chart.y_ticks %}
+              <line x1="{{ chart.plot_left }}" y1="{{ tick.y }}" x2="976" y2="{{ tick.y }}"></line>
+              <text x="40" y="{{ tick.y }}" dy="0.35em">{{ tick.label }}</text>
+            {% endfor %}
+          </g>
+          <g class="report-chart-ticks">
+            {% for tick in chart.ticks %}
+              <line x1="{{ tick.x }}" y1="214" x2="{{ tick.x }}" y2="219"></line>
+              <text x="{{ tick.x }}" y="234">{{ tick.label }}</text>
+              {% if chart.has_comparison %}<text class="report-chart-comparison-label" x="{{ tick.x }}" y="249">{{ tick.comparison_label }}</text>{% endif %}
+            {% endfor %}
+          </g>
+          <g class="report-chart-lines">
+            {% if chart.show_incoming %}<polyline class="report-line report-line-incoming" points="{{ chart.lines.incoming.current }}"></polyline>{% endif %}
+            {% if chart.show_done %}<polyline class="report-line report-line-done" points="{{ chart.lines.done.current }}"></polyline>{% endif %}
+            {% if chart.show_rejected %}<polyline class="report-line report-line-rejected" points="{{ chart.lines.rejected.current }}"></polyline>{% endif %}
+            {% if chart.has_comparison %}
+              {% if chart.show_incoming %}<polyline class="report-line report-line-incoming report-line-comparison" points="{{ chart.lines.incoming.comparison }}"></polyline>{% endif %}
+              {% if chart.show_done %}<polyline class="report-line report-line-done report-line-comparison" points="{{ chart.lines.done.comparison }}"></polyline>{% endif %}
+              {% if chart.show_rejected %}<polyline class="report-line report-line-rejected report-line-comparison" points="{{ chart.lines.rejected.comparison }}"></polyline>{% endif %}
+            {% endif %}
+          </g>
+          <g class="report-chart-direct-labels">
+            {% for label in chart.line_labels %}
+              <g class="report-direct-label report-direct-label-{{ label.key }}{% if label.comparison %} report-direct-label-comparison{% endif %}">
+                <polyline points="169,{{ label.label_y }} {{ chart.plot_left }},{{ label.point_y }}"></polyline>
+                <text x="156" y="{{ label.label_y }}" dy="0.35em">{{ label.label }}</text>
+                {% if label.marker == "circle" %}
+                  <circle cx="164" cy="{{ label.label_y }}" r="3.5"></circle>
+                {% elif label.marker == "square" %}
+                  <rect x="-3.5" y="-3.5" width="7" height="7" transform="translate(164 {{ label.label_y }})"></rect>
+                {% else %}
+                  <polygon points="0,-4 4,3 -4,3" transform="translate(164 {{ label.label_y }})"></polygon>
+                {% endif %}
+              </g>
+            {% endfor %}
+          </g>
+        </svg>
+      </div>
+      {% endif %}
+    </section>
+
+    <section class="report-section report-details">
+      <div class="report-section-heading">
+        <div><span>{% if comparison_period %}04{% else %}03{% endif %}</span><h2>Зоны внимания</h2></div>
+        <p>Текущее состояние на дату формирования отчёта</p>
+      </div>
+      <div class="report-two-columns">
+        <article class="report-subsection">
+          <h3>Территориальные органы с просроченными заявками</h3>
+          <ol class="report-ranking">
+            {% for row in problem_organs %}
+              <li><span>{{ row.name }}</span><strong>{{ row.value }}</strong></li>
+            {% empty %}
+              <li class="report-empty">Просроченных заявок нет.</li>
+            {% endfor %}
+          </ol>
+        </article>
+        <article class="report-subsection">
+          <h3>Отделы с наибольшей нагрузкой</h3>
+          <ol class="report-ranking">
+            {% for row in department_load %}
+              <li><span>{{ row.name }}</span><strong>{{ row.value }}</strong></li>
+            {% empty %}
+              <li class="report-empty">Заявок в работе нет.</li>
+            {% endfor %}
+          </ol>
+        </article>
+      </div>
+    </section>
+
+    <section class="report-section report-keep-together">
+      <div class="report-section-heading">
+        <div><span>{% if comparison_period %}05{% else %}04{% endif %}</span><h2>Заявки с превышенным сроком обработки</h2></div>
+        <p>До 10 наиболее длительных случаев</p>
+      </div>
+      <div class="report-table-scroll">
+      <table class="report-table report-attention-table">
+        <thead><tr><th>Заявка</th><th>Территориальный орган</th><th>Отдел</th><th>Дата заявки</th><th>Рабочих дней</th></tr></thead>
+        <tbody>
+          {% for item in attention_requests %}
+            <tr><td>{{ item.number }}</td><td>{{ item.organ }}</td><td>{{ item.department }}</td><td>{{ item.request_date }}</td><td>{{ item.days }}</td></tr>
+          {% empty %}
+            <tr><td colspan="5" class="report-empty">Заявок с превышенным сроком обработки нет.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <footer class="report-footer">
+      <span>АИС УЗМО · Сводка руководителя</span>
+      <span>{{ generated_at|date:"d.m.Y H:i" }}</span>
+    </footer>
+  </main>
+  <script src="{% static 'vendor/bootstrap/bootstrap.bundle.min.js' %}"></script>
+  <script src="{% static 'js/custom_select.js' %}?v=20260705-008"></script>
+  <script src="{% static 'js/admin_multiselect.js' %}?v=20260715-001"></script>
+  <script src="{% static 'js/date_range_picker.js' %}?v=20260715-001"></script>
+  <script src="{% static 'js/admin_report.js' %}?v=20260715-002"></script>
+</body>
+</html>

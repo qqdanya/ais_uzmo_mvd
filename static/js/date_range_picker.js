@@ -164,6 +164,17 @@
       (toInput || fromInput).dispatchEvent(new Event("change", { bubbles: true }));
     }
 
+    root.setDateRangePickerValues = (fromValue, toValue = fromValue) => {
+      start = parseIso(fromValue);
+      end = single ? start : parseIso(toValue);
+      pending = null;
+      fromInput.value = iso(start);
+      if (toInput) toInput.value = iso(end);
+      center = monthStart(start || new Date());
+      syncLabel();
+      if (!popover.hidden) render();
+    };
+
     function commitManualValue() {
       const value = textInput.value.trim();
       if (!value) { commit(null, null); return true; }

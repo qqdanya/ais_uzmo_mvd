@@ -1,4 +1,4 @@
-<div class="{{ root_class }}" data-admin-multiselect data-empty-label="{{ empty_label }}">
+<div class="{{ root_class }}" data-admin-multiselect data-empty-label="{{ empty_label }}"{% if all_label %} data-all-label="{{ all_label }}"{% endif %}>
   <button class="admin-multiselect-trigger" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
     <span data-admin-multiselect-label>{{ current_label }}</span>
     <i class="bi bi-chevron-down"></i>

@@ -28,6 +28,14 @@
   const calendarJumpPanel = root.querySelector("[data-admin-calendar-jump-panel]");
   const calendarYear = root.querySelector("[data-admin-calendar-year]");
   const calendarMonthPicker = root.querySelector("[data-admin-calendar-month-picker]");
+  const reportComparison = root.querySelector("#admin-report-comparison");
+  const reportCustomPeriod = root.querySelector("[data-admin-report-custom-period]");
+  const reportCustomPicker = reportCustomPeriod?.querySelector("[data-date-range-picker]");
+  const reportComparisonFrom = reportCustomPicker?.querySelector("[data-date-range-from]");
+  const reportComparisonTo = reportCustomPicker?.querySelector("[data-date-range-to]");
+  const reportMetrics = root.querySelector(".admin-report-metrics");
+  const reportChartLayout = root.querySelector("#admin-report-chart-layout");
+  const reportChartLayoutField = root.querySelector("[data-admin-report-layout-field]");
   const summaryUrl = shell.dataset.summaryUrl;
 
   function parseIsoDate(value) {
@@ -66,6 +74,24 @@
     const day = result.getDay() || 7;
     result.setDate(result.getDate() - day + 1);
     return result;
+  }
+
+  function syncReportComparisonInputs(fillDefaults = false) {
+    const isCustom = reportComparison?.value === "custom";
+    const hasComparison = reportComparison?.value !== "none";
+    if (reportCustomPeriod) reportCustomPeriod.hidden = !isCustom;
+    if (reportChartLayoutField) reportChartLayoutField.hidden = !hasComparison;
+    if (!isCustom || !fillDefaults || !selectedStart || !selectedEnd) return;
+    if (reportComparisonFrom?.value && reportComparisonTo?.value) return;
+    const duration = Math.round((selectedEnd - selectedStart) / 86400000) + 1;
+    const comparisonEnd = new Date(selectedStart);
+    comparisonEnd.setDate(comparisonEnd.getDate() - 1);
+    const comparisonStart = new Date(comparisonEnd);
+    comparisonStart.setDate(comparisonStart.getDate() - duration + 1);
+    reportCustomPicker?.setDateRangePickerValues?.(
+      isoDate(comparisonStart),
+      isoDate(comparisonEnd),
+    );
   }
 
   function sameDay(left, right) {
@@ -561,6 +587,53 @@
   }
 
   root.addEventListener("click", (event) => {
+    const reportButton = event.target.closest("[data-admin-summary-report]");
+    if (reportButton) {
+      const reportForm = reportButton.closest("[data-admin-summary-report-form]");
+      if (!reportForm) return;
+      const params = paramsForRequest();
+      params.delete("org_metric");
+      const comparison = reportComparison?.value || "previous";
+      params.set("comparison", comparison);
+      if (comparison === "custom") {
+        syncReportComparisonInputs(true);
+        if (!reportComparisonFrom?.value || !reportComparisonTo?.value) {
+          event.preventDefault();
+          const visibleDateInput = reportCustomPicker?.querySelector("[data-date-range-text]");
+          visibleDateInput?.classList.add("is-invalid");
+          visibleDateInput?.focus();
+          return;
+        }
+        params.set("comparison_date_from", reportComparisonFrom.value);
+        params.set("comparison_date_to", reportComparisonTo.value);
+      }
+      const selectedMetrics = reportMetrics
+        ? [...reportMetrics.querySelectorAll("[data-admin-multiselect-input]:checked")]
+        : [];
+      if (!selectedMetrics.length) {
+        event.preventDefault();
+        reportMetrics?.classList.add("has-error");
+        reportMetrics?.querySelector(".admin-multiselect-trigger")?.focus();
+        return;
+      }
+      params.delete("metrics");
+      selectedMetrics.forEach((input) => params.append("metrics", input.value));
+      params.set(
+        "chart_layout",
+        comparison === "none" ? "combined" : (reportChartLayout?.value || "combined"),
+      );
+      params.set("granularity", dynamicsGranularity);
+      reportForm.querySelectorAll("[data-admin-report-param]").forEach((input) => input.remove());
+      params.forEach((value, name) => {
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = name;
+        input.value = value;
+        input.dataset.adminReportParam = "";
+        reportForm.append(input);
+      });
+      return;
+    }
     const preset = event.target.closest("[data-admin-period-preset]");
     if (preset) {
       event.preventDefault();
@@ -677,6 +750,14 @@
   });
 
   root.addEventListener("change", (event) => {
+    if (event.target.closest(".admin-report-metrics")?.matches(".admin-report-metrics")) {
+      reportMetrics?.classList.remove("has-error");
+      return;
+    }
+    if (event.target.matches("#admin-report-comparison")) {
+      syncReportComparisonInputs(true);
+      return;
+    }
     if (event.target.matches("[data-admin-all-organs]")) {
       adminOrganCheckboxes().forEach((checkbox) => { checkbox.checked = event.target.checked; });
       event.target.indeterminate = false;
@@ -701,6 +782,7 @@
   });
 
   restoreAdminOrgSelection();
+  syncReportComparisonInputs(false);
   updatePeriodLabel();
   renderCalendar();
   // The server now renders the shell with an empty payload (see

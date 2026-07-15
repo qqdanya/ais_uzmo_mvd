@@ -8,13 +8,19 @@ function updateAdminMultiselectLabel(root) {
   const label = root.querySelector("[data-admin-multiselect-label]");
   if (!label) return;
   const checked = adminMultiselectCheckedInputs(root);
+  const allInputs = [...root.querySelectorAll("[data-admin-multiselect-input]")];
   const emptyLabel = root.dataset.emptyLabel || "Не выбрано";
+  const allLabel = root.dataset.allLabel || "";
   if (!checked.length) {
     label.textContent = emptyLabel;
     root.classList.remove("has-selection");
     return;
   }
   root.classList.add("has-selection");
+  if (allLabel && checked.length === allInputs.length) {
+    label.textContent = allLabel;
+    return;
+  }
   if (checked.length === 1) {
     const option = checked[0].closest(".admin-multiselect-option");
     const optionLabel = option ? option.querySelector("span") : null;

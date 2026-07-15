@@ -4,7 +4,7 @@ import subprocess
 import sys
 import tempfile
 from io import BytesIO
-from datetime import timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
 
@@ -24,6 +24,7 @@ from apps.directory.models import Department, TerritorialOrgan, TerritorialOrgan
 from apps.requests_app.models import FireExtinguisher, NeedStatus, RequestNumberRegistry, RequestPhotoLink, RequestStatusHistory, TmcRequest, VehicleRepairRequest
 
 from .admin_asset_services import latest_objects_by_organ
+from .admin_reports import previous_comparison_period, previous_year_comparison_period
 from .admin_thresholds import _THRESHOLDS_CACHE, get_dashboard_thresholds
 from .models import UserProfile
 
@@ -121,7 +122,27 @@ class AdminPanelEndpointTests(AdminPanelTestMixin, TestCase):
         self.assertContains(response, 'data-dynamics-granularity="day"')
         self.assertContains(response, 'data-dynamics-granularity="week"')
         self.assertContains(response, 'data-dynamics-granularity="month"')
-        self.assertLess(response.content.index("previous_month".encode()), response.content.index("today".encode()))
+        self.assertContains(response, reverse("admin_summary_report"))
+        self.assertContains(response, 'id="admin-report-comparison"')
+        self.assertContains(response, "admin-report-metrics")
+        self.assertContains(response, 'id="admin-report-chart-layout"')
+        self.assertContains(response, 'data-all-label="Все показатели"')
+        self.assertContains(response, "data-admin-report-custom-period")
+        self.assertContains(response, "data-date-range-picker")
+        self.assertContains(response, "data-admin-summary-report-form")
+        self.assertContains(response, "на данный момент")
+        self.assertLess(
+            response.content.index(b'data-kpi="stale"'),
+            response.content.index(b"admin-summary-report-bar"),
+        )
+        self.assertLess(
+            response.content.index(b"admin-summary-report-bar"),
+            response.content.index(b"admin-dynamics-chart"),
+        )
+        self.assertLess(
+            response.content.index(b'data-admin-period-preset="previous_month"'),
+            response.content.index(b'data-admin-period-preset="today"'),
+        )
 
     def test_summary_data_returns_json_for_admin(self):
         self.login_admin()
@@ -279,6 +300,253 @@ class AdminPanelEndpointTests(AdminPanelTestMixin, TestCase):
         self.assertEqual(control_response.status_code, 200)
         self.assertEqual(django_admin_response.status_code, 302)
 
+
+class AdminSummaryReportTests(AdminPanelTestMixin, TestCase):
+    def test_previous_period_uses_previous_calendar_month_for_full_month(self):
+        compared = previous_comparison_period(
+            {
+                "period": "custom",
+                "date_from": date(2026, 7, 1),
+                "date_to": date(2026, 7, 31),
+            }
+        )
+
+        self.assertEqual(compared["date_from"], date(2026, 6, 1))
+        self.assertEqual(compared["date_to"], date(2026, 6, 30))
+
+    def test_previous_period_uses_same_length_for_custom_range(self):
+        compared = previous_comparison_period(
+            {
+                "period": "custom",
+                "date_from": date(2026, 7, 10),
+                "date_to": date(2026, 7, 20),
+            }
+        )
+
+        self.assertEqual(compared["date_from"], date(2026, 6, 29))
+        self.assertEqual(compared["date_to"], date(2026, 7, 9))
+
+    def test_previous_year_comparison_handles_leap_day(self):
+        compared = previous_year_comparison_period(
+            {
+                "period": "custom",
+                "date_from": date(2024, 2, 1),
+                "date_to": date(2024, 2, 29),
+            }
+        )
+
+        self.assertEqual(compared["date_from"], date(2023, 2, 1))
+        self.assertEqual(compared["date_to"], date(2023, 2, 28))
+
+    def test_summary_report_uses_selected_period_organs_and_previous_period(self):
+        self.login_admin()
+        TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            created_by=self.admin,
+            request_number="june",
+            request_date="2026-06-10",
+        )
+        TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            created_by=self.admin,
+            request_number="july-1",
+            request_date="2026-07-10",
+        )
+        TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            created_by=self.admin,
+            request_number="july-2",
+            request_date="2026-07-11",
+        )
+        TmcRequest.objects.create(
+            territorial_organ=self.other_organ,
+            created_by=self.admin,
+            request_number="other-organ",
+            request_date="2026-07-12",
+        )
+
+        response = self.client.get(
+            reverse("admin_summary_report"),
+            {
+                "period": "custom",
+                "date_from": "2026-07-01",
+                "date_to": "2026-07-31",
+                "organ_ids": [str(self.organ.pk)],
+                "comparison": "previous",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "admin_panel/summary_report.html")
+        self.assertEqual(response.context["comparison_period"]["date_from"], "2026-06-01")
+        self.assertEqual(response.context["comparison_period"]["date_to"], "2026-06-30")
+        self.assertFalse(response.context["different_period_lengths"])
+        total_row = next(row for row in response.context["metric_rows"] if row["key"] == "total")
+        self.assertEqual(total_row["current"], 2)
+        self.assertEqual(total_row["comparison"], 1)
+        self.assertEqual(total_row["percent_display"], "+100,0%")
+        self.assertTrue(response.context["chart"]["has_comparison"])
+        self.assertEqual(
+            sum(point["incoming"] for point in response.context["chart"]["points"]),
+            2,
+        )
+        self.assertEqual(
+            sum(point["comparison_incoming"] for point in response.context["chart"]["points"]),
+            1,
+        )
+        self.assertGreaterEqual(len(list(response.context["chart"]["y_ticks"])), 2)
+        self.assertEqual(response.context["selected_organs_label"], self.organ.name)
+        self.assertContains(response, "Сводка руководителя")
+        self.assertContains(response, "Печать / Сохранить в PDF")
+
+    def test_summary_report_can_compare_with_previous_year(self):
+        self.login_admin()
+
+        response = self.client.get(
+            reverse("admin_summary_report"),
+            {
+                "period": "custom",
+                "date_from": "2026-01-01",
+                "date_to": "2026-07-31",
+                "comparison": "previous_year",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["comparison_period"]["date_from"], "2025-01-01")
+        self.assertEqual(response.context["comparison_period"]["date_to"], "2025-07-31")
+
+    def test_summary_report_can_compare_with_custom_period(self):
+        self.login_admin()
+        TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            created_by=self.admin,
+            request_number="custom-comparison",
+            request_date="2026-05-15",
+        )
+        TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            created_by=self.admin,
+            request_number="current-period",
+            request_date="2026-07-10",
+        )
+
+        response = self.client.get(
+            reverse("admin_summary_report"),
+            {
+                "period": "custom",
+                "date_from": "2026-07-01",
+                "date_to": "2026-07-31",
+                "comparison": "custom",
+                "comparison_date_from": "2026-05-20",
+                "comparison_date_to": "2026-05-10",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["comparison_mode"], "custom")
+        self.assertEqual(response.context["comparison_period"]["date_from"], "2026-05-10")
+        self.assertEqual(response.context["comparison_period"]["date_to"], "2026-05-20")
+        self.assertEqual(response.context["comparison_date_from"], "2026-05-10")
+        self.assertEqual(response.context["comparison_date_to"], "2026-05-20")
+        self.assertTrue(response.context["different_period_lengths"])
+        total_row = next(row for row in response.context["metric_rows"] if row["key"] == "total")
+        self.assertTrue(total_row["show_daily_average"])
+        self.assertContains(response, "среднее количество заявок за день")
+        self.assertContains(response, "report-date-picker")
+        self.assertNotContains(response, 'type="date"')
+
+    def test_summary_report_can_show_selected_chart_metrics(self):
+        self.login_admin()
+
+        response = self.client.get(
+            reverse("admin_summary_report"),
+            {"metrics": ["incoming", "done"]},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        chart = response.context["chart"]
+        self.assertEqual(chart["selected_metrics"], ("incoming", "done"))
+        self.assertTrue(chart["show_incoming"])
+        self.assertTrue(chart["show_done"])
+        self.assertFalse(chart["show_rejected"])
+        self.assertEqual(len(chart["line_labels"]), 4)
+        self.assertContains(response, "report-line-incoming\"")
+        self.assertContains(response, "report-line-done\"")
+        self.assertNotContains(response, "report-line-rejected\"")
+        self.assertContains(response, "data-admin-multiselect")
+        self.assertContains(response, "js/custom_select.js")
+        self.assertContains(response, "js/admin_multiselect.js")
+
+    def test_summary_report_can_put_comparison_on_two_charts(self):
+        self.login_admin()
+
+        response = self.client.get(
+            reverse("admin_summary_report"),
+            {
+                "period": "custom",
+                "date_from": "2026-07-01",
+                "date_to": "2026-07-31",
+                "comparison": "previous",
+                "chart_layout": "separate",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["chart"]["layout"], "separate")
+        self.assertEqual(len(response.context["chart"]["panels"]), 2)
+        for panel in response.context["chart"]["panels"]:
+            self.assertEqual(len({label["point_y"] for label in panel["line_labels"]}), 1)
+            self.assertEqual(
+                len({label["label_y"] for label in panel["line_labels"]}),
+                len(panel["line_labels"]),
+            )
+        self.assertContains(response, "report-separated-charts")
+        self.assertContains(response, "01.07.2026")
+        self.assertContains(response, "01.06.2026")
+        self.assertContains(response, 'circle cx="164"', html=False)
+
+    def test_report_chart_has_direct_labels_and_monochrome_markers(self):
+        self.login_admin()
+
+        response = self.client.get(reverse("admin_summary_report"))
+
+        self.assertEqual(response.status_code, 200)
+        line_labels = response.context["chart"]["line_labels"]
+        self.assertEqual(len(line_labels), 6)
+        self.assertEqual(len({label["point_y"] for label in line_labels}), 1)
+        self.assertEqual(len({label["label_y"] for label in line_labels}), len(line_labels))
+        self.assertContains(response, "Поступило, основной")
+        self.assertContains(response, "Исполнено, сравнение")
+        self.assertContains(response, '<polyline points="169,', html=False)
+        self.assertContains(response, '<circle cx="164"', html=False)
+        self.assertContains(response, '<rect x="-3.5" y="-3.5" width="7" height="7" transform="translate(164 ', html=False)
+        self.assertContains(response, '<polygon points="0,-4 4,3 -4,3" transform="translate(164 ', html=False)
+
+    def test_all_time_report_disables_comparison(self):
+        self.login_admin()
+
+        response = self.client.get(
+            reverse("admin_summary_report"),
+            {"period": "all", "comparison": "previous", "chart_layout": "separate"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["comparison_mode"], "none")
+        self.assertIsNone(response.context["comparison_period"])
+        self.assertFalse(response.context["chart"]["has_comparison"])
+        self.assertEqual(response.context["chart"]["layout"], "combined")
+        self.assertContains(response, "data-report-layout-field hidden")
+
+    def test_summary_report_is_forbidden_to_operator(self):
+        self.login_operator()
+
+        response = self.client.get(reverse("admin_summary_report"))
+
+        self.assertEqual(response.status_code, 403)
+
+
+class AdminPanelAccessTests(AdminPanelTestMixin, TestCase):
     def test_database_tables_button_is_visible_only_to_leader(self):
         profile_admin = self.User.objects.create_user("profile_admin", password="pass12345", is_staff=False)
         UserProfile.objects.create(user=profile_admin, role=UserProfile.Role.ADMIN)
@@ -2023,7 +2291,7 @@ class AdminTrashPanelTests(AdminPanelTestMixin, TestCase):
         self.assertIn("transition: background-color .14s var(--motion-smooth), border-color .14s var(--motion-smooth)", requests_css)
         self.assertIn(".admin-requests-table td:last-child", requests_css)
         self.assertIn("justify-content: center", requests_css)
-        self.assertIn("admin/base.css?v=20260711-005", admin_css)
+        self.assertIn("admin/base.css?v=20260715-007", admin_css)
         self.assertIn("admin/requests.css?v=20260712-002", admin_css)
         self.assertIn("admin/trash.css?v=20260705-016", admin_css)
         self.assertIn(".admin-requests-table td", admin_css)
