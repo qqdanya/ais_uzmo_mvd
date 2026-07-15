@@ -221,6 +221,22 @@
     width: 100%;
     margin-left: 0;
     justify-content: flex-start;
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+  .table-actions > .table-view-form {
+    flex: 1 1 100%;
+    width: 100%;
+    min-width: 0;
+  }
+  .table-actions > .table-view-form .custom-select,
+  .table-actions > .table-view-form .form-select {
+    width: 100%;
+    min-width: 0;
+  }
+  .table-actions > .dropdown,
+  .table-actions > .table-add-button {
+    max-width: 100%;
   }
   .table-actions-row {
     justify-content: flex-start;
