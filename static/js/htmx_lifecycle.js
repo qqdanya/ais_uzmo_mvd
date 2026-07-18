@@ -1,11 +1,84 @@
 // HTMX progress/errors and Bootstrap modal lifecycle.
+const LOADING_SHOW_DELAY_MS = 180;
+const LOADING_MIN_VISIBLE_MS = 320;
+const LOADING_COMPLETE_MS = 180;
+const LOADING_FADE_MS = 160;
 let htmxRequests = 0;
 let loadingFailsafeTimer = null;
+let loadingShowTimer = null;
+let loadingCompleteTimer = null;
+let loadingHideTimer = null;
+let loadingResetTimer = null;
+let loadingShownAt = 0;
+let loadingCycle = 0;
 
-function setLoading(isLoading) {
-  const progress = document.getElementById("htmx-progress");
+function loadingProgress() {
+  return document.getElementById("htmx-progress");
+}
+
+function clearLoadingTimer(timer) {
+  if (timer) window.clearTimeout(timer);
+  return null;
+}
+
+function clearProgressTimers() {
+  loadingShowTimer = clearLoadingTimer(loadingShowTimer);
+  loadingCompleteTimer = clearLoadingTimer(loadingCompleteTimer);
+  loadingHideTimer = clearLoadingTimer(loadingHideTimer);
+  loadingResetTimer = clearLoadingTimer(loadingResetTimer);
+}
+
+function resetProgressElement(progress = loadingProgress()) {
+  progress?.classList.remove("is-active", "is-running", "is-completing", "is-hiding");
+  loadingShownAt = 0;
+}
+
+function startLoadingProgress() {
+  const progress = loadingProgress();
   if (!progress) return;
-  progress.classList.toggle("is-active", isLoading);
+  const cycle = ++loadingCycle;
+  clearProgressTimers();
+  resetProgressElement(progress);
+  loadingShowTimer = window.setTimeout(() => {
+    loadingShowTimer = null;
+    if (cycle !== loadingCycle || htmxRequests === 0) return;
+    progress.classList.add("is-active");
+    loadingShownAt = performance.now();
+    window.requestAnimationFrame(() => {
+      if (cycle === loadingCycle && htmxRequests > 0) progress.classList.add("is-running");
+    });
+  }, LOADING_SHOW_DELAY_MS);
+}
+
+function finishLoadingProgress() {
+  const progress = loadingProgress();
+  loadingShowTimer = clearLoadingTimer(loadingShowTimer);
+  loadingCompleteTimer = clearLoadingTimer(loadingCompleteTimer);
+  loadingHideTimer = clearLoadingTimer(loadingHideTimer);
+  loadingResetTimer = clearLoadingTimer(loadingResetTimer);
+  if (!progress?.classList.contains("is-active")) {
+    resetProgressElement(progress);
+    return;
+  }
+
+  const cycle = loadingCycle;
+  const visibleFor = performance.now() - loadingShownAt;
+  const completionDelay = Math.max(0, LOADING_MIN_VISIBLE_MS - visibleFor);
+  loadingCompleteTimer = window.setTimeout(() => {
+    loadingCompleteTimer = null;
+    if (cycle !== loadingCycle || htmxRequests > 0) return;
+    progress.classList.remove("is-running");
+    progress.classList.add("is-completing");
+    loadingHideTimer = window.setTimeout(() => {
+      loadingHideTimer = null;
+      if (cycle !== loadingCycle || htmxRequests > 0) return;
+      progress.classList.add("is-hiding");
+      loadingResetTimer = window.setTimeout(() => {
+        loadingResetTimer = null;
+        if (cycle === loadingCycle && htmxRequests === 0) resetProgressElement(progress);
+      }, LOADING_FADE_MS);
+    }, LOADING_COMPLETE_MS);
+  }, completionDelay);
 }
 
 function syncHeaderHeight() {
@@ -20,7 +93,6 @@ function syncHeaderHeight() {
 }
 
 function syncLoadingState() {
-  setLoading(htmxRequests > 0);
   if (loadingFailsafeTimer) {
     window.clearTimeout(loadingFailsafeTimer);
     loadingFailsafeTimer = null;
@@ -28,23 +100,27 @@ function syncLoadingState() {
   if (htmxRequests > 0) {
     loadingFailsafeTimer = window.setTimeout(() => {
       htmxRequests = 0;
-      setLoading(false);
+      finishLoadingProgress();
     }, 30000);
   }
 }
 
 function startHtmxRequest() {
+  const startsNewCycle = htmxRequests === 0;
   htmxRequests += 1;
+  if (startsNewCycle) startLoadingProgress();
   syncLoadingState();
 }
 
 function finishHtmxRequest() {
   htmxRequests = Math.max(0, htmxRequests - 1);
+  if (htmxRequests === 0) finishLoadingProgress();
   syncLoadingState();
 }
 
 function resetHtmxLoading() {
   htmxRequests = 0;
+  finishLoadingProgress();
   syncLoadingState();
 }
 

@@ -128,25 +128,34 @@ body.modal-open .toast-stack {
   width: 100%;
   height: 3px;
   opacity: 0;
-  overflow: hidden;
+  background: linear-gradient(90deg, #2498dc 0%, #68d8ff 72%, #e8fbff 100%);
+  box-shadow: 0 1px 5px rgba(36, 152, 220, .3);
+  transform: scaleX(0);
+  transform-origin: left center;
   pointer-events: none;
-}
-.htmx-progress::before {
-  content: "";
-  display: block;
-  width: 45%;
-  height: 100%;
-  background: linear-gradient(90deg, #68d8ff, #ffffff, #68d8ff);
-  transform: translateX(-110%);
+  will-change: transform, opacity;
 }
 .htmx-progress.is-active {
   opacity: 1;
+  transform: scaleX(.12);
 }
-.htmx-progress.is-active::before {
-  animation: progress-slide .9s ease-in-out infinite;
+.htmx-progress.is-active.is-running {
+  transform: scaleX(.82);
+  transition: transform 8s cubic-bezier(.1, .55, .2, 1), opacity .12s ease;
 }
-@keyframes progress-slide {
-  to { transform: translateX(230%); }
+.htmx-progress.is-active.is-completing {
+  transform: scaleX(1);
+  transition: transform .18s ease-out, opacity .12s ease;
+}
+.htmx-progress.is-hiding {
+  opacity: 0;
+  transform: scaleX(1);
+  transition: opacity .16s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .htmx-progress {
+    transition-duration: .01ms !important;
+  }
 }
 [data-download-preparing].is-preparing {
   cursor: wait;

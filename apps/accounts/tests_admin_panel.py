@@ -2131,7 +2131,7 @@ class FrontendModuleSplitTests(TestCase):
             "organ_navigation.js": ["function loadDepartment", "function setActiveOrgan", "function preferredDepartmentForOrgan"],
             "request_photo_picker.js": ["function syncRequestPhotoPicker", "function detachRequestPhoto", "function refreshCurrentTableArea"],
             "layout_panels.js": ["function syncHeaderHeight", "function applyCollapsedPanels"],
-            "table_interactions.js": ["function filterCurrentTable", "function setTableGroupHover", "function fillCompletedDate"],
+            "table_interactions.js": ["function filterCurrentTable", "function setTableGroupHover", "function syncCompletedDate"],
             "htmx_lifecycle.js": ["function registerHtmxLifecycle", "htmx:afterSwap", "bootstrap.Modal.getOrCreateInstance(document.getElementById(\"modal-root\")).show()", "modal:close", "function showToastFromHtmxTrigger", "requestPhotosChanged", "function focusCurrentSearch", "function closeOpenModal", "function scrollAfterPaginationSwap"],
             "app_events.js": ["function registerAppEventHandlers", "data-organ-mode", "data-request-photo-toggle"],
             "auth_ui.js": ["auth-ascii-input", "data-password-toggle"],
@@ -2266,6 +2266,19 @@ class FrontendModuleSplitTests(TestCase):
         self.assertIn("initTooltips();", htmx_js)
         self.assertIn("window.initTooltips = initTooltips", tooltips_js)
         self.assertIn("window.showToast = showToast", toasts_js)
+
+    def test_htmx_progress_avoids_flashes_and_finishes_visibly(self):
+        htmx_js = self.read_static_js("htmx_lifecycle.js")
+        base_css = (self.project_root() / "static" / "css" / "app" / "base.css").read_text(encoding="utf-8")
+
+        self.assertIn("const LOADING_SHOW_DELAY_MS = 180", htmx_js)
+        self.assertIn("const LOADING_MIN_VISIBLE_MS = 320", htmx_js)
+        self.assertIn("finishLoadingProgress()", htmx_js)
+        self.assertIn('progress.classList.add("is-completing")', htmx_js)
+        self.assertIn('progress.classList.add("is-hiding")', htmx_js)
+        self.assertIn(".htmx-progress.is-active.is-completing", base_css)
+        self.assertIn("transform: scaleX(1)", base_css)
+        self.assertNotIn("progress-slide", base_css)
 
     def test_app_js_skips_redundant_fetch_only_when_state_matches_server_default(self):
         # A returning visitor whose saved organ/department/table happen to
