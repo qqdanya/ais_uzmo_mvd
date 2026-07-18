@@ -418,9 +418,17 @@ body.modal-open .toast-stack {
   color: #a9e2ff;
 }
 .user-menu .dropdown-item:hover,
+.user-menu .dropdown-item:focus,
 .user-menu .dropdown-item:focus-visible {
+  outline: 0;
   background: linear-gradient(90deg, rgba(137,218,255,.22), rgba(255,255,255,.09));
   color: #fff;
+}
+.user-menu .dropdown-item:active,
+.user-menu .dropdown-item.active {
+  background: linear-gradient(90deg, rgba(138,222,255,.32), rgba(77,174,224,.2));
+  color: #fff;
+  box-shadow: inset 3px 0 rgba(181,233,255,.48);
 }
 .user-menu .dropdown-item.text-danger {
   color: #ffd1d6 !important;

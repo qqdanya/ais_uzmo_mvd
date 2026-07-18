@@ -2,7 +2,7 @@
  * Application stylesheet entrypoint.
  * Keep imports in this order: later modules intentionally refine earlier shared rules.
  */
-@import url("app/base.css?v=20260718-008");
+@import url("app/base.css?v=20260718-009");
 @import url("app/dashboard.css?v=20260712-010");
 @import url("app/tables.css?v=20260718-002");
 @import url("app/request-photos.css?v=20260711-002");

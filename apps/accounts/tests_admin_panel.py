@@ -2155,6 +2155,7 @@ class FrontendModuleSplitTests(TestCase):
         self.assertNotIn('data-bs-display="static"', base_html)
         self.assertIn("(min-width: 721px) and (hover: hover) and (pointer: fine)", base_css)
         self.assertIn("clip-path: inset(0 0 100% 0)", base_css)
+        self.assertIn(".user-menu .dropdown-item:active", base_css)
         self.assertIn('const USER_MENU_HOVER_QUERY = "(min-width: 721px) and (hover: hover) and (pointer: fine)"', auth_js)
         self.assertIn('root.addEventListener("pointerenter"', auth_js)
         self.assertIn('root.addEventListener("pointerleave"', auth_js)
