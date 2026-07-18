@@ -296,6 +296,72 @@ body.modal-open .toast-stack {
   min-width: 0;
   row-gap: .45rem !important;
 }
+@media (min-width: 721px) and (hover: hover) and (pointer: fine) {
+  .header-actions[data-user-menu] {
+    position: relative;
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+    width: clamp(210px, 20vw, 260px);
+    margin-block: -.55rem;
+    margin-inline-end: calc(var(--bs-gutter-x) * -.5);
+    isolation: isolate;
+  }
+  .header-actions[data-user-menu]::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    inset: 0 0 0 -42px;
+    background: linear-gradient(90deg, transparent 0%, rgba(31,125,185,.035) 35%, rgba(7,61,111,.16) 100%);
+    opacity: .48;
+    pointer-events: none;
+    transition: opacity .38s var(--motion-smooth), background .38s var(--motion-smooth);
+  }
+  .header-actions[data-user-menu]:hover::before,
+  .header-actions[data-user-menu]:focus-within::before {
+    background: linear-gradient(90deg, transparent 0%, rgba(105,202,246,.045) 36%, rgba(7,58,106,.24) 100%);
+    opacity: 1;
+  }
+  .header-actions[data-user-menu] .user-menu-toggle {
+    position: relative;
+    z-index: 1;
+    align-self: stretch;
+    width: 100%;
+    min-height: 56px;
+    padding-inline-start: 1rem;
+    padding-inline-end: calc(1rem + var(--bs-gutter-x) * .5);
+    border: 0;
+    border-radius: 0;
+    outline: 0;
+    background: transparent;
+    box-shadow: none;
+    justify-content: flex-end;
+    transition: color .32s var(--motion-smooth), box-shadow .32s var(--motion-smooth);
+  }
+  .header-actions[data-user-menu]:hover .user-menu-toggle,
+  .header-actions[data-user-menu] .user-menu-toggle.show {
+    background: transparent;
+    color: #f4fbff;
+    box-shadow: none;
+  }
+  .header-actions[data-user-menu] .user-menu-toggle:focus-visible {
+    outline: 0;
+    background: transparent;
+    box-shadow: inset 0 -2px rgba(217,244,255,.48);
+  }
+  .header-actions[data-user-menu] .user-menu-toggle span {
+    flex: 0 1 auto;
+    text-align: right;
+  }
+  .header-actions[data-user-menu] .user-menu {
+    width: 100%;
+    min-width: 100%;
+    max-width: 100%;
+    margin-top: 0;
+    border-top: 0;
+    border-radius: 0 0 10px 10px;
+  }
+}
 .user-menu-toggle {
   max-width: min(280px, 100%);
   min-height: 34px;
@@ -324,19 +390,46 @@ body.modal-open .toast-stack {
 }
 .user-menu {
   min-width: 210px;
-  border: 1px solid var(--line);
+  overflow: hidden;
+  border: 1px solid rgba(151,218,252,.25);
   border-radius: 8px;
-  box-shadow: 0 16px 36px rgba(11, 47, 91, .18);
+  background: linear-gradient(165deg, #1769aa 0%, #104f89 54%, #0b3768 100%);
+  color: #fff;
+  box-shadow: 0 18px 38px rgba(5, 31, 61, .3), inset 0 1px rgba(210,241,255,.12);
 }
 .user-menu.show {
-  animation: menu-slide-in .16s ease-out both;
+  animation: menu-slide-in .22s var(--motion-smooth) both;
   transform-origin: top right;
+}
+.user-menu.show.is-closing {
+  pointer-events: none;
+  animation: menu-slide-out .22s var(--motion-smooth) both;
 }
 .user-menu .dropdown-item {
   display: flex;
   align-items: center;
   gap: .55rem;
+  color: rgba(255,255,255,.94);
   font-size: .88rem;
+  white-space: normal;
+  transition: color .16s ease, background .16s ease;
+}
+.user-menu .dropdown-item i {
+  color: #a9e2ff;
+}
+.user-menu .dropdown-item:hover,
+.user-menu .dropdown-item:focus-visible {
+  background: linear-gradient(90deg, rgba(137,218,255,.22), rgba(255,255,255,.09));
+  color: #fff;
+}
+.user-menu .dropdown-item.text-danger {
+  color: #ffd1d6 !important;
+}
+.user-menu .dropdown-item.text-danger i {
+  color: #ffb9c1;
+}
+.user-menu .dropdown-divider {
+  border-color: rgba(211,240,255,.18);
 }
 .user-menu-count {
   min-width: 1.45rem;
@@ -351,7 +444,7 @@ body.modal-open .toast-stack {
   text-align: center;
 }
 .user-menu .dropdown-header {
-  color: var(--muted);
+  color: rgba(225,245,255,.75);
   max-width: 260px;
   white-space: normal;
   overflow-wrap: anywhere;
@@ -360,11 +453,21 @@ body.modal-open .toast-stack {
 @keyframes menu-slide-in {
   from {
     opacity: 0;
-    transform: translateY(-6px) scale(.98);
+    clip-path: inset(0 0 100% 0);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    clip-path: inset(0 0 0 0);
+  }
+}
+@keyframes menu-slide-out {
+  from {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+  }
+  to {
+    opacity: 0;
+    clip-path: inset(0 0 100% 0);
   }
 }
 .app-main {

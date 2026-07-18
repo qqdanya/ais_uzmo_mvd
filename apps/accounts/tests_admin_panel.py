@@ -2134,13 +2134,34 @@ class FrontendModuleSplitTests(TestCase):
             "table_interactions.js": ["function filterCurrentTable", "function setTableGroupHover", "function syncCompletedDate"],
             "htmx_lifecycle.js": ["function registerHtmxLifecycle", "htmx:afterSwap", "bootstrap.Modal.getOrCreateInstance(document.getElementById(\"modal-root\")).show()", "modal:close", "function showToastFromHtmxTrigger", "requestPhotosChanged", "function focusCurrentSearch", "function closeOpenModal", "function scrollAfterPaginationSwap"],
             "app_events.js": ["function registerAppEventHandlers", "data-organ-mode", "data-request-photo-toggle"],
-            "auth_ui.js": ["auth-ascii-input", "data-password-toggle"],
+            "auth_ui.js": ["auth-ascii-input", "data-password-toggle", "function initUserMenuHover", "USER_MENU_HOVER_QUERY"],
         }
         for module_name, fragments in expected_fragments.items():
             content = self.read_static_js(module_name)
             with self.subTest(module=module_name):
                 for fragment in fragments:
                     self.assertIn(fragment, content)
+
+    def test_user_menu_hover_is_limited_to_desktop_pointer_devices(self):
+        project_root = self.project_root()
+        base_html = (project_root / "templates" / "base.html").read_text(encoding="utf-8")
+        base_css = (project_root / "static" / "css" / "app" / "base.css").read_text(encoding="utf-8")
+        auth_js = self.read_static_js("auth_ui.js")
+
+        self.assertIn("data-user-menu", base_html)
+        self.assertNotIn("dropdown-menu dropdown-menu-end user-menu", base_html)
+        self.assertIn('data-bs-auto-close="outside"', base_html)
+        self.assertIn('data-bs-offset="0,0"', base_html)
+        self.assertNotIn('data-bs-display="static"', base_html)
+        self.assertIn("(min-width: 721px) and (hover: hover) and (pointer: fine)", base_css)
+        self.assertIn("clip-path: inset(0 0 100% 0)", base_css)
+        self.assertIn('const USER_MENU_HOVER_QUERY = "(min-width: 721px) and (hover: hover) and (pointer: fine)"', auth_js)
+        self.assertIn('root.addEventListener("pointerenter"', auth_js)
+        self.assertIn('root.addEventListener("pointerleave"', auth_js)
+        self.assertIn("USER_MENU_CLOSE_ANIMATION_MS", auth_js)
+        self.assertIn('menu.classList.add("is-closing")', auth_js)
+        self.assertIn('root.addEventListener("hide.bs.dropdown"', auth_js)
+        self.assertIn("bootstrap.Dropdown.getOrCreateInstance(toggle)", auth_js)
 
     def test_frontend_modules_export_globals_used_by_app_js(self):
         for module_name, global_names in self.frontend_globals.items():

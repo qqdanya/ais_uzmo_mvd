@@ -8,7 +8,7 @@
   <link rel="icon" href="{% static 'img/favicon.svg' %}?v=6" type="image/svg+xml">
   <link href="{% static 'vendor/bootstrap/bootstrap.min.css' %}" rel="stylesheet">
   <link href="{% static 'vendor/bootstrap-icons/bootstrap-icons.css' %}" rel="stylesheet">
-  <link href="{% static 'css/app.css' %}?v=20260718-011" rel="stylesheet">
+  <link href="{% static 'css/app.css' %}?v=20260718-016" rel="stylesheet">
   {% block extra_css %}{% endblock %}
   <script src="{% static 'vendor/htmx/htmx.min.js' %}"></script>
 </head>
@@ -24,13 +24,13 @@
         </span>
       </a>
       {% if user.is_authenticated %}
-      <div class="header-actions dropdown">
-        <button class="user-menu-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Меню пользователя">
+      <div class="header-actions dropdown" data-user-menu>
+        <button class="user-menu-toggle" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" data-bs-offset="0,0" aria-expanded="false" aria-label="Меню пользователя">
           <i class="bi bi-person-circle"></i>
           <span>{{ user|display_name }}</span>
           <i class="bi bi-list"></i>
         </button>
-        <div class="dropdown-menu dropdown-menu-end user-menu">
+        <div class="dropdown-menu user-menu">
           <div class="dropdown-header">{{ user|full_display_name }}</div>
           {% if user.is_superuser or user.profile.role == "admin" %}
             <a class="dropdown-item" href="{% url 'admin_panel' %}"><i class="bi bi-grid-1x2"></i> Административная панель</a>
@@ -82,7 +82,7 @@
   <script src="{% static 'js/tmc_products.js' %}?v=20260705-011"></script>
   <script src="{% static 'js/app_storage.js' %}?v=20260706-002"></script>
   <script src="{% static 'js/app_dom_utils.js' %}?v=20260706-002"></script>
-  <script src="{% static 'js/auth_ui.js' %}?v=20260709-001"></script>
+  <script src="{% static 'js/auth_ui.js' %}?v=20260718-004"></script>
   <script src="{% static 'js/trash_badge.js' %}?v=20260711-001"></script>
   <script src="{% static 'js/layout_panels.js' %}?v=20260711-006"></script>
   <script src="{% static 'js/date_range_picker.js' %}?v=20260718-003"></script>
