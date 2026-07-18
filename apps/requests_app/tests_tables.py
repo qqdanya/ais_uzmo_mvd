@@ -234,7 +234,7 @@ class DepartmentTableTests(RequestAppTestCase):
 
         response = self.client.get(reverse("table_data", args=[self.organ.pk, "vehicle-repair"]))
 
-        self.assertNotContains(response, "<th>Дата исполнения заявки</th>", html=True)
+        self.assertNotContains(response, "<th>Дата исполнения / отклонения</th>", html=True)
         self.assertContains(response, "<th>Описание</th>", html=True)
         self.assertContains(response, "Needs diagnostics")
         self.assertContains(response, "table-vehicle-repair")
@@ -262,6 +262,7 @@ class DepartmentTableTests(RequestAppTestCase):
         self.assertContains(response, 'name="request_date"')
         self.assertContains(response, f'value="{today.isoformat()}"')
         self.assertContains(response, 'name="completed_at"')
+        self.assertContains(response, "Дата исполнения / отклонения")
 
     def test_vehicle_repair_status_history_records_completed_date(self):
         request_obj = VehicleRepairRequest.objects.create(
@@ -291,8 +292,39 @@ class DepartmentTableTests(RequestAppTestCase):
 
         modal = self.client.get(reverse("vehicle_repair_status_history", args=[self.organ.pk, request_obj.pk]), HTTP_HX_REQUEST="true")
         self.assertContains(modal, "История изменений статуса заявки R-2")
-        self.assertContains(modal, "Дата исполнения заявки")
+        self.assertContains(modal, "Дата исполнения / отклонения")
         self.assertContains(modal, "29.06.2026")
+
+    def test_vehicle_repair_terminal_statuses_default_completion_date_to_today(self):
+        self.client.login(username="operator", password="pass12345")
+
+        for index, status in enumerate(("done", "rejected"), start=1):
+            with self.subTest(status=status):
+                request_obj = VehicleRepairRequest.objects.create(
+                    territorial_organ=self.organ,
+                    request_number=f"R-AUTO-{index}",
+                    request_date="2026-06-27",
+                    status="in_work",
+                    comment="Initial",
+                )
+
+                response = self.client.post(
+                    reverse("record_update", args=[self.organ.pk, "vehicle-repair", request_obj.pk]),
+                    {
+                        "request_number": request_obj.request_number,
+                        "request_date": "2026-06-27",
+                        "status": status,
+                        "completed_at": "",
+                        "comment": "Initial",
+                    },
+                    HTTP_HX_REQUEST="true",
+                )
+
+                self.assertEqual(response.status_code, 200)
+                request_obj.refresh_from_db()
+                self.assertEqual(request_obj.completed_at, timezone.localdate())
+                history = self.status_history(request_obj).get(old_status="in_work", new_status=status)
+                self.assertEqual(history.completed_at, timezone.localdate())
 
     def test_status_change_creates_one_audit_event_with_completion_date(self):
         request_obj = VehicleRepairRequest.objects.create(
@@ -503,7 +535,7 @@ class DepartmentTableTests(RequestAppTestCase):
 
         modal = self.client.get(reverse("vehicle_fuel_status_history", args=[self.organ.pk, request_obj.pk]), HTTP_HX_REQUEST="true")
         self.assertContains(modal, "История изменений статуса заявки GSM-2")
-        self.assertContains(modal, "Дата исполнения заявки")
+        self.assertContains(modal, "Дата исполнения / отклонения")
         self.assertContains(modal, "29.06.2026")
 
     def test_fire_inventory_tabs_have_date_short_headers_and_styled_export(self):
@@ -659,7 +691,7 @@ class DepartmentTableTests(RequestAppTestCase):
 
         modal = self.client.get(reverse("fire_request_status_history", args=[self.organ.pk, included.pk]), HTTP_HX_REQUEST="true")
         self.assertContains(modal, "История изменений статуса заявки F-1")
-        self.assertContains(modal, "Дата исполнения заявки")
+        self.assertContains(modal, "Дата исполнения / отклонения")
 
         export_response = self.client.get(reverse("export_table", args=[self.organ.pk, "fire-requests", "xlsx"]), {"status": "done", "q": "Completed"})
         workbook = self.response_workbook(export_response)

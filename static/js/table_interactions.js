@@ -56,7 +56,10 @@ function fillCompletedDate(form) {
   const status = form.querySelector('[name="status"]');
   const completedDate = form.querySelector('[name="completed_at"]') || form.querySelector('[name="due_date"]');
   if (!status || !completedDate) return;
-  if (status.value === "done" && !completedDate.value) {
-    completedDate.value = todayInputValue();
+  if (["done", "rejected"].includes(status.value) && !completedDate.value) {
+    const today = todayInputValue();
+    const picker = completedDate.closest("[data-date-range-picker]");
+    if (picker?.setDateRangePickerValues) picker.setDateRangePickerValues(today);
+    else completedDate.value = today;
   }
 }

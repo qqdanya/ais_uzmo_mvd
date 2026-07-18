@@ -16,6 +16,9 @@ from .tmc import (
 )
 
 
+TERMINAL_REQUEST_STATUSES = {NeedStatus.DONE, NeedStatus.REJECTED}
+
+
 def audit_values_for_fields(values, fields):
     values = values or {}
     return {field: values.get(field) for field in fields if field in values}
@@ -42,6 +45,8 @@ def save_tmc_record(request, organ, table, instance, form, item_rows):
     with transaction.atomic():
         obj = form.save(commit=False)
         obj.territorial_organ = organ
+        if obj.status in TERMINAL_REQUEST_STATUSES and not obj.due_date:
+            obj.due_date = timezone.localdate()
         if not obj.pk:
             obj.created_by = request.user
         obj.updated_by = request.user
@@ -69,7 +74,7 @@ def save_tmc_record(request, organ, table, instance, form, item_rows):
                 obj=obj,
                 old_status=None if is_create else old_status,
                 new_status=obj.status,
-                completed_at=obj.due_date if obj.status == NeedStatus.DONE else None,
+                completed_at=obj.due_date if obj.status in TERMINAL_REQUEST_STATUSES else None,
                 changed_by=request.user,
                 note="Создание заявки" if is_create else "Изменение статуса",
             )
@@ -120,7 +125,7 @@ def save_record(request, organ, table, table_key, instance, form, selected_photo
         obj = form.save(commit=False)
         obj.territorial_organ = organ
         completion_field = completed_date_field(table_key)
-        if table_key in status_history_tables and obj.status == NeedStatus.DONE and not getattr(obj, completion_field):
+        if table_key in status_history_tables and obj.status in TERMINAL_REQUEST_STATUSES and not getattr(obj, completion_field):
             setattr(obj, completion_field, timezone.localdate())
         if not obj.pk:
             obj.created_by = request.user
@@ -136,7 +141,7 @@ def save_record(request, organ, table, table_key, instance, form, selected_photo
                 obj=obj,
                 old_status=None if is_create else old_status,
                 new_status=obj.status,
-                completed_at=getattr(obj, completion_field) if obj.status == NeedStatus.DONE else None,
+                completed_at=getattr(obj, completion_field) if obj.status in TERMINAL_REQUEST_STATUSES else None,
                 changed_by=request.user,
                 note="Создание заявки" if is_create else "Изменение статуса",
             )

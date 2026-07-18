@@ -39,6 +39,8 @@ AUDIT_FIELD_LABELS = {
     "django_permissions": "Дополнительные права Django",
     "request_stale_workdays": "Просроченные заявки, рабочих дней",
     "asset_stale_days": "Устаревшие сведения материальной базы, календарных дней",
+    "completed_at": "Дата исполнения / отклонения",
+    "due_date": "Дата исполнения / отклонения",
 }
 
 LEGACY_EMPLOYEE_UPDATE_EVENTS = {

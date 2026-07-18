@@ -317,6 +317,7 @@ class TmcRequestTests(RequestAppTestCase):
         self.assertContains(response, 'value="2026-06-27"')
         self.assertContains(response, 'name="due_date"')
         self.assertContains(response, 'value="2026-06-28"')
+        self.assertContains(response, "Дата исполнения / отклонения")
 
     def test_tmc_done_status_history_stores_completed_date(self):
         request_obj = TmcRequest.objects.create(
@@ -351,6 +352,50 @@ class TmcRequestTests(RequestAppTestCase):
 
         modal = self.client.get(reverse("tmc_status_history", args=[self.organ.pk, request_obj.pk]), HTTP_HX_REQUEST="true")
         self.assertContains(modal, "29.06.2026")
+
+    def test_tmc_terminal_statuses_default_completion_date_to_today(self):
+        self.client.login(username="operator", password="pass12345")
+
+        for index, status in enumerate(("done", "rejected"), start=1):
+            with self.subTest(status=status):
+                product = TmcProduct.objects.create(name=f"Auto date item {index}", unit="pcs")
+                request_obj = TmcRequest.objects.create(
+                    territorial_organ=self.organ,
+                    created_by=self.user,
+                    updated_by=self.user,
+                    request_number=f"AUTO-{index}/TMC",
+                    request_date="2026-06-27",
+                    status="in_work",
+                )
+                TmcRequestItem.objects.create(
+                    request=request_obj,
+                    product=product,
+                    name=product.name,
+                    quantity=1,
+                    unit=product.unit,
+                )
+
+                response = self.client.post(
+                    reverse("record_update", args=[self.organ.pk, "tmc-requests", request_obj.pk]),
+                    {
+                        "request_number": request_obj.request_number,
+                        "request_date": "2026-06-27",
+                        "status": status,
+                        "due_date": "",
+                        "comment": "",
+                        "item_product": [str(product.pk)],
+                        "item_name": [product.name],
+                        "item_quantity": ["1"],
+                        "item_unit": [product.unit],
+                    },
+                    HTTP_HX_REQUEST="true",
+                )
+
+                self.assertEqual(response.status_code, 200)
+                request_obj.refresh_from_db()
+                self.assertEqual(request_obj.due_date, timezone.localdate())
+                history = self.status_history(request_obj).get(old_status="in_work", new_status=status)
+                self.assertEqual(history.completed_at, timezone.localdate())
 
     def test_tmc_status_history_modal_is_available(self):
         request_obj = TmcRequest.objects.create(

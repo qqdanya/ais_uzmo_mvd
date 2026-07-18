@@ -41,10 +41,6 @@ def form_for_table(table_key):
 
 
 class TmcRequestForm(BootstrapModelForm):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields["due_date"].label = "Дата исполнения"
-
     class Meta:
         model = TmcRequest
         fields = ["request_number", "request_date", "status", "due_date", "comment"]
