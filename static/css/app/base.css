@@ -390,6 +390,7 @@ body.modal-open .toast-stack {
 }
 .user-menu {
   min-width: 210px;
+  padding: 0;
   overflow: hidden;
   border: 1px solid rgba(151,218,252,.25);
   border-radius: 8px;
@@ -398,12 +399,19 @@ body.modal-open .toast-stack {
   box-shadow: 0 18px 38px rgba(5, 31, 61, .3), inset 0 1px rgba(210,241,255,.12);
 }
 .user-menu.show {
+  display: grid;
+  grid-template-rows: 1fr;
   animation: menu-slide-in .22s var(--motion-smooth) both;
   transform-origin: top right;
 }
 .user-menu.show.is-closing {
   pointer-events: none;
   animation: menu-slide-out .22s var(--motion-smooth) both;
+}
+.user-menu-surface {
+  min-height: 0;
+  overflow: hidden;
+  padding-block: var(--bs-dropdown-padding-y);
 }
 .user-menu .dropdown-item {
   display: flex;
@@ -461,21 +469,21 @@ body.modal-open .toast-stack {
 @keyframes menu-slide-in {
   from {
     opacity: 0;
-    clip-path: inset(0 0 100% 0);
+    grid-template-rows: 0fr;
   }
   to {
     opacity: 1;
-    clip-path: inset(0 0 0 0);
+    grid-template-rows: 1fr;
   }
 }
 @keyframes menu-slide-out {
   from {
     opacity: 1;
-    clip-path: inset(0 0 0 0);
+    grid-template-rows: 1fr;
   }
   to {
     opacity: 0;
-    clip-path: inset(0 0 100% 0);
+    grid-template-rows: 0fr;
   }
 }
 .app-main {
