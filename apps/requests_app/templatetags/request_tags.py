@@ -16,7 +16,7 @@ def get_attr(obj, name):
 
 
 @register.simple_tag
-def status_badge(obj):
+def status_badge(obj, action_url="", querystring=""):
     status = getattr(obj, "status", "")
     label = getattr(obj, "get_status_display", lambda: status)()
     status_icons = {
@@ -25,6 +25,21 @@ def status_badge(obj):
         "rejected": "bi-x-circle",
     }
     icon = status_icons.get(status, "bi-info-circle")
+    if action_url:
+        if querystring:
+            action_url = f"{action_url}?{querystring}"
+        return format_html(
+            '<button type="button" class="status-badge status-{} status-badge-action" '
+            'hx-get="{}" hx-target="#modal-content" data-open-modal="true" '
+            'aria-label="Изменить статус заявки. Текущий статус: {}">'
+            '<i class="bi {}" aria-hidden="true"></i><span>{}</span>'
+            '<i class="bi bi-chevron-down status-badge-chevron" aria-hidden="true"></i></button>',
+            status,
+            action_url,
+            label,
+            icon,
+            label,
+        )
     return format_html(
         '<span class="status-badge status-{}"><i class="bi {}" aria-hidden="true"></i>{}</span>',
         status,

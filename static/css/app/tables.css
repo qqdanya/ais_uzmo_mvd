@@ -142,7 +142,7 @@
 }
 .custom-date-arrow[aria-expanded="true"] .bi { transform: rotate(180deg); }
 .custom-date-single { width: 100%; }
-.custom-date-single .custom-date-control { grid-template-columns: minmax(0, 1fr) 34px; }
+.custom-date-single .custom-date-control { grid-template-columns: auto minmax(0, 1fr) 34px; }
 .compact-date-toggle {
   display: inline-flex;
   align-items: center;

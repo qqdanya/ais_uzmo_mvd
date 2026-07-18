@@ -57,7 +57,9 @@ function registerAppEventHandlers() {
   
     const status = event.target.closest('[data-tmc-request-form] [name="status"], [data-status-form] [name="status"]');
     if (status) {
-      syncCompletedDate(status.closest("[data-tmc-request-form], [data-status-form]"));
+      const form = status.closest("[data-tmc-request-form], [data-status-form]");
+      if (form.matches("[data-quick-status-form]")) syncQuickStatusForm(form, true);
+      else syncCompletedDate(form);
       return;
     }
     if (event.target.matches("[data-single-file-picker] input[type='file']")) {

@@ -53,7 +53,7 @@ function todayInputValue() {
 }
 
 function syncCompletedDate(form) {
-  const status = form.querySelector('[name="status"]');
+  const status = form.querySelector('[name="status"]:checked') || form.querySelector('[name="status"]');
   const completedDate = form.querySelector('[name="completed_at"]') || form.querySelector('[name="due_date"]');
   if (!status || !completedDate) return;
   const picker = completedDate.closest("[data-date-range-picker]");
@@ -64,6 +64,7 @@ function syncCompletedDate(form) {
   const visibleDate = picker?.querySelector("[data-date-range-text]");
   if (label) label.textContent = dateLabel;
   if (visibleDate) visibleDate.setAttribute("aria-label", dateLabel);
+  if (form.matches("[data-quick-status-form]") && field) field.hidden = !isTerminal;
 
   if (!isTerminal) {
     if (picker?.setDateRangePickerValues) picker.setDateRangePickerValues("");
@@ -82,8 +83,28 @@ function syncCompletedDate(form) {
   }
 }
 
+function syncQuickStatusForm(form, statusChanged = false) {
+  if (!form?.matches("[data-quick-status-form]")) return;
+  const status = form.querySelector('[name="status"]:checked');
+  const completedDate = form.querySelector('[name="completed_at"]');
+  const picker = completedDate?.closest("[data-date-range-picker]");
+  const changed = status?.value !== form.dataset.currentStatus;
+  const submit = form.querySelector("[data-quick-status-submit]");
+
+  if (submit) submit.disabled = !changed;
+  if (statusChanged && changed && ["done", "rejected"].includes(status?.value)) {
+    const today = todayInputValue();
+    if (picker?.setDateRangePickerValues) picker.setDateRangePickerValues(today);
+    else if (completedDate) completedDate.value = today;
+  }
+  syncCompletedDate(form);
+}
+
 function syncCompletedDateForms(scope = document) {
   const selector = "[data-tmc-request-form], [data-status-form]";
   const forms = scope.matches?.(selector) ? [scope] : Array.from(scope.querySelectorAll?.(selector) || []);
-  forms.forEach(syncCompletedDate);
+  forms.forEach((form) => {
+    if (form.matches("[data-quick-status-form]")) syncQuickStatusForm(form);
+    else syncCompletedDate(form);
+  });
 }

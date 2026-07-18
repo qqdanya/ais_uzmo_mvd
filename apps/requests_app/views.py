@@ -27,7 +27,7 @@ from .services.request_photo_panels import (
     request_photos_download_response,
     request_photos_response,
 )
-from .services.status_panels import status_history_response
+from .services.status_panels import status_history_response, status_update_response
 from .services.table_context import build_table_data_context
 from .services.table_exports import export_table_response
 from .services.tmc import tmc_product_suggestions
@@ -103,6 +103,21 @@ def tmc_product_suggest(request):
 def status_history(request, organ_id, table_key, pk):
     organ = get_object_or_404(TerritorialOrgan, pk=organ_id, is_active=True)
     return status_history_response(request, organ, table_key, pk)
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def record_status_update(request, organ_id, table_key, pk):
+    table = get_table_or_404(table_key)
+    organ = get_object_or_404(TerritorialOrgan, pk=organ_id, is_active=True)
+    return status_update_response(
+        request,
+        organ,
+        table_key,
+        table,
+        pk,
+        lambda: table_data(request, organ.pk, table_key),
+    )
 
 
 @login_required

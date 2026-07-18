@@ -143,6 +143,7 @@
 
     function open(value) {
       popover.hidden = !value;
+      root.classList.toggle("is-open", value);
       toggle.setAttribute("aria-expanded", String(value));
       if (value) render();
       else {
@@ -317,6 +318,7 @@
     root.append(input);
     root.insertAdjacentHTML("beforeend", `
       <div class="custom-date-control">
+        <i class="bi bi-calendar3 custom-date-leading-icon" aria-hidden="true"></i>
         <input class="custom-date-text" type="text" data-date-range-text placeholder="ДД.ММ.ГГГГ" inputmode="numeric" autocomplete="off">
         <button class="custom-date-arrow" type="button" data-date-range-toggle aria-expanded="false" aria-label="Открыть календарь"><i class="bi bi-chevron-down"></i></button>
       </div>

@@ -10,6 +10,7 @@ urlpatterns = [
     path("tmc-products/suggest/", views.tmc_product_suggest, name="tmc_product_suggest"),
     path("organs/<int:organ_id>/tables/<slug:table_key>/new/", views.record_form, name="record_create"),
     path("organs/<int:organ_id>/tables/<slug:table_key>/<int:pk>/edit/", views.record_form, name="record_update"),
+    path("organs/<int:organ_id>/tables/<slug:table_key>/<int:pk>/status/", views.record_status_update, name="record_status_update"),
     path("organs/<int:organ_id>/tables/<slug:table_key>/<int:pk>/history/", views.status_history, name="status_history"),
     path("organs/<int:organ_id>/tables/<slug:table_key>/<int:pk>/photos/", views.request_photos, name="request_photos"),
     path("organs/<int:organ_id>/tables/<slug:table_key>/<int:pk>/photos/download/", views.request_photos_download, name="request_photos_download"),

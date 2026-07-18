@@ -181,6 +181,40 @@ def save_record(request, organ, table, table_key, instance, form, selected_photo
     return obj
 
 
+def update_record_status(request, obj, table_key, new_status, completed_at):
+    """Change only a request status while preserving the regular history and audit trail."""
+    completion_field = completed_date_field(table_key)
+
+    with transaction.atomic():
+        obj = obj.__class__.objects.select_for_update().get(pk=obj.pk)
+        old_status = obj.status
+        old_values = serialize_instance(obj)
+
+        obj.status = new_status
+        setattr(obj, completion_field, completed_at if new_status in TERMINAL_REQUEST_STATUSES else None)
+        obj.updated_by = request.user
+        obj.save(update_fields=["status", completion_field, "updated_by", "updated_at"])
+
+        create_status_history(
+            obj=obj,
+            old_status=old_status,
+            new_status=new_status,
+            completed_at=getattr(obj, completion_field) if new_status in TERMINAL_REQUEST_STATUSES else None,
+            changed_by=request.user,
+            note="Быстрое изменение статуса",
+        )
+        new_values = serialize_instance(obj)
+        status_fields = ("status", completion_field)
+        write_status_change_audit_event(
+            obj,
+            audit_values_for_fields(old_values, status_fields),
+            audit_values_for_fields(new_values, status_fields),
+            request,
+        )
+
+    return obj
+
+
 def soft_delete_record(request, obj):
     old_values = serialize_instance(obj)
     with transaction.atomic():

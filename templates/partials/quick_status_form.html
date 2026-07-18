@@ -1,0 +1,58 @@
+{% load request_tags %}
+<form method="post" class="quick-status-form" hx-post="{{ request.get_full_path }}" hx-target="#table-area" data-status-form data-quick-status-form data-current-status="{{ object.status }}" novalidate>
+  <div class="modal-header">
+    <h5 class="modal-title">Изменение статуса заявки</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+  </div>
+  <div class="modal-body">
+    {% csrf_token %}
+    <div class="quick-status-summary">
+      <div>
+        <span class="text-secondary small">Заявка</span>
+        <strong>№ {{ object.request_number }}</strong>
+      </div>
+      {% status_badge object %}
+    </div>
+
+    <div class="form-grid one-col quick-status-fields">
+      <fieldset class="form-field quick-status-fieldset">
+        <legend class="form-label">{{ form.status.label }}</legend>
+        <div class="quick-status-options">
+          {% for radio in form.status %}
+            <label class="quick-status-option quick-status-option-{{ radio.data.value }}">
+              {{ radio.tag }}
+              <span class="quick-status-radio" aria-hidden="true"></span>
+              <span class="quick-status-option-icon" aria-hidden="true">
+                {% if radio.data.value == "in_work" %}
+                  <i class="bi bi-clock-history"></i>
+                {% elif radio.data.value == "done" %}
+                  <i class="bi bi-check-circle"></i>
+                {% else %}
+                  <i class="bi bi-x-circle"></i>
+                {% endif %}
+              </span>
+              <span class="quick-status-option-label">{{ radio.choice_label }}</span>
+            </label>
+          {% endfor %}
+        </div>
+        {% for error in form.status.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+      </fieldset>
+      <div class="form-field">
+        <label class="form-label" for="{{ form.completed_at.id_for_label }}">{{ form.completed_at.label }}</label>
+        {{ form.completed_at }}
+        {% for error in form.completed_at.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+      </div>
+    </div>
+
+    {% if form.non_field_errors %}
+      <div class="modal-error-list" role="alert">
+        <i class="bi bi-exclamation-circle"></i>
+        <div>{{ form.non_field_errors }}</div>
+      </div>
+    {% endif %}
+  </div>
+  <div class="modal-footer">
+    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+    <button class="btn btn-primary" type="submit" data-quick-status-submit>Изменить статус</button>
+  </div>
+</form>

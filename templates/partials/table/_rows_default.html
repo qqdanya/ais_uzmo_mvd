@@ -11,7 +11,12 @@
         {% for field in fields %}
           <td class="{% table_cell_class field %}">
             {% if field.name == "status" %}
-              {% status_badge obj %}
+              {% if has_status_history and obj.territorial_organ_id|in_list:writable_organ_ids %}
+                {% url 'record_status_update' obj.territorial_organ.pk table.key obj.pk as quick_status_url %}
+                {% status_badge obj quick_status_url table_querystring %}
+              {% else %}
+                {% status_badge obj %}
+              {% endif %}
             {% elif table.key == "fire-extinguishers" and field.name == "expiry_date" %}
               {% expiry_date_cell obj %}
             {% elif field.name == "comment" %}

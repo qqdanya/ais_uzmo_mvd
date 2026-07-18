@@ -1,7 +1,7 @@
 from django import forms
 from django.utils import timezone
 
-from .models import ACTIVE_NEED_STATUS_CHOICES, TmcRequest
+from .models import ACTIVE_NEED_STATUS_CHOICES, NeedStatus, TmcRequest
 from .registry import get_table_or_404
 
 
@@ -48,3 +48,51 @@ class TmcRequestForm(BootstrapModelForm):
             "request_date": forms.DateInput(attrs={"type": "hidden", "data-app-date-input": "true"}, format="%Y-%m-%d"),
             "due_date": forms.DateInput(attrs={"type": "hidden", "data-app-date-input": "true"}, format="%Y-%m-%d"),
         }
+
+
+class QuickStatusUpdateForm(forms.Form):
+    status = forms.ChoiceField(
+        label="Статус заявки",
+        choices=ACTIVE_NEED_STATUS_CHOICES,
+        widget=forms.RadioSelect,
+    )
+    completed_at = forms.DateField(
+        label="Дата исполнения",
+        required=False,
+        widget=forms.DateInput(
+            attrs={"type": "hidden", "data-app-date-input": "true"},
+            format="%Y-%m-%d",
+        ),
+        input_formats=["%Y-%m-%d"],
+    )
+
+    def __init__(self, *args, current_status, current_completed_at=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.current_status = current_status
+
+        if not self.is_bound:
+            self.initial["status"] = current_status
+            if current_status in {NeedStatus.DONE, NeedStatus.REJECTED}:
+                self.initial["completed_at"] = current_completed_at
+
+        selected_status = self.data.get("status") if self.is_bound else self.initial.get("status")
+        if selected_status == NeedStatus.REJECTED:
+            self.fields["completed_at"].label = "Дата отклонения"
+
+    def clean(self):
+        cleaned_data = super().clean()
+        status = cleaned_data.get("status")
+        completed_at = cleaned_data.get("completed_at")
+        is_terminal = status in {NeedStatus.DONE, NeedStatus.REJECTED}
+
+        if status == self.current_status:
+            self.add_error("status", "Выберите новый статус заявки.")
+        if is_terminal and not completed_at:
+            label = "дату отклонения" if status == NeedStatus.REJECTED else "дату исполнения"
+            self.add_error("completed_at", f"Укажите {label}.")
+        elif completed_at and completed_at > timezone.localdate():
+            self.add_error("completed_at", "Дата не может быть позже сегодняшней.")
+
+        if not is_terminal:
+            cleaned_data["completed_at"] = None
+        return cleaned_data
