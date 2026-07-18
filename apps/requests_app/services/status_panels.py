@@ -20,6 +20,5 @@ def status_history_response(request, organ, table_key, pk):
             "organ": organ,
             "object": obj,
             "history": status_history_queryset(obj),
-            "completed_label": REQUEST_TABLE_CONFIG[table_key]["completed_label"],
         },
     )

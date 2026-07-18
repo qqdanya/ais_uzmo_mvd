@@ -468,6 +468,25 @@ class AuditLogTests(TestCase):
         self.assertContains(response, "История изменений статуса заявки")
         self.assertContains(response, "В работе")
         self.assertContains(response, "Исполнена")
+        self.assertContains(response, "Дата исполнения")
+        self.assertNotContains(response, "Дата исполнения / отклонения")
+
+    def test_audit_detail_uses_rejection_date_label(self):
+        log = self.create_log(
+            event_type=AuditLog.EventType.STATUS_CHANGED,
+            old_values={"status": "in_work", "due_date": None},
+            new_values={
+                "audit_event": "request_status_changed",
+                "status": "rejected",
+                "due_date": "2026-07-02",
+            },
+        )
+        self.client.login(username="admin", password="pass12345")
+
+        response = self.client.get(reverse("audit_detail", args=[log.pk]), HTTP_HX_REQUEST="true")
+
+        self.assertContains(response, "Дата отклонения")
+        self.assertNotContains(response, "Дата исполнения / отклонения")
 
     def test_audit_detail_for_login_does_not_show_empty_changes_notice(self):
         log = self.create_log(

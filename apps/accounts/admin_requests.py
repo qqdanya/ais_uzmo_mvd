@@ -407,7 +407,13 @@ def table_for_detail(table_key):
 
 
 def build_detail_fields(table, obj):
-    return [{"label": field_label(table, name), "value": field_value(obj, name)} for name in table.get("fields", [])]
+    fields = []
+    for name in table.get("fields", []):
+        label = field_label(table, name)
+        if name in {"completed_at", "due_date"}:
+            label = "Дата отклонения" if obj.status == NeedStatus.REJECTED else "Дата исполнения"
+        fields.append({"label": label, "value": field_value(obj, name)})
+    return fields
 
 
 def build_request_detail_context(request, table_key, pk):

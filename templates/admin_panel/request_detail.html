@@ -99,7 +99,7 @@
                     <strong>{{ item }}</strong>
                     <span>
                       {% if item.changed_by %}{{ item.changed_by.get_full_name|default:item.changed_by.username }}{% else %}Система{% endif %}
-                      {% if item.completed_at %} · дата исполнения / отклонения: {{ item.completed_at|date:"d.m.Y" }}{% endif %}
+                      {% if item.completed_at %} · {% if item.new_status == "rejected" %}дата отклонения{% else %}дата исполнения{% endif %}: {{ item.completed_at|date:"d.m.Y" }}{% endif %}
                     </span>
                     {% if item.note %}<p>{{ item.note }}</p>{% endif %}
                   </div>

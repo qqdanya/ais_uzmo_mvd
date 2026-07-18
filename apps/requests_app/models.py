@@ -54,7 +54,7 @@ class TmcRequest(TrackableRequest):
     request_number = models.CharField("номер заявки", max_length=80)
     request_date = models.DateField("дата заявки")
     status = models.CharField("исполнение заявки", max_length=20, choices=NeedStatus.choices, default=NeedStatus.IN_WORK, db_index=True)
-    due_date = models.DateField("дата исполнения / отклонения", null=True, blank=True)
+    due_date = models.DateField("дата исполнения", null=True, blank=True)
 
     class Meta:
         verbose_name = "заявка ТМЦ"
@@ -162,7 +162,7 @@ class RequestNumberRegistry(RequestLinkMixin):
 class RequestStatusHistory(RequestLinkMixin):
     old_status = models.CharField("предыдущий статус", max_length=20, choices=NeedStatus.choices, null=True, blank=True)
     new_status = models.CharField("новый статус", max_length=20, choices=NeedStatus.choices)
-    completed_at = models.DateField("дата исполнения / отклонения", null=True, blank=True)
+    completed_at = models.DateField("дата исполнения", null=True, blank=True)
     changed_by = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name="изменил", null=True, blank=True, on_delete=models.SET_NULL, related_name="request_status_changes")
     changed_at = models.DateTimeField("дата изменения", auto_now_add=True, db_index=True)
     note = models.CharField("примечание", max_length=255, blank=True)
@@ -250,7 +250,7 @@ class SimpleStatusRequest(TrackableRequest):
     request_number = models.CharField("номер", max_length=80)
     request_date = models.DateField("дата")
     status = models.CharField("исполнение заявки", max_length=20, choices=NeedStatus.choices, default=NeedStatus.IN_WORK, db_index=True)
-    completed_at = models.DateField("дата исполнения / отклонения", null=True, blank=True)
+    completed_at = models.DateField("дата исполнения", null=True, blank=True)
 
     class Meta:
         abstract = True
@@ -365,7 +365,7 @@ class AntiTerrorMeasure(TrackableRequest):
     request_number = models.CharField("номер", max_length=80)
     request_date = models.DateField("дата", default=timezone.localdate, db_index=True)
     status = models.CharField("исполнение", max_length=20, choices=NeedStatus.choices, default=NeedStatus.IN_WORK, db_index=True)
-    completed_at = models.DateField("дата исполнения / отклонения", null=True, blank=True)
+    completed_at = models.DateField("дата исполнения", null=True, blank=True)
 
     class Meta:
         verbose_name = "антитеррористическая укрепленность"
@@ -395,7 +395,7 @@ class CitsiziEquipment(TrackableRequest):
     equipment_type = models.CharField("тип техники", max_length=30, choices=EquipmentType.choices, db_index=True)
     quantity = models.PositiveIntegerField("количество", validators=[MinValueValidator(1)])
     status = models.CharField("исполнение", max_length=20, choices=NeedStatus.choices, default=NeedStatus.IN_WORK, db_index=True)
-    due_date = models.DateField("дата исполнения / отклонения", null=True, blank=True)
+    due_date = models.DateField("дата исполнения", null=True, blank=True)
 
     class Meta:
         verbose_name = "заявка ЦИТСиЗИ"
@@ -437,7 +437,7 @@ class ServiceHousing(TrackableRequest):
 
 
 class BuildingRepairRequest(SimpleStatusRequest):
-    completed_at = models.DateField("дата исполнения / отклонения", null=True, blank=True)
+    completed_at = models.DateField("дата исполнения", null=True, blank=True)
 
     class Meta(SimpleStatusRequest.Meta):
         verbose_name = "текущий ремонт"

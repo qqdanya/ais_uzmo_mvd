@@ -58,6 +58,12 @@ function syncCompletedDate(form) {
   if (!status || !completedDate) return;
   const picker = completedDate.closest("[data-date-range-picker]");
   const isTerminal = ["done", "rejected"].includes(status.value);
+  const dateLabel = status.value === "rejected" ? "Дата отклонения" : "Дата исполнения";
+  const field = completedDate.closest(".form-field");
+  const label = field?.querySelector(".form-label");
+  const visibleDate = picker?.querySelector("[data-date-range-text]");
+  if (label) label.textContent = dateLabel;
+  if (visibleDate) visibleDate.setAttribute("aria-label", dateLabel);
 
   if (!isTerminal) {
     if (picker?.setDateRangePickerValues) picker.setDateRangePickerValues("");

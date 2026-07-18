@@ -317,7 +317,8 @@ class TmcRequestTests(RequestAppTestCase):
         self.assertContains(response, 'value="2026-06-27"')
         self.assertContains(response, 'name="due_date"')
         self.assertContains(response, 'value="2026-06-28"')
-        self.assertContains(response, "Дата исполнения / отклонения")
+        self.assertContains(response, "Дата исполнения")
+        self.assertNotContains(response, "Дата исполнения / отклонения")
 
     def test_tmc_done_status_history_stores_completed_date(self):
         request_obj = TmcRequest.objects.create(
@@ -351,6 +352,8 @@ class TmcRequestTests(RequestAppTestCase):
         self.assertEqual(history.completed_at.isoformat(), "2026-06-29")
 
         modal = self.client.get(reverse("tmc_status_history", args=[self.organ.pk, request_obj.pk]), HTTP_HX_REQUEST="true")
+        self.assertContains(modal, "Дата исполнения")
+        self.assertNotContains(modal, "Дата исполнения / отклонения")
         self.assertContains(modal, "29.06.2026")
 
     def test_tmc_terminal_statuses_default_completion_date_to_today(self):
@@ -396,6 +399,13 @@ class TmcRequestTests(RequestAppTestCase):
                 self.assertEqual(request_obj.due_date, timezone.localdate())
                 history = self.status_history(request_obj).get(old_status="in_work", new_status=status)
                 self.assertEqual(history.completed_at, timezone.localdate())
+                modal = self.client.get(
+                    reverse("tmc_status_history", args=[self.organ.pk, request_obj.pk]),
+                    HTTP_HX_REQUEST="true",
+                )
+                expected_label = "Дата отклонения" if status == "rejected" else "Дата исполнения"
+                self.assertContains(modal, expected_label)
+                self.assertNotContains(modal, "Дата исполнения / отклонения")
 
     def test_tmc_in_work_status_clears_completion_date(self):
         product = TmcProduct.objects.create(name="Reopened item", unit="pcs")

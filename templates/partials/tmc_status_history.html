@@ -31,7 +31,7 @@
           </div>
           <div class="status-history-meta">
             {{ entry.changed_by|display_name }}
-            {% if entry.completed_at %}<span>Дата исполнения / отклонения: {{ entry.completed_at|date:"d.m.Y" }}</span>{% endif %}
+            {% if entry.completed_at %}<span>{% if entry.new_status == "rejected" %}Дата отклонения{% else %}Дата исполнения{% endif %}: {{ entry.completed_at|date:"d.m.Y" }}</span>{% endif %}
             {% if entry.note %}<span>{{ entry.note }}</span>{% endif %}
           </div>
         </div>

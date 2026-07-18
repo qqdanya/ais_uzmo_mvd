@@ -662,6 +662,26 @@ class AdminRequestsPanelTests(AdminPanelTestMixin, TestCase):
         # not a raw /media/... URL that would bypass the per-organ access check.
         self.assertContains(response, reverse("photo_preview", args=[self.organ.pk, photo.pk]))
 
+    def test_rejected_request_detail_uses_rejection_date_label(self):
+        self.login_admin()
+        request_obj = TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            created_by=self.admin,
+            updated_by=self.admin,
+            request_number="ТМЦ-ОТКЛОНЕНА",
+            request_date=timezone.localdate(),
+            status=NeedStatus.REJECTED,
+            due_date=timezone.localdate(),
+        )
+
+        response = self.client.get(
+            reverse("admin_request_detail", kwargs={"table_key": "tmc-requests", "pk": request_obj.pk})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Дата отклонения")
+        self.assertNotContains(response, "Дата исполнения / отклонения")
+
     def test_requests_panel_department_filter_limits_request_tables(self):
         self.login_admin()
         today = timezone.localdate()

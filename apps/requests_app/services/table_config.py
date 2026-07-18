@@ -29,38 +29,31 @@ REQUEST_TABLE_CONFIG = {
         "search_fields": ("request_number", "comment", "items__name"),
         "prefetch": ("items",),
         "distinct_search": True,
-        "completed_label": "Дата исполнения / отклонения",
     },
     "vehicle-repair": {
         "model": VehicleRepairRequest,
         "search_fields": ("request_number", "comment"),
-        "completed_label": "Дата исполнения / отклонения",
     },
     "vehicle-fuel": {
         "model": VehicleFuelRequest,
         "search_fields": ("request_number", "comment"),
-        "completed_label": "Дата исполнения / отклонения",
     },
     "fire-requests": {
         "model": FireDepartmentRequest,
         "search_fields": ("request_number", "comment"),
-        "completed_label": "Дата исполнения / отклонения",
     },
     "anti-terror": {
         "model": AntiTerrorMeasure,
         "search_fields": ("request_number", "comment"),
-        "completed_label": "Дата исполнения / отклонения",
     },
     "citsizi-equipment": {
         "model": CitsiziEquipment,
         "search_fields": ("request_number", "comment"),
         "equipment_type_filter": True,
-        "completed_label": "Дата исполнения / отклонения",
     },
     "building-repair": {
         "model": BuildingRepairRequest,
         "search_fields": ("request_number", "comment"),
-        "completed_label": "Дата исполнения / отклонения",
     },
 }
 

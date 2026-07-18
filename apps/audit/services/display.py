@@ -9,7 +9,7 @@ from django.utils.text import capfirst
 
 from apps.accounts.models import UserProfile
 from apps.directory.models import Department, TerritorialOrganPhoto
-from apps.requests_app.models import RequestStatusHistory
+from apps.requests_app.models import NeedStatus, RequestStatusHistory
 from apps.requests_app.permissions import can_preview_photo_asset
 
 from apps.audit.models import AuditLog
@@ -39,8 +39,8 @@ AUDIT_FIELD_LABELS = {
     "django_permissions": "Дополнительные права Django",
     "request_stale_workdays": "Просроченные заявки, рабочих дней",
     "asset_stale_days": "Устаревшие сведения материальной базы, календарных дней",
-    "completed_at": "Дата исполнения / отклонения",
-    "due_date": "Дата исполнения / отклонения",
+    "completed_at": "Дата исполнения",
+    "due_date": "Дата исполнения",
 }
 
 LEGACY_EMPLOYEE_UPDATE_EVENTS = {
@@ -176,6 +176,10 @@ def field_label(model_name, field_name):
     return capfirst(field_name.replace("_", " "))
 
 
+def completion_date_label(status):
+    return "Дата отклонения" if str(status) == NeedStatus.REJECTED else "Дата исполнения"
+
+
 def field_display_value(model_name, field_name, value, related_value_cache=None):
     if value in (None, "", "None", "null"):
         return "Не указано"
@@ -306,10 +310,15 @@ def audit_changes(log, related_value_cache=None):
             continue
         if log.action == AuditLog.Action.CREATE and new_raw in (None, "", "None"):
             continue
+        label = (
+            completion_date_label(new_values.get("status", old_values.get("status")))
+            if key in {"completed_at", "due_date"}
+            else field_label(log.model_name, key)
+        )
         rows.append(
             {
                 "field": key,
-                "label": field_label(log.model_name, key),
+                "label": label,
                 "old": field_display_value(log.model_name, key, old_raw, related_value_cache),
                 "new": field_display_value(log.model_name, key, new_raw, related_value_cache),
                 "one_sided_value": TMC_ONE_SIDED_EVENTS.get(log.event_type) if key == "items" else "",
