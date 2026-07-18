@@ -2,6 +2,10 @@
   const MONTHS = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
   const DAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 
+  const DESKTOP_PICKER_QUERY = "(min-width: 721px)";
+  const PICKER_GAP = 7;
+  const VIEWPORT_PADDING = 12;
+
   function parseIso(value) {
     if (!value) return null;
     const [year, month, day] = value.split("-").map(Number);
@@ -94,6 +98,24 @@
     let pickerYear = center.getFullYear();
     let segmentEdit = null;
 
+    function updatePlacement() {
+      if (popover.hidden || !window.matchMedia(DESKTOP_PICKER_QUERY).matches) {
+        root.classList.remove("opens-up");
+        return;
+      }
+      const control = root.querySelector(".custom-date-control") || root;
+      const controlRect = control.getBoundingClientRect();
+      const popoverHeight = popover.getBoundingClientRect().height;
+      const modalRect = root.closest(".modal-content")?.getBoundingClientRect();
+      const boundaryTop = Math.max(VIEWPORT_PADDING, modalRect?.top ?? VIEWPORT_PADDING);
+      const boundaryBottom = Math.min(window.innerHeight - VIEWPORT_PADDING, modalRect?.bottom ?? window.innerHeight - VIEWPORT_PADDING);
+      const spaceAbove = controlRect.top - PICKER_GAP - boundaryTop;
+      const spaceBelow = boundaryBottom - controlRect.bottom - PICKER_GAP;
+      const opensUp = popoverHeight > spaceBelow && spaceAbove > spaceBelow;
+      root.classList.toggle("opens-up", opensUp);
+    }
+    root.updateDateRangePlacement = updatePlacement;
+
     function syncLabel() {
       textInput.value = single ? display(start) : (start && end ? `${display(start)} – ${display(end)}` : "");
       textInput.classList.remove("is-invalid");
@@ -145,8 +167,12 @@
       popover.hidden = !value;
       root.classList.toggle("is-open", value);
       toggle.setAttribute("aria-expanded", String(value));
-      if (value) render();
+      if (value) {
+        render();
+        updatePlacement();
+      }
       else {
+        root.classList.remove("opens-up");
         jump.hidden = true;
         captionButton?.setAttribute("aria-expanded", "false");
         pending = null;
@@ -215,6 +241,7 @@
         captionButton?.setAttribute("aria-expanded", String(!jump.hidden));
         pickerYear = center.getFullYear();
         renderJump();
+        updatePlacement();
         return;
       }
       if (event.target.closest("[data-date-range-year-prev]")) { pickerYear -= 1; renderJump(); return; }
@@ -354,6 +381,19 @@
       if (!popover?.hidden && !event.composedPath().includes(root)) root.closeDateRangePicker?.();
     });
   });
+  let placementFrame = null;
+  function scheduleOpenPickerPlacement() {
+    if (placementFrame !== null) return;
+    placementFrame = window.requestAnimationFrame(() => {
+      placementFrame = null;
+      document.querySelectorAll("[data-date-range-picker].is-open").forEach((root) => {
+        root.updateDateRangePlacement?.();
+      });
+    });
+  }
+  window.addEventListener("resize", scheduleOpenPickerPlacement);
+  window.addEventListener("scroll", scheduleOpenPickerPlacement, true);
+  window.visualViewport?.addEventListener("resize", scheduleOpenPickerPlacement);
   document.body?.addEventListener("htmx:afterSwap", (event) => initAll(event.detail.target));
   window.initDateRangePickers = initAll;
 })();

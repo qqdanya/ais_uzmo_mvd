@@ -176,6 +176,23 @@
   background: linear-gradient(180deg, #ffffff 0%, #f8fcff 100%);
   box-shadow: 0 20px 46px rgba(11,47,91,.22);
 }
+@media (min-width: 721px) {
+  .compact-date-range.is-open {
+    z-index: 1080;
+  }
+  .compact-date-range.opens-up .compact-date-popover {
+    top: auto;
+    bottom: calc(100% + 7px);
+  }
+  #modal-root .modal-dialog:has(.compact-date-range.is-open),
+  #modal-root .modal-content:has(.compact-date-range.is-open),
+  #modal-root .modal-content > form:has(.compact-date-range.is-open) > .modal-body {
+    overflow: visible;
+  }
+  #modal-root .compact-date-range.is-open .compact-date-popover {
+    z-index: 1085;
+  }
+}
 .compact-date-popover[hidden],
 .compact-date-jump[hidden] { display: none; }
 .compact-date-toolbar,
