@@ -3,6 +3,7 @@ const LOADING_SHOW_DELAY_MS = 180;
 const LOADING_MIN_VISIBLE_MS = 320;
 const LOADING_COMPLETE_MS = 180;
 const LOADING_FADE_MS = 160;
+const HTMX_REQUEST_TIMEOUT_MS = 45000;
 let htmxRequests = 0;
 let loadingFailsafeTimer = null;
 let loadingShowTimer = null;
@@ -45,7 +46,10 @@ function startLoadingProgress() {
     progress.classList.add("is-active");
     loadingShownAt = performance.now();
     window.requestAnimationFrame(() => {
-      if (cycle === loadingCycle && htmxRequests > 0) progress.classList.add("is-running");
+      if (cycle !== loadingCycle || htmxRequests === 0) return;
+      window.requestAnimationFrame(() => {
+        if (cycle === loadingCycle && htmxRequests > 0) progress.classList.add("is-running");
+      });
     });
   }, LOADING_SHOW_DELAY_MS);
 }
@@ -101,7 +105,7 @@ function syncLoadingState() {
     loadingFailsafeTimer = window.setTimeout(() => {
       htmxRequests = 0;
       finishLoadingProgress();
-    }, 30000);
+    }, HTMX_REQUEST_TIMEOUT_MS + 5000);
   }
 }
 
@@ -282,6 +286,7 @@ function refreshTableAfterRequestPhotosChanged() {
 function registerHtmxLifecycle() {
   const body = document.body;
   if (!body) return;
+  if (window.htmx?.config) window.htmx.config.timeout = HTMX_REQUEST_TIMEOUT_MS;
 
   body.addEventListener("htmx:afterSwap", (event) => {
     if (event.detail.target.id === "modal-content") {

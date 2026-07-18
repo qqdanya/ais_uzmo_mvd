@@ -127,34 +127,70 @@ body.modal-open .toast-stack {
   z-index: 2000;
   width: 100%;
   height: 3px;
+  overflow: hidden;
+  opacity: 0;
+  background: rgba(36, 152, 220, .1);
+  box-shadow: 0 1px 4px rgba(36, 152, 220, .12);
+  pointer-events: none;
+  transition: opacity .14s ease;
+  will-change: opacity;
+}
+.htmx-progress::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -38%;
+  width: 38%;
+  opacity: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(36, 152, 220, .45) 28%, #2498dc 55%, #78dcff 74%, transparent 100%);
+  box-shadow: 0 0 9px rgba(72, 193, 240, .55);
+  transform: translateX(0);
+  will-change: transform;
+}
+.htmx-progress::after {
+  content: "";
+  position: absolute;
+  inset: 0;
   opacity: 0;
   background: linear-gradient(90deg, #2498dc 0%, #68d8ff 72%, #e8fbff 100%);
-  box-shadow: 0 1px 5px rgba(36, 152, 220, .3);
-  transform: scaleX(0);
-  transform-origin: left center;
-  pointer-events: none;
-  will-change: transform, opacity;
+  transition: opacity .16s ease-out;
 }
 .htmx-progress.is-active {
   opacity: 1;
-  transform: scaleX(.12);
 }
-.htmx-progress.is-active.is-running {
-  transform: scaleX(.82);
-  transition: transform 8s cubic-bezier(.1, .55, .2, 1), opacity .12s ease;
+.htmx-progress.is-active.is-running::before {
+  opacity: 1;
+  animation: htmx-progress-sweep 1.3s linear infinite;
 }
 .htmx-progress.is-active.is-completing {
-  transform: scaleX(1);
-  transition: transform .18s ease-out, opacity .12s ease;
+  box-shadow: 0 1px 7px rgba(36, 152, 220, .38);
+}
+.htmx-progress.is-active.is-completing::before {
+  opacity: 0;
+  animation: none;
+}
+.htmx-progress.is-active.is-completing::after {
+  opacity: 1;
 }
 .htmx-progress.is-hiding {
   opacity: 0;
-  transform: scaleX(1);
   transition: opacity .16s ease;
+}
+@keyframes htmx-progress-sweep {
+  from { transform: translateX(0); }
+  to { transform: translateX(365%); }
 }
 @media (prefers-reduced-motion: reduce) {
   .htmx-progress {
     transition-duration: .01ms !important;
+  }
+  .htmx-progress.is-active.is-running::before {
+    left: 0;
+    width: 100%;
+    opacity: .72;
+    animation: none;
+    transform: none;
   }
 }
 [data-download-preparing].is-preparing {
