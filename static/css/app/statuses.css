@@ -157,11 +157,22 @@
 #modal-root .modal-dialog:has(.quick-status-form) .modal-content {
   width: 100%;
 }
-#modal-root .modal-content > form.quick-status-form:has(.custom-date-single.is-open) {
-  min-height: min(720px, calc(100vh - 3.5rem));
-}
-#modal-root .modal-content > form.quick-status-form:has(.custom-date-single.is-open) > .modal-body {
-  flex: 1 1 auto;
+@media (min-width: 721px) {
+  #modal-root .modal-dialog:has(.quick-status-form .custom-date-single.is-open),
+  #modal-root .modal-content:has(.quick-status-form .custom-date-single.is-open) {
+    overflow: visible;
+  }
+  #modal-root .quick-status-form:has(.custom-date-single.is-open) > .modal-body {
+    overflow: visible;
+  }
+  #modal-root .quick-status-form .custom-date-single.is-open {
+    z-index: 1080;
+  }
+  #modal-root .quick-status-form .custom-date-single .compact-date-popover {
+    top: auto;
+    bottom: calc(100% + 7px);
+    z-index: 1085;
+  }
 }
 .quick-status-fields {
   gap: 16px;
@@ -246,9 +257,6 @@
 @media (max-width: 575.98px) {
   #modal-root .modal-dialog:has(.quick-status-form) {
     min-height: calc(100% - 1rem);
-  }
-  #modal-root .modal-content > form.quick-status-form:has(.custom-date-single.is-open) {
-    min-height: min(720px, calc(100vh - 1rem));
   }
   .quick-status-options {
     grid-template-columns: 1fr;
