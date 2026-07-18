@@ -293,6 +293,7 @@ class DepartmentTableTests(RequestAppTestCase):
 
         modal = self.client.get(reverse("vehicle_repair_status_history", args=[self.organ.pk, request_obj.pk]), HTTP_HX_REQUEST="true")
         self.assertContains(modal, "История изменений статуса заявки R-2")
+        self.assertContains(modal, "<span>Исполнена</span>", html=True)
         self.assertContains(modal, "Дата исполнения")
         self.assertNotContains(modal, "Дата исполнения / отклонения")
         self.assertContains(modal, "29.06.2026")

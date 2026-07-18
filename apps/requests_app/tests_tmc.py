@@ -475,6 +475,7 @@ class TmcRequestTests(RequestAppTestCase):
         response = self.client.get(reverse("tmc_status_history", args=[self.organ.pk, request_obj.pk]), HTTP_HX_REQUEST="true")
         self.assertContains(response, "История изменений статуса заявки 19/TMC")
         self.assertContains(response, request_obj.get_status_display())
+        self.assertContains(response, f"<span>{request_obj.get_status_display()}</span>", html=True)
         self.assertContains(response, "Finished")
 
     def test_tmc_xlsx_export_has_grouped_document_layout(self):

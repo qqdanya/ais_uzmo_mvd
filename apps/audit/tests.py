@@ -521,6 +521,7 @@ class AuditLogTests(TestCase):
         self.assertContains(response, "История изменений статуса заявки")
         self.assertContains(response, "В работе")
         self.assertContains(response, "Исполнена")
+        self.assertContains(response, "<span>Исполнена</span>", html=True)
         self.assertContains(response, "Дата исполнения")
         self.assertNotContains(response, "Дата исполнения / отклонения")
 
