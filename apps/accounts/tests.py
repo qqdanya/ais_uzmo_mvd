@@ -101,7 +101,7 @@ class AccountFoundationTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Новый пароль должен отличаться от текущего.")
+        self.assertContains(response, "Новый пароль: должен отличаться от текущего.")
         user.refresh_from_db()
         self.assertTrue(user.check_password("CurrentStrongPass123"))
         self.assertFalse(AuditLog.objects.filter(event_type=AuditLog.EventType.PASSWORD_CHANGED).exists())

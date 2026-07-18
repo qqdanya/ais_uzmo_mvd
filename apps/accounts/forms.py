@@ -25,7 +25,7 @@ class DistinctPasswordChangeForm(PasswordChangeForm):
             self.add_error(
                 "new_password1",
                 ValidationError(
-                    "Новый пароль должен отличаться от текущего.",
+                    "должен отличаться от текущего.",
                     code="password_unchanged",
                 ),
             )
