@@ -114,6 +114,10 @@ def audit_department_q(department_slugs):
     query = Q()
     if model_names is not None:
         query |= Q(model_name__in=model_names)
+    query |= Q(
+        event_type=AuditLog.EventType.TABLE_EXPORTED,
+        new_values__department_slug__in=department_slugs,
+    )
     if department_values:
         photo_or_folder_models = PHOTO_OBJECT_MODELS | FOLDER_OBJECT_MODELS
         query |= Q(model_name__in=photo_or_folder_models, new_values__created_department__in=department_values)
@@ -130,7 +134,8 @@ def scope_logs_for_user(logs, user):
     organ_ids = profile_organ_ids(user)
     logs = logs.filter(user__in=scoped_users)
     if department_slugs:
-        logs = logs.filter(Q(model_name="") | audit_department_q(department_slugs))
+        departmentless_events = Q(model_name="") & ~Q(event_type=AuditLog.EventType.TABLE_EXPORTED)
+        logs = logs.filter(departmentless_events | audit_department_q(department_slugs))
     else:
         logs = logs.filter(user=user)
     if organ_ids:
@@ -224,7 +229,6 @@ def filtered_logs(request, logs=None, show_user_filter=True, show_department_fil
     organs = audit_filter_values(request, "organ")
     departments = audit_filter_values(request, "department") if show_department_filter else []
     objects = audit_filter_values(request, "object")
-    models = filtered_model_names(departments, objects)
     if users:
         logs = logs.filter(user__username__in=users)
     if event_types:
@@ -233,8 +237,11 @@ def filtered_logs(request, logs=None, show_user_filter=True, show_department_fil
         logs = logs.filter(action__in=actions)
     if organs:
         logs = logs.filter(territorial_organ_id__in=organs)
-    if models is not None:
-        logs = logs.filter(model_name__in=models)
+    if departments:
+        logs = logs.filter(audit_department_q(departments))
+    if objects:
+        object_models = filtered_model_names([], objects)
+        logs = logs.filter(model_name__in=object_models)
     date_from = audit_date_value(request, "date_from")
     date_to = audit_date_value(request, "date_to")
     # Plain datetime bounds (rather than created_at__date__gte/lte) keep the

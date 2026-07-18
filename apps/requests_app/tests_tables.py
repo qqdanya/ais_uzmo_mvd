@@ -468,14 +468,39 @@ class DepartmentTableTests(RequestAppTestCase):
     def test_vehicle_repair_xlsx_export_uses_current_filters(self):
         included = VehicleRepairRequest.objects.create(territorial_organ=self.organ, request_number="R-20", request_date="2026-06-20", status="in_work", comment="Transmission")
         excluded = VehicleRepairRequest.objects.create(territorial_organ=self.organ, request_number="R-21", request_date="2026-06-20", status="done", comment="Transmission")
+        transport_department = Department.objects.create(name="Transport", slug="transport", order_number=2)
+        self.user.profile.allowed_departments.add(transport_department)
         self.client.login(username="operator", password="pass12345")
 
-        response = self.client.get(reverse("export_table", args=[self.organ.pk, "vehicle-repair", "xlsx"]), {"status": "in_work", "q": "Transmission"})
+        response = self.client.get(
+            reverse("export_table", args=[self.organ.pk, "vehicle-repair", "xlsx"]),
+            {
+                "status": "in_work",
+                "q": "Transmission",
+                "date_from": "2026-06-01",
+                "date_to": "2026-06-30",
+            },
+        )
 
         workbook = self.response_workbook(response)
         values = [cell.value for row in workbook.active.iter_rows() for cell in row]
         self.assertIn(included.request_number, values)
         self.assertNotIn(excluded.request_number, values)
+        export_log = AuditLog.objects.get(event_type=AuditLog.EventType.TABLE_EXPORTED)
+        self.assertEqual(export_log.territorial_organ, self.organ)
+        self.assertEqual(export_log.new_values["department_slug"], "transport")
+        self.assertEqual(export_log.new_values["organ_ids"], [self.organ.pk])
+        self.assertEqual(export_log.new_values["organ_names"], [self.organ.name])
+        self.assertEqual(export_log.new_values["table_title"], "Заявка на ремонт")
+        self.assertEqual(
+            export_log.new_values["filter_conditions"],
+            [
+                "поиск: Transmission",
+                "исполнение: В работе",
+                "с 01.06.2026",
+                "по 30.06.2026",
+            ],
+        )
 
     def test_request_tables_support_date_and_organ_grouping(self):
         other_organ = TerritorialOrgan.objects.create(name="Other territorial organ", order_number=2)
@@ -518,6 +543,12 @@ class DepartmentTableTests(RequestAppTestCase):
         self.assertEqual(rows[0], ["Дата", "Заявок", "Территориальных органов", "В работе", "Исполнено", "Отклонено"])
         self.assertIn(["20.06.2026", "2", "2", "1", "1", "0"], rows)
         self.assertNotIn("R-30", ",".join(",".join(row) for row in rows))
+        export_log = AuditLog.objects.get(event_type=AuditLog.EventType.TABLE_EXPORTED)
+        self.assertEqual(export_log.territorial_organ, self.organ)
+        self.assertEqual(export_log.new_values["organ_ids"], [self.organ.pk, other_organ.pk])
+        self.assertEqual(export_log.new_values["organ_names"], [self.organ.name, other_organ.name])
+        self.assertIn("выборочно: 2 органов", export_log.new_values["filter_conditions"])
+        self.assertIn("группировка: По дате", export_log.new_values["filter_conditions"])
 
     def test_vehicle_fuel_request_matches_vehicle_repair_table_behavior(self):
         request_obj = VehicleFuelRequest.objects.create(

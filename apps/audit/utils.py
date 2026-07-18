@@ -56,7 +56,16 @@ def object_message(action, instance):
     return str(instance)
 
 
-def write_audit(action, instance=None, user=None, old_values=None, new_values=None, request=None, event_type=""):
+def write_audit(
+    action,
+    instance=None,
+    user=None,
+    old_values=None,
+    new_values=None,
+    request=None,
+    event_type="",
+    territorial_organ=None,
+):
     values = new_values if isinstance(new_values, dict) else {}
     explicit_event = event_type or values.get("audit_event")
     if action == AuditLog.Action.UPDATE and not explicit_event and not has_meaningful_changes(instance, old_values, new_values):
@@ -64,7 +73,7 @@ def write_audit(action, instance=None, user=None, old_values=None, new_values=No
 
     request = request or get_current_request()
     user = user or (request.user if request and request.user.is_authenticated else None)
-    organ = getattr(instance, "territorial_organ", None) if instance is not None else None
+    organ = territorial_organ or (getattr(instance, "territorial_organ", None) if instance is not None else None)
     if organ is None and instance is not None and instance.__class__.__name__ == "TerritorialOrgan":
         organ = instance
     operation_id = ""

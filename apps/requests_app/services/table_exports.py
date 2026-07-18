@@ -29,7 +29,17 @@ from .grouping import (
     tmc_organ_grouped_rows,
 )
 from .table_config import REQUEST_TABLE_CONFIG, XLSX_EXPORT_CONFIG
-from .table_filters import STATE_SNAPSHOT_TABLES, filtered_queryset, fire_extinguisher_filtered_queryset, state_snapshot_queryset
+from .table_filters import (
+    STATE_SNAPSHOT_TABLES,
+    active_table_conditions,
+    filtered_queryset,
+    fire_extinguisher_active_conditions,
+    fire_extinguisher_filtered_queryset,
+    format_filter_date,
+    request_table_date_filter_values,
+    state_snapshot_mode,
+    state_snapshot_queryset,
+)
 
 
 def export_iterator(qs):
@@ -76,19 +86,47 @@ def export_table_response(request, organ, table, table_key, fmt, selected_organs
         qs = fire_extinguisher_filtered_queryset(request, qs)
 
     current_group_mode = request_group_mode(request, table_key, is_multi_organ) if is_request_table else "requests"
-    write_audit(
-        AuditLog.Action.UPDATE,
-        user=request.user,
-        new_values={
-            "audit_event": AuditLog.EventType.TABLE_EXPORTED,
-            "format": fmt,
-            "table_key": table_key,
-            "table_title": table["title"],
-            "organ_count": len(selected_organs),
-            "group_mode": current_group_mode,
-        },
-        request=request,
+    filter_conditions = (
+        fire_extinguisher_active_conditions(request, selected_organs)
+        if is_fire_extinguisher_table
+        else active_table_conditions(request, table_key, selected_organs, current_group_mode)
     )
+    if is_request_table:
+        date_filters = request_table_date_filter_values(request, table_key, selected_organs)
+        if "date_from" not in request.GET and date_filters["date_from"]:
+            filter_conditions.append(f"с {format_filter_date(date_filters['date_from'])}")
+        if "date_to" not in request.GET and date_filters["date_to"]:
+            filter_conditions.append(f"по {format_filter_date(date_filters['date_to'])}")
+    snapshot_mode = state_snapshot_mode(request, table_key)
+    if snapshot_mode:
+        snapshot_label = "История записей" if snapshot_mode == "history" else "Последняя запись"
+        filter_conditions.append(f"режим: {snapshot_label}")
+
+    audit_values = {
+        "audit_event": AuditLog.EventType.TABLE_EXPORTED,
+        "format": fmt,
+        "table_key": table_key,
+        "table_title": table.get("parent_title") or table["title"],
+        "department_slug": table["department"],
+        "organ_ids": [selected_organ.pk for selected_organ in selected_organs],
+        "organ_names": [selected_organ.name for selected_organ in selected_organs],
+        "organ_count": len(selected_organs),
+        "group_mode": current_group_mode if is_request_table else "",
+        "filter_conditions": filter_conditions,
+    }
+
+    def audited_export_response(rows_for_count, builder):
+        response = build_export_response(request, rows_for_count, builder)
+        if 200 <= response.status_code < 300:
+            write_audit(
+                AuditLog.Action.UPDATE,
+                user=request.user,
+                new_values=audit_values,
+                request=request,
+                territorial_organ=selected_organs[0],
+            )
+        return response
+
     if current_group_mode in {"products", "organs", "dates"}:
         is_tmc = table_key == "tmc-requests"
         if current_group_mode == "organs":
@@ -104,18 +142,16 @@ def export_table_response(request, organ, table, table_key, fmt, selected_organs
                 for row in export_iterator(rows):
                     yield grouped_export_row(row, current_group_mode, is_tmc=is_tmc, is_multi_organ=is_multi_organ)
 
-            return build_export_response(
-                request, rows, lambda: download_ready_response(request, csv_streaming_response(filename, csv_rows()))
+            return audited_export_response(
+                rows, lambda: download_ready_response(request, csv_streaming_response(filename, csv_rows()))
             )
         if fmt == "xlsx":
             if is_tmc:
-                return build_export_response(
-                    request,
+                return audited_export_response(
                     rows,
                     lambda: download_ready_response(request, tmc_grouped_xlsx_response(rows, is_multi_organ, filename, current_group_mode)),
                 )
-            return build_export_response(
-                request,
+            return audited_export_response(
                 rows,
                 lambda: download_ready_response(request, request_grouped_xlsx_response(rows, table, filename, current_group_mode)),
             )
@@ -126,25 +162,23 @@ def export_table_response(request, organ, table, table_key, fmt, selected_organs
             for obj in export_iterator(qs):
                 yield [getattr(obj, f"get_{f.name}_display", lambda: getattr(obj, f.name))() for f in fields]
 
-        return build_export_response(
-            request, qs, lambda: download_ready_response(request, csv_streaming_response(filename, csv_rows()))
+        return audited_export_response(
+            qs, lambda: download_ready_response(request, csv_streaming_response(filename, csv_rows()))
         )
 
     if fmt == "xlsx":
         if table_key == "tmc-requests":
-            return build_export_response(
-                request,
+            return audited_export_response(
                 qs,
                 lambda: download_ready_response(request, tmc_xlsx_response(qs, organ, filename, len(selected_organs) > 1)),
             )
         if table_key in XLSX_EXPORT_CONFIG:
-            return build_export_response(
-                request,
+            return audited_export_response(
                 qs,
                 lambda: download_ready_response(request, styled_xlsx_response(qs, table, fields, filename, **XLSX_EXPORT_CONFIG[table_key])),
             )
-        return build_export_response(
-            request, qs, lambda: download_ready_response(request, basic_xlsx_response(qs, table, fields, filename))
+        return audited_export_response(
+            qs, lambda: download_ready_response(request, basic_xlsx_response(qs, table, fields, filename))
         )
 
     raise Http404

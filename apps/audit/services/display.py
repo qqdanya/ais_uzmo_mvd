@@ -282,6 +282,10 @@ def event_detail_value(key, value):
         return str(value).upper()
     if key == "group_mode":
         return EXPORT_GROUP_MODE_LABELS.get(str(value), value)
+    if key == "filter_conditions":
+        if isinstance(value, list):
+            return " · ".join(str(item) for item in value if item) or "Не применялись"
+        return value or "Не применялись"
     return value
 
 
@@ -387,6 +391,34 @@ def audit_location(log, department_names=None):
     if log.action not in {AuditLog.Action.CREATE, AuditLog.Action.UPDATE, AuditLog.Action.DELETE}:
         return []
     parts = []
+    values = log.new_values if isinstance(log.new_values, dict) else {}
+    if log.event_type == AuditLog.EventType.TABLE_EXPORTED:
+        organ_names = values.get("organ_names")
+        if isinstance(organ_names, list):
+            organ_names = [str(name) for name in organ_names if name]
+        else:
+            organ_names = []
+        if organ_names:
+            organ_label = "Территориальный орган" if len(organ_names) == 1 else "Территориальные органы"
+            parts.append((organ_label, ", ".join(organ_names)))
+        elif log.territorial_organ_id:
+            parts.append(("Территориальный орган", str(log.territorial_organ)))
+
+        table_key = values.get("table_key")
+        export_table = next((config for config in MODEL_TABLES.values() if config["key"] == table_key), None)
+        department_slug = values.get("department_slug") or (export_table or {}).get("department")
+        if department_slug:
+            if department_names is not None:
+                department_name = department_names.get(department_slug)
+            else:
+                department_name = Department.objects.filter(slug=department_slug, is_active=True).values_list("name", flat=True).first()
+            if department_name:
+                parts.append(("Отдел", department_name))
+        table_title = values.get("table_title") or ((export_table or {}).get("parent_title") or (export_table or {}).get("title"))
+        if table_title:
+            parts.append(("Раздел", table_title))
+        return parts
+
     if log.territorial_organ_id:
         parts.append(("Территориальный орган", str(log.territorial_organ)))
     table = MODEL_TABLES.get(log.model_name)
@@ -564,6 +596,7 @@ def prepare_log(
         "table_title": "Таблица",
         "organ_count": "Территориальных органов",
         "group_mode": "Группировка",
+        "filter_conditions": "Условия экспорта",
         "photo_count": "Фотографий",
         "object_count": "Объектов",
         "request_photo_link_count": "Связей с заявками",

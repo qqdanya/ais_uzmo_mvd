@@ -73,6 +73,7 @@ class HeavyExportViaTableTests(RequestAppTestCase):
             )
 
         self.assertContains(response, "Сейчас уже выполняется несколько больших экспортов")
+        self.assertFalse(AuditLog.objects.filter(event_type=AuditLog.EventType.TABLE_EXPORTED).exists())
 
     def test_heavy_export_succeeds_and_releases_its_slot_when_free(self):
         self.client.login(username="operator", password="pass12345")

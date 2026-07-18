@@ -422,10 +422,14 @@ class AuditLogTests(TestCase):
                 "format": "xlsx",
                 "table_key": "tmc-requests",
                 "table_title": "Заявки ТМЦ",
+                "department_slug": "tmc",
+                "organ_ids": [self.organ.pk, 999],
+                "organ_names": [self.organ.name, "Другой территориальный орган"],
                 "organ_count": 2,
                 "group_mode": "dates",
+                "filter_conditions": ["исполнение: В работе", "с 01.07.2026", "по 31.07.2026"],
             },
-            territorial_organ=None,
+            territorial_organ=self.organ,
         )
         self.client.login(username="admin", password="pass12345")
 
@@ -433,7 +437,56 @@ class AuditLogTests(TestCase):
 
         self.assertContains(response, "Группировка")
         self.assertContains(response, "По датам")
+        self.assertContains(response, "Территориальные органы")
+        self.assertContains(response, "Test organ, Другой территориальный орган")
+        self.assertContains(response, "Обеспечение товарно-материальными ценностями")
+        self.assertContains(response, "Условия экспорта")
+        self.assertContains(response, "исполнение: В работе · с 01.07.2026 · по 31.07.2026")
         self.assertNotContains(response, ">dates<", html=False)
+
+    def test_user_journal_scopes_and_filters_table_exports_by_department(self):
+        other_department = Department.objects.create(name="Другой отдел", slug="other", order_number=2)
+        visible_log = self.create_log(
+            event_type=AuditLog.EventType.TABLE_EXPORTED,
+            model_name="",
+            object_id="",
+            object_repr="",
+            new_values={
+                "audit_event": AuditLog.EventType.TABLE_EXPORTED,
+                "format": "xlsx",
+                "table_key": "tmc-requests",
+                "table_title": "Заявки ТМЦ",
+                "department_slug": "tmc",
+                "organ_names": [self.organ.name],
+            },
+        )
+        hidden_log = self.create_log(
+            event_type=AuditLog.EventType.TABLE_EXPORTED,
+            model_name="",
+            object_id="",
+            object_repr="",
+            new_values={
+                "audit_event": AuditLog.EventType.TABLE_EXPORTED,
+                "format": "csv",
+                "table_key": "other-table",
+                "table_title": "Другая таблица",
+                "department_slug": other_department.slug,
+                "organ_names": [self.organ.name],
+            },
+        )
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.get(reverse("my_audit_log"))
+        filtered_response = self.client.get(reverse("my_audit_log"), {"department": "tmc"})
+
+        self.assertContains(response, visible_log.new_values["table_title"])
+        self.assertNotContains(response, hidden_log.new_values["table_title"])
+        self.assertContains(filtered_response, visible_log.new_values["table_title"])
+        self.assertNotContains(filtered_response, hidden_log.new_values["table_title"])
+        self.assertEqual(
+            self.client.get(reverse("audit_detail", args=[hidden_log.pk]), HTTP_HX_REQUEST="true").status_code,
+            404,
+        )
 
     def test_audit_detail_displays_foreign_keys_dates_and_request_history(self):
         request_obj = TmcRequest.objects.create(
