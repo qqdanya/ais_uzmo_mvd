@@ -175,6 +175,17 @@
       if (!popover.hidden) render();
     };
 
+    root.setDateRangePickerDisabled = (disabled) => {
+      const isDisabled = Boolean(disabled);
+      if (isDisabled) open(false);
+      root.classList.toggle("is-disabled", isDisabled);
+      root.setAttribute("aria-disabled", String(isDisabled));
+      fromInput.disabled = isDisabled;
+      if (toInput) toInput.disabled = isDisabled;
+      textInput.disabled = isDisabled;
+      root.querySelectorAll("button").forEach((button) => { button.disabled = isDisabled; });
+    };
+
     function commitManualValue() {
       const value = textInput.value.trim();
       if (!value) { commit(null, null); return true; }

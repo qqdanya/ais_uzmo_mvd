@@ -45,7 +45,9 @@ def save_tmc_record(request, organ, table, instance, form, item_rows):
     with transaction.atomic():
         obj = form.save(commit=False)
         obj.territorial_organ = organ
-        if obj.status in TERMINAL_REQUEST_STATUSES and not obj.due_date:
+        if obj.status not in TERMINAL_REQUEST_STATUSES:
+            obj.due_date = None
+        elif not obj.due_date:
             obj.due_date = timezone.localdate()
         if not obj.pk:
             obj.created_by = request.user
@@ -125,8 +127,11 @@ def save_record(request, organ, table, table_key, instance, form, selected_photo
         obj = form.save(commit=False)
         obj.territorial_organ = organ
         completion_field = completed_date_field(table_key)
-        if table_key in status_history_tables and obj.status in TERMINAL_REQUEST_STATUSES and not getattr(obj, completion_field):
-            setattr(obj, completion_field, timezone.localdate())
+        if table_key in status_history_tables:
+            if obj.status not in TERMINAL_REQUEST_STATUSES:
+                setattr(obj, completion_field, None)
+            elif not getattr(obj, completion_field):
+                setattr(obj, completion_field, timezone.localdate())
         if not obj.pk:
             obj.created_by = request.user
         obj.updated_by = request.user

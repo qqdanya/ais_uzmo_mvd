@@ -326,6 +326,35 @@ class DepartmentTableTests(RequestAppTestCase):
                 history = self.status_history(request_obj).get(old_status="in_work", new_status=status)
                 self.assertEqual(history.completed_at, timezone.localdate())
 
+    def test_vehicle_repair_in_work_status_clears_completion_date(self):
+        request_obj = VehicleRepairRequest.objects.create(
+            territorial_organ=self.organ,
+            request_number="R-REOPEN",
+            request_date="2026-06-27",
+            status="done",
+            completed_at="2026-06-29",
+            comment="Initial",
+        )
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.post(
+            reverse("record_update", args=[self.organ.pk, "vehicle-repair", request_obj.pk]),
+            {
+                "request_number": request_obj.request_number,
+                "request_date": "2026-06-27",
+                "status": "in_work",
+                "completed_at": "2026-06-29",
+                "comment": "Initial",
+            },
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        request_obj.refresh_from_db()
+        self.assertIsNone(request_obj.completed_at)
+        history = self.status_history(request_obj).get(old_status="done", new_status="in_work")
+        self.assertIsNone(history.completed_at)
+
     def test_status_change_creates_one_audit_event_with_completion_date(self):
         request_obj = VehicleRepairRequest.objects.create(
             territorial_organ=self.organ,

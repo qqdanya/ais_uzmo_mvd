@@ -52,14 +52,32 @@ function todayInputValue() {
   return new Date(date.getTime() - offset).toISOString().slice(0, 10);
 }
 
-function fillCompletedDate(form) {
+function syncCompletedDate(form) {
   const status = form.querySelector('[name="status"]');
   const completedDate = form.querySelector('[name="completed_at"]') || form.querySelector('[name="due_date"]');
   if (!status || !completedDate) return;
-  if (["done", "rejected"].includes(status.value) && !completedDate.value) {
+  const picker = completedDate.closest("[data-date-range-picker]");
+  const isTerminal = ["done", "rejected"].includes(status.value);
+
+  if (!isTerminal) {
+    if (picker?.setDateRangePickerValues) picker.setDateRangePickerValues("");
+    else completedDate.value = "";
+    if (picker?.setDateRangePickerDisabled) picker.setDateRangePickerDisabled(true);
+    else completedDate.disabled = true;
+    return;
+  }
+
+  if (picker?.setDateRangePickerDisabled) picker.setDateRangePickerDisabled(false);
+  else completedDate.disabled = false;
+  if (!completedDate.value) {
     const today = todayInputValue();
-    const picker = completedDate.closest("[data-date-range-picker]");
     if (picker?.setDateRangePickerValues) picker.setDateRangePickerValues(today);
     else completedDate.value = today;
   }
+}
+
+function syncCompletedDateForms(scope = document) {
+  const selector = "[data-tmc-request-form], [data-status-form]";
+  const forms = scope.matches?.(selector) ? [scope] : Array.from(scope.querySelectorAll?.(selector) || []);
+  forms.forEach(syncCompletedDate);
 }

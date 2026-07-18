@@ -1,5 +1,10 @@
 // Delegated user interaction handlers for the main application shell.
 function registerAppEventHandlers() {
+  syncCompletedDateForms(document);
+  document.body?.addEventListener("htmx:afterSwap", (event) => {
+    syncCompletedDateForms(event.detail.target);
+  });
+
   document.addEventListener("submit", (event) => {
     const bulkForm = event.target.closest("[data-bulk-photo-form]");
     if (!bulkForm) return;
@@ -52,7 +57,7 @@ function registerAppEventHandlers() {
   
     const status = event.target.closest('[data-tmc-request-form] [name="status"], [data-status-form] [name="status"]');
     if (status) {
-      fillCompletedDate(status.closest("[data-tmc-request-form], [data-status-form]"));
+      syncCompletedDate(status.closest("[data-tmc-request-form], [data-status-form]"));
       return;
     }
     if (event.target.matches("[data-single-file-picker] input[type='file']")) {

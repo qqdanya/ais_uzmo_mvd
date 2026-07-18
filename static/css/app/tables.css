@@ -92,6 +92,20 @@
   border-color: #7ebbe0;
   box-shadow: 0 0 0 .18rem rgba(23,105,170,.14), 0 8px 18px rgba(23,105,170,.08);
 }
+.compact-date-range.is-disabled .custom-date-control,
+.compact-date-range.is-disabled .custom-date-control:hover,
+.compact-date-range.is-disabled .custom-date-control:focus-within {
+  border-color: var(--line);
+  background: #f2f6fa;
+  box-shadow: none;
+  cursor: not-allowed;
+  opacity: .76;
+}
+.compact-date-range.is-disabled .custom-date-text,
+.compact-date-range.is-disabled .custom-date-arrow {
+  color: var(--muted);
+  cursor: not-allowed;
+}
 .custom-date-leading-icon {
   padding-left: .62rem;
   color: var(--blue);
