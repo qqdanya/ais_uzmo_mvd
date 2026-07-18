@@ -39,12 +39,13 @@ from .admin_trash import (
     restore_photo,
     restore_request_record,
 )
-from .forms import AccountActivationForm
+from .forms import AccountActivationForm, DistinctPasswordChangeForm
 from .models import UserProfile
 
 
 class AuditedPasswordChangeView(PasswordChangeView):
     template_name = "registration/password_change_form.html"
+    form_class = DistinctPasswordChangeForm
 
     def form_valid(self, form):
         response = super().form_valid(form)

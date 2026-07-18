@@ -85,6 +85,27 @@ class AccountFoundationTests(TestCase):
         self.assertNotContains(detail, "OldStrongPass123")
         self.assertNotContains(detail, "NewStrongPass456")
 
+    def test_password_change_rejects_current_password_without_audit_event(self):
+        User = get_user_model()
+        user = User.objects.create_user("same-password-owner", password="CurrentStrongPass123")
+        UserProfile.objects.create(user=user, role=UserProfile.Role.OPERATOR)
+        self.client.force_login(user)
+
+        response = self.client.post(
+            reverse("password_change"),
+            {
+                "old_password": "CurrentStrongPass123",
+                "new_password1": "CurrentStrongPass123",
+                "new_password2": "CurrentStrongPass123",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Новый пароль должен отличаться от текущего.")
+        user.refresh_from_db()
+        self.assertTrue(user.check_password("CurrentStrongPass123"))
+        self.assertFalse(AuditLog.objects.filter(event_type=AuditLog.EventType.PASSWORD_CHANGED).exists())
+
     def test_profile_display_name_uses_last_name_and_initials(self):
         User = get_user_model()
         user = User.objects.create_user("petrov", first_name="Алексей", last_name="Петров", password="pass12345")

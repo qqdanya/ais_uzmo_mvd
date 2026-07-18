@@ -1,6 +1,6 @@
 from django import forms
 from django.contrib.auth import get_user_model
-from django.contrib.auth.forms import AuthenticationForm
+from django.contrib.auth.forms import AuthenticationForm, PasswordChangeForm
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 
@@ -13,6 +13,23 @@ ACTIVATION_LOCKOUT_SECONDS = 15 * 60
 
 LOGIN_MAX_ATTEMPTS = 5
 LOGIN_LOCKOUT_SECONDS = 15 * 60
+
+
+class DistinctPasswordChangeForm(PasswordChangeForm):
+    """Reject a password-change request that would keep the current password."""
+
+    def clean(self):
+        cleaned_data = super().clean()
+        new_password = cleaned_data.get("new_password1")
+        if new_password and self.user.check_password(new_password):
+            self.add_error(
+                "new_password1",
+                ValidationError(
+                    "Новый пароль должен отличаться от текущего.",
+                    code="password_unchanged",
+                ),
+            )
+        return cleaned_data
 
 
 class AccountActivationForm(forms.Form):
