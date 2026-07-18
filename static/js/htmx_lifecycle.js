@@ -1,5 +1,5 @@
 // HTMX progress/errors and Bootstrap modal lifecycle.
-const LOADING_SHOW_DELAY_MS = 180;
+const LOADING_SHOW_DELAY_MS = 500;
 const LOADING_MIN_VISIBLE_MS = 320;
 const LOADING_COMPLETE_MS = 180;
 const LOADING_FADE_MS = 160;

@@ -152,6 +152,7 @@
     grid-template-columns: 1fr;
   }
   .audit-change-values i {
+    justify-self: center;
     transform: rotate(90deg);
     margin: 0;
   }
