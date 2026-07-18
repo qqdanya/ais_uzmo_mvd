@@ -2161,6 +2161,7 @@ class FrontendModuleSplitTests(TestCase):
         self.assertIn("USER_MENU_CLOSE_ANIMATION_MS", auth_js)
         self.assertIn('menu.classList.add("is-closing")', auth_js)
         self.assertIn('root.addEventListener("hide.bs.dropdown"', auth_js)
+        self.assertIn("toggle.blur()", auth_js)
         self.assertIn("bootstrap.Dropdown.getOrCreateInstance(toggle)", auth_js)
 
     def test_frontend_modules_export_globals_used_by_app_js(self):

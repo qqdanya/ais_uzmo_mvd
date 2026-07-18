@@ -94,7 +94,10 @@ function initUserMenuHover() {
     cancelCloseAnimation();
   });
 
-  root.addEventListener("hidden.bs.dropdown", cancelCloseAnimation);
+  root.addEventListener("hidden.bs.dropdown", () => {
+    cancelCloseAnimation();
+    toggle.blur();
+  });
 }
 document.addEventListener("input", (event) => {
   if (event.target.matches(".auth-ascii-input")) normalizeAuthInput(event.target);
