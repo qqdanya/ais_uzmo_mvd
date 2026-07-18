@@ -294,6 +294,81 @@ class DepartmentTableTests(RequestAppTestCase):
         self.assertContains(modal, "Дата исполнения заявки")
         self.assertContains(modal, "29.06.2026")
 
+    def test_status_change_creates_one_audit_event_with_completion_date(self):
+        request_obj = VehicleRepairRequest.objects.create(
+            territorial_organ=self.organ,
+            request_number="R-AUDIT-1",
+            request_date="2026-06-27",
+            status="in_work",
+            comment="Initial",
+        )
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.post(
+            reverse("record_update", args=[self.organ.pk, "vehicle-repair", request_obj.pk]),
+            {
+                "request_number": "R-AUDIT-1",
+                "request_date": "2026-06-27",
+                "status": "done",
+                "completed_at": "2026-06-29",
+                "comment": "Initial",
+            },
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        logs = AuditLog.objects.filter(model_name="VehicleRepairRequest", object_id=str(request_obj.pk))
+        self.assertEqual(
+            logs.count(),
+            1,
+            list(logs.values("event_type", "old_values", "new_values")),
+        )
+        log = logs.get()
+        self.assertEqual(log.event_type, AuditLog.EventType.STATUS_CHANGED)
+        self.assertEqual(log.old_values["status"], "in_work")
+        self.assertEqual(log.new_values["status"], "done")
+        self.assertEqual(log.new_values["completed_at"], "2026-06-29")
+        self.assertNotIn("comment", log.new_values)
+        self.assertFalse(logs.filter(event_type=AuditLog.EventType.RECORD_UPDATED).exists())
+
+    def test_status_change_and_comment_edit_create_two_distinct_audit_events(self):
+        request_obj = VehicleRepairRequest.objects.create(
+            territorial_organ=self.organ,
+            request_number="R-AUDIT-2",
+            request_date="2026-06-27",
+            status="in_work",
+            comment="Initial",
+        )
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.post(
+            reverse("record_update", args=[self.organ.pk, "vehicle-repair", request_obj.pk]),
+            {
+                "request_number": "R-AUDIT-2",
+                "request_date": "2026-06-27",
+                "status": "done",
+                "completed_at": "2026-06-29",
+                "comment": "Updated description",
+            },
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        logs = AuditLog.objects.filter(model_name="VehicleRepairRequest", object_id=str(request_obj.pk))
+        self.assertEqual(logs.count(), 2)
+        status_log = logs.get(event_type=AuditLog.EventType.STATUS_CHANGED)
+        update_log = logs.get(event_type=AuditLog.EventType.RECORD_UPDATED)
+        self.assertTrue(status_log.operation_id)
+        self.assertEqual(status_log.operation_id, update_log.operation_id)
+        self.assertEqual(status_log.old_values["status"], "in_work")
+        self.assertEqual(status_log.new_values["status"], "done")
+        self.assertEqual(status_log.new_values["completed_at"], "2026-06-29")
+        self.assertNotIn("comment", status_log.new_values)
+        self.assertEqual(update_log.old_values["comment"], "Initial")
+        self.assertEqual(update_log.new_values["comment"], "Updated description")
+        self.assertNotIn("status", update_log.new_values)
+        self.assertNotIn("completed_at", update_log.new_values)
+
     def test_vehicle_repair_filters_by_status_date_range_and_text(self):
         matching = VehicleRepairRequest.objects.create(territorial_organ=self.organ, request_number="R-10", request_date="2026-06-20", status="in_work", comment="Diagnostics")
         wrong_status = VehicleRepairRequest.objects.create(territorial_organ=self.organ, request_number="R-11", request_date="2026-06-20", status="done", comment="Diagnostics")

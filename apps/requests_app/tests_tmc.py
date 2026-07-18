@@ -52,6 +52,89 @@ class TmcRequestTests(RequestAppTestCase):
             ).exists()
         )
 
+    def test_tmc_status_change_creates_one_request_audit_event(self):
+        product = TmcProduct.objects.create(name="Chair", unit="pcs")
+        request_obj = TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            request_number="14-STATUS/TMC",
+            request_date="2026-06-27",
+            status="in_work",
+            comment="Status only",
+        )
+        TmcRequestItem.objects.create(
+            request=request_obj,
+            product=product,
+            name=product.name,
+            quantity=1,
+            unit=product.unit,
+        )
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.post(
+            reverse("record_update", args=[self.organ.pk, "tmc-requests", request_obj.pk]),
+            {
+                "request_number": "14-STATUS/TMC",
+                "request_date": "2026-06-27",
+                "status": "done",
+                "due_date": "2026-06-29",
+                "comment": "Status only",
+                "item_product": [str(product.pk)],
+                "item_name": [product.name],
+                "item_quantity": ["1"],
+                "item_unit": [product.unit],
+            },
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        logs = AuditLog.objects.filter(model_name="TmcRequest", object_id=str(request_obj.pk))
+        self.assertEqual(logs.count(), 1)
+        log = logs.get()
+        self.assertEqual(log.event_type, AuditLog.EventType.STATUS_CHANGED)
+        self.assertEqual(log.old_values["status"], "in_work")
+        self.assertEqual(log.new_values["status"], "done")
+        self.assertEqual(log.new_values["due_date"], "2026-06-29")
+
+    def test_tmc_item_change_does_not_duplicate_generic_update_event(self):
+        product = TmcProduct.objects.create(name="Chair", unit="pcs")
+        request_obj = TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            request_number="14-ITEM/TMC",
+            request_date="2026-06-27",
+            status="in_work",
+            comment="Item only",
+        )
+        TmcRequestItem.objects.create(
+            request=request_obj,
+            product=product,
+            name=product.name,
+            quantity=1,
+            unit=product.unit,
+        )
+        self.client.login(username="operator", password="pass12345")
+
+        response = self.client.post(
+            reverse("record_update", args=[self.organ.pk, "tmc-requests", request_obj.pk]),
+            {
+                "request_number": "14-ITEM/TMC",
+                "request_date": "2026-06-27",
+                "status": "in_work",
+                "due_date": "",
+                "comment": "Item only",
+                "item_product": [str(product.pk)],
+                "item_name": [product.name],
+                "item_quantity": ["2"],
+                "item_unit": [product.unit],
+            },
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        logs = AuditLog.objects.filter(model_name="TmcRequest", object_id=str(request_obj.pk))
+        self.assertEqual(logs.count(), 1)
+        self.assertEqual(logs.get().event_type, AuditLog.EventType.TMC_QUANTITY_CHANGED)
+        self.assertFalse(logs.filter(event_type=AuditLog.EventType.RECORD_UPDATED).exists())
+
     def test_crud_creates_tmc_request_with_multiple_items_and_audit_log(self):
         self.client.login(username="operator", password="pass12345")
         response = self.client.post(

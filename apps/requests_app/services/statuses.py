@@ -48,11 +48,13 @@ def create_status_history(obj, old_status, new_status, completed_at, changed_by,
     )
 
 
-def write_status_change_audit_event(obj, old_status, new_status, request):
+def write_status_change_audit_event(obj, old_values, new_values, request):
+    event_values = dict(new_values or {})
+    event_values["audit_event"] = "request_status_changed"
     write_audit(
         AuditLog.Action.UPDATE,
         obj,
-        old_values={"status": old_status},
-        new_values={"audit_event": "request_status_changed", "status": new_status},
+        old_values=old_values,
+        new_values=event_values,
         request=request,
     )

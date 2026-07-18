@@ -539,7 +539,7 @@ def prepare_log(
     log.summary = audit_summary(log, log.change_rows)
     log.inline_detail = ""
     if log.event_type == AuditLog.EventType.STATUS_CHANGED and log.change_rows:
-        row = log.change_rows[0]
+        row = next((item for item in log.change_rows if item["field"] == "status"), log.change_rows[0])
         log.inline_detail = f"{row['old']} → {row['new']}"
     elif log.event_type in {AuditLog.EventType.PHOTOS_ATTACHED, AuditLog.EventType.PHOTOS_DETACHED} and log.change_rows:
         row = log.change_rows[0]

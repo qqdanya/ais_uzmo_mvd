@@ -16,6 +16,16 @@ from .tmc import (
 )
 
 
+def audit_values_for_fields(values, fields):
+    values = values or {}
+    return {field: values.get(field) for field in fields if field in values}
+
+
+def audit_values_without_fields(values, fields):
+    excluded = set(fields)
+    return {field: value for field, value in (values or {}).items() if field not in excluded}
+
+
 def save_tmc_record(request, organ, table, instance, form, item_rows):
     """Persist a TMC request with items, photos, status history and audit events."""
     # ModelForm validation mutates the passed instance before this service is called.
@@ -23,6 +33,7 @@ def save_tmc_record(request, organ, table, instance, form, item_rows):
     # the real previous values, not the already-mutated in-memory instance.
     persisted_instance = instance.__class__.objects.get(pk=instance.pk) if instance and instance.pk else None
     old_values = tmc_snapshot(persisted_instance) if persisted_instance else None
+    old_record_values = serialize_instance(persisted_instance) if persisted_instance else None
     old_status = persisted_instance.status if persisted_instance else None
     old_item_rows = tmc_item_audit_rows(persisted_instance) if persisted_instance else []
     selected_photo_ids = request.POST.getlist("attached_photos")
@@ -62,19 +73,36 @@ def save_tmc_record(request, organ, table, instance, form, item_rows):
                 changed_by=request.user,
                 note="Создание заявки" if is_create else "Изменение статуса",
             )
-        if not is_create and old_status != obj.status:
-            write_status_change_audit_event(obj, old_status, obj.status, request)
         if not is_create:
             write_tmc_item_audit_events(obj, old_item_rows, new_item_rows, request)
         write_request_photo_audit_events(obj, photo_changes, request)
 
-    write_audit(
-        AuditLog.Action.UPDATE if instance else AuditLog.Action.CREATE,
-        obj,
-        old_values=old_values,
-        new_values=tmc_snapshot(obj),
-        request=request,
-    )
+    new_values = tmc_snapshot(obj)
+    new_record_values = serialize_instance(obj)
+    status_changed = not is_create and old_status != obj.status
+    if status_changed:
+        status_fields = ("status", "due_date")
+        write_audit(
+            AuditLog.Action.UPDATE,
+            obj,
+            old_values=audit_values_without_fields(old_record_values, status_fields),
+            new_values=audit_values_without_fields(new_record_values, status_fields),
+            request=request,
+        )
+        write_status_change_audit_event(
+            obj,
+            audit_values_for_fields(old_record_values, status_fields),
+            audit_values_for_fields(new_record_values, status_fields),
+            request,
+        )
+    else:
+        write_audit(
+            AuditLog.Action.UPDATE if instance else AuditLog.Action.CREATE,
+            obj,
+            old_values=old_values if is_create else old_record_values,
+            new_values=new_values if is_create else new_record_values,
+            request=request,
+        )
     return obj
 
 
@@ -112,18 +140,34 @@ def save_record(request, organ, table, table_key, instance, form, selected_photo
                 changed_by=request.user,
                 note="Создание заявки" if is_create else "Изменение статуса",
             )
-        if table_key in status_history_tables and not is_create and old_status != obj.status:
-            write_status_change_audit_event(obj, old_status, obj.status, request)
         if table_key in request_photo_tables:
             write_request_photo_audit_events(obj, photo_changes, request)
 
-    write_audit(
-        AuditLog.Action.UPDATE if instance else AuditLog.Action.CREATE,
-        obj,
-        old_values=old_values,
-        new_values=serialize_instance(obj),
-        request=request,
-    )
+    new_values = serialize_instance(obj)
+    status_changed = table_key in status_history_tables and not is_create and old_status != obj.status
+    if status_changed:
+        status_fields = ("status", completion_field)
+        write_audit(
+            AuditLog.Action.UPDATE,
+            obj,
+            old_values=audit_values_without_fields(old_values, status_fields),
+            new_values=audit_values_without_fields(new_values, status_fields),
+            request=request,
+        )
+        write_status_change_audit_event(
+            obj,
+            audit_values_for_fields(old_values, status_fields),
+            audit_values_for_fields(new_values, status_fields),
+            request,
+        )
+    else:
+        write_audit(
+            AuditLog.Action.UPDATE if instance else AuditLog.Action.CREATE,
+            obj,
+            old_values=old_values,
+            new_values=new_values,
+            request=request,
+        )
     return obj
 
 
