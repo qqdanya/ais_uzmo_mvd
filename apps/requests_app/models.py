@@ -186,7 +186,7 @@ class RequestStatusHistory(RequestLinkMixin):
 
     def __str__(self):
         old_status = self.get_old_status_display() if self.old_status else "Создана"
-        return f"{old_status} -> {self.get_new_status_display()}"
+        return f"{old_status} → {self.get_new_status_display()}"
 
 
 class RequestPhotoLink(RequestLinkMixin):

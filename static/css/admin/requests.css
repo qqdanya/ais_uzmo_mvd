@@ -289,6 +289,7 @@
   display: inline-flex;
   align-items: center;
   gap: .35rem;
+  max-width: 100%;
   min-height: 25px;
   padding: .18rem .5rem;
   border: 1px solid #d6e8f5;
@@ -297,7 +298,12 @@
   color: var(--navy);
   font-size: .76rem;
   font-weight: 700;
-  white-space: nowrap;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.admin-department-pill i {
+  flex: 0 0 auto;
 }
 .admin-days-badge {
   display: inline-flex;
@@ -398,17 +404,20 @@
   gap: 6px;
 }
 .admin-request-detail-grid {
+  min-width: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(320px, .72fr);
   gap: 12px;
   align-items: start;
 }
 .admin-detail-list {
+  min-width: 0;
   display: grid;
   gap: 8px;
   margin: 0;
 }
 .admin-detail-list > div {
+  min-width: 0;
   display: grid;
   grid-template-columns: minmax(170px, .36fr) minmax(0, 1fr);
   gap: 10px;

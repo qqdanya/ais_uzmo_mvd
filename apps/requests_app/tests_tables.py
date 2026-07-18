@@ -60,7 +60,7 @@ class DepartmentTableTests(RequestAppTestCase):
             changed_by=self.user,
         )
 
-        self.assertEqual(str(history), "Создана -> В работе")
+        self.assertEqual(str(history), "Создана → В работе")
 
     def test_citsizi_filter_by_equipment_type(self):
         CitsiziEquipment.objects.create(territorial_organ=self.organ, request_number="C-1", request_date="2026-06-20", equipment_type="communication", quantity=1)

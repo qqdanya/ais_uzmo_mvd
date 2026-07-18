@@ -758,8 +758,17 @@
   .admin-chart-controls {
     justify-content: flex-start;
   }
-  .admin-chart-granularity {
+  .admin-chart-tabs {
     width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    border-radius: 12px;
+  }
+  .admin-chart-tabs button {
+    min-width: 0;
+  }
+  .admin-chart-granularity {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
   .admin-chart-granularity button {
     flex: 1 1 0;

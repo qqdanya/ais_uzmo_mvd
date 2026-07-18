@@ -464,9 +464,10 @@
 }
 .admin-employee-activity-line {
   display: grid;
-  grid-template-columns: 72px minmax(120px, 1fr) 38px;
+  grid-template-columns: 72px minmax(120px, 1fr) max-content;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 .admin-employee-activity-line > span {
   color: var(--muted);
@@ -474,9 +475,11 @@
   font-weight: 700;
 }
 .admin-employee-activity-line strong {
+  min-width: 0;
   color: var(--navy);
   font-size: .82rem;
   text-align: right;
+  white-space: nowrap;
 }
 .admin-employees-page .admin-assets-bar-track {
   min-width: 0;
@@ -501,7 +504,7 @@
 }
 @media (max-width: 560px) {
   .admin-employee-activity-line {
-    grid-template-columns: 64px minmax(80px, 1fr) 34px;
+    grid-template-columns: 64px minmax(0, 1fr) max-content;
   }
 }
 
