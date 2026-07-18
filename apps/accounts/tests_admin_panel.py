@@ -2342,6 +2342,14 @@ class FrontendModuleSplitTests(TestCase):
         self.assertIn("resetLightboxView();", close_fn_body)
         self.assertIn('image.removeAttribute("src");', close_fn_body)
 
+    def test_photo_lightbox_supports_touch_pinch_zoom(self):
+        lightbox_js = self.read_static_js("photo_lightbox.js")
+
+        self.assertIn("activeTouchPointers: new Map()", lightbox_js)
+        self.assertIn('event.pointerType === "touch"', lightbox_js)
+        self.assertIn("photoLightboxState.pinchStartDistance", lightbox_js)
+        self.assertIn('document.addEventListener("pointercancel", finishPhotoLightboxPointer);', lightbox_js)
+
 
 class AdminSearchOptimizationTests(TestCase):
     def project_root(self):

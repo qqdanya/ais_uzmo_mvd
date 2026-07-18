@@ -10,6 +10,16 @@ let photoLightboxState = {
   dragOriginX: 0,
   dragOriginY: 0,
   didDrag: false,
+  activeTouchPointers: new Map(),
+  isPinching: false,
+  pinchStartDistance: 0,
+  pinchStartScale: 1,
+  pinchStartCenterX: 0,
+  pinchStartCenterY: 0,
+  pinchViewportCenterX: 0,
+  pinchViewportCenterY: 0,
+  pinchOriginX: 0,
+  pinchOriginY: 0,
   lastTrigger: null,
 };
 
@@ -76,11 +86,15 @@ function applyLightboxTransform() {
   const { scale, offsetX, offsetY } = photoLightboxState;
   image.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
   image.classList.toggle("is-zoomed", scale > 1);
+  image.classList.toggle("is-interacting", photoLightboxState.isDragging || photoLightboxState.isPinching);
   const scaleText = document.querySelector("[data-lightbox-scale]");
   if (scaleText) scaleText.textContent = `${Math.round(scale * 100)}%`;
 }
 
 function resetLightboxView() {
+  photoLightboxState.activeTouchPointers.clear();
+  photoLightboxState.isPinching = false;
+  photoLightboxState.isDragging = false;
   photoLightboxState.scale = 1;
   photoLightboxState.offsetX = 0;
   photoLightboxState.offsetY = 0;
@@ -248,7 +262,36 @@ document.addEventListener("wheel", (event) => {
 }, { passive: false });
 
 document.addEventListener("pointerdown", (event) => {
-  if (!event.target.matches("[data-lightbox-image]") || photoLightboxState.scale <= 1) return;
+  if (!event.target.matches("[data-lightbox-image]")) return;
+
+  if (event.pointerType === "touch") {
+    photoLightboxState.activeTouchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    event.target.setPointerCapture?.(event.pointerId);
+
+    if (photoLightboxState.activeTouchPointers.size === 2) {
+      const [first, second] = Array.from(photoLightboxState.activeTouchPointers.values());
+      const viewportRect = event.target.closest("[data-lightbox-viewport]").getBoundingClientRect();
+      photoLightboxState.isPinching = true;
+      photoLightboxState.isDragging = false;
+      photoLightboxState.didDrag = true;
+      photoLightboxState.pinchStartDistance = Math.max(1, Math.hypot(second.x - first.x, second.y - first.y));
+      photoLightboxState.pinchStartScale = photoLightboxState.scale;
+      photoLightboxState.pinchStartCenterX = (first.x + second.x) / 2;
+      photoLightboxState.pinchStartCenterY = (first.y + second.y) / 2;
+      photoLightboxState.pinchViewportCenterX = viewportRect.left + viewportRect.width / 2;
+      photoLightboxState.pinchViewportCenterY = viewportRect.top + viewportRect.height / 2;
+      photoLightboxState.pinchOriginX = photoLightboxState.offsetX;
+      photoLightboxState.pinchOriginY = photoLightboxState.offsetY;
+      applyLightboxTransform();
+      event.preventDefault();
+      return;
+    }
+
+    if (photoLightboxState.scale <= 1) return;
+  } else if (photoLightboxState.scale <= 1) {
+    return;
+  }
+
   event.preventDefault();
   photoLightboxState.isDragging = true;
   photoLightboxState.dragStartX = event.clientX;
@@ -260,6 +303,36 @@ document.addEventListener("pointerdown", (event) => {
 });
 
 document.addEventListener("pointermove", (event) => {
+  if (event.pointerType === "touch" && photoLightboxState.activeTouchPointers.has(event.pointerId)) {
+    photoLightboxState.activeTouchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+    if (photoLightboxState.isPinching && photoLightboxState.activeTouchPointers.size >= 2) {
+      const [first, second] = Array.from(photoLightboxState.activeTouchPointers.values());
+      const currentDistance = Math.max(1, Math.hypot(second.x - first.x, second.y - first.y));
+      const currentCenterX = (first.x + second.x) / 2;
+      const currentCenterY = (first.y + second.y) / 2;
+      const nextScale = Math.min(4, Math.max(1,
+        photoLightboxState.pinchStartScale * currentDistance / photoLightboxState.pinchStartDistance
+      ));
+      const scaleRatio = nextScale / photoLightboxState.pinchStartScale;
+
+      photoLightboxState.scale = Number(nextScale.toFixed(2));
+      if (photoLightboxState.scale === 1) {
+        photoLightboxState.offsetX = 0;
+        photoLightboxState.offsetY = 0;
+      } else {
+        photoLightboxState.offsetX = currentCenterX - photoLightboxState.pinchViewportCenterX
+          - scaleRatio * (photoLightboxState.pinchStartCenterX - photoLightboxState.pinchViewportCenterX - photoLightboxState.pinchOriginX);
+        photoLightboxState.offsetY = currentCenterY - photoLightboxState.pinchViewportCenterY
+          - scaleRatio * (photoLightboxState.pinchStartCenterY - photoLightboxState.pinchViewportCenterY - photoLightboxState.pinchOriginY);
+      }
+      photoLightboxState.didDrag = true;
+      applyLightboxTransform();
+      event.preventDefault();
+      return;
+    }
+  }
+
   if (!photoLightboxState.isDragging) return;
   if (Math.abs(event.clientX - photoLightboxState.dragStartX) > 3 || Math.abs(event.clientY - photoLightboxState.dragStartY) > 3) {
     photoLightboxState.didDrag = true;
@@ -269,8 +342,28 @@ document.addEventListener("pointermove", (event) => {
   applyLightboxTransform();
 });
 
-document.addEventListener("pointerup", () => {
-  photoLightboxState.isDragging = false;
-});
+function finishPhotoLightboxPointer(event) {
+  if (event.pointerType === "touch") {
+    photoLightboxState.activeTouchPointers.delete(event.pointerId);
+    if (photoLightboxState.activeTouchPointers.size < 2) photoLightboxState.isPinching = false;
+
+    const remaining = photoLightboxState.activeTouchPointers.values().next().value;
+    if (remaining && photoLightboxState.scale > 1) {
+      photoLightboxState.isDragging = true;
+      photoLightboxState.dragStartX = remaining.x;
+      photoLightboxState.dragStartY = remaining.y;
+      photoLightboxState.dragOriginX = photoLightboxState.offsetX;
+      photoLightboxState.dragOriginY = photoLightboxState.offsetY;
+    } else if (!remaining) {
+      photoLightboxState.isDragging = false;
+    }
+  } else {
+    photoLightboxState.isDragging = false;
+  }
+  applyLightboxTransform();
+}
+
+document.addEventListener("pointerup", finishPhotoLightboxPointer);
+document.addEventListener("pointercancel", finishPhotoLightboxPointer);
 
 document.addEventListener("click", handlePhotoLightboxClick);

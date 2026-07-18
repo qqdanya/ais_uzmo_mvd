@@ -470,6 +470,9 @@
 .photo-lightbox-viewport img.is-zoomed:active {
   cursor: grabbing;
 }
+.photo-lightbox-viewport img.is-interacting {
+  transition: none;
+}
 .photo-lightbox-caption {
   display: grid;
   gap: 3px;

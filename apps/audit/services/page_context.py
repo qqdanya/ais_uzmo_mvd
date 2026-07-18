@@ -37,6 +37,11 @@ def _selection_chip(label, selected, labels, request, base_url, parameter):
     return {"label": f"{label}: {value}" if len(selected) == 1 else value, "url": _filter_url(request, base_url, parameter)}
 
 
+def _organ_filter_label(organ):
+    number = format(organ.order_number, "f").rstrip("0").rstrip(".") or "0"
+    return f"{number}. {organ.name}"
+
+
 def audit_context(
     request,
     logs,
@@ -91,7 +96,7 @@ def audit_context(
     event_type_labels = dict(event_types)
     department_labels = dict(department_filters)
     object_labels = dict(object_filters)
-    organ_labels = {str(organ.pk): organ.name for organ in organs}
+    organ_labels = {str(organ.pk): _organ_filter_label(organ) for organ in organs}
     active_filter_chips = []
     chip_specs = [
         ("Пользователи", selected_users, user_labels, "user", show_user_filter),

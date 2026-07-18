@@ -184,6 +184,15 @@ class AuditLogTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertLessEqual(len(queries.captured_queries), 55)
 
+    def test_audit_organ_filter_uses_registry_number(self):
+        self.client.login(username="admin", password="pass12345")
+
+        response = self.client.get(reverse("audit_log"), {"organ": self.organ.pk})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "<span>1. Test organ</span>", html=True)
+        self.assertEqual(response.context["organ_filter_label"], "1. Test organ")
+
     def test_audit_log_does_not_reload_user_profile_per_row(self):
         # Regression test: templates/audit_log.html calls log.user|display_name
         # per row, which reads user.profile - without user__profile in

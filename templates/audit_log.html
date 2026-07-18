@@ -27,7 +27,7 @@
         {% admin_multiselect name="department" options=department_filters selected_values=selected_departments current_label=department_filter_label empty_label="Все отделы" root_class="audit-multiselect" menu_class="audit-multiselect-menu" %}
       {% endif %}
       {% admin_multiselect name="object" options=object_filters selected_values=selected_objects current_label=object_filter_label empty_label="Все объекты" root_class="audit-multiselect" menu_class="audit-multiselect-menu" %}
-      {% admin_multiselect name="organ" options=organs selected_values=selected_organs current_label=organ_filter_label empty_label="Все территориальные органы" value_attr="pk" label_attr="name" root_class="audit-multiselect" menu_class="audit-multiselect-menu" %}
+      {% admin_multiselect name="organ" options=organs selected_values=selected_organs current_label=organ_filter_label empty_label="Все территориальные органы" value_attr="pk" label_attr="organ_full_name" root_class="audit-multiselect" menu_class="audit-multiselect-menu" %}
       {% include "partials/date_range_picker.html" with from_name="date_from" to_name="date_to" from_value=date_from to_value=date_to picker_class="audit-date-picker" %}
       <div class="audit-filter-actions">
         {% if not is_all_time %}
