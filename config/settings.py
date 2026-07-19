@@ -121,7 +121,7 @@ LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "dashboard"
 LOGOUT_REDIRECT_URL = "login"
 SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_AGE = 60 * 60 * 24
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 7
 # Authentication already updates the session when its contents change.
 # Saving every read-only request adds an unnecessary database UPDATE and is
 # especially costly for polling/HTMX endpoints.
