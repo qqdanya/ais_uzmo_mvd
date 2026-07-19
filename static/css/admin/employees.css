@@ -914,10 +914,11 @@
   align-items: center;
   gap: .38rem;
   padding: .3rem .48rem;
-  border: 1px solid #d9e7f1;
-  border-radius: 8px;
-  background: #f8fbfd;
-  color: #52687b;
+  border: 1px solid #d5e0e9;
+  border-radius: 6px;
+  background: #f6f8fa;
+  color: #4a5b6b;
+  box-shadow: inset 3px 0 0 #9db2c3;
   font-size: .75rem;
   line-height: 1.35;
   text-align: left;
@@ -927,16 +928,17 @@
 }
 .admin-employee-access-chip i {
   flex: 0 0 auto;
-  color: #1769aa;
+  color: #486b87;
   font-size: .82rem;
 }
 .admin-employee-access-chip.is-write {
-  border-color: #ddd8f2;
-  background: #f7f5ff;
-  color: #5c5872;
+  border-color: #cbd9e5;
+  background: #edf3f8;
+  color: #334c61;
+  box-shadow: inset 3px 0 0 #5f7f98;
 }
 .admin-employee-access-chip.is-write i {
-  color: #6b55b5;
+  color: #1d527a;
 }
 .admin-activity-badge.is-online::before {
   content: "";
