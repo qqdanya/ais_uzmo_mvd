@@ -172,9 +172,31 @@ class CoreAccessTests(RequestAppTestCase):
         self.assertEqual(update_response.status_code, 404)
         self.assertEqual(delete_response.status_code, 404)
 
+    def test_operator_with_read_only_access_cannot_write_records(self):
+        self.profile.writable_departments.clear()
+        self.profile.writable_organs.clear()
+        request_obj = TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            created_by=self.user,
+            request_number="READ-ONLY-1",
+            request_date="2026-06-27",
+            status="in_work",
+        )
+        self.client.login(username="operator", password="pass12345")
+
+        table_response = self.client.get(reverse("table_data", args=[self.organ.pk, "tmc-requests"]))
+        create_response = self.client.get(reverse("record_create", args=[self.organ.pk, "tmc-requests"]), HTTP_HX_REQUEST="true")
+        update_response = self.client.get(reverse("record_update", args=[self.organ.pk, "tmc-requests", request_obj.pk]), HTTP_HX_REQUEST="true")
+
+        self.assertEqual(table_response.status_code, 200)
+        self.assertContains(table_response, "READ-ONLY-1")
+        self.assertEqual(create_response.status_code, 404)
+        self.assertEqual(update_response.status_code, 404)
+
     def test_operator_can_write_only_assigned_departments(self):
         transport = Department.objects.create(name="Transport", slug="transport", order_number=2)
         self.user.profile.allowed_departments.set([transport])
+        self.user.profile.writable_departments.set([transport])
         request_obj = TmcRequest.objects.create(territorial_organ=self.organ, request_number="43/TMC", request_date="2026-06-20", status="in_work")
         TmcRequestItem.objects.create(request=request_obj, name="Paper", quantity=5, unit="pcs")
         self.client.login(username="operator", password="pass12345")

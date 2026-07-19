@@ -4,7 +4,7 @@
 {% block title %}Заявки | Административная панель{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260718-001">
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260719-004">
 {% endblock %}
 
 {% block content %}
@@ -22,19 +22,6 @@
           <strong>{{ total_count }}</strong>
         </div>
       </div>
-
-      <section class="admin-requests-kpi" aria-label="Ключевые показатели по заявкам">
-        {% for item in request_kpis %}
-          <article class="admin-requests-kpi-card">
-            <span class="admin-requests-kpi-icon"><i class="bi {{ item.icon }}"></i></span>
-            <div>
-              <strong>{{ item.value }}</strong>
-              <span>{{ item.label }}</span>
-              <small>{{ item.hint }}</small>
-            </div>
-          </article>
-        {% endfor %}
-      </section>
 
       <nav class="admin-status-tabs" aria-label="Быстрые фильтры по статусу">
         {% for tab in status_tabs %}
@@ -114,6 +101,19 @@
           </div>
         {% endif %}
       </form>
+
+      <section class="admin-requests-kpi" aria-label="Ключевые показатели по заявкам">
+        {% for item in request_kpis %}
+          <article class="admin-requests-kpi-card">
+            <span class="admin-requests-kpi-icon"><i class="bi {{ item.icon }}"></i></span>
+            <div>
+              <strong>{{ item.value }}</strong>
+              <span>{{ item.label }}</span>
+              <small>{{ item.hint }}</small>
+            </div>
+          </article>
+        {% endfor %}
+      </section>
 
       <section class="admin-section admin-requests-table-section">
         <div class="admin-section-head">

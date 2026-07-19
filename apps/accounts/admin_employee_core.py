@@ -5,7 +5,6 @@ from django.db.models import Count, Q
 from django.urls import reverse
 from django.utils import timezone
 
-from apps.audit.models import AuditLog
 from apps.directory.models import Department, TerritorialOrgan
 from apps.requests_app.registry import TABLE_BY_KEY
 
@@ -40,8 +39,8 @@ ACTIVATION_OPTIONS = {
 }
 
 ROLE_BADGE_CLASSES = {
-    UserProfile.Role.ADMIN: "is-neutral",
-    UserProfile.Role.OPERATOR: "is-neutral",
+    UserProfile.Role.ADMIN: "is-admin",
+    UserProfile.Role.OPERATOR: "is-operator",
     UserProfile.Role.OBSERVER: "is-neutral",
 }
 
@@ -62,7 +61,12 @@ def employee_queryset():
     User = get_user_model()
     return (
         User.objects.select_related("profile")
-        .prefetch_related("profile__allowed_departments", "profile__allowed_organs")
+        .prefetch_related(
+            "profile__allowed_departments",
+            "profile__writable_departments",
+            "profile__allowed_organs",
+            "profile__writable_organs",
+        )
         .order_by("last_name", "first_name", "username")
     )
 
@@ -146,35 +150,86 @@ def role_badge_class(user):
     return ROLE_BADGE_CLASSES.get(role_value(user), "is-neutral")
 
 
-def rights_summary(qs, total_count, noun, *, empty_label=None):
+def access_count_label(count, singular, paucal, plural):
+    remainder_100 = count % 100
+    remainder_10 = count % 10
+    if 11 <= remainder_100 <= 14:
+        noun = plural
+    elif remainder_10 == 1:
+        noun = singular
+    elif 2 <= remainder_10 <= 4:
+        noun = paucal
+    else:
+        noun = plural
+    return f"{count} {noun}"
+
+
+def rights_summary(qs, total_count, nouns, *, empty_label=None):
     items = list(qs)
     if not items:
         return empty_label or "Доступ не выбран"
-    if total_count and len(items) == total_count:
-        return f"Все {noun}"
-    if len(items) == 1:
-        return str(items[0])
-    return f"{len(items)} выбрано"
+    return access_count_label(len(items), *nouns)
+
+
+def has_full_access(user, profile=None):
+    profile = profile if profile is not None else profile_for(user)
+    return bool(user.is_superuser or (profile and profile.role == UserProfile.Role.ADMIN))
 
 
 def format_organs_summary(profile, total_organs, user=None):
-    if user is not None and user.is_superuser:
-        return "Полный доступ"
+    if user is not None and has_full_access(user, profile):
+        return access_count_label(total_organs, "территориальный орган", "территориальных органа", "территориальных органов")
     if not profile:
         return "—"
-    return rights_summary(profile.allowed_organs.all(), total_organs, "территориальные органы", empty_label="Территориальные органы не выбраны")
+    return rights_summary(
+        profile.allowed_organs.all(),
+        total_organs,
+        ("территориальный орган", "территориальных органа", "территориальных органов"),
+        empty_label="Территориальные органы не выбраны",
+    )
 
 
 def format_departments_summary(profile, total_departments, user=None):
-    if user is not None and user.is_superuser:
-        return "Полный доступ"
+    if user is not None and has_full_access(user, profile):
+        return access_count_label(total_departments, "отдел", "отдела", "отделов")
     if not profile:
         return "—"
-    return rights_summary(profile.allowed_departments.all(), total_departments, "отделы", empty_label="Отделы не выбраны")
+    return rights_summary(
+        profile.allowed_departments.all(),
+        total_departments,
+        ("отдел", "отдела", "отделов"),
+        empty_label="Отделы не выбраны",
+    )
+
+
+def format_writable_organs_summary(profile, total_organs, user=None):
+    if user is not None and has_full_access(user, profile):
+        return access_count_label(total_organs, "территориальный орган", "территориальных органа", "территориальных органов")
+    if not profile:
+        return "—"
+    return rights_summary(
+        profile.writable_organs.all(),
+        total_organs,
+        ("территориальный орган", "территориальных органа", "территориальных органов"),
+        empty_label="Запись не назначена",
+    )
+
+
+def format_writable_departments_summary(profile, total_departments, user=None):
+    if user is not None and has_full_access(user, profile):
+        return access_count_label(total_departments, "отдел", "отдела", "отделов")
+    if not profile:
+        return "—"
+    return rights_summary(
+        profile.writable_departments.all(),
+        total_departments,
+        ("отдел", "отдела", "отделов"),
+        empty_label="Запись не назначена",
+    )
 
 
 def has_all_departments_access(user, profile, total_departments):
-    if user.is_superuser:
+    if has_full_access(user, profile):
         return True
     if not profile:
         return False
@@ -183,11 +238,28 @@ def has_all_departments_access(user, profile, total_departments):
 
 
 def has_all_organs_access(user, profile):
-    if user.is_superuser:
+    if has_full_access(user, profile):
         return True
     if not profile:
         return False
     return bool(profile.allowed_organs.exists()) and profile.allowed_organs.count() == top_level_organs().count()
+
+
+def has_all_writable_departments_access(user, profile, total_departments):
+    if has_full_access(user, profile):
+        return True
+    if not profile:
+        return False
+    selected_count = profile.writable_departments.count()
+    return bool(total_departments and selected_count == total_departments)
+
+
+def has_all_writable_organs_access(user, profile):
+    if has_full_access(user, profile):
+        return True
+    if not profile:
+        return False
+    return bool(profile.writable_organs.exists()) and profile.writable_organs.count() == top_level_organs().count()
 
 
 def activation_state(user):
@@ -227,6 +299,8 @@ def employee_row(user, total_organs, total_departments):
         "activation_label": activation_label(user),
         "organs_summary": format_organs_summary(profile, total_organs, user),
         "departments_summary": format_departments_summary(profile, total_departments, user),
+        "writable_organs_summary": format_writable_organs_summary(profile, total_organs, user),
+        "writable_departments_summary": format_writable_departments_summary(profile, total_departments, user),
         "detail_url": reverse("admin_employee_detail", kwargs={"pk": user.pk}),
         "edit_url": reverse("admin_employee_edit", kwargs={"pk": user.pk}),
     }
@@ -457,42 +531,6 @@ def created_requests_counts_by_user(users, since=None):
 
 def created_requests_count(user, since=None):
     return created_requests_counts_by_user([user], since=since)[user.pk]
-
-
-def employee_activity_stats(users, days=30):
-    since = timezone.now() - timedelta(days=days)
-    users = list(users)
-    created_counts = created_requests_counts_by_user(users, since=since)
-    action_counts = dict(
-        AuditLog.objects.filter(user_id__in=[user.pk for user in users], created_at__gte=since)
-        .values("user_id")
-        .annotate(total=Count("pk"))
-        .values_list("user_id", "total")
-    )
-    rows = []
-    for user in users:
-        created_requests = created_counts.get(user.pk, 0)
-        actions = action_counts.get(user.pk, 0)
-        if not created_requests and not actions:
-            continue
-        rows.append(
-            {
-                "user": user,
-                "name": employee_short_name(user),
-                "created_requests": created_requests,
-                "actions": actions,
-                "total": created_requests + actions,
-            }
-        )
-    rows.sort(key=lambda row: (row["total"], row["created_requests"], row["actions"], row["name"]), reverse=True)
-    rows = rows[:10]
-    max_created = max((row["created_requests"] for row in rows), default=0)
-    max_actions = max((row["actions"] for row in rows), default=0)
-    for row in rows:
-        row["created_width"] = round((row["created_requests"] / max_created) * 100, 1) if max_created else 0
-        row["actions_width"] = round((row["actions"] / max_actions) * 100, 1) if max_actions else 0
-        row["detail_url"] = reverse("admin_employee_detail", kwargs={"pk": row["user"].pk})
-    return rows
 
 
 def employee_presence_payload():

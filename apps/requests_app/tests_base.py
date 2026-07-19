@@ -52,6 +52,8 @@ class RequestAppTestCase(TestCase):
         self.department = Department.objects.create(name="TMC", slug="tmc", order_number=1)
         self.profile.allowed_organs.set([self.organ])
         self.profile.allowed_departments.set([self.department])
+        self.profile.writable_organs.set([self.organ])
+        self.profile.writable_departments.set([self.department])
 
     def status_history(self, obj):
         content_type = ContentType.objects.get_for_model(obj, for_concrete_model=False)

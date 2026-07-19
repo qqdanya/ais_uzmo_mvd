@@ -29,7 +29,9 @@ AUDIT_FIELD_LABELS = {
     "middle_name": "Отчество",
     "role": "Роль в системе",
     "allowed_departments": "Доступные отделы",
+    "writable_departments": "Отделы с правом записи",
     "allowed_organs": "Доступные территориальные органы",
+    "writable_organs": "Территориальные органы с правом записи",
     "is_active": "Вход разрешён",
     "is_staff": "Доступ к стандартной админ-панели",
     "is_superuser": "Полные права Django",
@@ -191,10 +193,12 @@ def field_display_value(model_name, field_name, value, related_value_cache=None)
             "needs_activation": "Ожидает активации",
             "new_activation_code": "Ожидает активации по новому коду",
         }.get(str(value), str(value))
-    if field_name == "allowed_departments" and isinstance(value, list):
-        return ", ".join(str(item) for item in value) or "Отделы не выбраны"
-    if field_name == "allowed_organs" and isinstance(value, list):
-        return ", ".join(str(item) for item in value) or "Территориальные органы не выбраны"
+    if field_name in {"allowed_departments", "writable_departments"} and isinstance(value, list):
+        empty_label = "Запись не назначена" if field_name == "writable_departments" else "Отделы не выбраны"
+        return ", ".join(str(item) for item in value) or empty_label
+    if field_name in {"allowed_organs", "writable_organs"} and isinstance(value, list):
+        empty_label = "Запись не назначена" if field_name == "writable_organs" else "Территориальные органы не выбраны"
+        return ", ".join(str(item) for item in value) or empty_label
     if field_name in {"django_groups", "django_permissions"} and isinstance(value, list):
         return ", ".join(str(item) for item in value) or "Не назначены"
     model = model_class(model_name)

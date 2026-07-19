@@ -4,7 +4,7 @@
 {% block title %}Отделы | Административная панель{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260718-001">
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260719-004">
 {% endblock %}
 
 {% block content %}
@@ -23,19 +23,6 @@
           <strong>{{ total_count }}</strong>
         </div>
       </div>
-
-      <section class="admin-organs-kpi admin-departments-kpi" aria-label="Ключевые показатели по отделам">
-        {% for item in departments_kpis %}
-          <article class="admin-requests-kpi-card admin-organs-kpi-card admin-departments-kpi-card">
-            <span class="admin-requests-kpi-icon"><i class="bi {{ item.icon }}"></i></span>
-            <div>
-              <strong>{{ item.value }}</strong>
-              <span>{{ item.label }}</span>
-              <small>{{ item.hint }}</small>
-            </div>
-          </article>
-        {% endfor %}
-      </section>
 
       <nav class="admin-status-tabs" aria-label="Фильтры по отделам">
         {% for tab in view_tabs %}
@@ -112,6 +99,19 @@
           </div>
         {% endif %}
       </form>
+
+      <section class="admin-organs-kpi admin-departments-kpi" aria-label="Ключевые показатели по отделам">
+        {% for item in departments_kpis %}
+          <article class="admin-requests-kpi-card admin-organs-kpi-card admin-departments-kpi-card">
+            <span class="admin-requests-kpi-icon"><i class="bi {{ item.icon }}"></i></span>
+            <div>
+              <strong>{{ item.value }}</strong>
+              <span>{{ item.label }}</span>
+              <small>{{ item.hint }}</small>
+            </div>
+          </article>
+        {% endfor %}
+      </section>
 
       <section class="admin-section admin-departments-table-section">
         <div class="admin-section-head">

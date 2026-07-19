@@ -40,6 +40,36 @@ def cached_allowed_organ_ids(user):
     return cache["allowed_organ_ids"]
 
 
+def cached_writable_departments(user):
+    cache = permission_cache(user)
+    if "writable_departments" not in cache:
+        profile = getattr(user, "profile", None)
+        cache["writable_departments"] = list(profile.writable_departments.all()) if profile else []
+    return cache["writable_departments"]
+
+
+def cached_writable_department_ids(user):
+    cache = permission_cache(user)
+    if "writable_department_ids" not in cache:
+        cache["writable_department_ids"] = {department.pk for department in cached_writable_departments(user)}
+    return cache["writable_department_ids"]
+
+
+def cached_writable_department_slugs(user):
+    cache = permission_cache(user)
+    if "writable_department_slugs" not in cache:
+        cache["writable_department_slugs"] = {department.slug for department in cached_writable_departments(user)}
+    return cache["writable_department_slugs"]
+
+
+def cached_writable_organ_ids(user):
+    cache = permission_cache(user)
+    if "writable_organ_ids" not in cache:
+        profile = getattr(user, "profile", None)
+        cache["writable_organ_ids"] = {organ.pk for organ in profile.writable_organs.all()} if profile else set()
+    return cache["writable_organ_ids"]
+
+
 def cached_active_department_slugs(user):
     cache = permission_cache(user)
     if "active_department_slugs" not in cache:
@@ -65,16 +95,15 @@ def can_write(user, organ=None, department_slug=None):
     profile = getattr(user, "profile", None)
     if not profile:
         return False
-    department_ids = cached_allowed_department_ids(user)
-    if not department_ids:
-        return False
     if department_slug:
         department_exists = department_slug in cached_active_department_slugs(user)
-        if department_exists and department_slug not in cached_allowed_department_slugs(user):
+        if department_exists and department_slug not in cached_writable_department_slugs(user):
             return False
-    if organ is None:
+    if organ is not None and organ.pk not in cached_writable_organ_ids(user):
+        return False
+    if department_slug or organ is not None:
         return True
-    return organ.pk in cached_allowed_organ_ids(user)
+    return bool(cached_writable_department_ids(user) or cached_writable_organ_ids(user))
 
 
 def writable_department_ids(user):
@@ -83,14 +112,14 @@ def writable_department_ids(user):
     profile = getattr(user, "profile", None)
     if not profile:
         return set()
-    return cached_allowed_department_ids(user)
+    return cached_writable_department_ids(user)
 
 
 def user_primary_department(user):
     profile = getattr(user, "profile", None)
     if not profile:
         return None
-    return profile.allowed_departments.order_by("order_number", "name").first()
+    return profile.writable_departments.order_by("order_number", "name").first()
 
 
 def can_manage_photo_asset(user, organ, asset):

@@ -40,6 +40,7 @@ GRANULARITY_LABELS = {
     "day": "по дням",
     "week": "по неделям",
     "month": "по месяцам",
+    "year": "по годам",
 }
 CHART_METRIC_CHOICES = (
     ("incoming", "Поступившие"),
@@ -526,9 +527,9 @@ def report_filter_fields(request):
 
 def build_summary_report_context(request):
     period = parse_period(request)
-    comparison_mode = request.GET.get("comparison", "previous")
+    comparison_mode = request.GET.get("comparison", "none")
     if comparison_mode not in COMPARISON_KEYS:
-        comparison_mode = "previous"
+        comparison_mode = "none"
     default_custom_period = previous_comparison_period(period)
     custom_date_from = parse_date(request.GET.get("comparison_date_from", ""))
     custom_date_to = parse_date(request.GET.get("comparison_date_to", ""))

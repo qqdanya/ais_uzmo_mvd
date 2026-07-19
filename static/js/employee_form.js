@@ -77,5 +77,52 @@
     updateUsername();
   }
 
-  document.addEventListener("DOMContentLoaded", initEmployeeUsernameForm);
+  function initEmployeePermissionMatrix() {
+    document.querySelectorAll("[data-permission-row]").forEach((row) => {
+      const readInput = row.querySelector("[data-permission-read]");
+      const writeInput = row.querySelector("[data-permission-write]");
+      if (!readInput || !writeInput) return;
+      writeInput.addEventListener("change", () => {
+        if (writeInput.checked) readInput.checked = true;
+      });
+      readInput.addEventListener("change", () => {
+        if (!readInput.checked) writeInput.checked = false;
+      });
+    });
+
+    document.querySelectorAll("[data-permission-select-all]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const group = button.closest("[data-permission-matrix-group]");
+        if (!group || button.disabled) return;
+        const kind = button.dataset.permissionSelectAll;
+        const selector = kind === "write" ? "[data-permission-write]" : "[data-permission-read]";
+        group.querySelectorAll(selector).forEach((input) => {
+          if (!input.disabled) input.checked = true;
+        });
+        if (kind === "write") {
+          group.querySelectorAll("[data-permission-read]").forEach((input) => { input.checked = true; });
+        }
+      });
+    });
+
+    const roleInputs = document.querySelectorAll('input[name="role"]');
+    const writeInputs = document.querySelectorAll("[data-permission-write]");
+    const writeAllButtons = document.querySelectorAll("[data-permission-write-all]");
+    const syncRolePermissions = () => {
+      const selectedRole = document.querySelector('input[name="role"]:checked')?.value;
+      const isObserver = selectedRole === "observer";
+      writeInputs.forEach((input) => {
+        input.disabled = isObserver;
+        if (isObserver) input.checked = false;
+      });
+      writeAllButtons.forEach((button) => { button.disabled = isObserver; });
+    };
+    roleInputs.forEach((input) => input.addEventListener("change", syncRolePermissions));
+    syncRolePermissions();
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    initEmployeeUsernameForm();
+    initEmployeePermissionMatrix();
+  });
 })();

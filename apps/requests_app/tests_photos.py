@@ -554,8 +554,12 @@ class PhotoAssetTests(RequestAppTestCase):
         transport_profile = UserProfile.objects.create(user=transport_user, role=UserProfile.Role.OPERATOR)
         fire_profile.allowed_departments.set([fire_department])
         fire_profile.allowed_organs.set([self.organ])
+        fire_profile.writable_departments.set([fire_department])
+        fire_profile.writable_organs.set([self.organ])
         transport_profile.allowed_departments.set([transport_department])
         transport_profile.allowed_organs.set([self.organ])
+        transport_profile.writable_departments.set([transport_department])
+        transport_profile.writable_organs.set([self.organ])
         folder = TerritorialOrganPhotoFolder.objects.create(
             territorial_organ=self.organ,
             name="Fire folder",
@@ -601,6 +605,7 @@ class PhotoAssetTests(RequestAppTestCase):
     def test_photo_upload_stores_author_department(self):
         fire_department = Department.objects.create(name="Fire", slug="fire", order_number=2)
         self.user.profile.allowed_departments.set([fire_department])
+        self.user.profile.writable_departments.set([fire_department])
         self.client.login(username="operator", password="pass12345")
         buffer = BytesIO()
         Image.new("RGB", (2, 2), "white").save(buffer, format="PNG")
@@ -620,8 +625,11 @@ class PhotoAssetTests(RequestAppTestCase):
         fire_user = User.objects.create_user("fire-folder-owner", password="pass12345")
         fire_profile = UserProfile.objects.create(user=fire_user, role=UserProfile.Role.OPERATOR)
         self.user.profile.allowed_departments.set([transport_department])
+        self.user.profile.writable_departments.set([transport_department])
         fire_profile.allowed_departments.set([fire_department])
         fire_profile.allowed_organs.set([self.organ])
+        fire_profile.writable_departments.set([fire_department])
+        fire_profile.writable_organs.set([self.organ])
         foreign_folder = TerritorialOrganPhotoFolder.objects.create(
             territorial_organ=self.organ,
             name="Foreign folder",
@@ -661,7 +669,10 @@ class PhotoAssetTests(RequestAppTestCase):
         fire_profile = UserProfile.objects.create(user=fire_user, role=UserProfile.Role.OPERATOR)
         fire_profile.allowed_departments.set([fire_department])
         fire_profile.allowed_organs.set([self.organ])
+        fire_profile.writable_departments.set([fire_department])
+        fire_profile.writable_organs.set([self.organ])
         self.user.profile.allowed_departments.set([transport_department])
+        self.user.profile.writable_departments.set([transport_department])
         foreign_folder = TerritorialOrganPhotoFolder.objects.create(
             territorial_organ=self.organ,
             name="Foreign move target",

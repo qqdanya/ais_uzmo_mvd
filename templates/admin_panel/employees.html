@@ -4,7 +4,7 @@
 {% block title %}Сотрудники | Административная панель{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260718-001">
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260719-004">
 {% endblock %}
 
 {% block content %}
@@ -14,10 +14,9 @@
 
     <section class="admin-employees-screen" aria-label="Управление сотрудниками" data-employees-presence-url="{{ presence_data_url }}">
       {% include "admin_panel/employees/_hero.html" %}
-      {% include "admin_panel/employees/_kpis.html" %}
       {% include "admin_panel/employees/_tabs.html" %}
-      {% include "admin_panel/employees/_activity.html" %}
       {% include "admin_panel/employees/_filters.html" %}
+      {% include "admin_panel/employees/_kpis.html" %}
       {% include "admin_panel/employees/_table.html" %}
     </section>
   </section>

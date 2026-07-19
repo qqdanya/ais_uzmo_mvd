@@ -885,6 +885,7 @@ class DepartmentTableTests(RequestAppTestCase):
         self.create_status_history_entry(included)
         uoto_department = Department.objects.create(name="UOTO", slug="uoto", order_number=2)
         self.user.profile.allowed_departments.add(uoto_department)
+        self.user.profile.writable_departments.add(uoto_department)
         self.client.login(username="operator", password="pass12345")
 
         panel = self.client.get(reverse("department_tables", args=[self.organ.pk, "uoto"]))

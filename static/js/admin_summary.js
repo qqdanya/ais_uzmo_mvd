@@ -364,7 +364,7 @@
       button.setAttribute("aria-pressed", String(isActive));
     });
     const subtitle = root.querySelector("[data-dynamics-subtitle]");
-    const labels = { day: "дням", week: "неделям", month: "месяцам" };
+    const labels = { day: "дням", week: "неделям", month: "месяцам", year: "годам" };
     if (subtitle) subtitle.textContent = `Поступление, исполнение и отклонение заявок по ${labels[dynamicsGranularity] || labels.day}`;
   }
 
@@ -593,7 +593,7 @@
       if (!reportForm) return;
       const params = paramsForRequest();
       params.delete("org_metric");
-      const comparison = reportComparison?.value || "previous";
+      const comparison = reportComparison?.value || "none";
       params.set("comparison", comparison);
       if (comparison === "custom") {
         syncReportComparisonInputs(true);
@@ -608,16 +608,16 @@
         params.set("comparison_date_to", reportComparisonTo.value);
       }
       const selectedMetrics = reportMetrics
-        ? [...reportMetrics.querySelectorAll("[data-admin-multiselect-input]:checked")]
-        : [];
-      if (!selectedMetrics.length) {
+        ? [...reportMetrics.querySelectorAll("[data-admin-multiselect-input]:checked")].map((input) => input.value)
+        : (dynamicsMode === "all" ? ["incoming", "done", "rejected"] : [dynamicsMode]);
+      if (reportMetrics && !selectedMetrics.length) {
         event.preventDefault();
         reportMetrics?.classList.add("has-error");
         reportMetrics?.querySelector(".admin-multiselect-trigger")?.focus();
         return;
       }
       params.delete("metrics");
-      selectedMetrics.forEach((input) => params.append("metrics", input.value));
+      selectedMetrics.forEach((metric) => params.append("metrics", metric));
       params.set(
         "chart_layout",
         comparison === "none" ? "combined" : (reportChartLayout?.value || "combined"),

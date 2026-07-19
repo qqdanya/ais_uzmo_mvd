@@ -85,39 +85,6 @@
       </div>
     </div>
 
-    <div class="admin-summary-report-bar">
-      <div class="admin-summary-report-head">
-        <span class="admin-summary-report-icon"><i class="bi bi-file-earmark-bar-graph"></i></span>
-        <div>
-          <strong>Сводка руководителя</strong>
-          <span>Настройте сравнение и состав графика для печатного отчёта</span>
-        </div>
-      </div>
-      <div class="admin-summary-report-actions">
-        <div class="admin-summary-report-field">
-          <label for="admin-report-comparison">Период сравнения</label>
-          {% single_select id="admin-report-comparison" options="previous:предыдущий период|previous_year:тот же период прошлого года|custom:произвольный период|none:без сравнения" selected_value="previous" aria_label="Период сравнения отчёта" %}
-        </div>
-        <div class="admin-summary-report-field">
-          <span class="admin-summary-report-label">Показатели</span>
-          {% admin_multiselect name="metrics" options=summary_report_metric_options selected_values=summary_report_selected_metrics current_label="Все показатели" empty_label="Выберите показатели" all_label="Все показатели" root_class="admin-report-metrics" menu_class="admin-multiselect-menu-small" %}
-        </div>
-        <div class="admin-summary-report-field" data-admin-report-layout-field>
-          <label for="admin-report-chart-layout">Расположение графиков</label>
-          {% single_select id="admin-report-chart-layout" options="combined:на одном графике|separate:на двух графиках" selected_value="combined" aria_label="Расположение графиков сравнения" %}
-        </div>
-        <form class="admin-summary-report-submit" method="get" action="{% url 'admin_summary_report' %}" target="_blank" rel="noopener" data-admin-summary-report-form>
-          <button class="btn btn-primary" type="submit" data-admin-summary-report>
-            <i class="bi bi-printer"></i> Сформировать отчёт
-          </button>
-        </form>
-        <div class="admin-report-custom-period" data-admin-report-custom-period hidden>
-          <span class="admin-summary-report-label">Произвольный период сравнения</span>
-          {% include "partials/date_range_picker.html" with from_name="comparison_date_from" to_name="comparison_date_to" from_value="" to_value="" picker_class="admin-date-picker admin-report-date-picker" %}
-        </div>
-      </div>
-    </div>
-
     <section class="admin-section admin-chart-section">
       <div class="admin-section-head">
         <div>
@@ -135,7 +102,13 @@
             <button class="active" type="button" data-dynamics-granularity="day" aria-pressed="true">Дни</button>
             <button type="button" data-dynamics-granularity="week" aria-pressed="false">Недели</button>
             <button type="button" data-dynamics-granularity="month" aria-pressed="false">Месяцы</button>
+            <button type="button" data-dynamics-granularity="year" aria-pressed="false">Годы</button>
           </div>
+          <form class="admin-summary-report-submit admin-chart-report-form" method="get" action="{% url 'admin_summary_report' %}" target="_blank" rel="noopener" data-admin-summary-report-form>
+            <button class="admin-chart-report-button" type="submit" data-admin-summary-report>
+              <i class="bi bi-file-earmark-bar-graph"></i> Сформировать отчёт
+            </button>
+          </form>
         </div>
       </div>
       <div class="admin-chart-wrap">

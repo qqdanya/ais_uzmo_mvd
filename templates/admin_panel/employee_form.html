@@ -4,7 +4,7 @@
 {% block title %}{{ title }} | Сотрудники{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260718-001">
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260719-004">
 {% endblock %}
 
 {% block content %}
@@ -21,7 +21,7 @@
       <div class="admin-requests-hero admin-employees-hero">
         <div>
           <h2>{{ title }}</h2>
-          <p>{% if mode == 'create' %}Сотрудник будет создан без пароля. Система выдаст код активации, а пароль сотрудник задаст самостоятельно.{% else %}Изменение роли, доступных отделов и территориальных органов.{% endif %}</p>
+          <p>{% if mode == 'create' %}Сотрудник будет создан без пароля. Система выдаст код активации, а пароль сотрудник задаст самостоятельно.{% else %}Изменение роли, доступных отделов и территориальных органов.{% endif %} У руководителя и администратора полный доступ сохраняется независимо от выбранных пунктов.</p>
         </div>
       </div>
 
@@ -81,20 +81,52 @@
         </div>
 
         <div class="admin-employee-access-grid admin-employee-access-grid-redone">
-          <section class="admin-employee-form-card admin-employee-rights-picker">
+          <section class="admin-employee-form-card admin-employee-rights-picker" data-permission-matrix-group>
             <div class="admin-section-head admin-section-head-compact">
-              <div><h2>Отделы</h2><span>Если ничего не выбрано — доступа к отделам нет.</span></div>
+              <div><h2>Отделы</h2><span>Назначьте чтение и запись отдельно. Запись автоматически включает чтение.</span></div>
+              <div class="admin-permission-actions">
+                <button type="button" data-permission-select-all="read"><i class="bi bi-eye"></i> Всё чтение</button>
+                <button type="button" data-permission-select-all="write" data-permission-write-all><i class="bi bi-pencil-square"></i> Вся запись</button>
+              </div>
             </div>
-            {% admin_multiselect name="allowed_departments" options=departments selected_values=selected_departments current_label=department_label empty_label="Отделы не выбраны" value_attr="pk" label_attr="name" root_class="admin-multiselect-large" menu_class="admin-multiselect-menu-wide" %}
+            <div class="admin-permission-matrix" role="group" aria-label="Права доступа к отделам">
+              <div class="admin-permission-matrix-head"><span>Отдел</span><span>Чтение</span><span>Запись</span></div>
+              {% for row in department_permission_rows %}
+                <div class="admin-permission-matrix-row" data-permission-row>
+                  <strong>{{ row.item.name }}</strong>
+                  <label><input type="checkbox" name="allowed_departments" value="{{ row.item.pk }}" data-permission-read{% if row.read %} checked{% endif %}><span class="visually-hidden">Чтение: {{ row.item.name }}</span></label>
+                  <label><input type="checkbox" name="writable_departments" value="{{ row.item.pk }}" data-permission-write{% if row.write %} checked{% endif %}><span class="visually-hidden">Запись: {{ row.item.name }}</span></label>
+                </div>
+              {% empty %}
+                <div class="admin-empty admin-empty-compact"><strong>Активных отделов нет</strong></div>
+              {% endfor %}
+            </div>
             {% for error in form.allowed_departments.errors %}<em class="admin-form-error">{{ error }}</em>{% endfor %}
+            {% for error in form.writable_departments.errors %}<em class="admin-form-error">{{ error }}</em>{% endfor %}
           </section>
 
-          <section class="admin-employee-form-card admin-employee-rights-picker">
+          <section class="admin-employee-form-card admin-employee-rights-picker" data-permission-matrix-group>
             <div class="admin-section-head admin-section-head-compact">
-              <div><h2>Территориальные органы</h2><span>Если ничего не выбрано — доступа к территориальным органам нет.</span></div>
+              <div><h2>Территориальные органы</h2><span>Можно выдать только чтение или чтение вместе с записью.</span></div>
+              <div class="admin-permission-actions">
+                <button type="button" data-permission-select-all="read"><i class="bi bi-eye"></i> Всё чтение</button>
+                <button type="button" data-permission-select-all="write" data-permission-write-all><i class="bi bi-pencil-square"></i> Вся запись</button>
+              </div>
             </div>
-            {% admin_multiselect name="allowed_organs" options=organs selected_values=selected_organs current_label=organ_label empty_label="Территориальные органы не выбраны" value_attr="pk" label_attr="organ_full_name" root_class="admin-multiselect-large" menu_class="admin-multiselect-menu-wide admin-multiselect-menu-organs" %}
+            <div class="admin-permission-matrix" role="group" aria-label="Права доступа к территориальным органам">
+              <div class="admin-permission-matrix-head"><span>Территориальный орган</span><span>Чтение</span><span>Запись</span></div>
+              {% for row in organ_permission_rows %}
+                <div class="admin-permission-matrix-row" data-permission-row>
+                  <strong>{{ row.label }}</strong>
+                  <label><input type="checkbox" name="allowed_organs" value="{{ row.item.pk }}" data-permission-read{% if row.read %} checked{% endif %}><span class="visually-hidden">Чтение: {{ row.item.name }}</span></label>
+                  <label><input type="checkbox" name="writable_organs" value="{{ row.item.pk }}" data-permission-write{% if row.write %} checked{% endif %}><span class="visually-hidden">Запись: {{ row.item.name }}</span></label>
+                </div>
+              {% empty %}
+                <div class="admin-empty admin-empty-compact"><strong>Активных территориальных органов нет</strong></div>
+              {% endfor %}
+            </div>
             {% for error in form.allowed_organs.errors %}<em class="admin-form-error">{{ error }}</em>{% endfor %}
+            {% for error in form.writable_organs.errors %}<em class="admin-form-error">{{ error }}</em>{% endfor %}
           </section>
         </div>
 
@@ -117,5 +149,5 @@
 {% block extra_scripts %}
 {% include "partials/scripts/admin_scripts.html" %}
 {{ existing_usernames|json_script:"employee-existing-usernames" }}
-<script src="{% static 'js/employee_form.js' %}?v=20260707-002"></script>
+<script src="{% static 'js/employee_form.js' %}?v=20260719-004"></script>
 {% endblock %}

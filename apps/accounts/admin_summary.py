@@ -248,9 +248,9 @@ def period_day_labels(period, organs, tables=None):
                 oldest_dates.append(value)
         end = timezone.localdate()
         start = min(oldest_dates) if oldest_dates else end
-    # Keep the chart readable if a very old database is opened.
-    if (end - start).days > 365:
-        start = end - timedelta(days=365)
+    # Ten years keep annual dynamics useful without building an unbounded daily series.
+    if (end - start).days > 3650:
+        start = end - timedelta(days=3650)
     days = []
     current = start
     while current <= end:
@@ -353,6 +353,8 @@ def dynamics_bucket_key(day, granularity):
         return day - timedelta(days=day.weekday())
     if granularity == "month":
         return day.replace(day=1)
+    if granularity == "year":
+        return day.replace(month=1, day=1)
     return day
 
 
@@ -361,6 +363,8 @@ def dynamics_bucket_label(bucket_days, granularity):
     last_day = bucket_days[-1]
     if granularity == "month":
         return f"{DYNAMICS_MONTH_LABELS[first_day.month - 1]} {first_day.year}"
+    if granularity == "year":
+        return str(first_day.year)
     if granularity == "week" and first_day != last_day:
         return f"{first_day:%d.%m}–{last_day:%d.%m}"
     return first_day.strftime("%d.%m")
@@ -387,6 +391,8 @@ def build_dynamics_series(days, counters, granularity):
 
 
 def default_dynamics_granularity(days):
+    if len(days) > 730:
+        return "year"
     if len(days) > 180:
         return "month"
     if len(days) > 45:
@@ -412,6 +418,7 @@ def build_dynamics(tables, organs, period, history_flags=None):
         "day": build_dynamics_series(days, counters, "day"),
         "week": build_dynamics_series(days, counters, "week"),
         "month": build_dynamics_series(days, counters, "month"),
+        "year": build_dynamics_series(days, counters, "year"),
     }
     return {
         "default_granularity": default_dynamics_granularity(days),

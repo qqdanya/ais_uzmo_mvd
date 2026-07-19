@@ -4,7 +4,7 @@
 {% block title %}{{ display_name }} | Сотрудники{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260718-001">
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260719-004">
 {% endblock %}
 
 {% block content %}
@@ -60,7 +60,7 @@
         </article>
         <article class="admin-requests-kpi-card admin-employees-kpi-card">
           <span class="admin-requests-kpi-icon"><i class="bi bi-shield-check"></i></span>
-          <div><strong>{% if employee.is_superuser %}Руководитель{% else %}Рабочий доступ{% endif %}</strong><span>Уровень доступа</span><small>{% if employee.is_superuser %}полный административный доступ{% else %}стандартный доступ{% endif %}</small></div>
+          <div><strong>{{ role_label }}</strong><span>Роль в системе</span><small>права чтения и записи указаны ниже</small></div>
         </article>
       </section>
 
@@ -70,17 +70,19 @@
             <div><h2>Права доступа</h2><span>Что сотрудник видит и где может работать</span></div>
           </div>
           <dl class="admin-detail-list">
-            <div><dt>Отделы</dt><dd>{{ departments_summary }}</dd></div>
-            <div><dt>Территориальные органы</dt><dd>{{ organs_summary }}</dd></div>
+            <div><dt>Отделы — чтение</dt><dd>{{ departments_summary }}</dd></div>
+            <div><dt>Отделы — запись</dt><dd>{{ writable_departments_summary }}</dd></div>
+            <div><dt>Органы — чтение</dt><dd>{{ organs_summary }}</dd></div>
+            <div><dt>Органы — запись</dt><dd>{{ writable_organs_summary }}</dd></div>
             <div><dt>Дата регистрации</dt><dd>{{ employee.date_joined|date:"d.m.Y H:i" }}</dd></div>
             <div><dt>Последний вход</dt><dd>{% if employee.last_login %}{{ employee.last_login|date:"d.m.Y H:i" }}{% else %}—{% endif %}</dd></div>
           </dl>
 
           <div class="admin-employee-rights-lists">
             <div>
-              <h3>Отделы</h3>
+              <h3>Отделы — чтение</h3>
               {% if has_full_access %}
-                <span class="admin-employee-right-chip">Полный доступ</span>
+                <span class="admin-employee-right-chip">{{ departments_summary }}</span>
               {% elif all_departments %}
                 <span class="admin-employee-right-chip">Все отделы</span>
               {% elif no_departments %}
@@ -90,15 +92,39 @@
               {% endif %}
             </div>
             <div>
-              <h3>Территориальные органы</h3>
+              <h3>Отделы — запись</h3>
               {% if has_full_access %}
-                <span class="admin-employee-right-chip">Полный доступ</span>
+                <span class="admin-employee-right-chip">{{ writable_departments_summary }}</span>
+              {% elif all_writable_departments %}
+                <span class="admin-employee-right-chip">Все отделы</span>
+              {% elif no_writable_departments %}
+                <span class="admin-employee-right-chip is-muted">Запись не назначена</span>
+              {% else %}
+                {% for department in writable_departments %}<span class="admin-employee-right-chip">{{ department.name }}</span>{% endfor %}
+              {% endif %}
+            </div>
+            <div>
+              <h3>Территориальные органы — чтение</h3>
+              {% if has_full_access %}
+                <span class="admin-employee-right-chip">{{ organs_summary }}</span>
               {% elif all_organs %}
                 <span class="admin-employee-right-chip">Все территориальные органы</span>
               {% elif no_organs %}
                 <span class="admin-employee-right-chip is-muted">Территориальные органы не выбраны</span>
               {% else %}
                 {% for organ in allowed_organs %}<span class="admin-employee-right-chip">{{ organ.order_number|floatformat:"-2" }}. {{ organ.name }}</span>{% endfor %}
+              {% endif %}
+            </div>
+            <div>
+              <h3>Территориальные органы — запись</h3>
+              {% if has_full_access %}
+                <span class="admin-employee-right-chip">{{ writable_organs_summary }}</span>
+              {% elif all_writable_organs %}
+                <span class="admin-employee-right-chip">Все территориальные органы</span>
+              {% elif no_writable_organs %}
+                <span class="admin-employee-right-chip is-muted">Запись не назначена</span>
+              {% else %}
+                {% for organ in writable_organs %}<span class="admin-employee-right-chip">{{ organ.order_number|floatformat:"-2" }}. {{ organ.name }}</span>{% endfor %}
               {% endif %}
             </div>
           </div>
@@ -117,17 +143,20 @@
                 <button class="btn btn-outline-success" type="submit" name="action" value="unblock"><i class="bi bi-person-check"></i> Разблокировать</button>
               {% endif %}
             </form>
+            {% if request.user.is_superuser and not is_self %}
+              <form method="post" action="{% url 'admin_employee_action' employee.pk %}" data-confirm-title="Удаление сотрудника" data-confirm-message="Сотрудник будет удалён без возможности восстановления. Созданные им заявки и записи журнала сохранятся." data-confirm-details="{{ display_name }} · {{ employee.username }}" data-confirm-confirm-label="Удалить из системы" data-confirm-variant="danger">
+                {% csrf_token %}
+                <button class="btn btn-outline-danger" type="submit" name="action" value="delete"><i class="bi bi-trash3"></i> Удалить из системы</button>
+              </form>
+            {% endif %}
             <form method="post" action="{% url 'admin_employee_action' employee.pk %}">
               {% csrf_token %}
               <button class="btn btn-outline-primary" type="submit" name="action" value="reset_activation"{% if is_self %} disabled title="Нельзя сбросить активацию себе"{% endif %}><i class="bi bi-arrow-clockwise"></i> Сбросить активацию</button>
             </form>
-            {% if request.user.is_superuser and not is_self %}
-              <form method="post" action="{% url 'admin_employee_action' employee.pk %}" data-confirm-title="Удаление сотрудника" data-confirm-message="Сотрудник будет удалён без возможности восстановления. Созданные им заявки и записи журнала сохранятся." data-confirm-details="{{ display_name }} · {{ employee.username }}" data-confirm-confirm-label="Удалить сотрудника" data-confirm-variant="danger">
-                {% csrf_token %}
-                <button class="btn btn-outline-danger" type="submit" name="action" value="delete"><i class="bi bi-trash3"></i> Удалить безвозвратно</button>
-              </form>
-            {% else %}
-              <p>Для обычных администраторов доступна блокировка. Безвозвратное удаление может выполнить только руководитель.</p>
+            {% if not request.user.is_superuser %}
+              <p>Для обычных администраторов доступна блокировка. Удалить сотрудника из системы может только руководитель.</p>
+            {% elif is_self %}
+              <p>Нельзя удалить из системы собственную учётную запись.</p>
             {% endif %}
           </div>
         </section>

@@ -218,6 +218,8 @@ class TmcRequestTests(RequestAppTestCase):
         self.assertContains(response, 'hx-target="#table-area"')
         self.assertContains(response, "novalidate")
         self.assertContains(response, 'name="status"')
+        self.assertContains(response, "Статус исполнения")
+        self.assertNotContains(response, "Исполнение заявки")
         self.assertContains(response, 'value="in_work"')
         self.assertContains(response, "data-app-date-input")
         self.assertNotContains(response, 'type="date"')
@@ -603,6 +605,7 @@ class TmcRequestTests(RequestAppTestCase):
     def test_multi_organ_summary_keeps_row_actions_for_writable_organs(self):
         other_organ = TerritorialOrgan.objects.create(name="Other territorial organ", order_number=2)
         self.user.profile.allowed_organs.add(other_organ)
+        self.user.profile.writable_organs.add(other_organ)
         first = TmcRequest.objects.create(territorial_organ=self.organ, request_number="42/TMC", request_date="2026-06-20", status="in_work")
         second = TmcRequest.objects.create(territorial_organ=other_organ, request_number="43/TMC", request_date="2026-06-21", status="in_work")
         TmcRequestItem.objects.create(request=first, name="Paper", quantity=5, unit="pcs")

@@ -4,7 +4,7 @@
 {% block title %}Материальная база | Административная панель{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260718-001">
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260719-004">
 {% endblock %}
 
 {% block content %}
@@ -23,6 +23,71 @@
           <strong>{{ total_count }}</strong>
         </div>
       </div>
+
+      <nav class="admin-status-tabs" aria-label="Фильтры материальной базы">
+        {% for tab in status_tabs %}
+          <a class="admin-status-tab{% if tab.active %} active{% endif %}" href="{{ tab.url }}">
+            <span>{{ tab.label }}</span>
+            <strong>{{ tab.count }}</strong>
+          </a>
+        {% endfor %}
+      </nav>
+
+      <form class="admin-section admin-assets-filter" method="get" data-admin-auto-filter>
+        <div class="admin-section-head">
+          <div>
+            <h2>Фильтры</h2>
+          </div>
+        </div>
+
+        <div class="admin-assets-filter-grid">
+          <div class="admin-filter-field">
+            <span>Категории</span>
+            {% admin_multiselect name="category" options=categories selected_values=filters.categories current_label=filters.category_label empty_label="Все категории" value_attr="key" label_attr="title" menu_class="admin-multiselect-menu-wide" %}
+          </div>
+          <div class="admin-filter-field">
+            <span>Состояния</span>
+            {% admin_multiselect name="asset_status" options=asset_status_options selected_values=filters.asset_statuses current_label=filters.asset_status_label empty_label="Все состояния" %}
+          </div>
+          <label class="admin-filter-field admin-filter-field-search">
+            <span>Поиск органа</span>
+            <input class="form-control form-control-sm" type="search" name="q" value="{{ filters.query }}" placeholder="Название или номер органа">
+          </label>
+        </div>
+
+        <div class="admin-org-filter-box">
+          <button class="admin-org-filter-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#admin-assets-organs" aria-expanded="{% if all_organs_selected %}false{% else %}true{% endif %}" aria-controls="admin-assets-organs">
+            <span><i class="bi bi-geo-alt"></i> Территориальные органы</span>
+            <span class="admin-org-filter-toggle-meta">
+              <strong>{% if all_organs_selected %}выбраны все{% elif selected_organs|length == 1 %}выбран 1{% else %}выбрано {{ selected_organs|length }}{% endif %}</strong>
+              <i class="bi bi-chevron-down"></i>
+            </span>
+          </button>
+          <div class="collapse admin-org-filter-collapse{% if not all_organs_selected %} show{% endif %}" id="admin-assets-organs">
+            <div class="admin-org-filter-actions">
+              <button class="btn btn-sm btn-outline-primary" type="button" data-admin-filter-organ-select-all>Выбрать все</button>
+              <button class="btn btn-sm btn-outline-secondary" type="button" data-admin-filter-organ-clear-all>Снять все</button>
+            </div>
+            <div class="admin-org-filter-list">
+              {% for organ in organs %}
+                <label class="admin-org-filter-item{% if organ.pk in selected_organ_ids %} is-selected{% endif %}">
+                  <input type="checkbox" name="organ_ids" value="{{ organ.pk }}"{% if organ.pk in selected_organ_ids %} checked{% endif %}>
+                  <span>{{ organ.order_number|floatformat:"-2" }}. {{ organ.name }}</span>
+                </label>
+              {% empty %}
+                <div class="admin-empty admin-empty-compact">Территориальные органы пока не загружены</div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+
+        {% if active_filter_chips %}
+          <div class="admin-active-filter-row" aria-label="Активные фильтры">
+            {% for chip in active_filter_chips %}<span>{{ chip }}</span>{% endfor %}
+            <a class="btn btn-sm btn-outline-secondary admin-active-filter-reset" href="{{ reset_url }}"><i class="bi bi-x-lg"></i> Сбросить все</a>
+          </div>
+        {% endif %}
+      </form>
 
       <section class="admin-assets-kpi" aria-label="Ключевые показатели материальной базы">
         {% for item in asset_kpis %}
@@ -102,71 +167,6 @@
           {% endif %}
         </section>
       </div>
-
-      <nav class="admin-status-tabs" aria-label="Фильтры материальной базы">
-        {% for tab in status_tabs %}
-          <a class="admin-status-tab{% if tab.active %} active{% endif %}" href="{{ tab.url }}">
-            <span>{{ tab.label }}</span>
-            <strong>{{ tab.count }}</strong>
-          </a>
-        {% endfor %}
-      </nav>
-
-      <form class="admin-section admin-assets-filter" method="get" data-admin-auto-filter>
-        <div class="admin-section-head">
-          <div>
-            <h2>Фильтры</h2>
-          </div>
-        </div>
-
-        <div class="admin-assets-filter-grid">
-          <div class="admin-filter-field">
-            <span>Категории</span>
-            {% admin_multiselect name="category" options=categories selected_values=filters.categories current_label=filters.category_label empty_label="Все категории" value_attr="key" label_attr="title" menu_class="admin-multiselect-menu-wide" %}
-          </div>
-          <div class="admin-filter-field">
-            <span>Состояния</span>
-            {% admin_multiselect name="asset_status" options=asset_status_options selected_values=filters.asset_statuses current_label=filters.asset_status_label empty_label="Все состояния" %}
-          </div>
-          <label class="admin-filter-field admin-filter-field-search">
-            <span>Поиск органа</span>
-            <input class="form-control form-control-sm" type="search" name="q" value="{{ filters.query }}" placeholder="Название или номер органа">
-          </label>
-        </div>
-
-        <div class="admin-org-filter-box">
-          <button class="admin-org-filter-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#admin-assets-organs" aria-expanded="{% if all_organs_selected %}false{% else %}true{% endif %}" aria-controls="admin-assets-organs">
-            <span><i class="bi bi-geo-alt"></i> Территориальные органы</span>
-            <span class="admin-org-filter-toggle-meta">
-              <strong>{% if all_organs_selected %}выбраны все{% elif selected_organs|length == 1 %}выбран 1{% else %}выбрано {{ selected_organs|length }}{% endif %}</strong>
-              <i class="bi bi-chevron-down"></i>
-            </span>
-          </button>
-          <div class="collapse admin-org-filter-collapse{% if not all_organs_selected %} show{% endif %}" id="admin-assets-organs">
-            <div class="admin-org-filter-actions">
-              <button class="btn btn-sm btn-outline-primary" type="button" data-admin-filter-organ-select-all>Выбрать все</button>
-              <button class="btn btn-sm btn-outline-secondary" type="button" data-admin-filter-organ-clear-all>Снять все</button>
-            </div>
-            <div class="admin-org-filter-list">
-              {% for organ in organs %}
-                <label class="admin-org-filter-item{% if organ.pk in selected_organ_ids %} is-selected{% endif %}">
-                  <input type="checkbox" name="organ_ids" value="{{ organ.pk }}"{% if organ.pk in selected_organ_ids %} checked{% endif %}>
-                  <span>{{ organ.order_number|floatformat:"-2" }}. {{ organ.name }}</span>
-                </label>
-              {% empty %}
-                <div class="admin-empty admin-empty-compact">Территориальные органы пока не загружены</div>
-              {% endfor %}
-            </div>
-          </div>
-        </div>
-
-        {% if active_filter_chips %}
-          <div class="admin-active-filter-row" aria-label="Активные фильтры">
-            {% for chip in active_filter_chips %}<span>{{ chip }}</span>{% endfor %}
-            <a class="btn btn-sm btn-outline-secondary admin-active-filter-reset" href="{{ reset_url }}"><i class="bi bi-x-lg"></i> Сбросить все</a>
-          </div>
-        {% endif %}
-      </form>
 
       <section class="admin-section admin-assets-matrix-section">
         <div class="admin-section-head">

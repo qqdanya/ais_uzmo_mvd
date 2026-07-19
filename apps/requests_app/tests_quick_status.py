@@ -40,7 +40,8 @@ class QuickStatusUpdateTests(RequestAppTestCase):
         response = self.client.get(self.url, HTTP_HX_REQUEST="true")
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Изменение статуса заявки")
+        self.assertContains(response, "Изменение статуса исполнения заявки")
+        self.assertContains(response, "статус исполнения заявки")
         self.assertContains(response, 'type="radio"', count=3)
         self.assertContains(response, "quick-status-options")
         self.assertEqual(response.context["form"].initial["status"], NeedStatus.IN_WORK)
@@ -127,6 +128,7 @@ class QuickStatusUpdateTests(RequestAppTestCase):
     def test_quick_status_uses_completed_at_for_regular_request_tables(self):
         transport = Department.objects.create(name="Транспорт", slug="transport", order_number=2)
         self.user.profile.allowed_departments.add(transport)
+        self.user.profile.writable_departments.add(transport)
         request_obj = VehicleRepairRequest.objects.create(
             territorial_organ=self.organ,
             request_number="VR-QS-1",

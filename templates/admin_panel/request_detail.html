@@ -4,7 +4,7 @@
 {% block title %}Заявка {{ request_number }} | Административная панель{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260718-001">
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260719-004">
 {% endblock %}
 
 {% block content %}
@@ -22,10 +22,9 @@
         <div class="admin-request-detail-status">
           <span class="status-badge {{ status_class }}">{{ object.get_status_display }}</span>
           {% if has_days %}
-            <span class="admin-processing-cell admin-processing-cell-detail">
-              <span class="admin-days-badge {{ days_class }}">{{ days }} дн.</span>
-              {% if days_caption %}<small>{{ days_caption }}</small>{% endif %}
-            </span>
+              <span class="admin-processing-cell admin-processing-cell-detail">
+                <span class="admin-days-badge {{ days_class }}">{{ days }} дн.</span>
+              </span>
           {% endif %}
         </div>
       </div>
@@ -60,14 +59,14 @@
                 <dd>{{ field.value }}</dd>
               </div>
             {% endfor %}
-            <div class="admin-detail-photo-row">
-              <dt>Связанные фотографии</dt>
-              <dd>
-                <div class="admin-request-photo-summary">
-                  <strong>{{ photo_count }}</strong>
-                  <span>{% if photo_count == 1 %}фотография прикреплена{% else %}фотографий прикреплено{% endif %}</span>
-                </div>
-                {% if attached_photos %}
+            {% if attached_photos %}
+              <div class="admin-detail-photo-row">
+                <dt>Связанные фотографии</dt>
+                <dd>
+                  <div class="admin-request-photo-summary">
+                    <strong>{{ photo_count }}</strong>
+                    <span>{% if photo_count == 1 %}фотография прикреплена{% else %}фотографий прикреплено{% endif %}</span>
+                  </div>
                   <div class="admin-request-photo-thumbnails" data-lightbox-scope data-lightbox-group="admin-request-{{ object.territorial_organ_id }}-{{ table.key }}-{{ object.pk }}" aria-label="Миниатюры связанных фотографий">
                     {% for photo in attached_photos %}
                       <button class="admin-request-photo-thumb" type="button" data-lightbox-photo data-lightbox-group="admin-request-{{ object.territorial_organ_id }}-{{ table.key }}-{{ object.pk }}" data-src="{% url 'photo_preview' photo.territorial_organ.pk photo.pk %}" data-download-url="{% url 'photo_download' photo.territorial_organ.pk photo.pk %}" data-description="{{ photo.description|default:'Описание не добавлено' }}" data-meta="{{ photo.created_at|date:'d.m.Y H:i' }} · {{ photo.created_by|default:'-' }}" aria-label="Открыть связанную фотографию {{ forloop.counter }}">
@@ -75,11 +74,9 @@
                       </button>
                     {% endfor %}
                   </div>
-                {% else %}
-                  <span class="text-muted">Миниатюр нет</span>
-                {% endif %}
-              </dd>
-            </div>
+                </dd>
+              </div>
+            {% endif %}
           </dl>
         </section>
 

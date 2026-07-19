@@ -23,6 +23,8 @@ class RequestNumberRegistryRegressionTests(TestCase):
         self.department_transport = Department.objects.create(name="Transport", slug="transport", order_number=2)
         self.profile.allowed_organs.set([self.organ, self.other_organ])
         self.profile.allowed_departments.set([self.department_tmc, self.department_transport])
+        self.profile.writable_organs.set([self.organ, self.other_organ])
+        self.profile.writable_departments.set([self.department_tmc, self.department_transport])
         self.client.login(username="operator", password="pass12345")
 
     def post_vehicle_repair(self, organ, request_number, **overrides):
@@ -270,6 +272,8 @@ class ThinViewRegressionSmokeTests(TestCase):
         self.department_transport = Department.objects.create(name="Transport", slug="transport", order_number=2)
         self.profile.allowed_organs.set([self.organ])
         self.profile.allowed_departments.set([self.department_tmc, self.department_transport])
+        self.profile.writable_organs.set([self.organ])
+        self.profile.writable_departments.set([self.department_tmc, self.department_transport])
         self.client.login(username="operator", password="pass12345")
 
     def test_main_refactored_table_endpoints_render_without_server_error(self):

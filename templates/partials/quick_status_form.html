@@ -1,7 +1,7 @@
 {% load request_tags %}
 <form method="post" class="quick-status-form" hx-post="{{ request.get_full_path }}" hx-target="#table-area" data-status-form data-quick-status-form data-current-status="{{ object.status }}" novalidate>
   <div class="modal-header">
-    <h5 class="modal-title">Изменение статуса заявки</h5>
+    <h5 class="modal-title">Изменение статуса исполнения заявки</h5>
     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
   </div>
   <div class="modal-body">

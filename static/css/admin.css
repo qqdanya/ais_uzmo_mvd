@@ -2,20 +2,45 @@
  * Administrative panel stylesheet entrypoint.
  * Keep imports in this order: later modules intentionally refine earlier shared rules.
  */
-@import url("admin/base.css?v=20260718-001");
-@import url("admin/requests.css?v=20260718-001");
+@import url("admin/base.css?v=20260719-003");
+@import url("admin/requests.css?v=20260719-003");
 @import url("admin/organs.css?v=20260705-009");
 @import url("admin/departments.css?v=20260705-009");
 @import url("admin/assets.css?v=20260705-009");
 @import url("admin/settings.css?v=20260705-009");
 @import url("admin/charts.css?v=20260705-009");
-@import url("admin/employees.css?v=20260718-001");
+@import url("admin/employees.css?v=20260719-004");
 @import url("admin/trash.css?v=20260705-016");
 
 /* A single alignment rule keeps every registry in the administrative panel consistent. */
 .admin-requests-table th,
 .admin-requests-table td {
   text-align: center;
+}
+
+/* Preserve readable column widths and let the table wrapper handle narrow screens. */
+.admin-requests-table {
+  width: max-content;
+  min-width: 100%;
+}
+
+/* Table actions use the complete action column instead of remaining compact. */
+.admin-requests-table td:last-child > .btn,
+.admin-requests-table td:last-child .admin-inline-action-form,
+.admin-requests-table td:last-child .admin-table-action-stack,
+.admin-requests-table td:last-child .admin-trash-actions {
+  width: 100%;
+}
+
+.admin-requests-table td:last-child .admin-table-action-stack,
+.admin-requests-table td:last-child .admin-trash-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+.admin-requests-table td:last-child .btn {
+  width: 100%;
+  justify-content: center;
 }
 
 .admin-requests-table .admin-table-action-stack,

@@ -20,6 +20,8 @@ class UserProfile(models.Model):
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.OBSERVER)
     allowed_organs = models.ManyToManyField("directory.TerritorialOrgan", blank=True, related_name="allowed_profiles")
     allowed_departments = models.ManyToManyField("directory.Department", blank=True, related_name="allowed_profiles")
+    writable_organs = models.ManyToManyField("directory.TerritorialOrgan", blank=True, related_name="writable_profiles")
+    writable_departments = models.ManyToManyField("directory.Department", blank=True, related_name="writable_profiles")
     middle_name = models.CharField("отчество", max_length=150, blank=True)
     activation_code = models.CharField("код активации", max_length=32, blank=True)
     last_seen_at = models.DateTimeField("последняя активность", null=True, blank=True)

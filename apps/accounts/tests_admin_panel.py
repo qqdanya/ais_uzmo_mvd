@@ -60,6 +60,8 @@ class AdminPanelTestMixin:
         self.operator_profile = UserProfile.objects.create(user=self.operator, role=UserProfile.Role.OPERATOR)
         self.operator_profile.allowed_organs.set([self.organ])
         self.operator_profile.allowed_departments.set([self.department_tmc])
+        self.operator_profile.writable_organs.set([self.organ])
+        self.operator_profile.writable_departments.set([self.department_tmc])
 
     def login_admin(self):
         self.client.login(username="admin", password="pass12345")
@@ -123,22 +125,23 @@ class AdminPanelEndpointTests(AdminPanelTestMixin, TestCase):
         self.assertContains(response, 'data-dynamics-granularity="day"')
         self.assertContains(response, 'data-dynamics-granularity="week"')
         self.assertContains(response, 'data-dynamics-granularity="month"')
+        self.assertContains(response, 'data-dynamics-granularity="year"')
         self.assertContains(response, reverse("admin_summary_report"))
-        self.assertContains(response, 'id="admin-report-comparison"')
-        self.assertContains(response, "admin-report-metrics")
-        self.assertContains(response, 'id="admin-report-chart-layout"')
-        self.assertContains(response, 'data-all-label="Все показатели"')
-        self.assertContains(response, "data-admin-report-custom-period")
-        self.assertContains(response, "data-date-range-picker")
         self.assertContains(response, "data-admin-summary-report-form")
+        self.assertContains(response, "admin-chart-report-button")
+        self.assertContains(response, "Сформировать отчёт")
+        self.assertNotContains(response, "Сводка руководителя")
+        self.assertNotContains(response, "admin-summary-report-bar")
+        self.assertNotContains(response, 'id="admin-report-comparison"')
+        self.assertNotContains(response, "admin-report-metrics")
         self.assertContains(response, "на данный момент")
         self.assertLess(
             response.content.index(b'data-kpi="stale"'),
-            response.content.index(b"admin-summary-report-bar"),
+            response.content.index(b"data-admin-summary-report-form"),
         )
         self.assertLess(
-            response.content.index(b"admin-summary-report-bar"),
-            response.content.index(b"admin-dynamics-chart"),
+            response.content.index(b'data-dynamics-granularity="year"'),
+            response.content.index(b"data-admin-summary-report-form"),
         )
         self.assertLess(
             response.content.index(b'data-admin-period-preset="previous_month"'),
@@ -164,7 +167,7 @@ class AdminPanelEndpointTests(AdminPanelTestMixin, TestCase):
         for key in ("total", "in_work", "done", "rejected", "stale"):
             self.assertIn(key, payload["kpi"])
 
-    def test_summary_dynamics_returns_day_week_and_month_series(self):
+    def test_summary_dynamics_returns_day_week_month_and_year_series(self):
         self.login_admin()
         for number, request_date in (("jan-1", "2026-01-05"), ("jan-2", "2026-01-20"), ("feb-1", "2026-02-02")):
             TmcRequest.objects.create(
@@ -191,6 +194,8 @@ class AdminPanelEndpointTests(AdminPanelTestMixin, TestCase):
         self.assertEqual(sum(dynamics["week"]["incoming"]), 3)
         self.assertEqual(dynamics["month"]["labels"][:2], ["Январь 2026", "Февраль 2026"])
         self.assertEqual(dynamics["month"]["incoming"][:2], [2, 1])
+        self.assertEqual(dynamics["year"]["labels"], ["2026"])
+        self.assertEqual(dynamics["year"]["incoming"], [3])
         self.assertEqual(dynamics["labels"], dynamics["day"]["labels"])
         self.assertEqual(dynamics["incoming"], dynamics["day"]["incoming"])
         self.assertEqual(dynamics["done"], dynamics["day"]["done"])
@@ -410,12 +415,15 @@ class AdminSummaryReportTests(AdminPanelTestMixin, TestCase):
                 "date_from": "2026-01-01",
                 "date_to": "2026-07-31",
                 "comparison": "previous_year",
+                "granularity": "year",
             },
         )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["comparison_period"]["date_from"], "2025-01-01")
         self.assertEqual(response.context["comparison_period"]["date_to"], "2025-07-31")
+        self.assertEqual(response.context["chart"]["granularity"], "year")
+        self.assertEqual(response.context["chart"]["granularity_label"], "по годам")
 
     def test_summary_report_can_compare_with_custom_period(self):
         self.login_admin()
@@ -471,7 +479,9 @@ class AdminSummaryReportTests(AdminPanelTestMixin, TestCase):
         self.assertTrue(chart["show_incoming"])
         self.assertTrue(chart["show_done"])
         self.assertFalse(chart["show_rejected"])
-        self.assertEqual(len(chart["line_labels"]), 4)
+        self.assertEqual(response.context["comparison_mode"], "none")
+        self.assertFalse(chart["has_comparison"])
+        self.assertEqual(len(chart["line_labels"]), 2)
         self.assertContains(response, "report-line-incoming\"")
         self.assertContains(response, "report-line-done\"")
         self.assertNotContains(response, "report-line-rejected\"")
@@ -514,11 +524,13 @@ class AdminSummaryReportTests(AdminPanelTestMixin, TestCase):
 
         self.assertEqual(response.status_code, 200)
         line_labels = response.context["chart"]["line_labels"]
-        self.assertEqual(len(line_labels), 6)
+        self.assertEqual(response.context["comparison_mode"], "none")
+        self.assertFalse(response.context["chart"]["has_comparison"])
+        self.assertEqual(len(line_labels), 3)
         self.assertEqual(len({label["point_y"] for label in line_labels}), 1)
         self.assertEqual(len({label["label_y"] for label in line_labels}), len(line_labels))
         self.assertContains(response, "Поступило, основной")
-        self.assertContains(response, "Исполнено, сравнение")
+        self.assertNotContains(response, "Исполнено, сравнение")
         self.assertContains(response, '<polyline points="169,', html=False)
         self.assertContains(response, '<circle cx="164"', html=False)
         self.assertContains(response, '<rect x="-3.5" y="-3.5" width="7" height="7" transform="translate(164 ', html=False)
@@ -661,6 +673,26 @@ class AdminRequestsPanelTests(AdminPanelTestMixin, TestCase):
         # The photo is served through the permission-checked preview endpoint,
         # not a raw /media/... URL that would bypass the per-organ access check.
         self.assertContains(response, reverse("photo_preview", args=[self.organ.pk, photo.pk]))
+
+    def test_request_detail_hides_photo_section_without_linked_photos(self):
+        self.login_admin()
+        request_obj = TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            created_by=self.admin,
+            updated_by=self.admin,
+            request_number="ТМЦ-БЕЗ-ФОТО",
+            request_date=timezone.localdate(),
+            status=NeedStatus.IN_WORK,
+        )
+
+        response = self.client.get(reverse("admin_request_detail", kwargs={"table_key": "tmc-requests", "pk": request_obj.pk}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Связанные фотографии")
+        self.assertNotContains(response, "Миниатюр нет")
+        self.assertContains(response, "В работе")
+        self.assertContains(response, "дн.")
+        self.assertNotContains(response, "<small>в работе</small>", html=True)
 
     def test_rejected_request_detail_uses_rejection_date_label(self):
         self.login_admin()
@@ -864,6 +896,22 @@ class AdminOrgansDepartmentsPanelTests(AdminPanelTestMixin, TestCase):
 
         self.assertEqual(self.history_query_count(few_queries), self.history_query_count(many_queries))
 
+    def test_department_detail_uses_clear_organ_action_without_eye_icon(self):
+        self.login_admin()
+        TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            created_by=self.admin,
+            request_number="ТМЦ-ОРГАН",
+            request_date=timezone.localdate(),
+            status=NeedStatus.IN_WORK,
+        )
+
+        response = self.client.get(reverse("admin_department_detail", kwargs={"department_slug": "tmc"}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Открыть орган")
+        self.assertNotContains(response, '<i class="bi bi-eye"></i> Орган', html=False)
+
 
 class AdminEmployeesPanelTests(AdminPanelTestMixin, TestCase):
     def employee_audit_log(self, user, event):
@@ -905,6 +953,39 @@ class AdminEmployeesPanelTests(AdminPanelTestMixin, TestCase):
         self.assertEqual(response.context["presence_data_url"], reverse("admin_employees_presence_data"))
         self.assertContains(response, "Иванов")
         self.assertContains(response, "admin-employees-page")
+
+    def test_employees_panel_uses_access_counts_role_colors_and_no_activity_ranking(self):
+        administrator = self.User.objects.create_user("administrator", first_name="Анна", last_name="Администратор")
+        administrator_profile = UserProfile.objects.create(user=administrator, role=UserProfile.Role.ADMIN)
+        administrator_profile.allowed_organs.set([self.organ, self.other_organ])
+        administrator_profile.allowed_departments.set([self.department_tmc, self.department_transport])
+        self.login_admin()
+
+        response = self.client.get(reverse("admin_employees_panel"))
+
+        self.assertEqual(response.status_code, 200)
+        rows = {row["user"].username: row for row in response.context["employees"]}
+        self.assertEqual(rows["admin"]["departments_summary"], "2 отдела")
+        self.assertEqual(rows["admin"]["organs_summary"], "2 территориальных органа")
+        self.assertEqual(rows["admin"]["role_class"], "is-leader")
+        self.assertEqual(rows["administrator"]["role_class"], "is-admin")
+        self.assertEqual(rows["operator"]["role_class"], "is-operator")
+        self.assertNotContains(response, "Полный доступ")
+        self.assertNotContains(response, "Активность сотрудников за 30 дней")
+
+    def test_employee_detail_places_system_delete_below_block_action(self):
+        target = self.User.objects.create_user("delete_layout", first_name="Денис", last_name="Удаляемый")
+        UserProfile.objects.create(user=target, role=UserProfile.Role.OPERATOR)
+        self.login_admin()
+
+        response = self.client.get(reverse("admin_employee_detail", kwargs={"pk": target.pk}))
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content
+        self.assertContains(response, "Удалить из системы")
+        self.assertNotContains(response, "Удалить безвозвратно")
+        self.assertLess(content.index(b'value="block"'), content.index(b'value="delete"'))
+        self.assertLess(content.index(b'value="delete"'), content.index(b'value="reset_activation"'))
 
     def test_employees_panel_department_filter_excludes_empty_department_access(self):
         self.login_admin()
@@ -951,7 +1032,9 @@ class AdminEmployeesPanelTests(AdminPanelTestMixin, TestCase):
                 "username": "petrov",
                 "role": UserProfile.Role.OPERATOR,
                 "allowed_departments": [str(self.department_tmc.pk)],
+                "writable_departments": [str(self.department_tmc.pk)],
                 "allowed_organs": [str(self.organ.pk)],
+                "writable_organs": [str(self.organ.pk)],
                 "is_active": "on",
             },
         )
@@ -962,8 +1045,33 @@ class AdminEmployeesPanelTests(AdminPanelTestMixin, TestCase):
         self.assertTrue(user.profile.activation_code)
         self.assertEqual(user.profile.middle_name, "Иванович")
         self.assertEqual(list(user.profile.allowed_departments.all()), [self.department_tmc])
+        self.assertEqual(list(user.profile.writable_departments.all()), [self.department_tmc])
         self.assertEqual(list(user.profile.allowed_organs.all()), [self.organ])
+        self.assertEqual(list(user.profile.writable_organs.all()), [self.organ])
         self.assertTrue(AuditLog.objects.filter(action=AuditLog.Action.CREATE, object_id=str(user.pk)).exists())
+
+    def test_employee_write_access_automatically_includes_read_access(self):
+        self.login_admin()
+
+        response = self.client.post(
+            reverse("admin_employee_create"),
+            {
+                "last_name": "Пишущий",
+                "first_name": "Пётр",
+                "username": "writer",
+                "role": UserProfile.Role.OPERATOR,
+                "writable_departments": [str(self.department_tmc.pk)],
+                "writable_organs": [str(self.organ.pk)],
+                "is_active": "on",
+            },
+        )
+
+        user = self.User.objects.get(username="writer")
+        self.assertRedirects(response, reverse("admin_employee_detail", kwargs={"pk": user.pk}))
+        self.assertEqual(list(user.profile.allowed_departments.all()), [self.department_tmc])
+        self.assertEqual(list(user.profile.allowed_organs.all()), [self.organ])
+        self.assertEqual(list(user.profile.writable_departments.all()), [self.department_tmc])
+        self.assertEqual(list(user.profile.writable_organs.all()), [self.organ])
 
     def test_employee_create_audit_contains_full_snapshot_without_credentials(self):
         self.login_admin()
@@ -996,7 +1104,9 @@ class AdminEmployeesPanelTests(AdminPanelTestMixin, TestCase):
                 "middle_name": "Сергеевна",
                 "role": UserProfile.Role.OPERATOR,
                 "allowed_departments": sorted([self.department_tmc.name, self.department_transport.name]),
+                "writable_departments": [],
                 "allowed_organs": sorted([self.organ.name, self.other_organ.name]),
+                "writable_organs": [],
                 "is_active": True,
                 "activation_status": "needs_activation",
             },
@@ -1227,6 +1337,12 @@ class AdminEmployeesPanelTests(AdminPanelTestMixin, TestCase):
             {str(self.organ.pk), str(self.other_organ.pk)},
         )
         self.assertContains(response, "Добавить сотрудника")
+        self.assertContains(response, "Чтение")
+        self.assertContains(response, "Запись")
+        self.assertContains(response, "data-permission-read")
+        self.assertContains(response, "data-permission-write")
+        self.assertContains(response, 'data-permission-select-all="read"', count=2)
+        self.assertContains(response, 'data-permission-select-all="write"', count=2)
         self.assertNotContains(response, "Создать сотрудника")
 
     def test_employee_create_form_renders_decimal_organ_numbers_without_scientific_notation(self):
@@ -1359,7 +1475,9 @@ class AdminEmployeesPanelTests(AdminPanelTestMixin, TestCase):
                 "middle_name": "Олегович",
                 "role": UserProfile.Role.OBSERVER,
                 "allowed_departments": sorted([self.department_tmc.name, self.department_transport.name]),
+                "writable_departments": [],
                 "allowed_organs": sorted([self.organ.name, self.other_organ.name]),
+                "writable_organs": [],
                 "is_active": True,
                 "activation_status": "activated",
             },
@@ -2667,14 +2785,17 @@ class AdminTrashPanelTests(AdminPanelTestMixin, TestCase):
         self.assertIn("transition: background-color .14s var(--motion-smooth), border-color .14s var(--motion-smooth)", requests_css)
         self.assertIn(".admin-requests-table td:last-child", requests_css)
         self.assertIn("justify-content: center", requests_css)
-        self.assertIn("admin/base.css?v=20260715-007", admin_css)
-        self.assertIn("admin/requests.css?v=20260712-002", admin_css)
+        self.assertIn("admin/base.css?v=20260719-003", admin_css)
+        self.assertIn("admin/requests.css?v=20260719-003", admin_css)
+        self.assertIn("admin/employees.css?v=20260719-004", admin_css)
         self.assertIn("admin/trash.css?v=20260705-016", admin_css)
+        self.assertIn("width: max-content", admin_css)
+        self.assertIn("grid-template-columns: 1fr", admin_css)
         self.assertIn(".admin-requests-table td", admin_css)
         self.assertIn(".admin-organs-table th:first-child", admin_css)
         self.assertIn(".admin-departments-table th:last-child", admin_css)
         self.assertIn(".admin-assets-matrix-table td:last-child", admin_css)
-        self.assertIn("css/admin.css' %}?v=20260712-008", trash_template)
+        self.assertIn("css/admin.css' %}?v=20260719-004", trash_template)
 
 
 

@@ -30,7 +30,9 @@ def employee_audit_values(user):
         "middle_name": getattr(profile, "middle_name", ""),
         "role": getattr(profile, "role", UserProfile.Role.OBSERVER),
         "allowed_departments": _sorted_names(profile.allowed_departments.all()) if profile else [],
+        "writable_departments": _sorted_names(profile.writable_departments.all()) if profile else [],
         "allowed_organs": _sorted_names(profile.allowed_organs.all()) if profile else [],
+        "writable_organs": _sorted_names(profile.writable_organs.all()) if profile else [],
         "is_active": user.is_active,
         "activation_status": "activated" if user.has_usable_password() else "needs_activation",
     }
@@ -45,7 +47,9 @@ def employee_form_audit_values(form, user):
         "middle_name": values.get("middle_name", ""),
         "role": values.get("role") or UserProfile.Role.OBSERVER,
         "allowed_departments": _sorted_names(values.get("allowed_departments") or []),
+        "writable_departments": _sorted_names(values.get("writable_departments") or []),
         "allowed_organs": _sorted_names(values.get("allowed_organs") or []),
+        "writable_organs": _sorted_names(values.get("writable_organs") or []),
         "is_active": user.is_active,
         "activation_status": "activated" if user.has_usable_password() else "needs_activation",
     }

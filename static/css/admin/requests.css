@@ -164,8 +164,8 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 6px;
-  max-height: 260px;
-  overflow-y: auto;
+  max-height: none;
+  overflow-y: visible;
   padding: 0 10px 10px;
 }
 .admin-org-filter-item {
