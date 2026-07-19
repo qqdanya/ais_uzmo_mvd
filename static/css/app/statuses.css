@@ -541,4 +541,13 @@
   color: var(--blue);
   background: #eef7ff;
 }
+.caps-lock-warning {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  margin: .5rem 0 0;
+  font-size: .82rem;
+  color: #8a5a00;
+}
+.caps-lock-warning[hidden] { display: none; }
 .narrow { max-width: 680px; margin: 0 auto; }

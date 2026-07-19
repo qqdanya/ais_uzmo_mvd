@@ -108,6 +108,26 @@ document.addEventListener("beforeinput", (event) => {
   if (/[^\x21-\x7E]/.test(event.data)) event.preventDefault();
 });
 
+function setCapsLockWarning(input, isOn) {
+  const warning = document.getElementById(input.getAttribute("aria-describedby") || "");
+  if (warning?.matches("[data-capslock-warning]")) warning.hidden = !isOn;
+}
+
+function handleCapsLockKeyEvent(event) {
+  if (!event.target.matches("[data-capslock-input]") || typeof event.getModifierState !== "function") return;
+  setCapsLockWarning(event.target, event.getModifierState("CapsLock"));
+}
+
+document.addEventListener("keydown", handleCapsLockKeyEvent);
+document.addEventListener("keyup", handleCapsLockKeyEvent);
+document.addEventListener(
+  "blur",
+  (event) => {
+    if (event.target.matches("[data-capslock-input]")) setCapsLockWarning(event.target, false);
+  },
+  true,
+);
+
 document.addEventListener("click", (event) => {
   const passwordToggle = event.target.closest("[data-password-toggle]");
   if (!passwordToggle) return;

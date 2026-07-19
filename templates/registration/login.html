@@ -16,11 +16,14 @@
       <input class="form-control auth-ascii-input" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" autofocus required>
       <label class="form-label mt-3">Пароль</label>
       <div class="password-field">
-        <input class="form-control auth-ascii-input" id="auth-password" name="password" type="password" autocomplete="current-password" autocapitalize="none" spellcheck="false" required>
+        <input class="form-control auth-ascii-input" id="auth-password" name="password" type="password" autocomplete="current-password" autocapitalize="none" spellcheck="false" required data-capslock-input aria-describedby="auth-password-capslock">
         <button class="password-toggle" type="button" aria-label="Показать пароль" aria-controls="auth-password" data-password-toggle>
           <i class="bi bi-eye"></i>
         </button>
       </div>
+      <p class="caps-lock-warning" id="auth-password-capslock" data-capslock-warning role="status" hidden>
+        <i class="bi bi-exclamation-triangle"></i> Включён Caps Lock
+      </p>
       <button class="btn btn-primary w-100 mt-4">Войти</button>
       <div class="auth-link-row">
         <a href="{% url 'account_activate' %}">Активация учётной записи</a>
