@@ -78,15 +78,35 @@
   }
 
   function initEmployeePermissionMatrix() {
+    const syncGroupActions = (group) => {
+      if (!group) return;
+      group.querySelectorAll("[data-permission-select-all]").forEach((button) => {
+        const kind = button.dataset.permissionSelectAll;
+        const selector = kind === "write" ? "[data-permission-write]" : "[data-permission-read]";
+        const inputs = [...group.querySelectorAll(selector)].filter((input) => !input.disabled);
+        const allChecked = inputs.length > 0 && inputs.every((input) => input.checked);
+        const label = button.querySelector("[data-permission-action-label]");
+        const icon = button.querySelector("i");
+        const selectLabel = kind === "write" ? "Вся запись" : "Всё чтение";
+        const clearLabel = kind === "write" ? "Снять запись" : "Снять чтение";
+        if (label) label.textContent = allChecked ? clearLabel : selectLabel;
+        if (icon) icon.className = allChecked ? "bi bi-x-lg" : (kind === "write" ? "bi bi-pencil-square" : "bi bi-eye");
+        button.classList.toggle("is-clear", allChecked);
+        button.setAttribute("aria-pressed", String(allChecked));
+      });
+    };
+
     document.querySelectorAll("[data-permission-row]").forEach((row) => {
       const readInput = row.querySelector("[data-permission-read]");
       const writeInput = row.querySelector("[data-permission-write]");
       if (!readInput || !writeInput) return;
       writeInput.addEventListener("change", () => {
         if (writeInput.checked) readInput.checked = true;
+        syncGroupActions(row.closest("[data-permission-matrix-group]"));
       });
       readInput.addEventListener("change", () => {
         if (!readInput.checked) writeInput.checked = false;
+        syncGroupActions(row.closest("[data-permission-matrix-group]"));
       });
     });
 
@@ -96,12 +116,16 @@
         if (!group || button.disabled) return;
         const kind = button.dataset.permissionSelectAll;
         const selector = kind === "write" ? "[data-permission-write]" : "[data-permission-read]";
-        group.querySelectorAll(selector).forEach((input) => {
-          if (!input.disabled) input.checked = true;
-        });
-        if (kind === "write") {
+        const inputs = [...group.querySelectorAll(selector)].filter((input) => !input.disabled);
+        const shouldCheck = !inputs.length || !inputs.every((input) => input.checked);
+        inputs.forEach((input) => { input.checked = shouldCheck; });
+        if (kind === "write" && shouldCheck) {
           group.querySelectorAll("[data-permission-read]").forEach((input) => { input.checked = true; });
         }
+        if (kind === "read" && !shouldCheck) {
+          group.querySelectorAll("[data-permission-write]").forEach((input) => { input.checked = false; });
+        }
+        syncGroupActions(group);
       });
     });
 
@@ -116,6 +140,7 @@
         if (isObserver) input.checked = false;
       });
       writeAllButtons.forEach((button) => { button.disabled = isObserver; });
+      document.querySelectorAll("[data-permission-matrix-group]").forEach(syncGroupActions);
     };
     roleInputs.forEach((input) => input.addEventListener("change", syncRolePermissions));
     syncRolePermissions();

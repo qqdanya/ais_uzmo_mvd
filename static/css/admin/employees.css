@@ -801,6 +801,11 @@
   cursor: not-allowed;
   opacity: .45;
 }
+.admin-permission-actions button.is-clear:not(:disabled) {
+  border-color: #d4dce5;
+  background: #fff;
+  color: #657487;
+}
 .admin-control,
 .admin-employee-form .form-control {
   border-color: #cfe1ef;
@@ -926,12 +931,12 @@
   font-size: .82rem;
 }
 .admin-employee-access-chip.is-write {
-  border-color: #d9eadd;
-  background: #f5fbf6;
-  color: #496657;
+  border-color: #ddd8f2;
+  background: #f7f5ff;
+  color: #5c5872;
 }
 .admin-employee-access-chip.is-write i {
-  color: #287749;
+  color: #6b55b5;
 }
 .admin-activity-badge.is-online::before {
   content: "";

@@ -4,7 +4,7 @@
 {% block title %}{{ title }} | Сотрудники{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260719-004">
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260719-005">
 {% endblock %}
 
 {% block content %}
@@ -85,8 +85,8 @@
             <div class="admin-section-head admin-section-head-compact">
               <div><h2>Отделы</h2><span>Назначьте чтение и запись отдельно. Запись автоматически включает чтение.</span></div>
               <div class="admin-permission-actions">
-                <button type="button" data-permission-select-all="read"><i class="bi bi-eye"></i> Всё чтение</button>
-                <button type="button" data-permission-select-all="write" data-permission-write-all><i class="bi bi-pencil-square"></i> Вся запись</button>
+                <button type="button" data-permission-select-all="read"><i class="bi bi-eye"></i><span data-permission-action-label>Всё чтение</span></button>
+                <button type="button" data-permission-select-all="write" data-permission-write-all><i class="bi bi-pencil-square"></i><span data-permission-action-label>Вся запись</span></button>
               </div>
             </div>
             <div class="admin-permission-matrix" role="group" aria-label="Права доступа к отделам">
@@ -109,8 +109,8 @@
             <div class="admin-section-head admin-section-head-compact">
               <div><h2>Территориальные органы</h2><span>Можно выдать только чтение или чтение вместе с записью.</span></div>
               <div class="admin-permission-actions">
-                <button type="button" data-permission-select-all="read"><i class="bi bi-eye"></i> Всё чтение</button>
-                <button type="button" data-permission-select-all="write" data-permission-write-all><i class="bi bi-pencil-square"></i> Вся запись</button>
+                <button type="button" data-permission-select-all="read"><i class="bi bi-eye"></i><span data-permission-action-label>Всё чтение</span></button>
+                <button type="button" data-permission-select-all="write" data-permission-write-all><i class="bi bi-pencil-square"></i><span data-permission-action-label>Вся запись</span></button>
               </div>
             </div>
             <div class="admin-permission-matrix" role="group" aria-label="Права доступа к территориальным органам">
@@ -149,5 +149,5 @@
 {% block extra_scripts %}
 {% include "partials/scripts/admin_scripts.html" %}
 {{ existing_usernames|json_script:"employee-existing-usernames" }}
-<script src="{% static 'js/employee_form.js' %}?v=20260719-004"></script>
+<script src="{% static 'js/employee_form.js' %}?v=20260719-005"></script>
 {% endblock %}
