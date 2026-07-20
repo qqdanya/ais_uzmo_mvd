@@ -202,7 +202,7 @@ def admin_panel(request):
     context = {
         "metrics": [
             {"label": "Сотрудников", "value": users.count(), "icon": "bi-people"},
-            {"label": "Онлайн сейчас", "value": len(online_profiles), "icon": "bi-broadcast"},
+            {"label": "В сети сейчас", "value": len(online_profiles), "icon": "bi-broadcast"},
             {"label": "Ожидают активации", "value": len(awaiting_activation), "icon": "bi-person-check"},
             {"label": "Территориальных органов", "value": TerritorialOrgan.objects.filter(is_active=True, parent__isnull=True).count(), "icon": "bi-building"},
             {"label": "Заявок в работе", "value": active_requests_count(NeedStatus.IN_WORK), "icon": "bi-clipboard-check"},

@@ -17,18 +17,18 @@ RECENT_DELTA = timedelta(minutes=15)
 
 VIEW_TABS = {
     "all": "Все",
-    "online": "Онлайн",
+    "online": "В сети",
     "recent": "Недавно были",
-    "offline": "Оффлайн",
+    "offline": "Не в сети",
     "activation": "Ожидают активации",
     "blocked": "Заблокированные",
     "admins": "Администраторы",
 }
 
 ACTIVITY_OPTIONS = {
-    "online": "Онлайн",
+    "online": "В сети",
     "recent": "Недавно были",
-    "offline": "Оффлайн",
+    "offline": "Не в сети",
     "never": "Не входили",
 }
 
@@ -105,11 +105,11 @@ def activity_state(profile):
 def activity_label(profile):
     state = activity_state(profile)
     return {
-        "online": "Онлайн",
+        "online": "В сети",
         "recent": "Недавно был",
-        "offline": "Оффлайн",
+        "offline": "Не в сети",
         "never": "Не входил",
-    }.get(state, "Оффлайн")
+    }.get(state, "Не в сети")
 
 
 def last_seen_display(profile):
@@ -497,7 +497,7 @@ def employee_kpis(users_or_counts):
     counts = users_or_counts if isinstance(users_or_counts, dict) else employee_status_counts(users_or_counts)
     return [
         {"key": "total", "label": "Всего сотрудников", "value": counts["total"], "hint": "включая заблокированных", "icon": "bi-people"},
-        {"key": "online", "label": "Онлайн сейчас", "value": counts["online"], "hint": "активность за последнюю минуту", "icon": "bi-broadcast"},
+        {"key": "online", "label": "В сети сейчас", "value": counts["online"], "hint": "активность за последнюю минуту", "icon": "bi-broadcast"},
         {"key": "activation", "label": "Ожидают активации", "value": counts["activation"], "hint": "ещё не задали пароль", "icon": "bi-person-check"},
         {"key": "blocked", "label": "Заблокированы", "value": counts["blocked"], "hint": "вход отключён", "icon": "bi-person-x"},
         {"key": "admins", "label": "Руководители и администраторы", "value": counts["admins"], "hint": "расширенные права доступа", "icon": "bi-shield-lock"},

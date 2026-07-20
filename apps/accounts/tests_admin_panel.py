@@ -1511,7 +1511,7 @@ class AdminEmployeesPanelTests(AdminPanelTestMixin, TestCase):
         self.assertGreaterEqual(payload["kpis"]["online"], 1)
         row = next(item for item in payload["employees"] if item["id"] == self.operator.pk)
         self.assertEqual(row["activity_state"], "online")
-        self.assertEqual(row["activity_label"], "Онлайн")
+        self.assertEqual(row["activity_label"], "В сети")
 
 
 class AdminAssetsPanelTests(AdminPanelTestMixin, TestCase):
