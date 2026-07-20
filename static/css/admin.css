@@ -9,7 +9,7 @@
 @import url("admin/assets.css?v=20260705-009");
 @import url("admin/settings.css?v=20260705-009");
 @import url("admin/charts.css?v=20260705-009");
-@import url("admin/employees.css?v=20260719-006");
+@import url("admin/employees.css?v=20260720-002");
 @import url("admin/trash.css?v=20260705-016");
 
 /* A single alignment rule keeps every registry in the administrative panel consistent. */
@@ -22,6 +22,14 @@
 .admin-requests-table {
   width: max-content;
   min-width: 100%;
+}
+
+/* The employees table's access-summary chips wrap instead of forcing a
+   single line (see admin/employees.css), so growing to max-content would
+   just reintroduce the horizontal scrollbar that wrapping is meant to avoid. */
+.admin-employees-table {
+  width: 100%;
+  min-width: 0;
 }
 
 /* Table actions use the complete action column instead of remaining compact. */

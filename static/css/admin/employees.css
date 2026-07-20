@@ -906,7 +906,8 @@
   color: #5b2aa3;
 }
 .admin-employee-access-cell {
-  min-width: 180px;
+  min-width: 130px;
+  max-width: 170px;
 }
 .admin-employee-access-chip {
   width: 100%;
@@ -922,6 +923,7 @@
   font-size: .75rem;
   line-height: 1.35;
   text-align: left;
+  overflow-wrap: anywhere;
 }
 .admin-employee-access-chip + .admin-employee-access-chip {
   margin-top: 5px;
