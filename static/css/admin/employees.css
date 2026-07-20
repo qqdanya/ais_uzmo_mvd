@@ -905,42 +905,25 @@
   background: #f5f0ff;
   color: #5b2aa3;
 }
-.admin-employee-access-cell {
-  min-width: 130px;
-  max-width: 170px;
-}
-.admin-employee-access-chip {
-  width: 100%;
+.admin-employee-access-summary {
   display: inline-flex;
   align-items: center;
-  gap: .38rem;
-  padding: .3rem .48rem;
-  border: 1px solid #d5e0e9;
-  border-radius: 6px;
-  background: #f6f8fa;
-  color: #4a5b6b;
-  box-shadow: inset 3px 0 0 #9db2c3;
-  font-size: .75rem;
-  line-height: 1.35;
-  text-align: left;
-  overflow-wrap: anywhere;
-}
-.admin-employee-access-chip + .admin-employee-access-chip {
-  margin-top: 5px;
-}
-.admin-employee-access-chip i {
-  flex: 0 0 auto;
-  color: #486b87;
+  justify-content: center;
+  gap: .7rem;
   font-size: .82rem;
+  color: #4a5b6b;
+  white-space: nowrap;
 }
-.admin-employee-access-chip.is-write {
-  border-color: #cbd9e5;
-  background: #edf3f8;
-  color: #334c61;
-  box-shadow: inset 3px 0 0 #5f7f98;
+.admin-employee-access-summary i {
+  margin-right: .22rem;
+  font-size: .8rem;
 }
-.admin-employee-access-chip.is-write i {
+.admin-employee-access-summary .is-read {
+  color: #486b87;
+}
+.admin-employee-access-summary .is-write {
   color: #1d527a;
+  font-weight: 700;
 }
 .admin-activity-badge.is-online::before {
   content: "";

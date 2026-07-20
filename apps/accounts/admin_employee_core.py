@@ -228,6 +228,14 @@ def format_writable_departments_summary(profile, total_departments, user=None):
     )
 
 
+def access_count(profile, total, user, qs_attr):
+    if user is not None and has_full_access(user, profile):
+        return total
+    if not profile:
+        return 0
+    return getattr(profile, qs_attr).count()
+
+
 def has_all_departments_access(user, profile, total_departments):
     if has_full_access(user, profile):
         return True
@@ -297,10 +305,10 @@ def employee_row(user, total_organs, total_departments):
         "last_seen": last_seen_display(profile),
         "activation_state": activation_state(user),
         "activation_label": activation_label(user),
-        "organs_summary": format_organs_summary(profile, total_organs, user),
-        "departments_summary": format_departments_summary(profile, total_departments, user),
-        "writable_organs_summary": format_writable_organs_summary(profile, total_organs, user),
-        "writable_departments_summary": format_writable_departments_summary(profile, total_departments, user),
+        "organs_read_count": access_count(profile, total_organs, user, "allowed_organs"),
+        "organs_write_count": access_count(profile, total_organs, user, "writable_organs"),
+        "departments_read_count": access_count(profile, total_departments, user, "allowed_departments"),
+        "departments_write_count": access_count(profile, total_departments, user, "writable_departments"),
         "detail_url": reverse("admin_employee_detail", kwargs={"pk": user.pk}),
         "edit_url": reverse("admin_employee_edit", kwargs={"pk": user.pk}),
     }

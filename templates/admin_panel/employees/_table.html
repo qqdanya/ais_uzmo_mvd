@@ -34,13 +34,17 @@
                     <td><span class="admin-role-badge {{ row.role_class }}">{{ row.role_label }}</span></td>
                     <td><span class="admin-activity-badge is-{{ row.activity_state }}" data-employee-activity="{{ row.user.pk }}">{{ row.activity_label }}</span></td>
                     <td data-employee-last-seen="{{ row.user.pk }}">{{ row.last_seen }}</td>
-                    <td class="admin-employee-access-cell">
-                      <span class="admin-employee-access-chip is-read" data-bs-toggle="tooltip" data-bs-title="Чтение" aria-label="Чтение: {{ row.departments_summary }}"><i class="bi bi-eye"></i>{{ row.departments_summary }}</span>
-                      <span class="admin-employee-access-chip is-write" data-bs-toggle="tooltip" data-bs-title="Запись" aria-label="Запись: {{ row.writable_departments_summary }}"><i class="bi bi-pencil-square"></i>{{ row.writable_departments_summary }}</span>
+                    <td>
+                      <span class="admin-employee-access-summary">
+                        <span class="is-read" data-bs-toggle="tooltip" data-bs-title="Отделы на чтение"><i class="bi bi-eye"></i>{{ row.departments_read_count }}</span>
+                        <span class="is-write" data-bs-toggle="tooltip" data-bs-title="Отделы на запись"><i class="bi bi-pencil-square"></i>{{ row.departments_write_count }}</span>
+                      </span>
                     </td>
-                    <td class="admin-employee-access-cell">
-                      <span class="admin-employee-access-chip is-read" data-bs-toggle="tooltip" data-bs-title="Чтение" aria-label="Чтение: {{ row.organs_summary }}"><i class="bi bi-eye"></i>{{ row.organs_summary }}</span>
-                      <span class="admin-employee-access-chip is-write" data-bs-toggle="tooltip" data-bs-title="Запись" aria-label="Запись: {{ row.writable_organs_summary }}"><i class="bi bi-pencil-square"></i>{{ row.writable_organs_summary }}</span>
+                    <td>
+                      <span class="admin-employee-access-summary">
+                        <span class="is-read" data-bs-toggle="tooltip" data-bs-title="Территориальные органы на чтение"><i class="bi bi-eye"></i>{{ row.organs_read_count }}</span>
+                        <span class="is-write" data-bs-toggle="tooltip" data-bs-title="Территориальные органы на запись"><i class="bi bi-pencil-square"></i>{{ row.organs_write_count }}</span>
+                      </span>
                     </td>
                     <td><span class="admin-activation-badge is-{{ row.activation_state }}" data-employee-activation="{{ row.user.pk }}">{{ row.activation_label }}</span></td>
                     <td class="admin-table-action-cell">
