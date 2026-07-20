@@ -27,13 +27,18 @@
 /* These tables have free-text columns (organ names, request types, record
    titles) that are capped and wrap (see their own stylesheets), so growing
    to max-content would just reintroduce the horizontal scrollbar wrapping
-   is meant to avoid - fill the wrapper's width instead. */
-.admin-employees-table,
-.admin-requests-page .admin-requests-table,
-.admin-trash-page .admin-requests-table,
-.admin-assets-matrix-table {
-  width: 100%;
-  min-width: 0;
+   is meant to avoid - fill the wrapper's width instead. Only above the
+   phone breakpoint: a phone viewport is already narrower than any of these
+   tables can reasonably get, so forcing width: 100% there just squeezes
+   every column instead of avoiding scroll - let it scroll at full size.*/
+@media (min-width: 721px) {
+  .admin-employees-table,
+  .admin-requests-page .admin-requests-table,
+  .admin-trash-page .admin-requests-table,
+  .admin-assets-matrix-table {
+    width: 100%;
+    min-width: 0;
+  }
 }
 
 /* Table actions use the complete action column instead of remaining compact. */
