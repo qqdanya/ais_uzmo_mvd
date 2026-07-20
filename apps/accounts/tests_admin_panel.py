@@ -2786,16 +2786,16 @@ class AdminTrashPanelTests(AdminPanelTestMixin, TestCase):
         self.assertIn(".admin-requests-table td:last-child", requests_css)
         self.assertIn("justify-content: center", requests_css)
         self.assertIn("admin/base.css?v=20260719-003", admin_css)
-        self.assertIn("admin/requests.css?v=20260720-005", admin_css)
+        self.assertIn("admin/requests.css?v=20260720-006", admin_css)
         self.assertIn("admin/employees.css?v=20260720-004", admin_css)
-        self.assertIn("admin/trash.css?v=20260720-005", admin_css)
+        self.assertIn("admin/trash.css?v=20260720-006", admin_css)
         self.assertIn("width: max-content", admin_css)
         self.assertIn("grid-template-columns: 1fr", admin_css)
         self.assertIn(".admin-requests-table td", admin_css)
         self.assertIn(".admin-organs-table th:first-child", admin_css)
         self.assertIn(".admin-departments-table th:last-child", admin_css)
         self.assertIn(".admin-assets-matrix-table td:last-child", admin_css)
-        self.assertIn("css/admin.css' %}?v=20260720-006", trash_template)
+        self.assertIn("css/admin.css' %}?v=20260720-007", trash_template)
 
 
 

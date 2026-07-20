@@ -3,14 +3,14 @@
  * Keep imports in this order: later modules intentionally refine earlier shared rules.
  */
 @import url("admin/base.css?v=20260719-003");
-@import url("admin/requests.css?v=20260720-005");
+@import url("admin/requests.css?v=20260720-006");
 @import url("admin/organs.css?v=20260705-009");
 @import url("admin/departments.css?v=20260705-009");
 @import url("admin/assets.css?v=20260720-005");
 @import url("admin/settings.css?v=20260705-009");
 @import url("admin/charts.css?v=20260705-009");
 @import url("admin/employees.css?v=20260720-004");
-@import url("admin/trash.css?v=20260720-005");
+@import url("admin/trash.css?v=20260720-006");
 
 /* A single alignment rule keeps every registry in the administrative panel consistent. */
 .admin-requests-table th,
@@ -25,20 +25,21 @@
 }
 
 /* These tables have free-text columns (organ names, request types, record
-   titles) that are capped and wrap (see their own stylesheets), so growing
-   to max-content would just reintroduce the horizontal scrollbar wrapping
-   is meant to avoid - fill the wrapper's width instead. Only above the
-   phone breakpoint: a phone viewport is already narrower than any of these
-   tables can reasonably get, so forcing width: 100% there just squeezes
-   every column instead of avoiding scroll - let it scroll at full size.*/
-@media (min-width: 721px) {
-  .admin-employees-table,
-  .admin-requests-page .admin-requests-table,
-  .admin-trash-page .admin-requests-table,
-  .admin-assets-matrix-table {
-    width: 100%;
-    min-width: 0;
-  }
+   titles, department pills) that are capped, wrap, and - critically - have
+   a min-width of their own (see their stylesheets), so growing to
+   max-content would just reintroduce the horizontal scrollbar wrapping is
+   meant to avoid: fill the wrapper's width instead. Because every such
+   column also has a min-width floor, table-layout: auto can't crush any of
+   them below a readable size - once the wrapper gets too narrow to satisfy
+   every column's minimum, the table naturally grows past 100% and the
+   wrapper scrolls again, at exactly the width content stops fitting rather
+   than at a guessed breakpoint. */
+.admin-employees-table,
+.admin-requests-page .admin-requests-table,
+.admin-trash-page .admin-requests-table,
+.admin-assets-matrix-table {
+  width: 100%;
+  min-width: 0;
 }
 
 /* Table actions use the complete action column instead of remaining compact. */

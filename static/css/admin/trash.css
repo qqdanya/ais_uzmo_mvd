@@ -14,6 +14,7 @@
 }
 
 .admin-trash-record-cell {
+  min-width: 180px;
   max-width: 280px;
   overflow-wrap: anywhere;
 }
