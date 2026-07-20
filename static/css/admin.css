@@ -3,14 +3,14 @@
  * Keep imports in this order: later modules intentionally refine earlier shared rules.
  */
 @import url("admin/base.css?v=20260719-003");
-@import url("admin/requests.css?v=20260719-003");
+@import url("admin/requests.css?v=20260720-005");
 @import url("admin/organs.css?v=20260705-009");
 @import url("admin/departments.css?v=20260705-009");
-@import url("admin/assets.css?v=20260705-009");
+@import url("admin/assets.css?v=20260720-005");
 @import url("admin/settings.css?v=20260705-009");
 @import url("admin/charts.css?v=20260705-009");
-@import url("admin/employees.css?v=20260720-003");
-@import url("admin/trash.css?v=20260705-016");
+@import url("admin/employees.css?v=20260720-004");
+@import url("admin/trash.css?v=20260720-005");
 
 /* A single alignment rule keeps every registry in the administrative panel consistent. */
 .admin-requests-table th,
@@ -24,9 +24,14 @@
   min-width: 100%;
 }
 
-/* Fill the wrapper instead of growing to max-content, so this table doesn't
-   pick up horizontal scroll from unrelated columns. */
-.admin-employees-table {
+/* These tables have free-text columns (organ names, request types, record
+   titles) that are capped and wrap (see their own stylesheets), so growing
+   to max-content would just reintroduce the horizontal scrollbar wrapping
+   is meant to avoid - fill the wrapper's width instead. */
+.admin-employees-table,
+.admin-requests-page .admin-requests-table,
+.admin-trash-page .admin-requests-table,
+.admin-assets-matrix-table {
   width: 100%;
   min-width: 0;
 }

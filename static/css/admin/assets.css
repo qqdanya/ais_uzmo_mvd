@@ -220,7 +220,11 @@
 }
 
 .admin-asset-cell {
-  min-width: 180px;
+  min-width: 130px;
+}
+
+.admin-assets-matrix-table .admin-organ-name-cell {
+  max-width: 220px;
 }
 
 .admin-asset-status {

@@ -4,7 +4,7 @@
 {% block title %}Заявки | Административная панель{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260720-003">
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260720-005">
 {% endblock %}
 
 {% block content %}
@@ -147,7 +147,7 @@
                     <td>
                       <span class="admin-department-pill"><i class="bi {{ row.department_icon }}"></i>{{ row.department }}</span>
                     </td>
-                    <td>{{ row.request_type }}</td>
+                    <td class="admin-request-type-cell">{{ row.request_type }}</td>
                     <td><span class="status-badge {{ row.status_class }}">{{ row.status_label }}</span></td>
                     <td>
                       {% if row.has_days %}

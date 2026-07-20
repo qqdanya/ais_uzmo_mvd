@@ -285,6 +285,10 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.admin-request-type-cell {
+  max-width: 200px;
+  overflow-wrap: anywhere;
+}
 .admin-department-pill {
   display: inline-flex;
   align-items: center;

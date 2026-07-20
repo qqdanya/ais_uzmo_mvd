@@ -4,7 +4,7 @@
 {% block title %}Корзина | АИС УЗМО{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260720-003">
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260720-005">
 {% endblock %}
 
 {% block content %}
@@ -74,8 +74,8 @@
                 <tbody>
                   {% for row in request_page.object_list %}
                     <tr>
-                      <td><strong>{{ row.title }}{% if row.number %} № {{ row.number }}{% endif %}</strong>{% if row.detail %}<small class="d-block text-muted">{{ row.detail|truncatechars:90 }}</small>{% endif %}</td>
-                      <td>{{ row.organ.name }}</td>
+                      <td class="admin-trash-record-cell"><strong>{{ row.title }}{% if row.number %} № {{ row.number }}{% endif %}</strong>{% if row.detail %}<small class="d-block text-muted">{{ row.detail|truncatechars:90 }}</small>{% endif %}</td>
+                      <td class="admin-request-organ">{{ row.organ.name }}</td>
                       <td><span class="admin-department-pill"><i class="bi {{ row.department_icon }}"></i>{{ row.department }}</span></td>
                       <td>{{ row.updated_at|date:"d.m.Y H:i" }}{% if row.updated_by %}<small class="d-block text-muted">{{ row.updated_by.get_full_name|default:row.updated_by.username }}</small>{% endif %}</td>
                       <td class="admin-trash-action-cell">
@@ -119,7 +119,7 @@
                           <span class="admin-trash-photo-text"><strong>{{ photo.original_filename|default:photo.image.name }}</strong>{% if photo.description %}<small class="d-block text-muted">{{ photo.description|truncatechars:90 }}</small>{% endif %}</span>
                         </div>
                       </td>
-                      <td>{{ photo.territorial_organ.name }}</td>
+                      <td class="admin-request-organ">{{ photo.territorial_organ.name }}</td>
                       <td>{% if photo.trash_folder_path %}{{ photo.trash_folder_path }}{% else %}<span class="text-muted">Без папки</span>{% endif %}</td>
                       <td>{{ photo.link_count }}</td>
                       <td>{{ photo.updated_at|date:"d.m.Y H:i" }}{% if photo.updated_by %}<small class="d-block text-muted">{{ photo.updated_by.get_full_name|default:photo.updated_by.username }}</small>{% endif %}</td>
@@ -157,7 +157,7 @@
                       <td>
                         {% include "admin_panel/_trash_folder_node.html" with node=folder.trash_tree_node %}
                       </td>
-                      <td>{{ folder.territorial_organ.name }}</td>
+                      <td class="admin-request-organ">{{ folder.territorial_organ.name }}</td>
                       <td>{% if folder.parent %}{{ folder.parent.name }}{% else %}<span class="text-muted">Корневая папка</span>{% endif %}</td>
                       <td>{{ folder.trash_tree_photo_count }} фото · {{ folder.trash_tree_folder_count }} влож. папок</td>
                       <td>{{ folder.updated_at|date:"d.m.Y H:i" }}{% if folder.updated_by %}<small class="d-block text-muted">{{ folder.updated_by.get_full_name|default:folder.updated_by.username }}</small>{% endif %}</td>

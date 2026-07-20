@@ -145,6 +145,9 @@
   margin: .25rem 0 0;
   color: var(--muted);
 }
+.admin-detail-hero code {
+  color: var(--navy);
+}
 .admin-detail-eyebrow {
   display: block;
   margin-bottom: .12rem;
@@ -651,6 +654,9 @@
 .admin-employees-table th:first-child,
 .admin-employees-table td:first-child {
   text-align: center;
+}
+.admin-employees-table code {
+  color: var(--navy);
 }
 .admin-employee-name-cell {
   min-width: 190px;
