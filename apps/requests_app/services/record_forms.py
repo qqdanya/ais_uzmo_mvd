@@ -26,6 +26,10 @@ def tmc_record_form_response(request, organ, table, instance, refresh_table):
         if form_is_valid and number_is_valid and not item_errors:
             try:
                 save_tmc_record(request, organ, table, instance, form, item_rows)
+                # Marking the session modified re-saves it and pushes its expiry
+                # SESSION_COOKIE_AGE forward, so active users aren't logged out
+                # mid-week even though SESSION_SAVE_EVERY_REQUEST is off.
+                request.session.modified = True
                 response = refresh_table()
                 response["HX-Trigger"] = htmx_triggers("Заявка сохранена.")
                 return response
@@ -72,6 +76,9 @@ def record_form_response(request, organ, table_key, table, instance, refresh_tab
                     REQUEST_PHOTO_TABLES,
                     STATUS_HISTORY_TABLES,
                 )
+                # See tmc_record_form_response above: extends the session on
+                # save instead of on every request.
+                request.session.modified = True
                 response = refresh_table()
                 response["HX-Trigger"] = htmx_triggers("Запись сохранена.")
                 return response

@@ -122,9 +122,11 @@ LOGIN_REDIRECT_URL = "dashboard"
 LOGOUT_REDIRECT_URL = "login"
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_AGE = 60 * 60 * 24 * 7
-# Authentication already updates the session when its contents change.
-# Saving every read-only request adds an unnecessary database UPDATE and is
-# especially costly for polling/HTMX endpoints.
+# Authentication updates the session when its contents change, and record
+# create/edit saves mark it modified explicitly (see record_forms.py) to push
+# the expiry out for active users. Saving every read-only request instead
+# would add an unnecessary database UPDATE and is especially costly for
+# polling/HTMX endpoints.
 SESSION_SAVE_EVERY_REQUEST = False
 CSRF_COOKIE_HTTPONLY = False
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
