@@ -47,6 +47,16 @@
   color: var(--muted);
   font-size: .74rem;
 }
+.admin-employee-activity-cell {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  text-align: center;
+}
+.admin-employee-activity-cell small {
+  color: var(--muted);
+  font-size: .74rem;
+}
 .admin-role-badge,
 .admin-activity-badge,
 .admin-activation-badge {

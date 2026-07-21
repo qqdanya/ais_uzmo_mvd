@@ -18,8 +18,7 @@
                   <th>Сотрудник</th>
                   <th>Логин</th>
                   <th>Роль</th>
-                  <th>Статус</th>
-                  <th>Последнее посещение</th>
+                  <th>Активность</th>
                   <th>Отделы</th>
                   <th>Территориальные органы</th>
                   <th>Активация</th>
@@ -32,8 +31,12 @@
                     <td class="admin-employee-name-cell"><span class="admin-employee-name">{{ row.display_name }}</span></td>
                     <td><code>{{ row.user.username }}</code></td>
                     <td><span class="admin-role-badge {{ row.role_class }}">{{ row.role_label }}</span></td>
-                    <td><span class="admin-activity-badge is-{{ row.activity_state }}" data-employee-activity="{{ row.user.pk }}">{{ row.activity_label }}</span></td>
-                    <td data-employee-last-seen="{{ row.user.pk }}">{{ row.last_seen }}</td>
+                    <td>
+                      <div class="admin-employee-activity-cell">
+                        <span class="admin-activity-badge is-{{ row.activity_state }}" data-employee-activity="{{ row.user.pk }}">{{ row.activity_label }}</span>
+                        <small data-employee-last-seen="{{ row.user.pk }}"{% if row.activity_state == "never" %} hidden{% endif %}>{{ row.last_seen }}</small>
+                      </div>
+                    </td>
                     <td>
                       <span class="admin-employee-access-summary">
                         <span class="is-read" data-bs-toggle="tooltip" data-bs-title="Отделы на чтение"><i class="bi bi-eye"></i>{{ row.departments_read_count }}</span>

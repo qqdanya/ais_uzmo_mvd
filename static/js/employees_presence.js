@@ -51,6 +51,7 @@ async function refreshEmployeesPresence() {
       document.querySelectorAll(`[data-employee-last-seen="${employee.id}"]`).forEach((lastSeen) => {
         if (lastSeen.textContent.trim() !== employee.last_seen) markPresenceUpdated(lastSeen);
         lastSeen.textContent = employee.last_seen;
+        lastSeen.hidden = employee.activity_state === "never";
       });
       document.querySelectorAll(`[data-employee-activation="${employee.id}"]`).forEach((activation) => {
         activation.textContent = employee.activation_label;
