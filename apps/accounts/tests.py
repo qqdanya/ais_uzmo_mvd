@@ -196,6 +196,27 @@ class AccountFoundationTests(TestCase):
 
         self.assertTrue(response.wsgi_request.user.is_authenticated)
 
+    def test_blocked_account_login_shows_blocked_message_not_generic_one(self):
+        User = get_user_model()
+        user = User.objects.create_user("blocked-login", password="CorrectPass123", is_active=False)
+        UserProfile.objects.create(user=user, role=UserProfile.Role.OPERATOR)
+
+        response = self.client.post(reverse("login"), {"username": "blocked-login", "password": "CorrectPass123"})
+
+        self.assertFalse(response.wsgi_request.user.is_authenticated)
+        self.assertContains(response, "Учётная запись заблокирована")
+        self.assertNotContains(response, "Неверный логин или пароль")
+
+    def test_blocked_account_with_wrong_password_still_shows_generic_message(self):
+        User = get_user_model()
+        user = User.objects.create_user("blocked-wrongpass", password="CorrectPass123", is_active=False)
+        UserProfile.objects.create(user=user, role=UserProfile.Role.OPERATOR)
+
+        response = self.client.post(reverse("login"), {"username": "blocked-wrongpass", "password": "totally-wrong"})
+
+        self.assertContains(response, "Неверный логин или пароль")
+        self.assertNotContains(response, "заблокирована")
+
     def test_profile_generates_activation_code_for_unusable_password(self):
         User = get_user_model()
         user = User.objects.create_user("pending")

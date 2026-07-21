@@ -93,6 +93,30 @@ class AccountActivationForm(forms.Form):
 class RateLimitedAuthenticationForm(AuthenticationForm):
     """Standard Django login form with a DB-backed lockout on repeated failures."""
 
+    error_messages = {
+        **AuthenticationForm.error_messages,
+        "invalid_login": "Неверный логин или пароль.",
+        "inactive": "Учётная запись заблокирована. Обратитесь к администратору.",
+    }
+
+    def get_invalid_login_error(self):
+        # ModelBackend.authenticate() returns None for an inactive user
+        # before confirm_login_allowed() ever runs, so a blocked account
+        # with the *correct* password would otherwise get the same generic
+        # "invalid login" message as a wrong password. Check the password
+        # ourselves so a blocked user is told their account is blocked.
+        username = self.cleaned_data.get("username")
+        password = self.cleaned_data.get("password")
+        if username and password:
+            User = get_user_model()
+            try:
+                user = User._default_manager.get_by_natural_key(username)
+            except User.DoesNotExist:
+                user = None
+            if user and not user.is_active and user.has_usable_password() and user.check_password(password):
+                return ValidationError(self.error_messages["inactive"], code="inactive")
+        return super().get_invalid_login_error()
+
     def clean(self):
         username = (self.cleaned_data.get("username") or "").strip()
         if username and recent_failed_attempts(LoginAttempt, username, LOGIN_LOCKOUT_SECONDS) >= LOGIN_MAX_ATTEMPTS:

@@ -9,7 +9,7 @@
       {% if form.errors %}
         <div class="auth-message auth-message-danger" role="alert">
           <i class="bi bi-exclamation-circle"></i>
-          <span>Неверный логин или пароль.</span>
+          <span>{% if form.non_field_errors %}{{ form.non_field_errors.0 }}{% else %}Неверный логин или пароль.{% endif %}</span>
         </div>
       {% endif %}
       <label class="form-label">Логин</label>
