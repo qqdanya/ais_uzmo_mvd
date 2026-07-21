@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.urls import reverse
 
 from .admin_common import multiselect_label
-from .admin_employee_core import active_departments, profile_for, top_level_organs
+from .admin_employee_core import active_departments, has_full_access, profile_for, top_level_organs
 from .models import UserProfile
 
 
@@ -105,10 +105,10 @@ class EmployeeForm(forms.ModelForm):
         self.fields["allowed_organs"].queryset = top_level_organs()
         self.fields["writable_organs"].queryset = top_level_organs()
         if not self.instance.pk and not self.is_bound:
-            self.fields["allowed_departments"].initial = []
+            self.fields["allowed_departments"].initial = list(self.fields["allowed_departments"].queryset)
             self.fields["writable_departments"].initial = []
             self.fields["allowed_organs"].initial = list(self.fields["allowed_organs"].queryset)
-            self.fields["writable_organs"].initial = []
+            self.fields["writable_organs"].initial = list(self.fields["writable_organs"].queryset)
         for name, field in self.fields.items():
             if name in {"allowed_departments", "writable_departments", "allowed_organs", "writable_organs", "role"}:
                 continue
@@ -120,10 +120,16 @@ class EmployeeForm(forms.ModelForm):
         if profile and not self.is_bound:
             self.fields["middle_name"].initial = profile.middle_name
             self.fields["role"].initial = profile.role
-            self.fields["allowed_departments"].initial = profile.allowed_departments.all()
-            self.fields["writable_departments"].initial = profile.writable_departments.all()
-            self.fields["allowed_organs"].initial = profile.allowed_organs.all()
-            self.fields["writable_organs"].initial = profile.writable_organs.all()
+            if has_full_access(self.instance, profile):
+                self.fields["allowed_departments"].initial = list(self.fields["allowed_departments"].queryset)
+                self.fields["writable_departments"].initial = list(self.fields["writable_departments"].queryset)
+                self.fields["allowed_organs"].initial = list(self.fields["allowed_organs"].queryset)
+                self.fields["writable_organs"].initial = list(self.fields["writable_organs"].queryset)
+            else:
+                self.fields["allowed_departments"].initial = profile.allowed_departments.all()
+                self.fields["writable_departments"].initial = profile.writable_departments.all()
+                self.fields["allowed_organs"].initial = profile.allowed_organs.all()
+                self.fields["writable_organs"].initial = profile.writable_organs.all()
 
     def clean(self):
         cleaned = super().clean()
