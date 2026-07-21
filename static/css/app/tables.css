@@ -776,8 +776,8 @@
   background: #fff;
   border-color: #dee2e6 #dee2e6 #fff;
 }
-.table-actions-head,
-.table-row-actions {
+.data-table .table-actions-head,
+.data-table .table-row-actions {
   text-align: center;
   vertical-align: middle;
 }
