@@ -1,0 +1,36 @@
+{% comment %}
+Admin summary department filter. Mirrors the admin variant of
+organ_selector.html but scoped to Department (request-table) slugs.
+{% endcomment %}
+<div class="admin-summary-departments" data-admin-department-selector>
+  <div class="admin-department-selector-summary" data-admin-department-summary>Выбрано: все отделы</div>
+  <div class="admin-department-selector-hint">
+    Ограничивает сводку выбранными отделами. По умолчанию учитываются все активные отделы.
+  </div>
+  <div class="admin-department-bulk-actions">
+    <button class="btn btn-sm btn-outline-primary" type="button" data-admin-department-select-all>Выбрать все</button>
+    <button class="btn btn-sm btn-outline-secondary" type="button" data-admin-department-clear-all>Снять все</button>
+  </div>
+  <label class="admin-department-all-row">
+    <input type="checkbox" data-admin-all-departments checked>
+    <span>
+      <strong>Все отделы</strong>
+      <small>Учитываются все активные отделы</small>
+    </span>
+  </label>
+  <div class="admin-department-list" data-admin-department-list>
+    {% for department in departments %}
+      <div class="admin-department-row" data-admin-department-row>
+        <label class="admin-department-check" aria-label="Выбрать {{ department.name }}">
+          <input type="checkbox" data-admin-department-checkbox value="{{ department.slug }}" checked>
+          <span></span>
+        </label>
+        <button class="admin-department-item" type="button" data-admin-department-toggle>
+          <span>{{ department.name }}</span>
+        </button>
+      </div>
+    {% empty %}
+      <div class="empty-state">Отделы пока не загружены</div>
+    {% endfor %}
+  </div>
+</div>

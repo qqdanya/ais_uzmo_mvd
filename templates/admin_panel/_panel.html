@@ -49,7 +49,24 @@
         <div class="admin-inline-calendar" data-admin-calendar></div>
       </section>
 
-      {% include "partials/organ_selector.html" with selector_variant="admin" organs=organs %}
+      <aside class="panel admin-summary-filters" data-admin-filters-root>
+        <div class="admin-summary-filters-tabs" role="tablist">
+          <button type="button" class="admin-summary-filters-tab is-active" data-admin-filters-tab="organs" role="tab" aria-selected="true" aria-controls="admin-filters-tabpanel-organs">
+            <i class="bi bi-geo-alt"></i> Территориальные органы
+            <span class="admin-organ-filter-badge" data-admin-organ-filter-badge hidden>Фильтр применён</span>
+          </button>
+          <button type="button" class="admin-summary-filters-tab" data-admin-filters-tab="departments" role="tab" aria-selected="false" aria-controls="admin-filters-tabpanel-departments">
+            <i class="bi bi-diagram-3"></i> Отделы
+            <span class="admin-department-filter-badge" data-admin-department-filter-badge hidden>Фильтр применён</span>
+          </button>
+        </div>
+        <div id="admin-filters-tabpanel-organs" data-admin-filters-tabpanel="organs" role="tabpanel">
+          {% include "partials/organ_selector.html" with selector_variant="admin" organs=organs %}
+        </div>
+        <div id="admin-filters-tabpanel-departments" data-admin-filters-tabpanel="departments" role="tabpanel" hidden>
+          {% include "partials/department_selector.html" with departments=departments %}
+        </div>
+      </aside>
     </div>
 
     <div class="admin-metric-grid admin-summary-kpi" aria-label="Состояние заявок">

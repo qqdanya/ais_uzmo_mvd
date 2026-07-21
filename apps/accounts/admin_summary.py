@@ -129,6 +129,23 @@ def selected_organs(request, available_organs):
     return [available_by_id[pk] for pk in ids if pk in available_by_id]
 
 
+def available_departments(tables):
+    slugs = {table["department"] for table in tables}
+    return list(Department.objects.filter(is_active=True, slug__in=slugs).order_by("order_number", "name"))
+
+
+def selected_departments(request, available_departments):
+    available_by_slug = {department.slug: department for department in available_departments}
+    if request.GET.get("department_filter_empty") == "1":
+        return []
+    raw_slugs = request.GET.getlist("department_ids")
+    if not raw_slugs and request.GET.get("department_ids"):
+        raw_slugs = request.GET["department_ids"].split(",")
+    if not raw_slugs:
+        return available_departments
+    return [available_by_slug[slug] for slug in raw_slugs if slug in available_by_slug]
+
+
 def apply_request_period(qs, period):
     if period["period"] == "all":
         return qs
@@ -548,10 +565,14 @@ def summary_data_cache_key(request, metric):
     if not raw_ids and request.GET.get("organ_ids"):
         raw_ids = request.GET["organ_ids"].split(",")
     organ_ids = ",".join(sorted({value for value in raw_ids if str(value).isdigit()}))
+    raw_departments = request.GET.getlist("department_ids")
+    if not raw_departments and request.GET.get("department_ids"):
+        raw_departments = request.GET["department_ids"].split(",")
+    department_ids = ",".join(sorted({value for value in raw_departments if value}))
     return ":".join(
         [
             "admin-summary-data",
-            "v2",
+            "v3",
             str(request.user.pk),
             metric,
             request.GET.get("period", ""),
@@ -559,6 +580,8 @@ def summary_data_cache_key(request, metric):
             request.GET.get("date_to", ""),
             "empty" if request.GET.get("organ_filter_empty") == "1" else "",
             organ_ids,
+            "dept_empty" if request.GET.get("department_filter_empty") == "1" else "",
+            department_ids,
         ]
     )
 
@@ -568,12 +591,17 @@ def build_summary_payload(request, metric="in_work", *, available_organs=None, t
     available_organs = available_organs if available_organs is not None else available_organs_for_user(request.user)
     organs = selected_organs(request, available_organs)
     tables = tables if tables is not None else list(request_tables())
+    departments = selected_departments(request, available_departments(tables))
+    department_slugs = {department.slug for department in departments}
+    tables = [table for table in tables if table["department"] in department_slugs]
     history_flags = status_history_flags(tables, organs)
     base_metrics = table_base_metrics(tables, organs, period)
     return {
         "period": serialize_period(period),
         "selected_organs": [organ.pk for organ in organs],
         "selected_organs_count": len(organs),
+        "selected_departments": [department.slug for department in departments],
+        "selected_departments_count": len(departments),
         "kpi": build_kpi(tables, organs, period, history_flags, base_metrics),
         "dynamics": build_dynamics(tables, organs, period, history_flags),
         "org_chart": build_org_chart(tables, organs, period, metric=metric, history_flags=history_flags),
@@ -591,8 +619,10 @@ def build_summary_context(request):
     # summary_payload as empty here just means the shell paints instantly
     # instead of blocking on every one of those aggregate queries twice
     # (once here, once again for the immediate client-side refresh).
+    tables = list(request_tables())
     return {
         "organs": available_organs_for_user(request.user),
+        "departments": available_departments(tables),
         "summary_payload": {},
         "request_stale_workdays": get_request_stale_workdays(),
         "summary_org_metric": request.GET.get("org_metric", "in_work"),

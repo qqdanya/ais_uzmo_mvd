@@ -717,13 +717,29 @@
   padding-top: 7px;
 }
 
+.admin-department-item {
+  align-items: flex-start;
+  line-height: 1.22;
+}
+
+.admin-department-item span {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.admin-department-row {
+  align-items: flex-start;
+}
+
+.admin-department-row .admin-department-check {
+  padding-top: 7px;
+}
+
 @media (max-width: 1180px) {
   .admin-summary-filter-layout {
     grid-template-columns: 1fr;
-  }
-
-  .admin-summary-organs {
-    max-height: none;
   }
 }
 

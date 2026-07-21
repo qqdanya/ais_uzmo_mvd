@@ -69,8 +69,11 @@
       </div>
       <dl class="report-conditions">
         <div><dt>Основной период</dt><dd>{{ period.label }}{% if period_days %} ({{ period_days|days_label }}){% endif %}</dd></div>
-        <div><dt>Сравнение</dt><dd>{{ comparison_label }}{% if comparison_days %} ({{ comparison_days|days_label }}){% endif %}</dd></div>
+        {% if comparison_mode != "none" %}
+          <div><dt>Сравнение</dt><dd>{{ comparison_label }}{% if comparison_days %} ({{ comparison_days|days_label }}){% endif %}</dd></div>
+        {% endif %}
         <div><dt>Территориальные органы</dt><dd>{{ selected_organs_label }}</dd></div>
+        <div><dt>Отделы</dt><dd>{{ selected_departments_label }}</dd></div>
       </dl>
       {% if different_period_lengths %}
         <p class="report-period-warning">Периоды различаются по длительности. Для корректной оценки в таблице дополнительно указано среднее количество заявок за день.</p>

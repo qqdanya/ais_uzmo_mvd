@@ -5,11 +5,7 @@ selector_variant="admin" reuses the same visual structure but uses isolated data
 so it does not conflict with the dashboard localStorage and event handlers.
 {% endcomment %}
 {% if selector_variant == "admin" %}
-<aside class="panel organ-panel admin-summary-organs" data-admin-organ-selector>
-  <div class="panel-title admin-organ-selector-title">
-    <span><i class="bi bi-geo-alt"></i> Территориальные органы</span>
-    <span class="admin-organ-filter-badge" data-admin-organ-filter-badge hidden>Фильтр применён</span>
-  </div>
+<div class="admin-summary-organs" data-admin-organ-selector>
   <div class="admin-organ-selector-summary" data-admin-organ-summary>Выбрано: все территориальные органы</div>
   <div class="admin-organ-selector-hint">
     Выбранные органы подсвечиваются. По умолчанию учитываются все доступные территориальные органы.
@@ -44,7 +40,7 @@ so it does not conflict with the dashboard localStorage and event handlers.
       <div class="empty-state">Территориальные органы пока не загружены</div>
     {% endfor %}
   </div>
-</aside>
+</div>
 {% else %}
 <aside class="panel organ-panel">
   <div class="panel-title">

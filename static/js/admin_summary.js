@@ -6,6 +6,8 @@
 
   const STORAGE_ORGANS_KEY = "asu-zmo:admin-summary-organs";
   const STORAGE_ALL_ORGANS_KEY = "asu-zmo:admin-summary-all-organs";
+  const STORAGE_DEPARTMENTS_KEY = "asu-zmo:admin-summary-departments";
+  const STORAGE_ALL_DEPARTMENTS_KEY = "asu-zmo:admin-summary-all-departments";
   const DAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
   const MONTHS = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
 
@@ -111,6 +113,14 @@
     return root.querySelector("[data-admin-all-organs]");
   }
 
+  function adminDepartmentCheckboxes() {
+    return Array.from(root.querySelectorAll("[data-admin-department-checkbox]"));
+  }
+
+  function allDepartmentsCheckbox() {
+    return root.querySelector("[data-admin-all-departments]");
+  }
+
   function storedValue(key) {
     try {
       return localStorage.getItem(key);
@@ -154,6 +164,34 @@
   function adminOrganNameFromCheckbox(checkbox) {
     const text = checkbox.closest("[data-admin-organ-row]")?.querySelector("[data-admin-organ-toggle] span")?.textContent || "";
     return text.replace(/^\s*\d+(?:[.,]\d+)?\.?\s*/, "").trim();
+  }
+
+  function restoreAdminDeptSelection() {
+    const all = storedValue(STORAGE_ALL_DEPARTMENTS_KEY);
+    const saved = new Set((storedValue(STORAGE_DEPARTMENTS_KEY) || "").split(",").filter(Boolean));
+    const useAll = all !== "false" || saved.size === 0;
+    const allInput = allDepartmentsCheckbox();
+    if (allInput) allInput.checked = useAll;
+    adminDepartmentCheckboxes().forEach((checkbox) => {
+      checkbox.checked = useAll || saved.has(checkbox.value);
+    });
+    syncAdminDeptAllState(false);
+  }
+
+  function selectedDepartmentSlugs() {
+    const allInput = allDepartmentsCheckbox();
+    if (allInput?.checked) return [];
+    return adminDepartmentCheckboxes().filter((checkbox) => checkbox.checked).map((checkbox) => checkbox.value);
+  }
+
+  function saveAdminDeptSelection() {
+    const allInput = allDepartmentsCheckbox();
+    storeValue(STORAGE_ALL_DEPARTMENTS_KEY, allInput?.checked ? "true" : "false");
+    storeValue(STORAGE_DEPARTMENTS_KEY, adminDepartmentCheckboxes().filter((checkbox) => checkbox.checked).map((checkbox) => checkbox.value).join(","));
+  }
+
+  function adminDepartmentNameFromCheckbox(checkbox) {
+    return (checkbox.closest("[data-admin-department-row]")?.querySelector("[data-admin-department-toggle] span")?.textContent || "").trim();
   }
 
   function updateAdminOrgVisualState() {
@@ -202,6 +240,54 @@
     allInput.indeterminate = checkedCount > 0 && checkedCount < checkboxes.length;
     updateAdminOrgVisualState();
     if (save) saveAdminOrgSelection();
+  }
+
+  function updateAdminDeptVisualState() {
+    const selector = root.querySelector("[data-admin-department-selector]");
+    const checkboxes = adminDepartmentCheckboxes();
+    const checked = checkboxes.filter((checkbox) => checkbox.checked);
+    const total = checkboxes.length;
+    const allInput = allDepartmentsCheckbox();
+    const isAllSelected = total > 0 && checked.length === total;
+    const summary = root.querySelector("[data-admin-department-summary]");
+    const badge = root.querySelector("[data-admin-department-filter-badge]");
+
+    checkboxes.forEach((checkbox) => {
+      checkbox.closest("[data-admin-department-row]")?.classList.toggle("is-selected", checkbox.checked);
+    });
+
+    root.querySelector(".admin-department-all-row")?.classList.toggle("is-selected", Boolean(allInput?.checked));
+    selector?.classList.toggle("has-custom-department-filter", !isAllSelected);
+
+    if (summary) {
+      if (!total) {
+        summary.textContent = "Отделы не загружены";
+      } else if (isAllSelected) {
+        summary.textContent = `Выбрано: все ${formatNumber(total)} отделов`;
+      } else if (!checked.length) {
+        summary.textContent = "Не выбран ни один отдел";
+      } else if (checked.length === 1) {
+        summary.textContent = `Выбран: ${adminDepartmentNameFromCheckbox(checked[0])}`;
+      } else {
+        summary.textContent = `Выбрано: ${formatNumber(checked.length)} из ${formatNumber(total)}`;
+      }
+    }
+
+    if (badge) {
+      badge.hidden = isAllSelected;
+      badge.textContent = checked.length ? `Фильтр: ${formatNumber(checked.length)}` : "Фильтр: 0";
+    }
+  }
+
+  function syncAdminDeptAllState(save = true) {
+    const checkboxes = adminDepartmentCheckboxes();
+    const allInput = allDepartmentsCheckbox();
+    if (!allInput) return;
+    const checkedCount = checkboxes.filter((checkbox) => checkbox.checked).length;
+    allInput.checked = checkedCount === checkboxes.length;
+    allInput.indeterminate = checkedCount > 0 && checkedCount < checkboxes.length;
+    updateAdminDeptVisualState();
+    if (save) saveAdminDeptSelection();
   }
 
   function formatNumber(value) {
@@ -331,6 +417,12 @@
     const allInput = allOrgansCheckbox();
     if (allInput && !allInput.checked && ids.length === 0) {
       params.set("organ_filter_empty", "1");
+    }
+    const departmentSlugs = selectedDepartmentSlugs();
+    departmentSlugs.forEach((slug) => params.append("department_ids", slug));
+    const allDepartmentsInput = allDepartmentsCheckbox();
+    if (allDepartmentsInput && !allDepartmentsInput.checked && departmentSlugs.length === 0) {
+      params.set("department_filter_empty", "1");
     }
     return params;
   }
@@ -704,6 +796,20 @@
       selectCalendarDay(day.dataset.adminCalendarDay);
       return;
     }
+    const filtersTab = event.target.closest("[data-admin-filters-tab]");
+    if (filtersTab) {
+      event.preventDefault();
+      const targetKey = filtersTab.dataset.adminFiltersTab;
+      root.querySelectorAll("[data-admin-filters-tab]").forEach((tab) => {
+        const isActive = tab === filtersTab;
+        tab.classList.toggle("is-active", isActive);
+        tab.setAttribute("aria-selected", String(isActive));
+      });
+      root.querySelectorAll("[data-admin-filters-tabpanel]").forEach((panel) => {
+        panel.hidden = panel.dataset.adminFiltersTabpanel !== targetKey;
+      });
+      return;
+    }
     const organToggle = event.target.closest("[data-admin-organ-toggle]");
     if (organToggle) {
       event.preventDefault();
@@ -726,6 +832,31 @@
       event.preventDefault();
       adminOrganCheckboxes().forEach((checkbox) => { checkbox.checked = false; });
       syncAdminOrgAllState();
+      refreshSummary();
+      return;
+    }
+    const departmentToggle = event.target.closest("[data-admin-department-toggle]");
+    if (departmentToggle) {
+      event.preventDefault();
+      const checkbox = departmentToggle.closest("[data-admin-department-row]")?.querySelector("[data-admin-department-checkbox]");
+      if (checkbox) {
+        checkbox.checked = !checkbox.checked;
+        syncAdminDeptAllState();
+        refreshSummary();
+      }
+      return;
+    }
+    if (event.target.closest("[data-admin-department-select-all]")) {
+      event.preventDefault();
+      adminDepartmentCheckboxes().forEach((checkbox) => { checkbox.checked = true; });
+      syncAdminDeptAllState();
+      refreshSummary();
+      return;
+    }
+    if (event.target.closest("[data-admin-department-clear-all]")) {
+      event.preventDefault();
+      adminDepartmentCheckboxes().forEach((checkbox) => { checkbox.checked = false; });
+      syncAdminDeptAllState();
       refreshSummary();
       return;
     }
@@ -784,6 +915,19 @@
       refreshSummary();
       return;
     }
+    if (event.target.matches("[data-admin-all-departments]")) {
+      adminDepartmentCheckboxes().forEach((checkbox) => { checkbox.checked = event.target.checked; });
+      event.target.indeterminate = false;
+      updateAdminDeptVisualState();
+      saveAdminDeptSelection();
+      refreshSummary();
+      return;
+    }
+    if (event.target.matches("[data-admin-department-checkbox]")) {
+      syncAdminDeptAllState();
+      refreshSummary();
+      return;
+    }
     if (event.target.matches("[data-admin-org-metric]")) {
       refreshSummary();
     }
@@ -795,6 +939,7 @@
   });
 
   restoreAdminOrgSelection();
+  restoreAdminDeptSelection();
   syncReportComparisonInputs(false);
   updatePeriodLabel();
   renderCalendar();

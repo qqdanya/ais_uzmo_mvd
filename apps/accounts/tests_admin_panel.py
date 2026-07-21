@@ -287,6 +287,68 @@ class AdminPanelEndpointTests(AdminPanelTestMixin, TestCase):
         self.assertEqual(payload["kpi"]["in_work"], 1)
         self.assertEqual(payload["org_chart"], [{"id": self.organ.pk, "name": self.organ.name, "value": 1, "percent": 100}])
 
+    def test_summary_data_respects_selected_department_filter(self):
+        self.login_admin()
+        today = timezone.localdate()
+        TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            created_by=self.admin,
+            request_number="tmc-1",
+            request_date=today,
+        )
+        VehicleRepairRequest.objects.create(
+            territorial_organ=self.organ,
+            created_by=self.admin,
+            request_number="transport-1",
+            request_date=today,
+        )
+
+        response = self.client.get(
+            reverse("admin_summary_data"),
+            {"period": "all", "department_ids": [self.department_tmc.slug]},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["selected_departments"], [self.department_tmc.slug])
+        self.assertEqual(payload["selected_departments_count"], 1)
+        self.assertEqual(payload["kpi"]["total"], 1)
+        self.assertEqual(payload["kpi"]["in_work"], 1)
+        self.assertEqual(payload["department_load"], [{"slug": "tmc", "name": "ТМЦ", "value": 1, "percent": 100}])
+
+    def test_summary_data_department_filter_empty_zeroes_out_kpi(self):
+        self.login_admin()
+        TmcRequest.objects.create(
+            territorial_organ=self.organ,
+            created_by=self.admin,
+            request_number="tmc-2",
+            request_date=timezone.localdate(),
+        )
+
+        response = self.client.get(
+            reverse("admin_summary_data"),
+            {"period": "all", "department_filter_empty": "1"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["selected_departments"], [])
+        self.assertEqual(payload["selected_departments_count"], 0)
+        self.assertEqual(payload["kpi"]["total"], 0)
+        self.assertEqual(payload["department_load"], [])
+
+    def test_admin_panel_shell_includes_department_selector(self):
+        self.login_admin()
+
+        response = self.client.get(reverse("admin_panel"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(self.department_tmc, response.context["departments"])
+        self.assertIn(self.department_transport, response.context["departments"])
+        self.assertContains(response, "data-admin-department-selector")
+        self.assertContains(response, "data-admin-all-departments")
+        self.assertContains(response, f'value="{self.department_tmc.slug}"')
+
     def test_control_pages_are_forbidden_to_operator(self):
         self.login_operator()
 
@@ -2811,8 +2873,8 @@ class AdminTrashPanelTests(AdminPanelTestMixin, TestCase):
         self.assertIn("transition: background-color .14s var(--motion-smooth), border-color .14s var(--motion-smooth)", requests_css)
         self.assertIn(".admin-requests-table td:last-child", requests_css)
         self.assertIn("justify-content: center", requests_css)
-        self.assertIn("admin/base.css?v=20260719-003", admin_css)
-        self.assertIn("admin/requests.css?v=20260721-001", admin_css)
+        self.assertIn("admin/base.css?v=20260721-009", admin_css)
+        self.assertIn("admin/requests.css?v=20260721-003", admin_css)
         self.assertIn("admin/employees.css?v=20260721-002", admin_css)
         self.assertIn("admin/trash.css?v=20260720-006", admin_css)
         self.assertIn("width: max-content", admin_css)

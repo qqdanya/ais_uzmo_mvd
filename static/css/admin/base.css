@@ -166,8 +166,44 @@
   gap: 12px;
   align-items: start;
 }
-.admin-period-card {
-  min-height: 100%;
+.admin-summary-filters {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+.admin-summary-filters-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid #dce9f3;
+  border-radius: 999px;
+  background: #f8fbff;
+}
+.admin-summary-filters-tab {
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+  min-height: 34px;
+  padding: .4rem .6rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: .8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background .16s var(--motion-smooth), color .16s var(--motion-smooth);
+}
+.admin-summary-filters-tab.is-active {
+  background: var(--blue);
+  color: #fff;
+}
+.admin-summary-filters-tab.is-active .admin-organ-filter-badge,
+.admin-summary-filters-tab.is-active .admin-department-filter-badge {
+  /* Redundant once its own panel is open and the selection is visible. */
+  display: none;
 }
 .admin-period-value {
   display: inline-flex;
@@ -367,14 +403,6 @@
   color: #fff;
   font-weight: 700;
 }
-.admin-summary-organs {
-  max-height: 526px;
-  overflow-y: auto;
-}
-
-.admin-organ-selector-title {
-  align-items: flex-start;
-}
 .admin-organ-filter-badge {
   display: inline-flex;
   align-items: center;
@@ -404,10 +432,6 @@
   font-size: .78rem;
   font-weight: 700;
   line-height: 1.2;
-}
-.admin-summary-organs.has-custom-organ-filter {
-  border-color: #9fc8df;
-  box-shadow: 0 12px 26px rgba(23,105,170,.1);
 }
 .admin-summary-organs.has-custom-organ-filter .admin-organ-selector-summary {
   border-color: #9fc8df;
@@ -456,7 +480,11 @@
   font-size: .72rem;
 }
 .admin-organ-list {
-  max-height: 318px;
+  /* Its own scroll box, sized so the organs tab panel matches the
+     departments tab panel's height instead of growing to fit all 37+
+     organs. */
+  max-height: 190px;
+  overflow-y: auto;
 }
 
 .admin-summary-organs .organ-row {
@@ -520,6 +548,158 @@
   background: #eef7ff;
   color: var(--navy);
 }
+
+.admin-summary-departments {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+.admin-department-filter-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: .12rem .48rem;
+  border: 1px solid #9fc8df;
+  border-radius: 999px;
+  background: #eef7ff;
+  color: var(--navy);
+  font-size: .7rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.admin-department-filter-badge[hidden] {
+  display: none;
+}
+.admin-department-selector-summary {
+  display: flex;
+  align-items: center;
+  min-height: 30px;
+  margin: -3px 0 0;
+  padding: .34rem .58rem;
+  border: 1px solid #d7e6f2;
+  border-radius: 9px;
+  background: linear-gradient(180deg, #f8fbff 0%, #f1f7fc 100%);
+  color: var(--navy);
+  font-size: .78rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.admin-summary-departments.has-custom-department-filter .admin-department-selector-summary {
+  border-color: #9fc8df;
+  background: linear-gradient(180deg, #eef7ff 0%, #f8fcff 100%);
+}
+.admin-department-selector-hint {
+  margin: 0 0 2px;
+  color: var(--muted);
+  font-size: .76rem;
+  line-height: 1.25;
+}
+.admin-department-bulk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.admin-department-all-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 8px 9px;
+  border: 1px solid #dce9f3;
+  border-radius: var(--radius-ui);
+  background: #fbfdff;
+  cursor: pointer;
+}
+.admin-department-all-row input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--blue);
+}
+.admin-department-all-row strong,
+.admin-department-all-row small {
+  display: block;
+  min-width: 0;
+}
+.admin-department-all-row strong {
+  color: var(--navy);
+  font-size: .84rem;
+}
+.admin-department-all-row small {
+  color: var(--muted);
+  font-size: .72rem;
+}
+.admin-department-all-row.is-selected {
+  border-color: #9fc8df;
+  background: linear-gradient(135deg, #eef7ff 0%, #f8fcff 100%);
+  box-shadow: inset 3px 0 0 var(--blue);
+}
+.admin-department-all-row.is-selected strong {
+  color: var(--navy);
+}
+.admin-department-list {
+  display: grid;
+  gap: 4px;
+}
+.admin-department-row {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 6px;
+  align-items: center;
+  padding: 2px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  transition: background .16s var(--motion-smooth), border-color .16s var(--motion-smooth), box-shadow .16s var(--motion-smooth);
+}
+.admin-department-row.is-selected {
+  border-color: #9fc8df;
+  background: linear-gradient(135deg, #eef7ff 0%, #f8fcff 100%);
+  box-shadow: inset 3px 0 0 var(--blue), 0 7px 16px rgba(23,105,170,.09);
+}
+.admin-department-row.is-selected .admin-department-item {
+  color: var(--navy);
+  font-weight: 700;
+}
+.admin-department-row:hover {
+  border-color: #b8d8eb;
+  background: #f7fbff;
+}
+.admin-department-check {
+  width: 30px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.admin-department-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--blue);
+}
+.admin-department-item {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: .4rem .5rem;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink);
+  font-size: .82rem;
+  text-align: left;
+}
+.admin-department-item span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-department-item:hover {
+  background: #eef7ff;
+  color: var(--navy);
+}
+
 .admin-summary-kpi {
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
@@ -753,8 +933,9 @@
   .admin-summary-kpi {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
-  .admin-summary-organs {
+  .admin-organ-list {
     max-height: none;
+    overflow-y: visible;
   }
 }
 

@@ -7,6 +7,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date
 
 from .admin_summary import (
+    available_departments,
     available_organs_for_user,
     build_attention_requests,
     build_department_load,
@@ -15,6 +16,7 @@ from .admin_summary import (
     build_org_chart,
     parse_period,
     request_tables,
+    selected_departments,
     selected_organs,
     serialize_period,
     status_history_flags,
@@ -515,8 +517,28 @@ def selected_organs_label(organs, available_organs):
     return f"{'; '.join(names[:4])}; ещё {len(names) - 4}"
 
 
+def selected_departments_label(departments, available_departments):
+    if not departments:
+        return "Отделы не выбраны"
+    if len(departments) == len(available_departments):
+        return f"Все отделы ({len(departments)})"
+    names = [department.name for department in departments]
+    if len(names) <= 4:
+        return "; ".join(names)
+    return f"{'; '.join(names[:4])}; ещё {len(names) - 4}"
+
+
 def report_filter_fields(request):
-    allowed = {"period", "date_from", "date_to", "organ_ids", "organ_filter_empty", "granularity"}
+    allowed = {
+        "period",
+        "date_from",
+        "date_to",
+        "organ_ids",
+        "organ_filter_empty",
+        "department_ids",
+        "department_filter_empty",
+        "granularity",
+    }
     return [
         (key, value)
         for key, values in request.GET.lists()
@@ -551,6 +573,10 @@ def build_summary_report_context(request):
     available_organs = available_organs_for_user(request.user)
     organs = selected_organs(request, available_organs)
     tables = list(request_tables())
+    available_departments_list = available_departments(tables)
+    departments = selected_departments(request, available_departments_list)
+    department_slugs = {department.slug for department in departments}
+    tables = [table for table in tables if table["department"] in department_slugs]
     history_flags = status_history_flags(tables, organs)
     current_base_metrics = table_base_metrics(tables, organs, period)
     current_kpi = build_kpi(tables, organs, period, history_flags, current_base_metrics)
@@ -654,6 +680,8 @@ def build_summary_report_context(request):
         "attention_requests": build_attention_requests(tables, organs, limit=10),
         "selected_organs_label": selected_organs_label(organs, available_organs),
         "selected_organs_count": len(organs),
+        "selected_departments_label": selected_departments_label(departments, available_departments_list),
+        "selected_departments_count": len(departments),
         "generated_at": timezone.localtime(),
         "report_filter_fields": report_filter_fields(request),
         "dashboard_url": reverse("admin_panel"),
