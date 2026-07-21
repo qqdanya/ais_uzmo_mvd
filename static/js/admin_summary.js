@@ -208,6 +208,19 @@
     return new Intl.NumberFormat("ru-RU").format(Number(value || 0));
   }
 
+  function pluralRu(count, one, few, many) {
+    const remainder100 = Math.abs(Math.trunc(count)) % 100;
+    if (remainder100 >= 11 && remainder100 <= 14) return many;
+    const remainder10 = remainder100 % 10;
+    if (remainder10 === 1) return one;
+    if (remainder10 >= 2 && remainder10 <= 4) return few;
+    return many;
+  }
+
+  function daysLabel(count) {
+    return `${formatNumber(count)} ${pluralRu(count, "день", "дня", "дней")}`;
+  }
+
   function metricLabel(value) {
     return {
       total: "Поступило заявок",
@@ -482,7 +495,7 @@
         </div>
         <div class="admin-attention-date">
           <span>${escapeHtml(item.request_date)}</span>
-          <strong>${formatNumber(item.days)} дн.</strong>
+          <strong>${daysLabel(item.days)}</strong>
         </div>
         ${detailUrl}
       `;

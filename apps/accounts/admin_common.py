@@ -385,10 +385,6 @@ def completion_average_from_totals(total_days, count):
     return round(total_days / count, 1) if count else None
 
 
-def completion_display(value):
-    return f"{str(value).replace('.', ',')} дн." if value is not None else "—"
-
-
 def latest_request_date_for_queryset(qs):
     return qs.aggregate(latest=Max("request_date")).get("latest")
 
@@ -500,6 +496,33 @@ def days_class(days):
     if days > 7:
         return "is-warning"
     return "is-normal"
+
+
+def plural_ru(count, one, few, many):
+    """Pick the Russian plural form for an integer count (1/2-4/5-20 rule)."""
+    remainder_100 = abs(int(count)) % 100
+    if 11 <= remainder_100 <= 14:
+        return many
+    remainder_10 = remainder_100 % 10
+    if remainder_10 == 1:
+        return one
+    if 2 <= remainder_10 <= 4:
+        return few
+    return many
+
+
+def days_label(count):
+    """'1 день' / '3 дня' / '5 дней' for a whole number of days."""
+    if count is None:
+        return "—"
+    return f"{count} {plural_ru(count, 'день', 'дня', 'дней')}"
+
+
+def completion_display(value):
+    # Averages are rounded to one decimal place, so they're rarely whole
+    # numbers - Russian always uses the genitive singular ("дня") for a
+    # fractional count, regardless of the digits before the decimal point.
+    return f"{str(value).replace('.', ',')} дня" if value is not None else "—"
 
 
 def field_label(table, field_name):

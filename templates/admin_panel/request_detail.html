@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static account_tags %}
 
 {% block title %}Заявка {{ request_number }} | Административная панель{% endblock %}
 
@@ -23,7 +23,7 @@
           <span class="status-badge {{ status_class }}">{{ object.get_status_display }}</span>
           {% if has_days %}
               <span class="admin-processing-cell admin-processing-cell-detail">
-                <span class="admin-days-badge {{ days_class }}">{{ days }} дн.</span>
+                <span class="admin-days-badge {{ days_class }}">{{ days|days_label }}</span>
               </span>
           {% endif %}
         </div>

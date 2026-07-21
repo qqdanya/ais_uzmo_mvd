@@ -691,7 +691,7 @@ class AdminRequestsPanelTests(AdminPanelTestMixin, TestCase):
         self.assertNotContains(response, "Связанные фотографии")
         self.assertNotContains(response, "Миниатюр нет")
         self.assertContains(response, "В работе")
-        self.assertContains(response, "дн.")
+        self.assertContains(response, "1 день")
         self.assertNotContains(response, "<small>в работе</small>", html=True)
 
     def test_rejected_request_detail_uses_rejection_date_label(self):
@@ -2786,7 +2786,7 @@ class AdminTrashPanelTests(AdminPanelTestMixin, TestCase):
         self.assertIn(".admin-requests-table td:last-child", requests_css)
         self.assertIn("justify-content: center", requests_css)
         self.assertIn("admin/base.css?v=20260719-003", admin_css)
-        self.assertIn("admin/requests.css?v=20260720-006", admin_css)
+        self.assertIn("admin/requests.css?v=20260721-001", admin_css)
         self.assertIn("admin/employees.css?v=20260721-002", admin_css)
         self.assertIn("admin/trash.css?v=20260720-006", admin_css)
         self.assertIn("width: max-content", admin_css)

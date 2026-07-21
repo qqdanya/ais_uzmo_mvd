@@ -32,6 +32,13 @@ def full_display_name(user):
     full_name = user.get_full_name().strip()
     return full_name or user.get_username()
 
+
+@register.filter
+def days_label(count):
+    from apps.accounts.admin_common import days_label as _days_label
+
+    return _days_label(count)
+
 # Shared admin select/dropdown helpers live in this existing tag library on purpose.
 # Older deployments already load ``account_tags``; keeping the admin multiselect tag
 # here avoids relying on discovery of a newly named template tag library.

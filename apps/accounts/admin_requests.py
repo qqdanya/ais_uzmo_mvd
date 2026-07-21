@@ -20,6 +20,7 @@ from .admin_common import (
     DEPARTMENT_ICONS,
     STATUS_BADGE_CLASSES,
     apply_period,
+    completion_display,
     completion_totals_for_queryset,
     date_period_from_request,
     days_class,
@@ -277,7 +278,7 @@ def request_kpis(counts, avg_completion_days):
         {"label": "Исполнено", "value": counts.get("done", 0), "hint": "по текущим фильтрам", "icon": "bi-check2-circle"},
         {
             "label": "Средний срок исполнения",
-            "value": f"{str(avg_completion_days).replace('.', ',')} дн." if avg_completion_days is not None else "—",
+            "value": completion_display(avg_completion_days),
             "hint": "по исполненным заявкам",
             "icon": "bi-stopwatch",
         },

@@ -61,10 +61,12 @@ def expiry_date_cell(obj):
             date_text,
         )
     if days_left <= 30:
+        from apps.accounts.admin_common import days_label
+
         return format_html(
-            '<span class="expiry-cell"><span>{}</span><span class="status-badge status-in_work" data-bs-toggle="tooltip" data-bs-title="Срок эксплуатации истекает через {} дн."><i class="bi bi-exclamation-triangle"></i> Скоро истекает</span></span>',
+            '<span class="expiry-cell"><span>{}</span><span class="status-badge status-in_work" data-bs-toggle="tooltip" data-bs-title="Срок эксплуатации истекает через {}"><i class="bi bi-exclamation-triangle"></i> Скоро истекает</span></span>',
             date_text,
-            days_left,
+            days_label(days_left),
         )
     return date_text
 

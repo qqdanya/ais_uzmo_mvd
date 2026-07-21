@@ -68,8 +68,8 @@
         <span>Краткая картина работы с заявками за выбранный период</span>
       </div>
       <dl class="report-conditions">
-        <div><dt>Основной период</dt><dd>{{ period.label }}{% if period_days %} ({{ period_days }} дн.){% endif %}</dd></div>
-        <div><dt>Сравнение</dt><dd>{{ comparison_label }}{% if comparison_days %} ({{ comparison_days }} дн.){% endif %}</dd></div>
+        <div><dt>Основной период</dt><dd>{{ period.label }}{% if period_days %} ({{ period_days|days_label }}){% endif %}</dd></div>
+        <div><dt>Сравнение</dt><dd>{{ comparison_label }}{% if comparison_days %} ({{ comparison_days|days_label }}){% endif %}</dd></div>
         <div><dt>Территориальные органы</dt><dd>{{ selected_organs_label }}</dd></div>
       </dl>
       {% if different_period_lengths %}

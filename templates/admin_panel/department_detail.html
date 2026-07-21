@@ -234,7 +234,7 @@
                     <td>
                       {% if row.has_days %}
                         <span class="admin-processing-cell">
-                          <span class="admin-days-badge {{ row.days_class }}">{{ row.days }} дн.</span>
+                          <span class="admin-days-badge {{ row.days_class }}">{{ row.days|days_label }}</span>
                           {% if row.days_caption %}<small>{{ row.days_caption }}</small>{% endif %}
                         </span>
                       {% else %}
