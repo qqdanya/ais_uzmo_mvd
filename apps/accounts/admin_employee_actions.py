@@ -1,13 +1,28 @@
 from django.contrib import messages
-from django.contrib.auth import get_user_model
+from django.contrib.auth import SESSION_KEY, get_user_model
+from django.contrib.sessions.models import Session
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect
+from django.utils import timezone
 
 from apps.audit.models import AuditLog
 
 from .admin_employee_core import employee_display_name, employee_queryset
 from .admin_employee_forms import EmployeeForm, employee_form_context
 from .models import UserProfile
+
+
+def kill_user_sessions(user):
+    """Force out any session the user is already logged in with.
+
+    is_active=False alone leaves an already-issued session cookie valid
+    until it naturally expires - the auth backend only rejects inactive
+    users on their *next* request, so without this a just-blocked user
+    stays logged in for up to SESSION_COOKIE_AGE.
+    """
+    for session in Session.objects.filter(expire_date__gte=timezone.now()):
+        if str(session.get_decoded().get(SESSION_KEY)) == str(user.pk):
+            session.delete()
 
 
 def client_ip(request):
@@ -150,6 +165,7 @@ def handle_employee_action(request, pk):
     if action == "block":
         user.is_active = False
         user.save(update_fields=["is_active"])
+        kill_user_sessions(user)
         old_changes, new_changes = changed_employee_values(old_values, employee_audit_values(user))
         if new_changes:
             write_employee_audit(

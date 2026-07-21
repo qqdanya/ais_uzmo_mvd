@@ -36,6 +36,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "apps.audit.middleware.RequestAuditMiddleware",
+    "apps.accounts.middleware.HtmxLoginRedirectMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"

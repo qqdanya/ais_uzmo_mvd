@@ -15,7 +15,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import connection
-from django.test import TestCase, override_settings
+from django.test import Client, TestCase, override_settings
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
@@ -1309,6 +1309,33 @@ class AdminEmployeesPanelTests(AdminPanelTestMixin, TestCase):
         self.assertRedirects(reset_response, reverse("admin_employee_detail", kwargs={"pk": target.pk}))
         self.assertFalse(target.has_usable_password())
         self.assertTrue(target.profile.activation_code)
+
+    def test_blocking_employee_invalidates_their_active_session(self):
+        target = self.User.objects.create_user("session_user", password="pass12345", is_active=True)
+        UserProfile.objects.create(user=target, role=UserProfile.Role.OPERATOR)
+
+        target_client = Client()
+        self.assertTrue(target_client.login(username="session_user", password="pass12345"))
+        self.assertEqual(target_client.get(reverse("dashboard")).status_code, 200)
+
+        self.login_admin()
+        self.client.post(reverse("admin_employee_action", kwargs={"pk": target.pk}), {"action": "block"})
+
+        self.assertRedirects(target_client.get(reverse("dashboard")), f"{reverse('login')}?next={reverse('dashboard')}")
+
+    def test_htmx_request_from_blocked_user_gets_hx_redirect_not_login_html(self):
+        target = self.User.objects.create_user("htmx_user", password="pass12345", is_active=True)
+        UserProfile.objects.create(user=target, role=UserProfile.Role.OPERATOR)
+
+        target_client = Client()
+        self.assertTrue(target_client.login(username="htmx_user", password="pass12345"))
+
+        self.login_admin()
+        self.client.post(reverse("admin_employee_action", kwargs={"pk": target.pk}), {"action": "block"})
+
+        response = target_client.get(reverse("dashboard"), HTTP_HX_REQUEST="true")
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["HX-Redirect"], response["Location"])
 
     def test_employee_actions_cannot_block_or_reset_self(self):
         self.login_admin()
