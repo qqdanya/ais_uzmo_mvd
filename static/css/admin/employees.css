@@ -782,6 +782,11 @@
   flex-wrap: wrap;
   gap: 6px;
 }
+.admin-permission-actions button span {
+  display: inline;
+  margin-top: 0;
+  color: inherit;
+}
 .admin-permission-actions button {
   min-height: 30px;
   display: inline-flex;
@@ -902,9 +907,9 @@
   color: #1769aa;
 }
 .admin-role-badge.is-admin {
-  border-color: #e3bf58;
-  background: #fff4c7;
-  color: #765000;
+  border-color: #e6d9a8;
+  background: #fbf4de;
+  color: #8a6d23;
 }
 .admin-role-badge.is-leader {
   border-color: #d9c9ff;
