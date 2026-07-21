@@ -1334,8 +1334,8 @@ class AdminEmployeesPanelTests(AdminPanelTestMixin, TestCase):
         self.client.post(reverse("admin_employee_action", kwargs={"pk": target.pk}), {"action": "block"})
 
         response = target_client.get(reverse("dashboard"), HTTP_HX_REQUEST="true")
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(response["HX-Redirect"], response["Location"])
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response["HX-Redirect"], f"{reverse('login')}?next={reverse('dashboard')}")
 
     def test_employee_actions_cannot_block_or_reset_self(self):
         self.login_admin()
