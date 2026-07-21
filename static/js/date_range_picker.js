@@ -394,6 +394,11 @@
   window.addEventListener("resize", scheduleOpenPickerPlacement);
   window.addEventListener("scroll", scheduleOpenPickerPlacement, true);
   window.visualViewport?.addEventListener("resize", scheduleOpenPickerPlacement);
-  document.body?.addEventListener("htmx:afterSwap", (event) => initAll(event.detail.target));
+  // event.detail.target can be a detached node for outerHTML swaps (the
+  // reference htmx hands back still points at the element that WAS there,
+  // not its replacement), so scanning it misses newly swapped-in pickers.
+  // Rescanning the live document is safe: initPicker/initSingleDateInput
+  // are already guarded against re-initializing elements they've touched.
+  document.body?.addEventListener("htmx:afterSwap", () => initAll());
   window.initDateRangePickers = initAll;
 })();
