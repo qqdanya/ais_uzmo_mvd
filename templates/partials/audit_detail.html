@@ -89,8 +89,25 @@
           <div class="audit-change-row">
             <div class="audit-change-field">{{ row.label }}</div>
             {% if log.action == "update" %}
-              <div class="audit-change-values">
-                {% if row.one_sided_value == "new" %}
+              <div class="audit-change-values{% if row.is_diff %} audit-change-diff{% endif %}">
+                {% if row.is_diff %}
+                  {% if row.diff_removed_count %}
+                    <div class="audit-diff-group is-removed">
+                      <span class="audit-diff-label"><i class="bi bi-dash-circle"></i>Убрано ({{ row.diff_removed_count }})</span>
+                      <div class="audit-diff-items">
+                        {% for item in row.diff_removed_lines %}<span class="audit-diff-item">{{ item }}</span>{% endfor %}
+                      </div>
+                    </div>
+                  {% endif %}
+                  {% if row.diff_added_count %}
+                    <div class="audit-diff-group is-added">
+                      <span class="audit-diff-label"><i class="bi bi-plus-circle"></i>Добавлено ({{ row.diff_added_count }})</span>
+                      <div class="audit-diff-items">
+                        {% for item in row.diff_added_lines %}<span class="audit-diff-item">{{ item }}</span>{% endfor %}
+                      </div>
+                    </div>
+                  {% endif %}
+                {% elif row.one_sided_value == "new" %}
                   <strong>{{ row.new }}</strong>
                 {% elif row.one_sided_value == "old" %}
                   <span>{{ row.old }}</span>
@@ -101,9 +118,21 @@
                 {% endif %}
               </div>
             {% elif log.action == "delete" %}
-              <div class="audit-change-values"><span>{{ row.old }}</span></div>
+              <div class="audit-change-values{% if row.is_list and row.old_lines %} audit-change-list-values{% endif %}">
+                {% if row.is_list and row.old_lines %}
+                  {% for item in row.old_lines %}<span class="audit-list-item">{{ item }}</span>{% endfor %}
+                {% else %}
+                  <span>{{ row.old }}</span>
+                {% endif %}
+              </div>
             {% else %}
-              <div class="audit-change-values"><strong>{{ row.new }}</strong></div>
+              <div class="audit-change-values{% if row.is_list and row.new_lines %} audit-change-list-values{% endif %}">
+                {% if row.is_list and row.new_lines %}
+                  {% for item in row.new_lines %}<strong class="audit-list-item">{{ item }}</strong>{% endfor %}
+                {% else %}
+                  <strong>{{ row.new }}</strong>
+                {% endif %}
+              </div>
             {% endif %}
           </div>
         {% endfor %}

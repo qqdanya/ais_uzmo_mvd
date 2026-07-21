@@ -1121,6 +1121,56 @@
   margin-top: .08rem;
   color: var(--blue);
 }
+.audit-change-diff {
+  flex-direction: column;
+  align-items: stretch;
+  gap: .4rem;
+}
+.audit-diff-group {
+  display: grid;
+  gap: .16rem;
+  padding: .32rem .5rem;
+  border-radius: 7px;
+}
+.audit-diff-group.is-removed {
+  background: #faeeee;
+}
+.audit-diff-group.is-added {
+  background: #e8f7ee;
+}
+.audit-diff-label {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  font-weight: 700;
+  font-size: .78rem;
+}
+.audit-diff-group.is-removed .audit-diff-label {
+  color: #7d3c3c;
+}
+.audit-diff-group.is-added .audit-diff-label {
+  color: var(--green-dark);
+}
+.audit-diff-items {
+  display: flex;
+  flex-direction: column;
+  gap: .12rem;
+  min-width: 0;
+}
+.audit-diff-item {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+}
+.audit-change-list-values {
+  flex-direction: column;
+  align-items: stretch;
+  gap: .12rem;
+}
+.audit-list-item {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .audit-status-history-list {
   margin-top: .1rem;
 }

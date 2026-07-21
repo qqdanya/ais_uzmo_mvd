@@ -45,6 +45,16 @@ AUDIT_FIELD_LABELS = {
     "due_date": "Дата исполнения",
 }
 
+DIFF_LIST_FIELDS = {
+    "allowed_departments",
+    "writable_departments",
+    "allowed_organs",
+    "writable_organs",
+    "django_groups",
+    "django_permissions",
+}
+DIFF_LIST_PREVIEW_LIMIT = 12
+
 LEGACY_EMPLOYEE_UPDATE_EVENTS = {
     AuditLog.EventType.EMPLOYEE_PERMISSIONS,
     AuditLog.EventType.EMPLOYEE_BLOCKED,
@@ -301,6 +311,14 @@ def relevant_keys(log):
     return [key for key in keys if key not in hidden_fields]
 
 
+def diff_list_lines(items):
+    if len(items) <= DIFF_LIST_PREVIEW_LIMIT:
+        return list(items)
+    shown = items[:DIFF_LIST_PREVIEW_LIMIT]
+    remaining = len(items) - DIFF_LIST_PREVIEW_LIMIT
+    return [*shown, f"и ещё {remaining}"]
+
+
 def audit_changes(log, related_value_cache=None):
     old_values = log.old_values or {}
     new_values = log.new_values or {}
@@ -323,15 +341,37 @@ def audit_changes(log, related_value_cache=None):
             if key in {"completed_at", "due_date"}
             else field_label(log.model_name, key)
         )
-        rows.append(
-            {
-                "field": key,
-                "label": label,
-                "old": field_display_value(log.model_name, key, old_raw, related_value_cache),
-                "new": field_display_value(log.model_name, key, new_raw, related_value_cache),
-                "one_sided_value": TMC_ONE_SIDED_EVENTS.get(log.event_type) if key == "items" else "",
-            }
-        )
+        row = {
+            "field": key,
+            "label": label,
+            "old": field_display_value(log.model_name, key, old_raw, related_value_cache),
+            "new": field_display_value(log.model_name, key, new_raw, related_value_cache),
+            "one_sided_value": TMC_ONE_SIDED_EVENTS.get(log.event_type) if key == "items" else "",
+            "is_diff": False,
+            "is_list": False,
+        }
+        if key in DIFF_LIST_FIELDS:
+            row["is_list"] = True
+            if isinstance(old_raw, list) and old_raw:
+                row["old_lines"] = diff_list_lines(old_raw)
+            if isinstance(new_raw, list) and new_raw:
+                row["new_lines"] = diff_list_lines(new_raw)
+        if (
+            log.action == AuditLog.Action.UPDATE
+            and key in DIFF_LIST_FIELDS
+            and isinstance(old_raw, list)
+            and isinstance(new_raw, list)
+        ):
+            old_set = set(old_raw)
+            new_set = set(new_raw)
+            removed = [item for item in old_raw if item not in new_set]
+            added = [item for item in new_raw if item not in old_set]
+            row["is_diff"] = True
+            row["diff_removed_count"] = len(removed)
+            row["diff_added_count"] = len(added)
+            row["diff_removed_lines"] = diff_list_lines(removed)
+            row["diff_added_lines"] = diff_list_lines(added)
+        rows.append(row)
     return rows
 
 
