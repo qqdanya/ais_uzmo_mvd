@@ -791,71 +791,88 @@
   line-height: 1.35;
   vertical-align: middle !important;
 }
-.audit-event-title {
+/*
+ * Every audit action/event badge - in the log table (.audit-event-title) and
+ * in the detail modal (.audit-action) alike - reads its color from this one
+ * set of --audit-marker-* custom properties, keyed by the same
+ * audit-action-*/audit-event-* class Python attaches via log.action_badge.
+ * Keeping a single source here (instead of separate hardcoded rules per
+ * surface) is what keeps the two views from drifting out of sync.
+ */
+.audit-action-create,
+.audit-action-login {
+  --audit-marker-bg: #e8f7ee;
+  --audit-marker-border: #a9ddbf;
+  --audit-marker-color: #0b5a35;
+}
+.audit-action-update {
+  --audit-marker-bg: #fff7cf;
+  --audit-marker-border: #ead779;
+  --audit-marker-color: #6f5700;
+}
+.audit-action-delete,
+.audit-action-logout {
+  --audit-marker-bg: #fff1f1;
+  --audit-marker-border: #f1b8b8;
+  --audit-marker-color: #8a1f1f;
+}
+.audit-action-default {
   --audit-marker-bg: #eef7ff;
   --audit-marker-border: #c9e2f4;
+  --audit-marker-color: var(--navy);
+}
+.audit-event-create,
+.audit-event-restore {
+  --audit-marker-bg: #e8f7ee;
+  --audit-marker-border: #a9ddbf;
+  --audit-marker-color: #0b5a35;
+}
+.audit-event-update,
+.audit-event-photo,
+.audit-event-export {
+  --audit-marker-bg: #edf7fd;
+  --audit-marker-border: #b8dcec;
+  --audit-marker-color: #14577f;
+}
+.audit-event-status,
+.audit-event-access {
+  --audit-marker-bg: #f3efff;
+  --audit-marker-border: #d7c9f4;
+  --audit-marker-color: #593c88;
+}
+.audit-event-trash {
+  --audit-marker-bg: #fff4e5;
+  --audit-marker-border: #eecb94;
+  --audit-marker-color: #81500b;
+}
+.audit-event-purge {
+  --audit-marker-bg: #fff0f0;
+  --audit-marker-border: #efbebe;
+  --audit-marker-color: #8a1f1f;
+}
+.audit-event-login {
+  --audit-marker-bg: #e8f3fd;
+  --audit-marker-border: #93bfe0;
+  --audit-marker-color: #155a8a;
+}
+.audit-event-logout {
+  --audit-marker-bg: #fff0e2;
+  --audit-marker-border: #e6b47e;
+  --audit-marker-color: #87480d;
+}
+.audit-event-title {
   display: inline-flex;
   align-items: center;
   max-width: 100%;
-  color: var(--navy);
+  color: var(--audit-marker-color, var(--navy));
   font-size: .78rem;
   font-weight: 600;
   line-height: 1.15;
   padding: .22rem .52rem;
-  border: 1px solid var(--audit-marker-border);
+  border: 1px solid var(--audit-marker-border, #c9e2f4);
   border-radius: 999px;
-  background: var(--audit-marker-bg);
+  background: var(--audit-marker-bg, #eef7ff);
   overflow-wrap: anywhere;
-}
-.audit-event-title.audit-action-create,
-.audit-event-title.audit-action-login {
-  --audit-marker-bg: #eaf8f0;
-  --audit-marker-border: #bde3cd;
-}
-.audit-event-title.audit-action-update {
-  --audit-marker-bg: #fff7df;
-  --audit-marker-border: #f0d98d;
-}
-.audit-event-title.audit-action-delete,
-.audit-event-title.audit-action-logout {
-  --audit-marker-bg: #fff0f0;
-  --audit-marker-border: #efc6c6;
-}
-.audit-event-title.audit-action-default {
-  --audit-marker-bg: #eef7ff;
-  --audit-marker-border: #c9e2f4;
-}
-.audit-event-title.audit-event-create,
-.audit-event-title.audit-event-restore {
-  --audit-marker-bg: #eaf8f0;
-  --audit-marker-border: #bde3cd;
-}
-.audit-event-title.audit-event-update,
-.audit-event-title.audit-event-photo,
-.audit-event-title.audit-event-export {
-  --audit-marker-bg: #eef7ff;
-  --audit-marker-border: #c9e2f4;
-}
-.audit-event-title.audit-event-status,
-.audit-event-title.audit-event-access {
-  --audit-marker-bg: #f3efff;
-  --audit-marker-border: #d7c9f4;
-}
-.audit-event-title.audit-event-trash {
-  --audit-marker-bg: #fff4e5;
-  --audit-marker-border: #f1cf9b;
-}
-.audit-event-title.audit-event-purge {
-  --audit-marker-bg: #fff0f0;
-  --audit-marker-border: #efbebe;
-}
-.audit-event-title.audit-event-login {
-  --audit-marker-bg: #e8f3fd;
-  --audit-marker-border: #93bfe0;
-}
-.audit-event-title.audit-event-logout {
-  --audit-marker-bg: #fff0e2;
-  --audit-marker-border: #e6b47e;
 }
 .audit-inline-detail {
   display: block;
@@ -909,71 +926,12 @@
   min-height: 24px;
   padding: .18rem .48rem;
   border-radius: 999px;
-  border: 1px solid transparent;
+  color: var(--audit-marker-color, var(--navy));
+  background: var(--audit-marker-bg, #eef7ff);
+  border: 1px solid var(--audit-marker-border, var(--metric-border));
   font-size: .78rem;
   line-height: 1.1;
   white-space: nowrap;
-}
-.audit-action-create,
-.audit-action-login {
-  color: #0b5a35;
-  background: #e8f7ee;
-  border-color: #a9ddbf;
-}
-.audit-action-update {
-  color: #6f5700;
-  background: #fff7cf;
-  border-color: #ead779;
-}
-.audit-action-delete,
-.audit-action-logout {
-  color: #8a1f1f;
-  background: #fff1f1;
-  border-color: #f1b8b8;
-}
-.audit-action.audit-event-create,
-.audit-action.audit-event-restore {
-  color: #0b5a35;
-  background: #e8f7ee;
-  border-color: #a9ddbf;
-}
-.audit-action.audit-event-update,
-.audit-action.audit-event-photo,
-.audit-action.audit-event-export {
-  color: #14577f;
-  background: #edf7fd;
-  border-color: #b8dcec;
-}
-.audit-action.audit-event-status,
-.audit-action.audit-event-access {
-  color: #593c88;
-  background: #f3efff;
-  border-color: #d7c9f4;
-}
-.audit-action.audit-event-trash {
-  color: #81500b;
-  background: #fff4e5;
-  border-color: #eecb94;
-}
-.audit-action.audit-event-purge {
-  color: #8a1f1f;
-  background: #fff0f0;
-  border-color: #efbebe;
-}
-.audit-action.audit-event-login {
-  color: #155a8a;
-  background: #e8f3fd;
-  border-color: #93bfe0;
-}
-.audit-action.audit-event-logout {
-  color: #87480d;
-  background: #fff0e2;
-  border-color: #e6b47e;
-}
-.audit-action-default {
-  color: var(--navy);
-  background: #eef7ff;
-  border-color: var(--metric-border);
 }
 .audit-empty {
   display: grid;
@@ -1034,20 +992,6 @@
   overflow-wrap: anywhere;
   word-break: break-word;
   line-height: 1.35;
-}
-.audit-detail-card strong.audit-action-create,
-.audit-detail-card strong.audit-action-login {
-  color: #0b5a35;
-}
-.audit-detail-card strong.audit-action-update {
-  color: #6f5700;
-}
-.audit-detail-card strong.audit-action-delete,
-.audit-detail-card strong.audit-action-logout {
-  color: #8a1f1f;
-}
-.audit-detail-card strong.audit-action-default {
-  color: var(--navy);
 }
 .audit-detail-section {
   margin-top: 14px;
