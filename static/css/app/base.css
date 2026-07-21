@@ -439,7 +439,7 @@ body.modal-open .toast-stack {
   box-shadow: inset 3px 0 rgba(181,233,255,.48);
 }
 .user-menu .dropdown-item.text-danger {
-  color: #ffd1d6 !important;
+  color: #ffb3bb !important;
 }
 .user-menu .dropdown-item.text-danger i {
   color: #ffb9c1;
