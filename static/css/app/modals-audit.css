@@ -974,6 +974,7 @@
   overflow-wrap: anywhere;
 }
 .audit-detail-card strong.audit-action {
+  color: var(--audit-marker-color, var(--navy));
   font-size: .78rem;
 }
 .audit-detail-card--action {
