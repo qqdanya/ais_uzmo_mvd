@@ -51,7 +51,7 @@
   font-weight: 700;
 }
 
-.admin-section-head span {
+.admin-section-head > div > span {
   display: block;
   margin-top: .2rem;
   color: var(--muted);

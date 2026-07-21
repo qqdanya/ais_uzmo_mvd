@@ -238,7 +238,7 @@
   font-size: 1rem;
   font-weight: 600;
 }
-.admin-section-head span {
+.admin-section-head > div > span {
   display: block;
   margin-top: .12rem;
   color: var(--muted);
