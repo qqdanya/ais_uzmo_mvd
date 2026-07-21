@@ -99,6 +99,17 @@ async function toggleCollapsedPanel(panel) {
       ));
     }
     await Promise.all(animations.map((animation) => animation.finished.catch(() => {})));
+    // The workspace panel's transform-based FLIP animation can leave a
+    // position: sticky thead's cached offset stale on some displays once the
+    // transform is removed and the grid settles at its new column widths -
+    // forcing a reflow on its scroll container makes the browser recompute
+    // the sticky constraint against the final (non-transformed) layout.
+    grid.querySelectorAll(".table-wrap").forEach((wrap) => {
+      const previousDisplay = wrap.style.display;
+      wrap.style.display = "none";
+      void wrap.offsetHeight;
+      wrap.style.display = previousDisplay;
+    });
   } finally {
     grid.classList.remove("is-panel-animating");
     dashboardPanelAnimationRunning = false;
