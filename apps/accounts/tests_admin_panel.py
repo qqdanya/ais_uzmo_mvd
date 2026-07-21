@@ -2787,7 +2787,7 @@ class AdminTrashPanelTests(AdminPanelTestMixin, TestCase):
         self.assertIn("justify-content: center", requests_css)
         self.assertIn("admin/base.css?v=20260719-003", admin_css)
         self.assertIn("admin/requests.css?v=20260720-006", admin_css)
-        self.assertIn("admin/employees.css?v=20260720-004", admin_css)
+        self.assertIn("admin/employees.css?v=20260721-002", admin_css)
         self.assertIn("admin/trash.css?v=20260720-006", admin_css)
         self.assertIn("width: max-content", admin_css)
         self.assertIn("grid-template-columns: 1fr", admin_css)

@@ -70,10 +70,6 @@
             <div><h2>Права доступа</h2><span>Что сотрудник видит и где может работать</span></div>
           </div>
           <dl class="admin-detail-list">
-            <div><dt>Отделы — чтение</dt><dd>{{ departments_summary }}</dd></div>
-            <div><dt>Отделы — запись</dt><dd>{{ writable_departments_summary }}</dd></div>
-            <div><dt>Органы — чтение</dt><dd>{{ organs_summary }}</dd></div>
-            <div><dt>Органы — запись</dt><dd>{{ writable_organs_summary }}</dd></div>
             <div><dt>Дата регистрации</dt><dd>{{ employee.date_joined|date:"d.m.Y H:i" }}</dd></div>
             <div><dt>Последний вход</dt><dd>{% if employee.last_login %}{{ employee.last_login|date:"d.m.Y H:i" }}{% else %}—{% endif %}</dd></div>
           </dl>

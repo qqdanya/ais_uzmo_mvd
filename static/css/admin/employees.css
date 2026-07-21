@@ -146,7 +146,7 @@
   color: var(--muted);
 }
 .admin-detail-hero code {
-  color: var(--navy);
+  color: var(--blue);
 }
 .admin-detail-eyebrow {
   display: block;
@@ -200,6 +200,9 @@
 .admin-employee-activation-code span {
   color: var(--muted);
   font-size: .82rem;
+}
+.admin-employee-activation-code span code {
+  color: var(--blue);
 }
 .admin-employee-activation-code > code {
   padding: .4rem .7rem;
@@ -656,7 +659,7 @@
   text-align: center;
 }
 .admin-employees-table code {
-  color: var(--navy);
+  color: var(--blue);
 }
 .admin-employee-name-cell {
   min-width: 190px;
