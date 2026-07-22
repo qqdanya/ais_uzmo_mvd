@@ -12,6 +12,34 @@ let loadingHideTimer = null;
 let loadingResetTimer = null;
 let loadingShownAt = 0;
 let loadingCycle = 0;
+const filterFocusByRequest = new WeakMap();
+
+function rememberFilterFocus(event) {
+  const active = document.activeElement;
+  const target = event.detail?.target;
+  const request = event.detail?.xhr;
+  if (!request || !target?.contains?.(active) || !active?.matches?.("[data-preserve-search-focus]")) return;
+  filterFocusByRequest.set(request, {
+    element: active,
+    id: active.id,
+    start: active.selectionStart,
+    end: active.selectionEnd,
+  });
+}
+
+function restoreFilterFocus(event) {
+  const request = event.detail?.xhr;
+  if (!request) return;
+  const saved = filterFocusByRequest.get(request);
+  filterFocusByRequest.delete(request);
+  if (!saved) return;
+  const input = saved.element?.isConnected ? saved.element : document.getElementById(saved.id);
+  if (!input) return;
+  input.focus({ preventScroll: true });
+  if (typeof input.setSelectionRange === "function" && saved.start !== null) {
+    input.setSelectionRange(saved.start, saved.end);
+  }
+}
 
 function loadingProgress() {
   return document.getElementById("htmx-progress");
@@ -288,7 +316,10 @@ function registerHtmxLifecycle() {
   if (!body) return;
   if (window.htmx?.config) window.htmx.config.timeout = HTMX_REQUEST_TIMEOUT_MS;
 
+  body.addEventListener("htmx:beforeSwap", rememberFilterFocus);
+
   body.addEventListener("htmx:afterSwap", (event) => {
+    restoreFilterFocus(event);
     if (event.detail.target.id === "modal-content") {
       initCustomSelects(event.detail.target);
       initTooltips();

@@ -352,6 +352,9 @@ class PhotoAssetTests(RequestAppTestCase):
         self.client.login(username="operator", password="pass12345")
 
         response = self.client.get(reverse("request_photo_picker", args=[self.organ.pk]), {"attached_photos": [selected.pk], "photo_q": "folder"})
+        self.assertContains(response, "input changed delay:1200ms from:#request-photo-search-input")
+        self.assertContains(response, 'hx-target="#request-photo-results"')
+        self.assertContains(response, 'hx-sync="this:replace"')
         self.assertNotContains(response, "selected-proof.png")
         self.assertContains(response, "folder-proof.png")
         self.assertNotContains(response, "root-proof.png")
@@ -1143,6 +1146,9 @@ class PhotoAssetTests(RequestAppTestCase):
             {"picker_folder": parent.pk, "exclude": folder.pk, "field_name": "parent"},
             HTTP_HX_REQUEST="true",
         )
+        self.assertContains(picker_response, "input changed delay:1200ms from:#folder-picker-search-parent")
+        self.assertContains(picker_response, 'hx-target="next .folder-picker-results"')
+        self.assertContains(picker_response, 'hx-sync="this:replace"')
         self.assertContains(picker_response, "Child")
         self.assertNotContains(picker_response, "Moved")
 
@@ -1294,7 +1300,8 @@ class PhotoAssetTests(RequestAppTestCase):
         self.assertContains(response, "всего папок")
         self.assertContains(response, "В корне: 1 фотографий, 1 папок")
         self.assertContains(response, 'id="photo-search-input"')
-        self.assertContains(response, "input delay:500ms from:#photo-search-input")
+        self.assertContains(response, "input changed delay:1200ms from:#photo-search-input")
+        self.assertContains(response, 'hx-sync="this:replace"')
         self.assertContains(response, '<strong>2</strong>', count=2, html=True)
 
     def test_photos_filter_by_folder(self):

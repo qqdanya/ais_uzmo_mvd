@@ -1,5 +1,5 @@
 {% load account_tags %}
-<div id="request-photo-filters" class="request-photo-filters" hx-get="{% url 'request_photo_picker' organ.pk %}{% if photo_picker_folder %}?photo_folder={{ photo_picker_folder }}{% endif %}" hx-target="closest [data-request-photo-panel]" hx-swap="innerHTML" hx-include="#request-photo-selected, #request-photo-search-input, #request-photo-sort-input" hx-trigger="input delay:500ms from:#request-photo-search-input, change from:#request-photo-sort-input">
+<div id="request-photo-filters" class="request-photo-filters" hx-get="{% url 'request_photo_picker' organ.pk %}{% if photo_picker_folder %}?photo_folder={{ photo_picker_folder }}{% endif %}" hx-target="#request-photo-results" hx-select="#request-photo-results" hx-swap="outerHTML" hx-include="#request-photo-selected, #request-photo-search-input, #request-photo-sort-input" hx-trigger="input changed delay:1200ms from:#request-photo-search-input, keyup[key=='Enter'] from:#request-photo-search-input, change from:#request-photo-sort-input" hx-sync="this:replace">
   <div class="search-box request-photo-search">
     <i class="bi bi-search"></i>
     <input id="request-photo-search-input" class="form-control form-control-sm" name="photo_q" value="{{ photo_picker_query }}" placeholder="Поиск в текущей папке">

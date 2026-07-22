@@ -23,7 +23,7 @@
       <span>всего папок</span>
     </span>
   </div>
-  <form class="photo-filters" hx-get="{% url 'photos' organ.pk %}" hx-target="#photo-results" hx-select="#photo-results" hx-swap="outerHTML" hx-trigger="input delay:500ms from:#photo-search-input, change">
+  <form class="photo-filters" hx-get="{% url 'photos' organ.pk %}" hx-target="#photo-results" hx-select="#photo-results" hx-swap="outerHTML" hx-trigger="input changed delay:1200ms from:#photo-search-input, change, submit" hx-sync="this:replace">
     <div class="search-box photo-search-box">
       <i class="bi bi-search"></i>
       <input id="photo-search-input" class="form-control form-control-sm" name="q" value="{{ photo_query }}" placeholder="Поиск по описанию, файлу и папке">

@@ -1,5 +1,6 @@
 (() => {
   const formSelector = "form[data-admin-auto-filter]";
+  const searchDelay = 1200;
   const timerByForm = new WeakMap();
 
   const submit = (form, delay = 0) => {
@@ -15,7 +16,14 @@
 
   document.addEventListener("input", (event) => {
     const form = event.target.closest(formSelector);
-    if (form && event.target.matches('input[type="search"], input[name="q"]')) submit(form, 450);
+    if (form && event.target.matches('input[type="search"], input[name="q"]')) submit(form, searchDelay);
+  });
+
+  document.addEventListener("submit", (event) => {
+    const form = event.target.closest(formSelector);
+    if (!form) return;
+    window.clearTimeout(timerByForm.get(form));
+    timerByForm.delete(form);
   });
 
   document.addEventListener("change", (event) => {

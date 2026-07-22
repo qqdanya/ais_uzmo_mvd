@@ -49,7 +49,7 @@
         <a class="admin-status-tab{% if section == 'folders' %} active{% endif %}" href="{% url trash_panel_url_name %}?section=folders{% if query %}&q={{ query|urlencode }}{% endif %}"><span>Папки</span><strong>{{ counts.folders }}</strong></a>
       </nav>
 
-      <form class="admin-section admin-assets-filter admin-trash-filter" method="get" hx-get="{{ request.path }}" hx-trigger="input changed delay:450ms from:input[name='q'], submit" hx-target=".admin-trash-screen" hx-select=".admin-trash-screen" hx-swap="outerHTML" hx-push-url="true">
+      <form id="admin-trash-filter-form" class="admin-section admin-assets-filter admin-trash-filter" method="get" hx-get="{{ request.path }}" hx-trigger="input changed delay:1200ms from:input[name='q'], submit" hx-target=".admin-trash-screen" hx-select=".admin-trash-screen" hx-swap="outerHTML" hx-push-url="true" hx-sync="this:replace" hx-preserve>
         <div class="admin-section-head">
           <div>
             <h2>Фильтр</h2>
@@ -59,7 +59,7 @@
         <div class="admin-trash-filter-row">
           <label class="admin-filter-field admin-filter-field-search admin-trash-filter-search">
             <span>Поиск</span>
-            <input class="form-control form-control-sm" type="search" name="q" value="{{ query }}" placeholder="Например: номер заявки, IMG_001, ОП №1">
+            <input id="admin-trash-search" class="form-control form-control-sm" type="search" name="q" value="{{ query }}" placeholder="Например: номер заявки, IMG_001, ОП №1" data-preserve-search-focus>
           </label>
         </div>
       </form>

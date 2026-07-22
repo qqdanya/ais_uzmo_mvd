@@ -2796,7 +2796,11 @@ class AdminTrashPanelTests(AdminPanelTestMixin, TestCase):
 
         response = self.client.get(reverse("trash_panel"))
 
-        self.assertContains(response, 'hx-trigger="input changed delay:450ms from:input[name=\'q\'], submit"')
+        self.assertContains(response, 'hx-trigger="input changed delay:1200ms from:input[name=\'q\'], submit"')
+        self.assertContains(response, 'hx-sync="this:replace"')
+        self.assertContains(response, "hx-preserve")
+        self.assertContains(response, 'id="admin-trash-search"')
+        self.assertContains(response, "data-preserve-search-focus")
         self.assertContains(response, 'hx-select=".admin-trash-screen"')
         self.assertNotContains(response, ">Сбросить</a>", html=False)
         self.assertNotContains(response, ">Найти</button>", html=False)

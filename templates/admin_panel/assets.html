@@ -33,7 +33,7 @@
         {% endfor %}
       </nav>
 
-      <form class="admin-section admin-assets-filter" method="get" data-admin-auto-filter>
+      <form id="admin-assets-filter-form" class="admin-section admin-assets-filter" method="get" data-admin-auto-filter hx-get="{{ request.path }}" hx-target=".admin-assets-screen" hx-select=".admin-assets-screen" hx-swap="outerHTML" hx-push-url="true" hx-sync="this:replace" hx-preserve>
         <div class="admin-section-head">
           <div>
             <h2>Фильтры</h2>
@@ -51,7 +51,7 @@
           </div>
           <label class="admin-filter-field admin-filter-field-search">
             <span>Поиск органа</span>
-            <input class="form-control form-control-sm" type="search" name="q" value="{{ filters.query }}" placeholder="Название или номер органа">
+            <input id="admin-assets-search" class="form-control form-control-sm" type="search" name="q" value="{{ filters.query }}" placeholder="Название или номер органа" data-preserve-search-focus>
           </label>
         </div>
 
@@ -81,13 +81,14 @@
           </div>
         </div>
 
+      </form>
+
         {% if active_filter_chips %}
           <div class="admin-active-filter-row" aria-label="Активные фильтры">
             {% for chip in active_filter_chips %}<span>{{ chip }}</span>{% endfor %}
             <a class="btn btn-sm btn-outline-secondary admin-active-filter-reset" href="{{ reset_url }}"><i class="bi bi-x-lg"></i> Сбросить все</a>
           </div>
         {% endif %}
-      </form>
 
       <section class="admin-assets-kpi" aria-label="Ключевые показатели материальной базы">
         {% for item in asset_kpis %}

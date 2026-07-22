@@ -774,7 +774,10 @@ class TmcRequestTests(RequestAppTestCase):
         response = self.client.get(reverse("table_data", args=[self.organ.pk, "tmc-requests"]))
 
         self.assertContains(response, 'id="table-search-tmc-requests"')
-        self.assertContains(response, "input delay:500ms from:#table-search-tmc-requests")
+        self.assertContains(response, "input changed delay:1200ms from:#table-search-tmc-requests")
+        self.assertContains(response, 'hx-sync="this:replace"')
+        self.assertContains(response, "hx-preserve")
+        self.assertContains(response, "data-preserve-search-focus")
         self.assertContains(response, "change")
         self.assertNotContains(response, "from:input")
 
