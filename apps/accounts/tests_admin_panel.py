@@ -2887,7 +2887,7 @@ class AdminTrashPanelTests(AdminPanelTestMixin, TestCase):
         self.assertIn(".admin-organs-table th:first-child", admin_css)
         self.assertIn(".admin-departments-table th:last-child", admin_css)
         self.assertIn(".admin-assets-matrix-table td:last-child", admin_css)
-        self.assertIn("css/admin.css' %}?v=20260720-007", trash_template)
+        self.assertIn("css/admin.css' %}?v=20260722-003", trash_template)
 
 
 

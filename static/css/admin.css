@@ -87,3 +87,155 @@
 .admin-asset-category-table td:last-child {
   text-align: center;
 }
+
+/* Final mobile safeguards for the administrative panel. Profile styles define
+ * their desktop grids independently; this layer guarantees that every filter
+ * becomes a real single-column layout instead of creating implicit columns. */
+@media (max-width: 720px) {
+  .admin-command-page,
+  .admin-command-panel,
+  .admin-summary-screen,
+  .admin-summary-filter-layout,
+  .admin-summary-filters,
+  .admin-summary-filters-tabs,
+  .admin-summary-filters [role="tabpanel"],
+  .admin-summary-organs,
+  .admin-summary-departments,
+  .admin-section,
+  .admin-command-head,
+  .admin-command-actions,
+  .admin-employee-detail-screen,
+  .admin-employee-detail-grid,
+  .admin-employee-detail-kpi,
+  .admin-detail-topline,
+  .admin-detail-hero {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .admin-command-head,
+  .admin-employee-detail-screen,
+  .admin-employee-detail-grid,
+  .admin-employee-detail-kpi {
+    width: 100%;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-command-actions,
+  .admin-detail-topline {
+    width: 100%;
+  }
+
+  .admin-employee-detail-page .admin-detail-hero {
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .admin-employee-detail-page .admin-detail-hero > div,
+  .admin-employee-detail-page .admin-detail-hero h2,
+  .admin-employee-detail-page .admin-detail-hero p,
+  .admin-employee-detail-page .admin-detail-hero code,
+  .admin-employee-rights-lists,
+  .admin-employee-actions-list,
+  .admin-employee-log-list {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .admin-employee-detail-page .admin-employee-detail-status {
+    width: 100%;
+    margin-left: 0;
+    justify-items: start;
+  }
+
+  .admin-employee-detail-kpi > *,
+  .admin-employee-detail-grid > * {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .admin-employee-log-item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-summary-filters-tabs {
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    border-radius: 12px;
+  }
+
+  .admin-summary-filters-tab {
+    width: 100%;
+    min-width: 0;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    border-radius: 9px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: left;
+    line-height: 1.2;
+  }
+
+  .admin-requests-filter-grid,
+  .admin-organs-filter-grid,
+  .admin-organs-detail-filter-grid,
+  .admin-departments-filter-grid,
+  .admin-departments-detail-filter-grid,
+  .admin-assets-filter-grid,
+  .admin-assets-detail-filter-grid,
+  .admin-employees-filter-grid {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: stretch;
+  }
+
+  .admin-requests-filter-grid > *,
+  .admin-organs-filter-grid > *,
+  .admin-organs-detail-filter-grid > *,
+  .admin-departments-filter-grid > *,
+  .admin-departments-detail-filter-grid > *,
+  .admin-assets-filter-grid > *,
+  .admin-assets-detail-filter-grid > *,
+  .admin-employees-filter-grid > * {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .admin-filter-field,
+  .admin-filter-field-search,
+  .admin-date-picker,
+  .admin-multiselect,
+  .admin-multiselect-trigger,
+  .admin-filter-field .form-control,
+  .admin-filter-field .form-select {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .admin-multiselect-menu.show {
+    position: static !important;
+    inset: auto !important;
+    width: 100% !important;
+    max-width: 100%;
+    margin-top: 6px;
+    transform: none !important;
+  }
+
+  .admin-organs-kpi,
+  .admin-departments-kpi,
+  .admin-assets-kpi {
+    justify-items: stretch;
+  }
+
+  .admin-organs-kpi > *,
+  .admin-departments-kpi > *,
+  .admin-assets-kpi > * {
+    width: 100%;
+    min-width: 0;
+  }
+}
