@@ -254,11 +254,12 @@
   font-weight: 700;
 }
 .btn-icon {
-  width: 28px;
-  height: 28px;
+  width: 34px;
+  height: 34px;
   padding: 0;
   display: inline-grid;
   place-items: center;
+  border-radius: var(--button-radius);
   border: 1px solid var(--line);
   color: var(--blue);
   background: white;
@@ -287,8 +288,9 @@
 }
 .btn-download {
   color: var(--green);
-  border-color: var(--green);
-  background: #fff;
+  border-color: #83b99b;
+  background-color: #f4fbf7;
+  background-image: none;
 }
 .btn-download:hover,
 .btn-download:focus-visible {
