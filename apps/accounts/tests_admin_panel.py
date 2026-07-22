@@ -701,6 +701,39 @@ class AdminRequestsPanelTests(AdminPanelTestMixin, TestCase):
         self.assertIn("Статусы: Исполнено", response.context["active_filter_chips"])
 
 
+    def test_requests_panel_normalizes_organ_filter_urls(self):
+        self.login_admin()
+
+        legacy_response = self.client.get(
+            reverse("admin_requests_panel"),
+            {"organ_ids": [str(self.organ.pk)]},
+        )
+
+        self.assertEqual(legacy_response.status_code, 200)
+        compact_parameter = f"organs={self.organ.pk}"
+        for tab in legacy_response.context["status_tabs"]:
+            self.assertIn(compact_parameter, tab["url"])
+            self.assertNotIn("organ_ids=", tab["url"])
+        self.assertIn(
+            {"name": "organs", "value": str(self.organ.pk)},
+            legacy_response.context["pagination_fields"],
+        )
+
+        compact_response = self.client.get(
+            reverse("admin_requests_panel"),
+            {"organs": f"{self.organ.pk}-{self.other_organ.pk}"},
+        )
+
+        self.assertEqual(compact_response.status_code, 200)
+        self.assertEqual(
+            set(compact_response.context["selected_organ_ids"]),
+            {self.organ.pk, self.other_organ.pk},
+        )
+        self.assertIn(
+            {"name": "organs", "value": f"{self.organ.pk}-{self.other_organ.pk}"},
+            compact_response.context["pagination_fields"],
+        )
+
     def test_request_detail_shows_linked_photo_thumbnails(self):
         self.login_admin()
         request_obj = TmcRequest.objects.create(
@@ -2791,17 +2824,18 @@ class AdminTrashPanelTests(AdminPanelTestMixin, TestCase):
         self.assertEqual(count_response.status_code, 200)
         self.assertEqual(count_response.json(), {"count": 1})
 
-    def test_trash_search_is_live_and_has_no_submit_or_reset_buttons(self):
+    def test_trash_search_updates_results_without_replacing_input(self):
         self.login_operator()
 
         response = self.client.get(reverse("trash_panel"))
 
-        self.assertContains(response, 'hx-trigger="input changed delay:1200ms from:input[name=\'q\'], submit"')
+        self.assertContains(response, "data-admin-auto-filter")
         self.assertContains(response, 'hx-sync="this:replace"')
-        self.assertContains(response, "hx-preserve")
         self.assertContains(response, 'id="admin-trash-search"')
-        self.assertContains(response, "data-preserve-search-focus")
-        self.assertContains(response, 'hx-select=".admin-trash-screen"')
+        self.assertContains(response, 'hx-target="#admin-trash-results"')
+        self.assertContains(response, 'hx-select="#admin-trash-results"')
+        self.assertContains(response, 'id="admin-trash-results"')
+        self.assertNotContains(response, "data-preserve-search-focus")
         self.assertNotContains(response, ">Сбросить</a>", html=False)
         self.assertNotContains(response, ">Найти</button>", html=False)
         self.assertContains(response, "Через 90 дней")
@@ -2887,7 +2921,7 @@ class AdminTrashPanelTests(AdminPanelTestMixin, TestCase):
         self.assertIn(".admin-organs-table th:first-child", admin_css)
         self.assertIn(".admin-departments-table th:last-child", admin_css)
         self.assertIn(".admin-assets-matrix-table td:last-child", admin_css)
-        self.assertIn("css/admin.css' %}?v=20260722-003", trash_template)
+        self.assertIn("css/admin.css' %}?v=20260722-004", trash_template)
 
 
 

@@ -1,5 +1,5 @@
 {% load account_tags %}
-      <form id="admin-employees-filter-form" class="admin-section admin-employees-filter" method="get" data-admin-auto-filter hx-get="{{ request.path }}" hx-target=".admin-employees-screen" hx-select=".admin-employees-screen" hx-swap="outerHTML" hx-push-url="true" hx-sync="this:replace" hx-preserve>
+      <form id="admin-employees-filter-form" class="admin-section admin-employees-filter" method="get" data-admin-auto-filter hx-get="{{ request.path }}" hx-target="#admin-employees-results" hx-select="#admin-employees-results" hx-swap="outerHTML" hx-push-url="true" hx-sync="this:replace">
         <div class="admin-section-head">
           <div>
             <h2>Фильтры</h2>
@@ -9,7 +9,7 @@
         <div class="admin-employees-filter-grid">
           <label class="admin-filter-field admin-filter-field-search">
             <span>Поиск сотрудника</span>
-            <input id="admin-employees-search" class="form-control form-control-sm admin-control" type="search" name="q" value="{{ filters.query }}" placeholder="ФИО или логин" data-preserve-search-focus>
+            <input id="admin-employees-search" class="form-control form-control-sm admin-control" type="search" name="q" value="{{ filters.query }}" placeholder="ФИО или логин">
           </label>
 
           <div class="admin-filter-field">
@@ -41,10 +41,3 @@
         </div>
 
       </form>
-
-        {% if active_filter_chips %}
-          <div class="admin-active-filter-row" aria-label="Активные фильтры">
-            {% for chip in active_filter_chips %}<span>{{ chip }}</span>{% endfor %}
-            <a class="btn btn-sm btn-outline-secondary admin-active-filter-reset" href="{{ reset_url }}"><i class="bi bi-x-lg"></i> Сбросить все</a>
-          </div>
-        {% endif %}

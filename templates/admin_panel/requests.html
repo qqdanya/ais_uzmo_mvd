@@ -4,7 +4,7 @@
 {% block title %}Заявки | Административная панель{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260722-003">
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260722-004">
 {% endblock %}
 
 {% block content %}
@@ -13,7 +13,7 @@
     {% include "admin_panel/_executive_nav.html" with active_tab="requests" %}
 
     <section class="admin-requests-screen" aria-label="Единый реестр заявок">
-      <div class="admin-requests-hero">
+      <div id="admin-requests-hero" class="admin-requests-hero" hx-swap-oob="outerHTML">
         <div>
           <h2>Заявки</h2>
         </div>
@@ -23,7 +23,7 @@
         </div>
       </div>
 
-      <nav class="admin-status-tabs" aria-label="Быстрые фильтры по статусу">
+      <nav id="admin-requests-tabs" class="admin-status-tabs" aria-label="Быстрые фильтры по статусу" hx-swap-oob="outerHTML">
         {% for tab in status_tabs %}
           <a class="admin-status-tab{% if tab.active %} active{% endif %}" href="{{ tab.url }}">
             <span>{{ tab.label }}</span>
@@ -32,7 +32,7 @@
         {% endfor %}
       </nav>
 
-      <form id="admin-requests-filter-form" class="admin-section admin-requests-filter" method="get" data-admin-auto-filter hx-get="{{ request.path }}" hx-target=".admin-requests-screen" hx-select=".admin-requests-screen" hx-swap="outerHTML" hx-push-url="true" hx-sync="this:replace" hx-preserve>
+      <form id="admin-requests-filter-form" class="admin-section admin-requests-filter" method="get" data-admin-auto-filter hx-get="{{ request.path }}" hx-target="#admin-requests-results" hx-select="#admin-requests-results" hx-swap="outerHTML" hx-push-url="true" hx-sync="this:replace">
         <div class="admin-section-head">
           <div>
             <h2>Фильтры</h2>
@@ -51,7 +51,7 @@
           </div>
           <label class="admin-filter-field admin-filter-field-search">
             <span>Поиск</span>
-            <input id="admin-requests-search" class="form-control form-control-sm" type="search" name="q" value="{{ filters.query }}" placeholder="Номер, орган, комментарий" data-preserve-search-focus>
+            <input id="admin-requests-search" class="form-control form-control-sm" type="search" name="q" value="{{ filters.query }}" placeholder="Номер, орган, комментарий">
           </label>
         </div>
 
@@ -94,6 +94,7 @@
 
       </form>
 
+      <div id="admin-requests-results" class="admin-filter-results">
         {% if active_filter_chips %}
           <div class="admin-active-filter-row" aria-label="Активные фильтры">
               {% for chip in active_filter_chips %}
@@ -183,6 +184,7 @@
           </div>
         {% endif %}
       </section>
+      </div>
     </section>
   </section>
 </div>

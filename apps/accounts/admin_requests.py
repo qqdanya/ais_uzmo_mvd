@@ -20,6 +20,7 @@ from .admin_common import (
     DEPARTMENT_ICONS,
     STATUS_BADGE_CLASSES,
     apply_period,
+    build_pagination_fields,
     completion_display,
     completion_totals_for_queryset,
     date_period_from_request,
@@ -306,18 +307,12 @@ def active_filter_chips(filters, selected_organs_list, available_organs, departm
 
 
 def pagination_fields(request):
-    fields = []
-    for name in ("date_from", "date_to", "q"):
-        value = request.GET.get(name, "")
-        if value:
-            fields.append({"name": name, "value": value})
-    for name in ("department", "state", "organ_ids"):
-        for value in request.GET.getlist(name):
-            if value:
-                fields.append({"name": name, "value": value})
-    if request.GET.get("organ_filter_empty") == "1":
-        fields.append({"name": "organ_filter_empty", "value": "1"})
-    return fields
+    return build_pagination_fields(
+        request,
+        scalar_fields=("date_from", "date_to", "q"),
+        list_fields=("department", "state", "organ_ids"),
+        flag_fields=("organ_filter_empty",),
+    )
 
 
 def build_request_filters(request, departments):

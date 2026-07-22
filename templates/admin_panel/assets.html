@@ -4,7 +4,7 @@
 {% block title %}Материальная база | Административная панель{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260722-003">
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260722-004">
 {% endblock %}
 
 {% block content %}
@@ -13,7 +13,7 @@
     {% include "admin_panel/_executive_nav.html" with active_tab="assets" %}
 
     <section class="admin-assets-screen" aria-label="Материальная база">
-      <div class="admin-requests-hero admin-assets-hero">
+      <div id="admin-assets-hero" class="admin-requests-hero admin-assets-hero" hx-swap-oob="outerHTML">
         <div>
           <h2>Материальная база</h2>
           <p>Текущее состояние по последним внесённым данным: огнетушители, пожарная сигнализация, охранная сигнализация и служебное жильё.</p>
@@ -24,7 +24,7 @@
         </div>
       </div>
 
-      <nav class="admin-status-tabs" aria-label="Фильтры материальной базы">
+      <nav id="admin-assets-tabs" class="admin-status-tabs" aria-label="Фильтры материальной базы" hx-swap-oob="outerHTML">
         {% for tab in status_tabs %}
           <a class="admin-status-tab{% if tab.active %} active{% endif %}" href="{{ tab.url }}">
             <span>{{ tab.label }}</span>
@@ -33,7 +33,7 @@
         {% endfor %}
       </nav>
 
-      <form id="admin-assets-filter-form" class="admin-section admin-assets-filter" method="get" data-admin-auto-filter hx-get="{{ request.path }}" hx-target=".admin-assets-screen" hx-select=".admin-assets-screen" hx-swap="outerHTML" hx-push-url="true" hx-sync="this:replace" hx-preserve>
+      <form id="admin-assets-filter-form" class="admin-section admin-assets-filter" method="get" data-admin-auto-filter hx-get="{{ request.path }}" hx-target="#admin-assets-results" hx-select="#admin-assets-results" hx-swap="outerHTML" hx-push-url="true" hx-sync="this:replace">
         <div class="admin-section-head">
           <div>
             <h2>Фильтры</h2>
@@ -51,7 +51,7 @@
           </div>
           <label class="admin-filter-field admin-filter-field-search">
             <span>Поиск органа</span>
-            <input id="admin-assets-search" class="form-control form-control-sm" type="search" name="q" value="{{ filters.query }}" placeholder="Название или номер органа" data-preserve-search-focus>
+            <input id="admin-assets-search" class="form-control form-control-sm" type="search" name="q" value="{{ filters.query }}" placeholder="Название или номер органа">
           </label>
         </div>
 
@@ -83,6 +83,7 @@
 
       </form>
 
+      <div id="admin-assets-results" class="admin-filter-results">
         {% if active_filter_chips %}
           <div class="admin-active-filter-row" aria-label="Активные фильтры">
             {% for chip in active_filter_chips %}<span>{{ chip }}</span>{% endfor %}
@@ -229,6 +230,7 @@
           </div>
         {% endif %}
       </section>
+      </div>
     </section>
   </section>
 </div>

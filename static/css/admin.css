@@ -12,6 +12,12 @@
 @import url("admin/employees.css?v=20260721-002");
 @import url("admin/trash.css?v=20260720-006");
 
+.admin-filter-results {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
 /* A single alignment rule keeps every registry in the administrative panel consistent. */
 .admin-requests-table th,
 .admin-requests-table td {

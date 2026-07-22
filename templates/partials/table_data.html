@@ -1,7 +1,9 @@
 {% include "partials/table/_nested_tabs.html" %}
 {% include "partials/table/_toolbar.html" %}
-{% include "partials/table/_active_filters.html" %}
-{% include "partials/table/_summary.html" %}
-{% include "partials/table/_actions.html" %}
-{% include "partials/table/_pagination.html" %}
-{% include "partials/table/_rows.html" %}
+<div id="table-filter-results" data-record-count="{{ page.paginator.count }}" data-record-label="{{ record_label }}">
+  {% include "partials/table/_active_filters.html" %}
+  {% include "partials/table/_summary.html" %}
+  {% include "partials/table/_actions.html" %}
+  {% include "partials/table/_pagination.html" %}
+  {% include "partials/table/_rows.html" %}
+</div>

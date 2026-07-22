@@ -16,12 +16,12 @@
           {% include "partials/date_range_picker.html" with from_name="expiry_from" to_name="expiry_to" from_value=request.GET.expiry_from to_value=request.GET.expiry_to empty_label="Срок годности" %}
         </form>
     {% elif is_request_table %}
-        <form id="table-filter-form-{{ table.key }}" class="tmc-filter-form" data-table-filter-form data-default-date-from="{{ table_filter_defaults.date_from }}" data-default-date-to="{{ table_filter_defaults.date_to }}" hx-get="{% url 'table_data' organ.pk table.key %}" hx-target="#table-area" hx-trigger="input changed delay:1200ms from:#table-search-{{ table.key }}, change, submit" hx-swap="innerHTML" hx-sync="this:replace" hx-preserve>
+        <form id="table-filter-form-{{ table.key }}" class="tmc-filter-form" data-table-filter-form data-default-date-from="{{ table_filter_defaults.date_from }}" data-default-date-to="{{ table_filter_defaults.date_to }}" hx-get="{% url 'table_data' organ.pk table.key %}" hx-target="#table-filter-results" hx-select="#table-filter-results" hx-trigger="input changed delay:1500ms from:#table-search-{{ table.key }}, change, submit" hx-swap="outerHTML" hx-sync="this:replace">
           {% if is_multi_organ %}{% for selected_organ in selected_organs %}<input type="hidden" name="organ_ids" value="{{ selected_organ.pk }}">{% endfor %}{% endif %}
           {% if is_request_grouped %}<input type="hidden" name="group" value="{{ group_mode }}">{% endif %}
           <div class="search-box table-search-box">
             <i class="bi bi-search"></i>
-            <input id="table-search-{{ table.key }}" class="form-control form-control-sm" name="q" value="{{ request.GET.q }}" placeholder="{{ search_placeholder }}" data-preserve-search-focus>
+            <input id="table-search-{{ table.key }}" class="form-control form-control-sm" name="q" value="{{ request.GET.q }}" placeholder="{{ search_placeholder }}">
           </div>
           {% single_select name="status" options=status_filter_choices selected_value=request.GET.status aria_label="Исполнение заявки" %}
           {% if table.key == "citsizi-equipment" %}

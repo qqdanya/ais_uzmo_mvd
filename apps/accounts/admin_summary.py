@@ -13,7 +13,7 @@ from apps.requests_app.models import NeedStatus, RequestStatusHistory
 from apps.requests_app.permissions import can_view
 from apps.requests_app.registry import TABLES
 
-from .admin_common import month_bounds, request_number
+from .admin_common import compact_organ_ids_from_request, month_bounds, request_number
 from .admin_thresholds import get_request_stale_workdays
 from .business_days import business_days_inclusive, subtract_business_days_inclusive
 
@@ -120,10 +120,7 @@ def selected_organs(request, available_organs):
     available_by_id = {organ.pk: organ for organ in available_organs}
     if request.GET.get("organ_filter_empty") == "1":
         return []
-    raw_ids = request.GET.getlist("organ_ids")
-    if not raw_ids and request.GET.get("organ_ids"):
-        raw_ids = request.GET["organ_ids"].split(",")
-    ids = [int(value) for value in raw_ids if str(value).isdigit()]
+    ids = [int(value) for value in compact_organ_ids_from_request(request)]
     if not ids:
         return available_organs
     return [available_by_id[pk] for pk in ids if pk in available_by_id]
@@ -561,10 +558,7 @@ def summary_data_cache_key(request, metric):
     # more granular than "admin sees everything" - a stale hit here would
     # only affect the read-only KPI/chart JSON, never a write or a
     # permission check, so a coarse per-user key is a fine tradeoff.
-    raw_ids = request.GET.getlist("organ_ids")
-    if not raw_ids and request.GET.get("organ_ids"):
-        raw_ids = request.GET["organ_ids"].split(",")
-    organ_ids = ",".join(sorted({value for value in raw_ids if str(value).isdigit()}))
+    organ_ids = ",".join(sorted(compact_organ_ids_from_request(request)))
     raw_departments = request.GET.getlist("department_ids")
     if not raw_departments and request.GET.get("department_ids"):
         raw_departments = request.GET["department_ids"].split(",")

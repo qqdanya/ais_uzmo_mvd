@@ -4,7 +4,7 @@
 {% block title %}Сотрудники | Административная панель{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260722-003">
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260722-004">
 {% endblock %}
 
 {% block content %}
@@ -16,8 +16,11 @@
       {% include "admin_panel/employees/_hero.html" %}
       {% include "admin_panel/employees/_tabs.html" %}
       {% include "admin_panel/employees/_filters.html" %}
-      {% include "admin_panel/employees/_kpis.html" %}
-      {% include "admin_panel/employees/_table.html" %}
+      <div id="admin-employees-results" class="admin-filter-results">
+        {% include "admin_panel/employees/_active_filters.html" %}
+        {% include "admin_panel/employees/_kpis.html" %}
+        {% include "admin_panel/employees/_table.html" %}
+      </div>
     </section>
   </section>
 </div>

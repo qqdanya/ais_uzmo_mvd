@@ -6,6 +6,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 
+from .admin_common import compact_organ_query_value
 from .admin_summary import (
     available_departments,
     available_organs_for_user,
@@ -533,18 +534,21 @@ def report_filter_fields(request):
         "period",
         "date_from",
         "date_to",
-        "organ_ids",
         "organ_filter_empty",
         "department_ids",
         "department_filter_empty",
         "granularity",
     }
-    return [
+    fields = [
         (key, value)
         for key, values in request.GET.lists()
         if key in allowed
         for value in values
     ]
+    compact_organs = compact_organ_query_value(request)
+    if compact_organs and request.GET.get("organ_filter_empty") != "1":
+        fields.append(("organs", compact_organs))
+    return fields
 
 
 def build_summary_report_context(request):

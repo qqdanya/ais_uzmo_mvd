@@ -16,6 +16,28 @@ from .business_days import business_days_inclusive
 DEFAULT_PER_PAGE = 50
 COMPLETION_CHUNK_SIZE = 500
 
+
+def compact_organ_ids_from_request(request):
+    """Return unique numeric organ IDs from the compact or legacy query format."""
+    raw_values = []
+    compact_value = request.GET.get("organs", "")
+    if compact_value:
+        raw_values.extend(compact_value.replace(",", "-").split("-"))
+    else:
+        for value in request.GET.getlist("organ_ids"):
+            raw_values.extend(str(value).replace(",", "-").split("-"))
+    result = []
+    for value in raw_values:
+        value = str(value).strip()
+        if value.isdigit() and value not in result:
+            result.append(value)
+    return result
+
+
+def compact_organ_query_value(request):
+    return "-".join(compact_organ_ids_from_request(request))
+
+
 STATUS_BADGE_CLASSES = {
     NeedStatus.IN_WORK: "status-in_work",
     NeedStatus.DONE: "status-done",
@@ -203,6 +225,11 @@ def filter_department_options_by_search(departments, query):
 def query_with(request, **updates):
     query = request.GET.copy()
     query.pop("page", None)
+    compact_organs = compact_organ_query_value(request)
+    query.pop("organ_ids", None)
+    query.pop("organs", None)
+    if compact_organs and request.GET.get("organ_filter_empty") != "1":
+        query["organs"] = compact_organs
     for key, value in updates.items():
         query.pop(key, None)
         if value in (None, ""):
@@ -410,6 +437,11 @@ def build_pagination_fields(request, scalar_fields=(), list_fields=(), flag_fiel
         if value:
             fields.append({"name": name, "value": value})
     for name in list_fields:
+        if name == "organ_ids":
+            compact_organs = compact_organ_query_value(request)
+            if compact_organs and request.GET.get("organ_filter_empty") != "1":
+                fields.append({"name": "organs", "value": compact_organs})
+            continue
         for value in request.GET.getlist(name):
             if value:
                 fields.append({"name": name, "value": value})

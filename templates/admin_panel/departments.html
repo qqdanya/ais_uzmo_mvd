@@ -4,7 +4,7 @@
 {% block title %}Отделы | Административная панель{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260722-003">
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260722-004">
 {% endblock %}
 
 {% block content %}
@@ -13,7 +13,7 @@
     {% include "admin_panel/_executive_nav.html" with active_tab="departments" %}
 
     <section class="admin-departments-screen" aria-label="Состояние заявок по отделам">
-      <div class="admin-requests-hero admin-departments-hero">
+      <div id="admin-departments-hero" class="admin-requests-hero admin-departments-hero" hx-swap-oob="outerHTML">
         <div>
           <h2>Отделы</h2>
           <p>Состояние заявок и сроки обработки по отделам.</p>
@@ -24,7 +24,7 @@
         </div>
       </div>
 
-      <nav class="admin-status-tabs" aria-label="Фильтры по отделам">
+      <nav id="admin-departments-tabs" class="admin-status-tabs" aria-label="Фильтры по отделам" hx-swap-oob="outerHTML">
         {% for tab in view_tabs %}
           <a class="admin-status-tab{% if tab.active %} active{% endif %}" href="{{ tab.url }}">
             <span>{{ tab.label }}</span>
@@ -33,7 +33,7 @@
         {% endfor %}
       </nav>
 
-      <form id="admin-departments-filter-form" class="admin-section admin-departments-filter" method="get" data-admin-auto-filter hx-get="{{ request.path }}" hx-target=".admin-departments-screen" hx-select=".admin-departments-screen" hx-swap="outerHTML" hx-push-url="true" hx-sync="this:replace" hx-preserve>
+      <form id="admin-departments-filter-form" class="admin-section admin-departments-filter" method="get" data-admin-auto-filter hx-get="{{ request.path }}" hx-target="#admin-departments-results" hx-select="#admin-departments-results" hx-swap="outerHTML" hx-push-url="true" hx-sync="this:replace">
         <div class="admin-section-head">
           <div>
             <h2>Фильтры</h2>
@@ -48,7 +48,7 @@
           </div>
           <label class="admin-filter-field admin-filter-field-search">
             <span>Поиск отдела</span>
-            <input id="admin-departments-search" class="form-control form-control-sm" type="search" name="q" value="{{ filters.query }}" placeholder="Название или код отдела" data-preserve-search-focus>
+            <input id="admin-departments-search" class="form-control form-control-sm" type="search" name="q" value="{{ filters.query }}" placeholder="Название или код отдела">
           </label>
           <input type="hidden" name="view" value="{{ filters.view }}">
         </div>
@@ -92,6 +92,7 @@
 
       </form>
 
+      <div id="admin-departments-results" class="admin-filter-results">
         {% if active_filter_chips %}
           <div class="admin-active-filter-row" aria-label="Активные фильтры">
               {% for chip in active_filter_chips %}
@@ -182,6 +183,7 @@
           </div>
         {% endif %}
       </section>
+      </div>
     </section>
   </section>
 </div>

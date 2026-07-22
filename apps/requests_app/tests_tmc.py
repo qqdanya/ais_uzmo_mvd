@@ -768,16 +768,18 @@ class TmcRequestTests(RequestAppTestCase):
         self.assertContains(response, f'{reverse("department_tables", args=[self.organ.pk, "tmc"])}?table=tmc-requests')
         self.assertNotContains(response, "Сбросить фильтры")
 
-    def test_request_table_search_triggers_while_typing(self):
+    def test_request_table_search_updates_results_without_replacing_input(self):
         self.client.login(username="operator", password="pass12345")
 
         response = self.client.get(reverse("table_data", args=[self.organ.pk, "tmc-requests"]))
 
         self.assertContains(response, 'id="table-search-tmc-requests"')
-        self.assertContains(response, "input changed delay:1200ms from:#table-search-tmc-requests")
+        self.assertContains(response, "input changed delay:1500ms from:#table-search-tmc-requests")
         self.assertContains(response, 'hx-sync="this:replace"')
-        self.assertContains(response, "hx-preserve")
-        self.assertContains(response, "data-preserve-search-focus")
+        self.assertContains(response, 'hx-target="#table-filter-results"')
+        self.assertContains(response, 'hx-select="#table-filter-results"')
+        self.assertContains(response, 'id="table-filter-results"')
+        self.assertNotContains(response, "data-preserve-search-focus")
         self.assertContains(response, "change")
         self.assertNotContains(response, "from:input")
 

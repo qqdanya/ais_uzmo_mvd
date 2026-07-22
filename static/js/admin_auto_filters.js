@@ -1,6 +1,6 @@
 (() => {
   const formSelector = "form[data-admin-auto-filter]";
-  const searchDelay = 1200;
+  const searchDelay = 1500;
   const timerByForm = new WeakMap();
 
   const submit = (form, delay = 0) => {
@@ -13,6 +13,32 @@
     const root = element.closest("[data-admin-multiselect], .admin-org-filter-box");
     if (root) root.dataset.adminFilterDirty = "true";
   };
+
+  const deleteParameter = (parameters, name) => {
+    if (typeof parameters?.delete === "function") parameters.delete(name);
+    else if (parameters) delete parameters[name];
+  };
+
+  const setParameter = (parameters, name, value) => {
+    if (typeof parameters?.set === "function") parameters.set(name, value);
+    else if (parameters) parameters[name] = value;
+  };
+
+  document.addEventListener("htmx:configRequest", (event) => {
+    const form = event.detail?.elt?.closest?.(formSelector) || event.target.closest?.(formSelector);
+    if (!form) return;
+    const organInputs = [...form.querySelectorAll('input[name="organ_ids"]')];
+    if (!organInputs.length) return;
+    const selectedIds = organInputs
+      .filter((input) => input.checked && /^\d+$/.test(input.value))
+      .map((input) => input.value);
+    const parameters = event.detail.parameters;
+    deleteParameter(parameters, "organ_ids");
+    deleteParameter(parameters, "organs");
+    if (selectedIds.length && selectedIds.length !== organInputs.length) {
+      setParameter(parameters, "organs", [...new Set(selectedIds)].join("-"));
+    }
+  });
 
   document.addEventListener("input", (event) => {
     const form = event.target.closest(formSelector);

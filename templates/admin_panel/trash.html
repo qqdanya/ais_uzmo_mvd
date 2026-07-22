@@ -4,7 +4,7 @@
 {% block title %}Корзина | АИС УЗМО{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260722-003">
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260722-004">
 {% endblock %}
 
 {% block content %}
@@ -13,7 +13,7 @@
     {% if show_admin_navigation %}{% include "admin_panel/_executive_nav.html" with active_tab="trash" %}{% endif %}
 
     <section class="admin-trash-screen" aria-label="Корзина удалённых объектов">
-      <div class="admin-requests-hero admin-trash-hero">
+      <div id="admin-trash-hero" class="admin-requests-hero admin-trash-hero" hx-swap-oob="outerHTML">
         <div>
           <h2>Корзина удалённых объектов</h2>
           <p>{% if is_personal_trash %}Здесь отображаются удалённые вами объекты. Их можно восстановить или убрать из списка. Через 90 дней объекты автоматически исчезнут из вашей корзины.{% else %}Здесь отображаются удалённые записи, фотографии и папки. Их можно восстановить или удалить окончательно.{% endif %}</p>
@@ -27,7 +27,7 @@
         {% endif %}
       </div>
 
-      <section class="admin-assets-kpi admin-trash-kpi" aria-label="Сводка корзины">
+      <section id="admin-trash-kpi" class="admin-assets-kpi admin-trash-kpi" aria-label="Сводка корзины" hx-swap-oob="outerHTML">
         <article class="admin-requests-kpi-card admin-assets-kpi-card">
           <span class="admin-requests-kpi-icon"><i class="bi bi-inboxes"></i></span>
           <div><strong>{{ counts.requests }}</strong><span>Записей таблиц</span><small>доступно восстановление</small></div>
@@ -42,14 +42,14 @@
         </article>
       </section>
 
-      <nav class="admin-status-tabs" aria-label="Разделы корзины">
+      <nav id="admin-trash-tabs" class="admin-status-tabs" aria-label="Разделы корзины" hx-swap-oob="outerHTML">
         <a class="admin-status-tab{% if section == 'all' %} active{% endif %}" href="{% url trash_panel_url_name %}{% if query %}?q={{ query|urlencode }}{% endif %}"><span>Все</span><strong>{{ counts.requests|add:counts.photos|add:counts.folders }}</strong></a>
         <a class="admin-status-tab{% if section == 'requests' %} active{% endif %}" href="{% url trash_panel_url_name %}?section=requests{% if query %}&q={{ query|urlencode }}{% endif %}"><span>Записи таблиц</span><strong>{{ counts.requests }}</strong></a>
         <a class="admin-status-tab{% if section == 'photos' %} active{% endif %}" href="{% url trash_panel_url_name %}?section=photos{% if query %}&q={{ query|urlencode }}{% endif %}"><span>Фотографии</span><strong>{{ counts.photos }}</strong></a>
         <a class="admin-status-tab{% if section == 'folders' %} active{% endif %}" href="{% url trash_panel_url_name %}?section=folders{% if query %}&q={{ query|urlencode }}{% endif %}"><span>Папки</span><strong>{{ counts.folders }}</strong></a>
       </nav>
 
-      <form id="admin-trash-filter-form" class="admin-section admin-assets-filter admin-trash-filter" method="get" hx-get="{{ request.path }}" hx-trigger="input changed delay:1200ms from:input[name='q'], submit" hx-target=".admin-trash-screen" hx-select=".admin-trash-screen" hx-swap="outerHTML" hx-push-url="true" hx-sync="this:replace" hx-preserve>
+      <form id="admin-trash-filter-form" class="admin-section admin-assets-filter admin-trash-filter" method="get" data-admin-auto-filter hx-get="{{ request.path }}" hx-target="#admin-trash-results" hx-select="#admin-trash-results" hx-swap="outerHTML" hx-push-url="true" hx-sync="this:replace">
         <div class="admin-section-head">
           <div>
             <h2>Фильтр</h2>
@@ -59,11 +59,12 @@
         <div class="admin-trash-filter-row">
           <label class="admin-filter-field admin-filter-field-search admin-trash-filter-search">
             <span>Поиск</span>
-            <input id="admin-trash-search" class="form-control form-control-sm" type="search" name="q" value="{{ query }}" placeholder="Например: номер заявки, IMG_001, ОП №1" data-preserve-search-focus>
+            <input id="admin-trash-search" class="form-control form-control-sm" type="search" name="q" value="{{ query }}" placeholder="Например: номер заявки, IMG_001, ОП №1">
           </label>
         </div>
       </form>
 
+      <div id="admin-trash-results" class="admin-filter-results">
       {% if section == 'all' or section == 'requests' %}
         <section class="admin-section admin-requests-table-section">
           <div class="admin-section-head"><div><h2>Удалённые записи таблиц</h2><span>Для заявок и табличных записей доступно безопасное восстановление. Окончательное удаление из БД не выполняется.</span></div></div>
@@ -181,6 +182,7 @@
           {% endif %}
         </section>
       {% endif %}
+      </div>
     </section>
   </section>
 </div>

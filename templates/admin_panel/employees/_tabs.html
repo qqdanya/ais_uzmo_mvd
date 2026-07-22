@@ -1,4 +1,4 @@
-      <nav class="admin-status-tabs" aria-label="Фильтры по сотрудникам">
+      <nav id="admin-employees-tabs" class="admin-status-tabs" aria-label="Фильтры по сотрудникам" hx-swap-oob="outerHTML">
         {% for tab in view_tabs %}
           <a class="admin-status-tab{% if tab.active %} active{% endif %}" href="{{ tab.url }}">
             <span>{{ tab.label }}</span>
