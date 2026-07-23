@@ -10,7 +10,7 @@
       <tr>
         <th class="tmc-name-head">Наименование</th>
         <th class="tmc-boundary-right">Количество</th>
-        <th>Номер</th>
+        <th>Номер заявки / Исходящий</th>
         <th>Дата</th>
         <th class="tmc-boundary-right">Исполнение заявки</th>
       </tr>
@@ -26,7 +26,9 @@
             <td>{{ item.name }}</td>
             <td class="tmc-boundary-right">{{ item.quantity }} {{ item.unit }}</td>
             {% if forloop.first %}
-              <td rowspan="{{ item_count }}" class="tmc-request-cell {% if forloop.parentloop.last %}tmc-bottom-span{% else %}tmc-group-span{% endif %}">{{ obj.request_number }}</td>
+              <td rowspan="{{ item_count }}" class="tmc-request-cell request-reference-table-cell {% if forloop.parentloop.last %}tmc-bottom-span{% else %}tmc-group-span{% endif %}">
+                {% include "partials/request_response_cell.html" with obj=obj table=table %}
+              </td>
               <td rowspan="{{ item_count }}" class="tmc-request-cell table-date-cell {% if forloop.parentloop.last %}tmc-bottom-span{% else %}tmc-group-span{% endif %}"><span class="table-date-value">{{ obj.request_date|date:"d.m.Y" }}</span></td>
               <td rowspan="{{ item_count }}" class="status-cell tmc-request-cell tmc-boundary-right {% if forloop.parentloop.last %}tmc-bottom-span{% else %}tmc-group-span{% endif %}">
                 {% if obj.territorial_organ_id|in_list:writable_organ_ids %}
@@ -59,7 +61,9 @@
             {% if is_multi_organ %}<td class="tmc-boundary-right">{{ obj.territorial_organ.name }}</td>{% endif %}
             <td>-</td>
             <td class="tmc-boundary-right">-</td>
-            <td class="tmc-request-cell">{{ obj.request_number }}</td>
+            <td class="tmc-request-cell request-reference-table-cell">
+              {% include "partials/request_response_cell.html" with obj=obj table=table %}
+            </td>
             <td class="tmc-request-cell table-date-cell"><span class="table-date-value">{{ obj.request_date|date:"d.m.Y" }}</span></td>
             <td class="status-cell tmc-request-cell tmc-boundary-right">
               {% if obj.territorial_organ_id|in_list:writable_organ_ids %}

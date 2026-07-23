@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="{% static 'css/app/forms-controls.css' %}?v=20260712-013">
   <link rel="stylesheet" href="{% static 'css/app/tables.css' %}?v=20260719-001">
   <link rel="stylesheet" href="{% static 'css/admin/employees.css' %}?v=20260705-009">
-  <link rel="stylesheet" href="{% static 'css/admin/report.css' %}?v=20260715-010">
+  <link rel="stylesheet" href="{% static 'css/admin/report.css' %}?v=20260723-001">
 </head>
 <body>
   <div class="report-toolbar report-no-print">
@@ -230,10 +230,10 @@
       </div>
       <div class="report-table-scroll">
       <table class="report-table report-attention-table">
-        <thead><tr><th>Заявка</th><th>Территориальный орган</th><th>Отдел</th><th>Дата заявки</th><th>Рабочих дней</th></tr></thead>
+        <thead><tr><th>Номер заявки / Исходящий</th><th>Территориальный орган</th><th>Отдел</th><th>Дата заявки</th><th>Рабочих дней</th></tr></thead>
         <tbody>
           {% for item in attention_requests %}
-            <tr><td>{{ item.number }}</td><td>{{ item.organ }}</td><td>{{ item.department }}</td><td>{{ item.request_date }}</td><td>{{ item.days }}</td></tr>
+            <tr><td class="report-request-reference-cell">{% include "admin_panel/_request_reference_cell.html" with row=item only %}</td><td>{{ item.organ }}</td><td>{{ item.department }}</td><td>{{ item.request_date }}</td><td>{{ item.days }}</td></tr>
           {% empty %}
             <tr><td colspan="5" class="report-empty">Заявок с превышенным сроком обработки нет.</td></tr>
           {% endfor %}

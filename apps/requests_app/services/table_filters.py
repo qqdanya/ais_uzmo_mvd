@@ -2,12 +2,13 @@
 
 from datetime import timedelta
 
-from django.db.models import F, Min, Q, Window
+from django.contrib.contenttypes.models import ContentType
+from django.db.models import Exists, F, Min, OuterRef, Q, Window
 from django.db.models.functions import RowNumber
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 
-from apps.requests_app.models import ACTIVE_NEED_STATUS_CHOICES, CitsiziEquipment
+from apps.requests_app.models import ACTIVE_NEED_STATUS_CHOICES, CitsiziEquipment, RequestResponse
 from apps.requests_app.services.table_config import REQUEST_TABLE_CONFIG
 
 
@@ -131,6 +132,26 @@ def apply_casefold_search(qs, search_fields, query, distinct=False):
     return qs.distinct() if distinct else qs
 
 
+def apply_request_search(qs, config, query):
+    query = (query or "").strip()
+    if not query:
+        return qs
+
+    request_q = build_search_q(config["search_fields"], query)
+    response_q = build_search_q(("response_number", "note"), query)
+    matching_responses = RequestResponse.objects.filter(
+        content_type=ContentType.objects.get_for_model(config["model"], for_concrete_model=False),
+        object_id=OuterRef("pk"),
+    )
+    if response_q:
+        matching_responses = matching_responses.filter(response_q)
+
+    qs = qs.annotate(response_search_match=Exists(matching_responses))
+    combined_q = request_q | Q(response_search_match=True)
+    qs = qs.filter(combined_q)
+    return qs.distinct() if config.get("distinct_search", False) else qs
+
+
 def request_table_queryset(request, table_key, organs, include_status=False):
     config = REQUEST_TABLE_CONFIG[table_key]
     qs = config["model"].objects.select_related("territorial_organ", "created_by", "updated_by")
@@ -147,7 +168,7 @@ def request_table_queryset(request, table_key, organs, include_status=False):
         qs = qs.filter(request_date__lte=date_to)
     if config.get("equipment_type_filter") and valid_equipment_type(request.GET.get("equipment_type")):
         qs = qs.filter(equipment_type=request.GET["equipment_type"])
-    qs = apply_casefold_search(qs, config["search_fields"], request.GET.get("q", ""), distinct=config.get("distinct_search", False))
+    qs = apply_request_search(qs, config, request.GET.get("q", ""))
     if include_status and request.GET.get("status") in dict(ACTIVE_NEED_STATUS_CHOICES):
         qs = qs.filter(status=request.GET["status"])
     return qs

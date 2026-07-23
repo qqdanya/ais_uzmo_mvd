@@ -14,6 +14,26 @@
       {% status_badge object %}
     </div>
 
+    <div class="quick-status-response-action" role="note">
+      <div class="quick-status-response-copy">
+        <i class="bi bi-reply" aria-hidden="true"></i>
+        <div>
+          <strong>Ответ на заявку</strong>
+          <span>Ответ сохраняется отдельно и не меняет статус заявки.</span>
+        </div>
+      </div>
+      <button
+        type="button"
+        class="btn btn-outline-primary"
+        hx-get="{% url 'request_responses' organ.pk table.key object.pk %}?return_to=status"
+        hx-target="#modal-content"
+        hx-swap="innerHTML"
+      >
+        <i class="bi bi-plus-lg" aria-hidden="true"></i>
+        Добавить ответ
+      </button>
+    </div>
+
     <div class="form-grid one-col quick-status-fields">
       <fieldset class="form-field quick-status-fieldset">
         <legend class="form-label">{{ form.status.label }}</legend>

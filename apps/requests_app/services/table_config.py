@@ -60,7 +60,7 @@ REQUEST_TABLE_CONFIG = {
 REQUEST_PHOTO_TABLES = set(REQUEST_TABLE_CONFIG)
 SIMPLE_REQUEST_XLSX_CONFIG = {
     "widths": {
-        "request_number": 18,
+        "request_number": 32,
         "request_date": 14,
         "status": 22,
         "comment": 38,
@@ -116,7 +116,7 @@ XLSX_EXPORT_CONFIG = {
     },
     "fire-requests": {
         "widths": {
-            "request_number": 18,
+            "request_number": 32,
             "request_date": 14,
             "status": 22,
             "comment": 38,
@@ -125,7 +125,7 @@ XLSX_EXPORT_CONFIG = {
     },
     "anti-terror": {
         "widths": {
-            "request_number": 18,
+            "request_number": 32,
             "request_date": 14,
             "status": 22,
             "comment": 38,
@@ -134,7 +134,7 @@ XLSX_EXPORT_CONFIG = {
     },
     "citsizi-equipment": {
         "widths": {
-            "request_number": 18,
+            "request_number": 32,
             "request_date": 14,
             "quantity": 14,
             "status": 22,
@@ -154,7 +154,7 @@ XLSX_EXPORT_CONFIG = {
     },
     "building-repair": {
         "widths": {
-            "request_number": 18,
+            "request_number": 32,
             "request_date": 14,
             "status": 22,
             "comment": 38,

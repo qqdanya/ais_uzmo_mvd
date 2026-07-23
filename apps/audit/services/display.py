@@ -43,6 +43,9 @@ AUDIT_FIELD_LABELS = {
     "asset_stale_days": "Устаревшие сведения материальной базы, календарных дней",
     "completed_at": "Дата исполнения",
     "due_date": "Дата исполнения",
+    "response_number": "Номер ответа",
+    "response_date": "Дата ответа",
+    "note": "Примечание",
 }
 
 DIFF_LIST_FIELDS = {
@@ -631,6 +634,24 @@ def prepare_log(
     elif log.event_type in {AuditLog.EventType.PHOTOS_ATTACHED, AuditLog.EventType.PHOTOS_DETACHED} and log.change_rows:
         row = log.change_rows[0]
         log.inline_detail = row["new"] if log.event_type == AuditLog.EventType.PHOTOS_ATTACHED else row["old"]
+    elif log.event_type in {
+        AuditLog.EventType.RESPONSE_CREATED,
+        AuditLog.EventType.RESPONSE_UPDATED,
+        AuditLog.EventType.RESPONSE_DELETED,
+    }:
+        response_values = (
+            log.old_values
+            if log.event_type == AuditLog.EventType.RESPONSE_DELETED
+            else log.new_values
+        ) or {}
+        response_number = response_values.get("response_number")
+        response_date = response_values.get("response_date")
+        if response_number:
+            log.inline_detail = f"№ {response_number}"
+            if response_date:
+                log.inline_detail += (
+                    f" от {field_display_value(log.model_name, 'response_date', response_date)}"
+                )
     elif log.event_type == AuditLog.EventType.TABLE_EXPORTED:
         values = log.new_values or {}
         log.inline_detail = f"{str(values.get('format', '')).upper()} · {values.get('table_title', '')}".strip(" ·")

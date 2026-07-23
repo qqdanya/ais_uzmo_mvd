@@ -3,14 +3,14 @@
  * Keep imports in this order: later modules intentionally refine earlier shared rules.
  */
 @import url("admin/base.css?v=20260721-009");
-@import url("admin/requests.css?v=20260721-003");
+@import url("admin/requests.css?v=20260723-002");
 @import url("admin/organs.css?v=20260721-001");
 @import url("admin/departments.css?v=20260705-009");
 @import url("admin/assets.css?v=20260720-005");
 @import url("admin/settings.css?v=20260705-009");
 @import url("admin/charts.css?v=20260705-009");
 @import url("admin/employees.css?v=20260721-002");
-@import url("admin/trash.css?v=20260720-006");
+@import url("admin/trash.css?v=20260723-001");
 
 .admin-filter-results {
   display: grid;

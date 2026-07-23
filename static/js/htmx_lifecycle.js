@@ -296,6 +296,10 @@ function refreshTableAfterRequestPhotosChanged() {
   if (typeof refreshCurrentTableArea === "function") refreshCurrentTableArea();
 }
 
+function refreshTableAfterRequestResponsesChanged() {
+  if (typeof refreshCurrentTableArea === "function") refreshCurrentTableArea();
+}
+
 function registerHtmxLifecycle() {
   const body = document.body;
   if (!body) return;
@@ -392,6 +396,7 @@ function registerHtmxLifecycle() {
   body.addEventListener("modal:close", closeModalFromHtmxTrigger);
   body.addEventListener("toast", showToastFromHtmxTrigger);
   body.addEventListener("requestPhotosChanged", refreshTableAfterRequestPhotosChanged);
+  body.addEventListener("requestResponsesChanged", refreshTableAfterRequestResponsesChanged);
 
   body.addEventListener("htmx:swapError", () => {
     resetHtmxLoading();

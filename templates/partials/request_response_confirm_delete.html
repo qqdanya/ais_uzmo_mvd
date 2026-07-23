@@ -1,0 +1,26 @@
+<form method="post" hx-post="{{ request.get_full_path }}" hx-target="#modal-content">
+  <div class="modal-header">
+    <h5 class="modal-title">Удаление ответа</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+  </div>
+  <div class="modal-body">
+    {% csrf_token %}
+    <div class="delete-confirmation">
+      <div class="delete-confirmation-icon"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></div>
+      <div class="delete-confirmation-body">
+        <h6>Удалить ответ <span class="request-identifier">№ {{ response_object.response_number }}</span>?</h6>
+        <p>Ответ от {{ response_object.response_date|date:"d.m.Y" }} будет удалён из заявки <span class="request-identifier">№ {{ object.request_number }}</span>.</p>
+        <p>Статус заявки и остальные ответы не изменятся. Действие будет записано в журнал.</p>
+      </div>
+    </div>
+  </div>
+  <div class="modal-footer">
+    <button
+      type="button"
+      class="btn btn-outline-secondary"
+      hx-get="{% url 'request_responses' organ.pk table_key object.pk %}{% if return_to_status %}?return_to=status{% endif %}"
+      hx-target="#modal-content"
+    >Отмена</button>
+    <button class="btn btn-danger" type="submit"><i class="bi bi-trash" aria-hidden="true"></i> Удалить ответ</button>
+  </div>
+</form>

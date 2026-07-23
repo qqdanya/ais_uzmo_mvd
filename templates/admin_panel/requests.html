@@ -4,7 +4,7 @@
 {% block title %}Заявки | Административная панель{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260722-004">
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260723-002">
 {% endblock %}
 
 {% block content %}
@@ -51,7 +51,7 @@
           </div>
           <label class="admin-filter-field admin-filter-field-search">
             <span>Поиск</span>
-            <input id="admin-requests-search" class="form-control form-control-sm" type="search" name="q" value="{{ filters.query }}" placeholder="Номер, орган, комментарий">
+            <input id="admin-requests-search" class="form-control form-control-sm" type="search" name="q" value="{{ filters.query }}" placeholder="Номер заявки или ответа, орган, комментарий">
           </label>
         </div>
 
@@ -130,7 +130,7 @@
             <table class="admin-requests-table">
               <thead>
                 <tr>
-                  <th>№ заявки</th>
+                  <th>Номер заявки / Исходящий</th>
                   <th>Дата</th>
                   <th>Территориальный орган</th>
                   <th>Отдел</th>
@@ -143,7 +143,7 @@
               <tbody>
                 {% for row in page.object_list %}
                   <tr>
-                    <td><strong>{{ row.number }}</strong></td>
+                    <td class="admin-request-reference-cell">{% include "admin_panel/_request_reference_cell.html" with row=row only %}</td>
                     <td>{{ row.request_date_display }}</td>
                     <td class="admin-request-organ">{{ row.organ }}</td>
                     <td>

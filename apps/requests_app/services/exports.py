@@ -9,6 +9,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.merge import MergedCellRange
 
 from apps.requests_app.services.downloads import workbook_file_response
+from apps.requests_app.services.request_responses import request_response_export_value
 
 # All styled XLSX exports below always keep their formatting regardless of
 # row count - this only decides which exports are "large" enough to need a
@@ -25,10 +26,17 @@ def display_fields(table):
 
 
 def table_header_labels(fields):
-    return [capfirst(field.verbose_name) for field in fields]
+    return [
+        "Номер заявки / Исходящий"
+        if field.name == "request_number"
+        else capfirst(field.verbose_name)
+        for field in fields
+    ]
 
 
-def export_cell_value(obj, field):
+def export_cell_value(obj, field, *, multiline=True):
+    if field.name == "request_number":
+        return request_response_export_value(obj, multiline=multiline)
     display = getattr(obj, f"get_{field.name}_display", None)
     value = display() if callable(display) else getattr(obj, field.name)
     if hasattr(value, "strftime") and getattr(field, "get_internal_type", lambda: "")() == "DateField":
@@ -114,12 +122,19 @@ def tmc_xlsx_response(qs, organ, filename, is_multi_organ=False):
     ws.cell(row=1, column=need_start, value="Сведения о потребности ТМЦ")
     ws.cell(row=1, column=request_start, value="Заявка")
     ws.cell(row=1, column=comment_column, value="Описание")
-    headers = ["Наименование", "Количество", "Номер", "Дата", "Исполнение заявки", ""]
+    headers = [
+        "Наименование",
+        "Количество",
+        "Номер заявки / Исходящий",
+        "Дата",
+        "Исполнение заявки",
+        "",
+    ]
     for column, value in enumerate(headers, start=need_start):
         if value:
             ws.cell(row=2, column=column, value=value)
 
-    widths = [34, 16, 18, 14, 22, 34]
+    widths = [34, 16, 32, 14, 22, 34]
     if is_multi_organ:
         widths.insert(0, 34)
     widths = {get_column_letter(index): width for index, width in enumerate(widths, start=1)}
@@ -184,7 +199,11 @@ def tmc_xlsx_response(qs, organ, filename, is_multi_organ=False):
 
         if is_multi_organ:
             ws.cell(row=start_row, column=1, value=obj.territorial_organ.name)
-        ws.cell(row=start_row, column=request_start, value=obj.request_number)
+        ws.cell(
+            row=start_row,
+            column=request_start,
+            value=request_response_export_value(obj, multiline=True),
+        )
         ws.cell(row=start_row, column=request_start + 1, value=obj.request_date.strftime("%d.%m.%Y"))
         ws.cell(row=start_row, column=request_start + 2, value=obj.get_status_display())
         ws.cell(row=start_row, column=comment_column, value=obj.comment)
@@ -472,7 +491,7 @@ def styled_xlsx_response(qs, table, fields, filename, widths=None, center_column
 
 def basic_xlsx_response(qs, table, fields, filename):
     rows = (
-        [str(getattr(obj, f"get_{field.name}_display", lambda: getattr(obj, field.name))()) for field in fields]
+        [str(export_cell_value(obj, field, multiline=True)) for field in fields]
         for obj in export_objects(qs)
     )
     return write_only_xlsx_response(table["title"], table_header_labels(fields), rows, filename)

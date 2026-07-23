@@ -1,7 +1,7 @@
 {% load request_tags account_tags %}
     <thead><tr>
       {% if is_multi_organ %}<th>Территориальный орган</th>{% endif %}
-      {% for field in fields %}<th>{{ field.verbose_name|capfirst }}</th>{% endfor %}
+      {% for field in fields %}<th>{% if field.name == "request_number" %}Номер заявки / Исходящий{% else %}{{ field.verbose_name|capfirst }}{% endif %}</th>{% endfor %}
       <th class="table-actions-head" aria-label="Действия"><i class="bi bi-three-dots-vertical"></i><span class="visually-hidden">Действия</span></th>
     </tr></thead>
     <tbody>
@@ -9,8 +9,10 @@
       <tr class="data-row {% row_class table.key obj %} {% if obj.is_deleted %}table-warning{% endif %}">
         {% if is_multi_organ %}<td>{{ obj.territorial_organ.name }}</td>{% endif %}
         {% for field in fields %}
-          <td class="{% table_cell_class field %}">
-            {% if field.name == "status" %}
+          <td class="{% table_cell_class field %}{% if field.name == 'request_number' %} request-reference-table-cell{% endif %}">
+            {% if field.name == "request_number" %}
+              {% include "partials/request_response_cell.html" with obj=obj table=table %}
+            {% elif field.name == "status" %}
               {% if has_status_history and obj.territorial_organ_id|in_list:writable_organ_ids %}
                 {% url 'record_status_update' obj.territorial_organ.pk table.key obj.pk as quick_status_url %}
                 {% status_badge obj quick_status_url table_querystring %}

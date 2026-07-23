@@ -2,7 +2,7 @@ from datetime import date
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.paginator import Paginator
-from django.db.models import Count, IntegerField, Q, Value
+from django.db.models import Count, Exists, IntegerField, OuterRef, Q, Value
 from django.db.models.functions import Coalesce
 from django.http import Http404
 from django.shortcuts import get_object_or_404
@@ -10,9 +10,15 @@ from django.urls import reverse
 from django.utils import timezone
 
 from apps.directory.models import Department
-from apps.requests_app.models import NeedStatus, RequestPhotoLink, RequestStatusHistory
+from apps.requests_app.models import NeedStatus, RequestPhotoLink, RequestResponse, RequestStatusHistory
 from apps.requests_app.permissions import can_view
 from apps.requests_app.registry import TABLE_BY_KEY
+from apps.requests_app.services.request_responses import (
+    attach_request_response_summaries,
+    request_response_queryset,
+    request_response_row_data,
+)
+from apps.requests_app.services.table_filters import build_search_q
 
 from .admin_summary import available_organs_for_user, request_tables, selected_organs
 from .admin_common import (
@@ -76,7 +82,13 @@ def apply_search(qs, query):
     if not query:
         return qs
     filters = Q(request_number__icontains=query) | Q(comment__icontains=query) | Q(territorial_organ__name__icontains=query)
-    return qs.filter(filters).distinct()
+    matching_responses = RequestResponse.objects.filter(
+        content_type=ContentType.objects.get_for_model(qs.model, for_concrete_model=False),
+        object_id=OuterRef("pk"),
+    ).filter(build_search_q(("response_number", "note"), query))
+    return qs.annotate(response_search_match=Exists(matching_responses)).filter(
+        filters | Q(response_search_match=True)
+    ).distinct()
 
 
 def apply_state(qs, states):
@@ -155,6 +167,7 @@ def request_row(table, obj, departments):
         "days_class": days_class(days),
         "days_caption": processing_caption(obj, days),
         "detail_url": reverse("admin_request_detail", kwargs={"table_key": table["key"], "pk": obj.pk}),
+        **request_response_row_data(obj),
     }
 
 
@@ -202,6 +215,7 @@ def hydrate_request_rows(tables_by_key, index_rows):
         qs = table["model"].objects.select_related("territorial_organ").filter(pk__in=pks)
         objects = list(qs)
         attach_processing_end_dates(table, objects)
+        attach_request_response_summaries(objects, table["model"])
         objects_by_table[table_key] = {obj.pk: obj for obj in objects}
 
     rows = []
@@ -434,6 +448,7 @@ def build_request_detail_context(request, table_key, pk):
         .order_by("created_at", "id")
     )
     attached_photos = [link.photo for link in photo_links if link.photo and link.photo.image]
+    responses = list(request_response_queryset(obj))
     photo_count = len(attached_photos)
     days = processing_days(obj)
     return {
@@ -453,6 +468,8 @@ def build_request_detail_context(request, table_key, pk):
         "history": history,
         "photo_count": photo_count,
         "attached_photos": attached_photos,
+        "responses": responses,
+        "response_count": len(responses),
         "back_url": request.META.get("HTTP_REFERER") or (reverse("admin_trash_panel") + "?section=requests" if show_deleted else reverse("admin_requests_panel")),
         "is_deleted_detail": show_deleted,
     }

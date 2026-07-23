@@ -12,6 +12,10 @@ from apps.directory.models import Department, TerritorialOrgan
 from apps.requests_app.models import NeedStatus, RequestStatusHistory
 from apps.requests_app.permissions import can_view
 from apps.requests_app.registry import TABLES
+from apps.requests_app.services.request_responses import (
+    attach_request_response_summaries,
+    request_response_row_data,
+)
 
 from .admin_common import compact_organ_ids_from_request, month_bounds, request_number
 from .admin_thresholds import get_request_stale_workdays
@@ -509,13 +513,14 @@ def build_attention_requests(tables, organs, limit=10):
     departments = active_departments_by_slug()
     items = []
     for table in tables:
-        qs = (
+        objects = list(
             base_queryset(table, organs)
             .select_related("territorial_organ")
             .filter(status=NeedStatus.IN_WORK, request_date__lte=stale_before)
             .order_by("request_date", "pk")[:limit]
         )
-        for obj in qs:
+        attach_request_response_summaries(objects, table["model"])
+        for obj in objects:
             items.append(
                 {
                     "id": obj.pk,
@@ -527,6 +532,7 @@ def build_attention_requests(tables, organs, limit=10):
                     "request_date": obj.request_date.strftime("%d.%m.%Y"),
                     "days": business_days_inclusive(obj.request_date, today),
                     "detail_url": reverse("admin_request_detail", kwargs={"table_key": table["key"], "pk": obj.pk}),
+                    **request_response_row_data(obj),
                 }
             )
     items.sort(key=lambda item: item["days"], reverse=True)

@@ -9,6 +9,10 @@ from django.utils import timezone
 
 from apps.directory.models import Department, TerritorialOrgan, TerritorialOrganPhoto
 from apps.requests_app.permissions import can_view
+from apps.requests_app.services.request_responses import (
+    attach_request_response_summaries,
+    request_response_row_data,
+)
 
 from .admin_common import (
     DEFAULT_PER_PAGE,
@@ -336,6 +340,7 @@ def latest_request_rows_for_organ(organ, tables, filters, limit=15):
         # Without this, processing_days() falls back to one RequestStatusHistory
         # query per done/rejected row that lacks its own completion date.
         attach_processing_end_dates(table, objects)
+        attach_request_response_summaries(objects, table["model"])
         for obj in objects:
             days = processing_days(obj)
             rows.append(
@@ -355,6 +360,7 @@ def latest_request_rows_for_organ(organ, tables, filters, limit=15):
                     "days_class": days_class(days),
                     "days_caption": processing_caption(obj, days),
                     "detail_url": reverse("admin_request_detail", kwargs={"table_key": table["key"], "pk": obj.pk}),
+                    **request_response_row_data(obj),
                 }
             )
     rows.sort(key=lambda item: (item["request_date"] or date.min, item["id"]), reverse=True)

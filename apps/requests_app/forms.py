@@ -1,8 +1,18 @@
 from django import forms
+from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
 
-from .models import ACTIVE_NEED_STATUS_CHOICES, NeedStatus, TmcRequest
+from .models import (
+    ACTIVE_NEED_STATUS_CHOICES,
+    NeedStatus,
+    RequestResponse,
+    TmcRequest,
+    normalize_request_number,
+)
 from .registry import get_table_or_404
+
+
+REQUEST_RESPONSE_DUPLICATE_MESSAGE = "Ответ с таким номером уже добавлен к этой заявке."
 
 
 class BootstrapModelForm(forms.ModelForm):
@@ -50,6 +60,55 @@ class TmcRequestForm(BootstrapModelForm):
             "request_date": forms.DateInput(attrs={"type": "hidden", "data-app-date-input": "true"}, format="%Y-%m-%d"),
             "due_date": forms.DateInput(attrs={"type": "hidden", "data-app-date-input": "true"}, format="%Y-%m-%d"),
         }
+
+
+class RequestResponseForm(BootstrapModelForm):
+    class Meta:
+        model = RequestResponse
+        fields = ["response_number", "response_date", "note"]
+        widgets = {
+            "response_date": forms.DateInput(
+                attrs={"type": "hidden", "data-app-date-input": "true"},
+                format="%Y-%m-%d",
+            ),
+            "note": forms.Textarea(attrs={"rows": 3}),
+        }
+
+    def __init__(self, *args, request_object, **kwargs):
+        self.request_object = request_object
+        super().__init__(*args, **kwargs)
+        if not self.is_bound and not self.instance.pk:
+            self.fields["response_date"].initial = timezone.localdate()
+            self.fields["response_number"].widget.attrs["autofocus"] = "autofocus"
+
+    def clean_response_number(self):
+        value = " ".join((self.cleaned_data.get("response_number") or "").split())
+        if not value:
+            raise forms.ValidationError("Укажите номер ответа.")
+        return value
+
+    def clean(self):
+        cleaned_data = super().clean()
+        response_number = cleaned_data.get("response_number")
+        response_date = cleaned_data.get("response_date")
+
+        if response_date:
+            if response_date > timezone.localdate():
+                self.add_error("response_date", "Дата ответа не может быть позже сегодняшней.")
+
+        if response_number:
+            content_type = ContentType.objects.get_for_model(self.request_object, for_concrete_model=False)
+            duplicate = RequestResponse.objects.filter(
+                content_type=content_type,
+                object_id=self.request_object.pk,
+                normalized_response_number=normalize_request_number(response_number),
+            )
+            if self.instance.pk:
+                duplicate = duplicate.exclude(pk=self.instance.pk)
+            if duplicate.exists():
+                self.add_error("response_number", REQUEST_RESPONSE_DUPLICATE_MESSAGE)
+
+        return cleaned_data
 
 
 class QuickStatusUpdateForm(forms.Form):

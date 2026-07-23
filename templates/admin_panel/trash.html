@@ -4,7 +4,7 @@
 {% block title %}Корзина | АИС УЗМО{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260722-004">
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260723-002">
 {% endblock %}
 
 {% block content %}
@@ -59,7 +59,7 @@
         <div class="admin-trash-filter-row">
           <label class="admin-filter-field admin-filter-field-search admin-trash-filter-search">
             <span>Поиск</span>
-            <input id="admin-trash-search" class="form-control form-control-sm" type="search" name="q" value="{{ query }}" placeholder="Например: номер заявки, IMG_001, ОП №1">
+            <input id="admin-trash-search" class="form-control form-control-sm" type="search" name="q" value="{{ query }}" placeholder="Например: номер заявки или ответа, IMG_001, ОП №1">
           </label>
         </div>
       </form>
@@ -71,11 +71,17 @@
           {% if request_page.object_list %}
             <div class="admin-requests-table-wrap">
               <table class="admin-requests-table">
-                <thead><tr><th>Запись</th><th>Территориальный орган</th><th>Отдел</th><th>Удалено/изменено</th><th>Действия</th></tr></thead>
+                <thead><tr><th>Запись и номер заявки / номер ответа</th><th>Территориальный орган</th><th>Отдел</th><th>Удалено/изменено</th><th>Действия</th></tr></thead>
                 <tbody>
                   {% for row in request_page.object_list %}
                     <tr>
-                      <td class="admin-trash-record-cell"><strong>{{ row.title }}{% if row.number %} № {{ row.number }}{% endif %}</strong>{% if row.detail %}<small class="d-block text-muted">{{ row.detail|truncatechars:90 }}</small>{% endif %}</td>
+                      <td class="admin-trash-record-cell">
+                        <strong class="admin-trash-record-title">{{ row.title }}</strong>
+                        {% if row.has_request_reference %}
+                          {% include "admin_panel/_request_reference_cell.html" with row=row only %}
+                        {% endif %}
+                        {% if row.detail %}<small class="d-block text-muted">{{ row.detail|truncatechars:90 }}</small>{% endif %}
+                      </td>
                       <td class="admin-request-organ">{{ row.organ.name }}</td>
                       <td><span class="admin-department-pill"><i class="bi {{ row.department_icon }}"></i>{{ row.department }}</span></td>
                       <td>{{ row.updated_at|date:"d.m.Y H:i" }}{% if row.updated_by %}<small class="d-block text-muted">{{ row.updated_by.get_full_name|default:row.updated_by.username }}</small>{% endif %}</td>

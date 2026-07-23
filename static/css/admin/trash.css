@@ -19,6 +19,25 @@
   overflow-wrap: anywhere;
 }
 
+.admin-trash-record-title {
+  display: block;
+  margin-bottom: .42rem;
+  color: var(--navy);
+}
+
+.admin-trash-record-cell .admin-request-reference {
+  justify-items: start;
+  margin-bottom: .42rem;
+}
+
+.admin-trash-record-cell .admin-request-reference-divider {
+  width: 100%;
+}
+
+.admin-trash-record-cell .admin-request-response-preview {
+  justify-content: flex-start;
+}
+
 .admin-trash-actions {
   width: 100%;
   min-height: 100%;

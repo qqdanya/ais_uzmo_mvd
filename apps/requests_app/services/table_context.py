@@ -21,6 +21,7 @@ from .grouping import (
     tmc_organ_grouped_summary,
 )
 from .request_photos import attach_request_photo_counts
+from .request_responses import attach_request_response_summaries
 from .statuses import attach_status_history_flags
 from .table_config import REQUEST_PHOTO_TABLES, REQUEST_TABLE_CONFIG, STATUS_HISTORY_TABLES
 from .table_filters import (
@@ -117,6 +118,8 @@ def build_table_data_context(request, organ, table, table_key, selected_organs, 
         attach_request_photo_counts(page.object_list, table["model"], selected_organs)
     if table_key in STATUS_HISTORY_TABLES and not is_request_grouped:
         attach_status_history_flags(page.object_list, table["model"])
+    if is_request_table and not is_request_grouped:
+        attach_request_response_summaries(page.object_list, table["model"])
 
     querystring = request.GET.copy()
     querystring.pop("page", None)
@@ -184,7 +187,7 @@ def build_table_data_context(request, organ, table, table_key, selected_organs, 
         "request_group_choices": _request_group_choices(table_key, is_multi_organ),
         "record_label": "позиций" if is_tmc_product_grouped else "органов" if is_organ_grouped else "дней" if is_date_grouped else "записей",
         "has_status_history": table_key in STATUS_HISTORY_TABLES,
-        "search_placeholder": "Поиск по заявке и ТМЦ" if table_key == "tmc-requests" else "Поиск по заявке и описанию",
+        "search_placeholder": "Поиск по номеру заявки, ответа или ТМЦ" if table_key == "tmc-requests" else "Поиск по номеру заявки, ответа или описанию",
         "equipment_type_choices": CitsiziEquipment._meta.get_field("equipment_type").choices,
         "equipment_type_filter_choices": _with_empty_choice("Все типы техники", CitsiziEquipment._meta.get_field("equipment_type").choices),
         "fire_extinguisher_expiry_state_choices": FIRE_EXTINGUISHER_EXPIRY_STATE_CHOICES,

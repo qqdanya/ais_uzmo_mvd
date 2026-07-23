@@ -1,0 +1,18 @@
+<div class="admin-request-reference" aria-label="Номер заявки {{ row.number|default:'не указан' }}{% if row.latest_response_number %}, последний ответ {{ row.latest_response_number }}{% else %}, ответов нет{% endif %}">
+  <span class="admin-request-reference-number">{{ row.number|default:"—" }}</span>
+  <span class="admin-request-reference-divider" aria-hidden="true"></span>
+  {% if row.latest_response_number %}
+    <span class="admin-request-response-preview">
+      <span class="admin-request-response-number">{{ row.latest_response_number }}</span>
+      <small>
+        {% if row.latest_response_date_display %}{{ row.latest_response_date_display }} · {% endif %}
+        Итоговый
+      </small>
+      {% if row.response_extra_count %}
+        <span class="admin-request-response-more">ещё {{ row.response_extra_count }}</span>
+      {% endif %}
+    </span>
+  {% else %}
+    <span class="admin-request-response-empty">Ответов нет</span>
+  {% endif %}
+</div>

@@ -1,0 +1,25 @@
+{% load request_tags %}
+<div class="request-reference">
+  <div class="request-reference-number">{{ obj.request_number }}</div>
+  <span class="request-reference-divider" aria-hidden="true"></span>
+  <button
+    class="request-response-preview{% if not obj.latest_response %} is-empty{% endif %}"
+    type="button"
+    hx-get="{% url 'request_responses' obj.territorial_organ.pk table.key obj.pk %}"
+    hx-target="#modal-content"
+    data-open-modal="true"
+    aria-label="Открыть ответы по заявке {{ obj.request_number }}.{% if obj.latest_response %} Последний ответ: {{ obj.latest_response.response_number }}. Всего ответов: {{ obj.response_count }}.{% else %} Ответов пока нет.{% endif %}"
+  >
+    {% if obj.latest_response %}
+      <span class="request-response-preview-number">{{ obj.latest_response.response_number }}</span>
+      {% if obj.response_extra_count %}
+        <span class="request-response-preview-more">ещё {{ obj.response_extra_count }}</span>
+      {% endif %}
+    {% else %}
+      <span class="request-response-preview-empty">Ответов нет</span>
+      {% if obj.territorial_organ_id|in_list:writable_organ_ids %}
+        <span class="request-response-preview-add"><i class="bi bi-plus-lg" aria-hidden="true"></i> добавить</span>
+      {% endif %}
+    {% endif %}
+  </button>
+</div>

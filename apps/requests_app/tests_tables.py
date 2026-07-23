@@ -138,7 +138,7 @@ class DepartmentTableTests(RequestAppTestCase):
             reverse("table_data", args=[self.organ.pk, "citsizi-equipment"]),
             {"status": "in_work", "equipment_type": "communication", "date_from": "2026-06-01", "date_to": "2026-06-30", "q": "C-10"},
         )
-        self.assertContains(table_response, "<th>Номер</th>", html=True)
+        self.assertContains(table_response, "<th>Номер заявки / Исходящий</th>", html=True)
         self.assertContains(table_response, "<th>Дата</th>", html=True)
         self.assertContains(table_response, "<th>Количество</th>", html=True)
         self.assertContains(table_response, "<th>Исполнение</th>", html=True)
@@ -169,11 +169,12 @@ class DepartmentTableTests(RequestAppTestCase):
 
         modal = self.client.get(reverse("citsizi_status_history", args=[self.organ.pk, included.pk]), HTTP_HX_REQUEST="true")
         self.assertContains(modal, "История изменений статуса заявки C-10")
+        self.assertContains(modal, 'class="modal-header status-history-modal"', html=False)
 
         export_response = self.client.get(reverse("export_table", args=[self.organ.pk, "citsizi-equipment", "xlsx"]), {"status": "done", "equipment_type": "communication"})
         workbook = self.response_workbook(export_response)
         sheet = workbook.active
-        self.assertEqual(sheet["A1"].value, "Номер")
+        self.assertEqual(sheet["A1"].value, "Номер заявки / Исходящий")
         self.assertEqual(sheet["E1"].value, "Тип техники")
         self.assertEqual(sheet["F1"].value, "Описание")
         self.assertEqual(sheet.freeze_panes, "A2")
@@ -572,7 +573,7 @@ class DepartmentTableTests(RequestAppTestCase):
         export_response = self.client.get(reverse("export_table", args=[self.organ.pk, "vehicle-fuel", "xlsx"]))
         workbook = self.response_workbook(export_response)
         sheet = workbook.active
-        self.assertEqual(sheet["A1"].value, "Номер")
+        self.assertEqual(sheet["A1"].value, "Номер заявки / Исходящий")
         self.assertEqual(sheet["D1"].value, "Описание")
         self.assertEqual(sheet["D2"].value, "Fuel cards")
         self.assertEqual(sheet["D1"].border.right.style, "medium")
@@ -782,7 +783,7 @@ class DepartmentTableTests(RequestAppTestCase):
             reverse("table_data", args=[self.organ.pk, "anti-terror"]),
             {"status": "in_work", "date_from": "2026-06-01", "date_to": "2026-06-30", "q": "Survey"},
         )
-        self.assertContains(table_response, "<th>Номер</th>", html=True)
+        self.assertContains(table_response, "<th>Номер заявки / Исходящий</th>", html=True)
         self.assertContains(table_response, "<th>Дата</th>", html=True)
         self.assertContains(table_response, "<th>Исполнение</th>", html=True)
         self.assertContains(table_response, "<th>Описание</th>", html=True)
@@ -813,7 +814,7 @@ class DepartmentTableTests(RequestAppTestCase):
         export_response = self.client.get(reverse("export_table", args=[self.organ.pk, "anti-terror", "xlsx"]), {"status": "done", "q": "Completed"})
         workbook = self.response_workbook(export_response)
         sheet = workbook.active
-        self.assertEqual(sheet["A1"].value, "Номер")
+        self.assertEqual(sheet["A1"].value, "Номер заявки / Исходящий")
         self.assertEqual(sheet["D1"].value, "Описание")
         self.assertEqual(sheet.freeze_panes, "A2")
         self.assertEqual(sheet["D1"].border.right.style, "medium")
@@ -898,7 +899,7 @@ class DepartmentTableTests(RequestAppTestCase):
 
         self.assertContains(response, "nested-table-tabs")
         self.assertContains(response, "Заявка")
-        self.assertContains(response, "<th>Номер</th>", html=True)
+        self.assertContains(response, "<th>Номер заявки / Исходящий</th>", html=True)
         self.assertContains(response, "<th>Дата</th>", html=True)
         self.assertContains(response, "<th>Исполнение заявки</th>", html=True)
         self.assertContains(response, included.request_number)
@@ -927,7 +928,7 @@ class DepartmentTableTests(RequestAppTestCase):
         export_response = self.client.get(reverse("export_table", args=[self.organ.pk, "building-repair", "xlsx"]), {"status": "done", "q": "B-1"})
         workbook = self.response_workbook(export_response)
         sheet = workbook.active
-        self.assertEqual(sheet["A1"].value, "Номер")
+        self.assertEqual(sheet["A1"].value, "Номер заявки / Исходящий")
         self.assertEqual(sheet["C1"].value, "Исполнение заявки")
         self.assertEqual(sheet["D1"].value, "Описание")
         self.assertEqual(sheet["D2"].value, "Roof")

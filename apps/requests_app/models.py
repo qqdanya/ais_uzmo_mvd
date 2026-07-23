@@ -1,5 +1,5 @@
 from django.conf import settings
-from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
@@ -55,6 +55,12 @@ class TmcRequest(TrackableRequest):
     request_date = models.DateField("дата заявки")
     status = models.CharField("исполнение заявки", max_length=20, choices=NeedStatus.choices, default=NeedStatus.IN_WORK, db_index=True)
     due_date = models.DateField("дата исполнения", null=True, blank=True)
+    responses = GenericRelation(
+        "requests_app.RequestResponse",
+        content_type_field="content_type",
+        object_id_field="object_id",
+        for_concrete_model=False,
+    )
 
     class Meta:
         verbose_name = "заявка ТМЦ"
@@ -114,8 +120,9 @@ class TmcProduct(models.Model):
 class RequestLinkMixin(models.Model):
     """Shared generic-relation triplet linking a row to any request model.
 
-    RequestNumberRegistry, RequestStatusHistory and RequestPhotoLink all
-    point at an arbitrary request row via (content_type, object_id).
+    RequestNumberRegistry, RequestStatusHistory, RequestResponse and
+    RequestPhotoLink all point at an arbitrary request row via
+    (content_type, object_id).
     """
 
     content_type = models.ForeignKey(ContentType, verbose_name="тип заявки", on_delete=models.CASCADE)
@@ -189,6 +196,56 @@ class RequestStatusHistory(RequestLinkMixin):
         return f"{old_status} → {self.get_new_status_display()}"
 
 
+class RequestResponse(RequestLinkMixin):
+    response_number = models.CharField("номер ответа", max_length=80)
+    normalized_response_number = models.CharField("нормализованный номер ответа", max_length=80, editable=False)
+    response_date = models.DateField("дата ответа", default=timezone.localdate, db_index=True)
+    note = models.TextField("примечание", blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="создал",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="request_responses_created",
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="обновил",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="request_responses_updated",
+    )
+    created_at = models.DateTimeField("создано", auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField("обновлено", auto_now=True)
+
+    class Meta:
+        verbose_name = "ответ на заявку"
+        verbose_name_plural = "Ответы на заявки"
+        ordering = ("-response_date", "-created_at", "-id")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["content_type", "object_id", "normalized_response_number"],
+                name="unique_response_document_per_request",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["content_type", "object_id", "-response_date", "-created_at"],
+                name="request_response_lookup_idx",
+            ),
+        ]
+
+    def save(self, *args, **kwargs):
+        self.response_number = re.sub(r"\s+", " ", str(self.response_number or "").strip())
+        self.normalized_response_number = normalize_request_number(self.response_number)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"Ответ № {self.response_number} от {self.response_date:%d.%m.%Y}"
+
+
 class RequestPhotoLink(RequestLinkMixin):
     territorial_organ = models.ForeignKey("directory.TerritorialOrgan", verbose_name="территориальный орган", on_delete=models.CASCADE, related_name="request_photo_links")
     photo = models.ForeignKey("directory.TerritorialOrganPhoto", verbose_name="фотография", on_delete=models.CASCADE, related_name="request_links")
@@ -251,6 +308,12 @@ class SimpleStatusRequest(TrackableRequest):
     request_date = models.DateField("дата")
     status = models.CharField("исполнение заявки", max_length=20, choices=NeedStatus.choices, default=NeedStatus.IN_WORK, db_index=True)
     completed_at = models.DateField("дата исполнения", null=True, blank=True)
+    responses = GenericRelation(
+        "requests_app.RequestResponse",
+        content_type_field="content_type",
+        object_id_field="object_id",
+        for_concrete_model=False,
+    )
 
     class Meta:
         abstract = True
@@ -366,6 +429,12 @@ class AntiTerrorMeasure(TrackableRequest):
     request_date = models.DateField("дата", default=timezone.localdate, db_index=True)
     status = models.CharField("исполнение", max_length=20, choices=NeedStatus.choices, default=NeedStatus.IN_WORK, db_index=True)
     completed_at = models.DateField("дата исполнения", null=True, blank=True)
+    responses = GenericRelation(
+        "requests_app.RequestResponse",
+        content_type_field="content_type",
+        object_id_field="object_id",
+        for_concrete_model=False,
+    )
 
     class Meta:
         verbose_name = "антитеррористическая укрепленность"
@@ -396,6 +465,12 @@ class CitsiziEquipment(TrackableRequest):
     quantity = models.PositiveIntegerField("количество", validators=[MinValueValidator(1)])
     status = models.CharField("исполнение", max_length=20, choices=NeedStatus.choices, default=NeedStatus.IN_WORK, db_index=True)
     due_date = models.DateField("дата исполнения", null=True, blank=True)
+    responses = GenericRelation(
+        "requests_app.RequestResponse",
+        content_type_field="content_type",
+        object_id_field="object_id",
+        for_concrete_model=False,
+    )
 
     class Meta:
         verbose_name = "заявка ЦИТСиЗИ"

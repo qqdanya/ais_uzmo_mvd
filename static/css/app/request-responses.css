@@ -1,0 +1,386 @@
+/* Request number / response preview cells and response-management modals. */
+.data-table .request-reference-table-cell {
+  min-width: 12.5rem;
+  padding: .48rem .58rem;
+  text-align: center;
+  vertical-align: middle;
+}
+.request-reference {
+  display: grid;
+  justify-items: stretch;
+  gap: .38rem;
+  width: 100%;
+  min-width: 0;
+}
+.request-reference-number {
+  min-width: 0;
+  color: var(--ink);
+  font-weight: 400;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.request-reference-divider {
+  display: block;
+  width: 100%;
+  border-top: 1px solid #b8cfdf;
+}
+.request-response-preview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: .36rem;
+  width: 100%;
+  min-width: 0;
+  padding: .18rem .28rem;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--blue);
+  cursor: pointer;
+  font: inherit;
+  line-height: 1.15;
+  text-align: center;
+  transition: color .15s, background-color .15s, box-shadow .15s;
+}
+.request-response-preview:hover {
+  color: var(--navy);
+  background: #edf7fd;
+}
+.request-response-preview:focus-visible {
+  outline: 0;
+  color: var(--navy);
+  background: #edf7fd;
+  box-shadow: 0 0 0 .18rem rgba(23, 105, 170, .18);
+}
+.request-response-preview-number {
+  min-width: 0;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+.request-response-preview-more {
+  padding: .18rem .38rem;
+  border: 1px solid #c3dbea;
+  border-radius: 999px;
+  background: #f7fbfe;
+  color: #526d81;
+  font-size: .71rem;
+  white-space: nowrap;
+}
+.request-response-preview.is-empty {
+  grid-template-columns: minmax(0, 1fr) auto;
+  color: var(--muted);
+}
+.request-response-preview-empty {
+  font-size: .78rem;
+}
+.request-response-preview-add {
+  display: inline-flex;
+  align-items: center;
+  gap: .2rem;
+  color: var(--blue);
+  font-size: .72rem;
+  white-space: nowrap;
+}
+
+#modal-root .modal-dialog:has(.request-responses-modal),
+#modal-root .modal-dialog:has(.request-response-edit-form) {
+  width: calc(100% - 2rem);
+  max-width: 900px;
+  height: calc(100vh - 2rem);
+  height: calc(100dvh - 2rem);
+  max-height: calc(100vh - 2rem);
+  max-height: calc(100dvh - 2rem);
+  margin: 1rem auto;
+}
+#modal-root .modal-dialog:has(.request-responses-modal) .modal-content,
+#modal-root .modal-dialog:has(.request-response-edit-form) .modal-content {
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+}
+.request-responses-modal,
+.request-response-edit-form {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  width: 100%;
+  min-height: 0;
+  max-height: 100%;
+}
+.request-responses-modal {
+  height: 100%;
+}
+.request-responses-modal > .modal-header,
+.request-responses-modal > .modal-footer,
+.request-response-edit-form > .modal-header,
+.request-response-edit-form > .modal-footer {
+  position: relative;
+  z-index: 2;
+  flex: 0 0 auto;
+}
+.request-responses-modal > .modal-body,
+.request-response-edit-form > .modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.request-identifier,
+.request-response-item-number {
+  font-weight: 400;
+}
+.request-responses-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(150px, 1fr) minmax(90px, max-content);
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fbff;
+}
+.request-responses-summary > div {
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  min-width: 0;
+}
+.request-responses-summary span:first-child,
+.request-response-edit-summary > span {
+  color: var(--muted);
+  font-size: .76rem;
+}
+.request-responses-summary strong {
+  min-width: 0;
+  color: var(--navy);
+  overflow-wrap: anywhere;
+}
+.request-responses-summary .status-badge {
+  justify-self: start;
+}
+.request-response-status-note {
+  display: flex;
+  align-items: flex-start;
+  gap: .48rem;
+  margin-bottom: 14px;
+  padding: .62rem .72rem;
+  border: 1px solid #bdd9ea;
+  border-radius: 8px;
+  background: #f1f8fd;
+  color: #365f78;
+  font-size: .8rem;
+  line-height: 1.35;
+}
+.request-response-status-note i {
+  flex: 0 0 auto;
+  margin-top: .05rem;
+  color: var(--blue);
+}
+.request-response-editor {
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid #c5dce9;
+  border-radius: 9px;
+  background: #fbfdff;
+}
+.request-response-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.request-response-section-head h6 {
+  margin: 0;
+  color: var(--navy);
+  font-size: .94rem;
+  font-weight: 800;
+}
+.request-response-section-head span {
+  display: block;
+  margin-top: .16rem;
+  color: var(--muted);
+  font-size: .76rem;
+}
+.request-response-form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(150px, .75fr);
+  gap: 10px;
+}
+.request-response-form-grid .wide {
+  grid-column: 1 / -1;
+}
+.request-response-form-grid textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+.request-response-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+.request-response-history {
+  min-width: 0;
+}
+.request-response-list {
+  display: grid;
+  gap: 8px;
+}
+.request-response-item {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr) auto;
+  gap: 11px;
+  align-items: start;
+  padding: 11px;
+  border: 1px solid #c7dce9;
+  border-radius: 8px;
+  background: #fff;
+}
+.request-response-item-date {
+  display: grid;
+  gap: 2px;
+  color: var(--navy);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.request-response-item-date span {
+  font-size: .82rem;
+  font-weight: 700;
+}
+.request-response-item-date small {
+  color: var(--muted);
+  font-size: .72rem;
+}
+.request-response-item-body {
+  min-width: 0;
+}
+.request-response-item-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .45rem;
+}
+.request-response-item-number {
+  min-width: 0;
+  color: var(--navy);
+  overflow-wrap: anywhere;
+}
+.request-response-type {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: .16rem .44rem;
+  border: 1px solid #c8d8e3;
+  border-radius: 999px;
+  font-size: .7rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.request-response-type-interim {
+  color: #765d13;
+  border-color: #ddcea0;
+  background: #fbf6e7;
+}
+.request-response-type-final {
+  color: #25613c;
+  border-color: #afd0bb;
+  background: #edf6f0;
+}
+.request-response-item-body p {
+  margin: .42rem 0 0;
+  color: var(--ink);
+  font-size: .82rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.request-response-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .3rem .7rem;
+  margin-top: .48rem;
+  color: var(--muted);
+  font-size: .72rem;
+}
+.request-response-item-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+}
+.request-response-item-actions {
+  display: flex;
+  gap: 6px;
+}
+.request-response-item-actions .btn-icon {
+  width: 30px;
+  height: 30px;
+}
+.request-response-empty {
+  padding: 1rem;
+}
+.request-response-edit-summary {
+  display: grid;
+  gap: 2px;
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fbff;
+}
+.request-response-edit-summary .request-identifier {
+  color: var(--navy);
+}
+
+@media (max-width: 767.98px) {
+  .request-responses-summary {
+    grid-template-columns: 1fr;
+  }
+  .request-response-form-grid {
+    grid-template-columns: 1fr;
+  }
+  .request-response-form-grid .wide {
+    grid-column: auto;
+  }
+  .request-response-item {
+    grid-template-columns: 1fr auto;
+  }
+  .request-response-item-date {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: baseline;
+    gap: .45rem;
+  }
+}
+
+@media (max-width: 479.98px) {
+  .request-response-item {
+    grid-template-columns: 1fr;
+  }
+  .request-response-item-actions {
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 575.98px), (max-height: 650px) {
+  #modal-root .modal-dialog:has(.request-responses-modal),
+  #modal-root .modal-dialog:has(.request-response-edit-form) {
+    width: calc(100% - 1rem);
+    height: calc(100vh - 1rem);
+    height: calc(100dvh - 1rem);
+    max-height: calc(100vh - 1rem);
+    max-height: calc(100dvh - 1rem);
+    margin: .5rem auto;
+  }
+  .request-responses-modal > .modal-header,
+  .request-responses-modal > .modal-body,
+  .request-responses-modal > .modal-footer,
+  .request-response-edit-form > .modal-header,
+  .request-response-edit-form > .modal-body,
+  .request-response-edit-form > .modal-footer {
+    padding-right: .8rem;
+    padding-left: .8rem;
+  }
+  .request-responses-modal > .modal-footer,
+  .request-response-edit-form > .modal-footer {
+    flex-wrap: wrap;
+  }
+}

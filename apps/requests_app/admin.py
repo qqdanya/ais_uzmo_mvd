@@ -68,6 +68,44 @@ class RequestStatusHistoryAdmin(AuditedModelAdminMixin, admin.ModelAdmin):
     readonly_fields = ("content_type", "object_id", "old_status", "new_status", "completed_at", "changed_by", "changed_at", "note")
 
 
+@admin.register(models.RequestResponse)
+class RequestResponseAdmin(admin.ModelAdmin):
+    """Read-only registry; changes belong to the request workflow and its audit."""
+
+    list_display = (
+        "response_number",
+        "response_date",
+        "request",
+        "created_by",
+        "created_at",
+    )
+    list_filter = ("response_date", "content_type", "created_at")
+    search_fields = ("response_number", "normalized_response_number", "note", "=object_id")
+    readonly_fields = (
+        "content_type",
+        "object_id",
+        "request",
+        "response_number",
+        "normalized_response_number",
+        "response_date",
+        "note",
+        "created_by",
+        "updated_by",
+        "created_at",
+        "updated_at",
+    )
+    actions = None
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(models.RequestPhotoLink)
 class RequestPhotoLinkAdmin(AuditedModelAdminMixin, admin.ModelAdmin):
     list_display = ("request", "photo", "territorial_organ", "created_by", "created_at")

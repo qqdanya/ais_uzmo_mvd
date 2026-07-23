@@ -38,12 +38,20 @@ class QuickStatusUpdateTests(RequestAppTestCase):
 
     def test_quick_status_modal_opens_with_current_status(self):
         response = self.client.get(self.url, HTTP_HX_REQUEST="true")
+        responses_url = reverse(
+            "request_responses",
+            args=[self.organ.pk, "tmc-requests", self.request_obj.pk],
+        )
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Изменение статуса исполнения заявки")
         self.assertContains(response, "статус исполнения заявки")
         self.assertContains(response, 'type="radio"', count=3)
         self.assertContains(response, "quick-status-options")
+        self.assertContains(response, "Добавить ответ")
+        self.assertContains(response, "Ответ сохраняется отдельно и не меняет статус заявки.")
+        self.assertContains(response, f'hx-get="{responses_url}?return_to=status"')
+        self.assertContains(response, 'hx-target="#modal-content"')
         self.assertEqual(response.context["form"].initial["status"], NeedStatus.IN_WORK)
         self.assertIsNone(response.context["form"].initial.get("completed_at"))
 

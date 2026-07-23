@@ -1,0 +1,53 @@
+{% load request_tags %}
+<form
+  method="post"
+  hx-post="{{ request.get_full_path }}"
+  hx-target="#modal-content"
+  class="request-response-edit-form"
+  novalidate
+>
+  <div class="modal-header">
+    <h5 class="modal-title">Изменение ответа <span class="request-identifier">№ {{ response_object.response_number }}</span></h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+  </div>
+  <div class="modal-body">
+    {% csrf_token %}
+    <div class="request-response-edit-summary">
+      <span>Заявка</span>
+      <span class="request-identifier">№ {{ object.request_number }}</span>
+    </div>
+    <div class="request-response-status-note" role="note">
+      <i class="bi bi-info-circle" aria-hidden="true"></i>
+      <span>Изменение ответа не меняет статус заявки.</span>
+    </div>
+    <div class="request-response-form-grid">
+      {% for field in form %}
+        <div class="form-field{% if field.name == 'note' %} wide{% endif %}{% if field|is_select_field %} custom-select-field{% endif %}">
+          <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {% if field|is_select_field %}
+            {% include "partials/custom_select_field.html" %}
+          {% else %}
+            {{ field }}
+          {% endif %}
+          {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+          {% for error in field.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+        </div>
+      {% endfor %}
+    </div>
+    {% if form.non_field_errors %}
+      <div class="modal-error-list" role="alert">
+        <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
+        <div>{{ form.non_field_errors }}</div>
+      </div>
+    {% endif %}
+  </div>
+  <div class="modal-footer">
+    <button
+      type="button"
+      class="btn btn-outline-secondary"
+      hx-get="{% url 'request_responses' organ.pk table_key object.pk %}{% if return_to_status %}?return_to=status{% endif %}"
+      hx-target="#modal-content"
+    >Назад к ответам</button>
+    <button class="btn btn-primary" type="submit">Сохранить изменения</button>
+  </div>
+</form>

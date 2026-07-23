@@ -4,7 +4,7 @@
 {% block title %}Заявка {{ request_number }} | Административная панель{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260722-004">
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260723-002">
 {% endblock %}
 
 {% block content %}
@@ -16,7 +16,7 @@
       <div class="admin-request-detail-head">
         <div>
           <a class="admin-back-link" href="{{ back_url }}"><i class="bi bi-arrow-left"></i> {% if is_deleted_detail %}Назад в корзину{% else %}Назад к реестру{% endif %}</a>
-          <h2>{{ request_title }} № {{ request_number }}</h2>
+          <h2>{{ request_title }} <span class="request-identifier">№ {{ request_number }}</span></h2>
           <p>{{ object.territorial_organ.name }} · {{ department_name }}</p>
         </div>
         <div class="admin-request-detail-status">
@@ -107,6 +107,57 @@
             <div class="admin-empty admin-empty-compact">
               <i class="bi bi-clock-history"></i>
               <strong>История статусов пока отсутствует</strong>
+            </div>
+          {% endif %}
+        </section>
+
+        <section class="admin-section admin-request-responses-section">
+          <div class="admin-section-head">
+            <div>
+              <h2>Ответы на заявку</h2>
+              <span>Ответы учитываются отдельно и не изменяют статус заявки</span>
+            </div>
+            <span class="admin-request-responses-count">{{ response_count }}</span>
+          </div>
+          {% if responses %}
+            <div class="admin-request-responses-list">
+              {% for response in responses %}
+                <article class="admin-request-response-card">
+                  <header>
+                    <div>
+                      <span class="admin-request-response-card-number">{{ response.response_number }}</span>
+                      <time datetime="{{ response.response_date|date:'Y-m-d' }}">от {{ response.response_date|date:"d.m.Y" }}</time>
+                    </div>
+                    {% if forloop.first %}
+                      <span class="admin-request-response-type is-final">Итоговый</span>
+                    {% else %}
+                      <span class="admin-request-response-type is-interim">Промежуточный</span>
+                    {% endif %}
+                  </header>
+                  <div class="admin-request-response-note">
+                    <span>Примечание</span>
+                    {% if response.note %}
+                      <p>{{ response.note|linebreaksbr }}</p>
+                    {% else %}
+                      <p class="is-empty">Не указано</p>
+                    {% endif %}
+                  </div>
+                  <footer>
+                    <span>Добавлен {{ response.created_at|date:"d.m.Y H:i" }}</span>
+                    {% if response.created_by %}
+                      <span>{{ response.created_by.get_full_name|default:response.created_by.username }}</span>
+                    {% else %}
+                      <span>Автор не указан</span>
+                    {% endif %}
+                  </footer>
+                </article>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="admin-empty admin-empty-compact">
+              <i class="bi bi-reply"></i>
+              <strong>Ответы пока не зарегистрированы</strong>
+              <span>Статус заявки от наличия ответа не зависит.</span>
             </div>
           {% endif %}
         </section>

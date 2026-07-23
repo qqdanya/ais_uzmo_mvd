@@ -1,0 +1,149 @@
+{% load account_tags request_tags %}
+<div class="request-responses-modal">
+  <div class="modal-header">
+    <h5 class="modal-title">Ответы на заявку <span class="request-identifier">№ {{ object.request_number }}</span></h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+  </div>
+  <div class="modal-body">
+    <div class="request-responses-summary">
+      <div>
+        <span>Территориальный орган</span>
+        <strong>{{ organ.name }}</strong>
+      </div>
+      <div>
+        <span>Статус заявки</span>
+        {% status_badge object %}
+      </div>
+      <div>
+        <span>Ответов</span>
+        <strong>{{ response_count }}</strong>
+      </div>
+    </div>
+
+    <div class="request-response-status-note" role="note">
+      <i class="bi bi-info-circle" aria-hidden="true"></i>
+      <span>Добавление, изменение или удаление ответа не меняет статус заявки.</span>
+    </div>
+
+    {% if can_write %}
+      <section class="request-response-editor" aria-labelledby="request-response-add-title">
+        <div class="request-response-section-head">
+          <div>
+            <h6 id="request-response-add-title">Добавить ответ</h6>
+          </div>
+        </div>
+        <form
+          method="post"
+          hx-post="{% url 'request_responses' organ.pk table_key object.pk %}{% if return_to_status %}?return_to=status{% endif %}"
+          hx-target="#modal-content"
+          class="request-response-form"
+          novalidate
+        >
+          {% csrf_token %}
+          <div class="request-response-form-grid">
+            {% for field in form %}
+              <div class="form-field{% if field.name == 'note' %} wide{% endif %}{% if field|is_select_field %} custom-select-field{% endif %}">
+                <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {% if field|is_select_field %}
+                  {% include "partials/custom_select_field.html" %}
+                {% else %}
+                  {{ field }}
+                {% endif %}
+                {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+                {% for error in field.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+              </div>
+            {% endfor %}
+          </div>
+          {% if form.non_field_errors %}
+            <div class="modal-error-list" role="alert">
+              <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
+              <div>{{ form.non_field_errors }}</div>
+            </div>
+          {% endif %}
+          <div class="request-response-form-actions">
+            <button class="btn btn-primary" type="submit">
+              <i class="bi bi-plus-lg" aria-hidden="true"></i> Добавить ответ
+            </button>
+          </div>
+        </form>
+      </section>
+    {% endif %}
+
+    <section class="request-response-history" aria-labelledby="request-response-history-title">
+      <div class="request-response-section-head">
+        <div>
+          <h6 id="request-response-history-title">Все ответы</h6>
+          <span>От новых к старым по дате ответа</span>
+        </div>
+      </div>
+      <div class="request-response-list">
+        {% for item in responses %}
+          <article class="request-response-item">
+            <div class="request-response-item-date">
+              <span>{{ item.response_date|date:"d.m.Y" }}</span>
+              <small>{{ item.created_at|date:"H:i" }}</small>
+            </div>
+            <div class="request-response-item-body">
+              <div class="request-response-item-head">
+                <span class="request-response-item-number">№ {{ item.response_number }}</span>
+                {% if forloop.first %}
+                  <span class="request-response-type request-response-type-final">Итоговый</span>
+                {% else %}
+                  <span class="request-response-type request-response-type-interim">Промежуточный</span>
+                {% endif %}
+              </div>
+              {% if item.note %}<p>{{ item.note|linebreaksbr }}</p>{% endif %}
+              <div class="request-response-item-meta">
+                <span><i class="bi bi-person" aria-hidden="true"></i> {{ item.created_by|display_name }}</span>
+                <span><i class="bi bi-clock" aria-hidden="true"></i> добавлен {{ item.created_at|date:"d.m.Y H:i" }}</span>
+              </div>
+            </div>
+            {% if can_write %}
+              <div class="request-response-item-actions">
+                <button
+                  class="btn btn-icon edit"
+                  type="button"
+                  hx-get="{% url 'request_response_update' organ.pk table_key object.pk item.pk %}{% if return_to_status %}?return_to=status{% endif %}"
+                  hx-target="#modal-content"
+                  aria-label="Изменить ответ {{ item.response_number }}"
+                  data-bs-toggle="tooltip"
+                  data-bs-title="Изменить ответ"
+                ><i class="bi bi-pencil" aria-hidden="true"></i></button>
+                <button
+                  class="btn btn-icon danger"
+                  type="button"
+                  hx-get="{% url 'request_response_delete' organ.pk table_key object.pk item.pk %}{% if return_to_status %}?return_to=status{% endif %}"
+                  hx-target="#modal-content"
+                  aria-label="Удалить ответ {{ item.response_number }}"
+                  data-bs-toggle="tooltip"
+                  data-bs-title="Удалить ответ"
+                ><i class="bi bi-trash" aria-hidden="true"></i></button>
+              </div>
+            {% endif %}
+          </article>
+        {% empty %}
+          <div class="empty-state request-response-empty">
+            <i class="bi bi-reply" aria-hidden="true"></i>
+            <strong>Ответов пока нет</strong>
+            {% if can_write %}<span>Первый ответ можно добавить в форме выше.</span>{% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+  <div class="modal-footer">
+    {% if return_to_status %}
+      <button
+        type="button"
+        class="btn btn-outline-primary me-auto"
+        hx-get="{% url 'record_status_update' organ.pk table_key object.pk %}"
+        hx-target="#modal-content"
+        hx-swap="innerHTML"
+      >
+        <i class="bi bi-arrow-left" aria-hidden="true"></i>
+        Назад к изменению статуса
+      </button>
+    {% endif %}
+    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Закрыть</button>
+  </div>
+</div>

@@ -2,11 +2,12 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from django.contrib import messages
+from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
 from django.db import IntegrityError, transaction
-from django.db.models import Count, Q
+from django.db.models import Count, Exists, OuterRef, Q
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
@@ -14,11 +15,15 @@ from django.utils import timezone
 from apps.audit.models import AuditLog
 from apps.audit.utils import serialize_instance, write_audit
 from apps.directory.models import Department, TerritorialOrganPhoto, TerritorialOrganPhotoFolder
-from apps.requests_app.models import RequestPhotoLink
+from apps.requests_app.models import RequestPhotoLink, RequestResponse
 from apps.requests_app.permissions import can_manage_photo_asset, can_write, cached_allowed_department_ids, cached_allowed_organ_ids
 from apps.requests_app.registry import TABLE_BY_KEY, get_table_or_404
 from apps.requests_app.services.request_photos import photo_snapshot_for_audit
 from apps.requests_app.services.request_numbers import request_number_conflict, sync_request_number_registry
+from apps.requests_app.services.request_responses import (
+    attach_request_response_summaries,
+    request_response_row_data,
+)
 
 from .admin_common import DEPARTMENT_ICONS, field_value, request_number, request_title
 from .admin_summary import available_organs_for_user
@@ -89,15 +94,26 @@ def _request_deleted_rows(organs, query="", user=None, personal=False):
         model = table["model"]
         if not _request_model_has_field(model, "is_deleted"):
             continue
+        has_request_reference = _request_model_has_field(model, "request_number")
         qs = model.objects.select_related("territorial_organ", "updated_by", "created_by").filter(is_deleted=True, territorial_organ__in=organs)
         if user is not None and (personal or not _is_admin_user(user)):
             qs = qs.filter(updated_by=user, updated_at__gte=_personal_trash_cutoff()).exclude(pk__in=_dismissed_ids(user, "request", table["key"], personal=True))
         if query:
             filters = Q(territorial_organ__name__icontains=query) | Q(comment__icontains=query)
-            if _request_model_has_field(model, "request_number"):
+            if has_request_reference:
                 filters |= Q(request_number__icontains=query)
+                matching_responses = RequestResponse.objects.filter(
+                    content_type=ContentType.objects.get_for_model(model, for_concrete_model=False),
+                    object_id=OuterRef("pk"),
+                    response_number__icontains=query,
+                )
+                qs = qs.annotate(response_search_match=Exists(matching_responses))
+                filters |= Q(response_search_match=True)
             qs = qs.filter(filters)
-        for obj in qs.order_by("-updated_at", "-pk")[:200]:
+        objects = list(qs.order_by("-updated_at", "-pk")[:200])
+        if has_request_reference:
+            attach_request_response_summaries(objects, model)
+        for obj in objects:
             rows.append(
                 {
                     "kind": "request",
@@ -115,6 +131,8 @@ def _request_deleted_rows(organs, query="", user=None, personal=False):
                     "restore_url": reverse("admin_trash_restore_request", kwargs={"table_key": table["key"], "pk": obj.pk}),
                     "detail_url": f'{reverse("admin_request_detail", kwargs={"table_key": table["key"], "pk": obj.pk})}?deleted=1',
                     "detail": field_value(obj, "comment") if hasattr(obj, "comment") else "",
+                    "has_request_reference": has_request_reference,
+                    **request_response_row_data(obj),
                 }
             )
     rows.sort(key=lambda item: (item["updated_at"] or datetime.min.replace(tzinfo=timezone.get_current_timezone()), item["pk"]), reverse=True)

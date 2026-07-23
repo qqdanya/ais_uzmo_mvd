@@ -31,6 +31,7 @@ SYSTEM_FIELD_NAMES = {
     "deleted_file_names",
     "deleted_file_names_truncated",
     "request_photo_link_count",
+    "response_id",
     "photo_items",
     "normalized_name",
 }
@@ -80,6 +81,9 @@ EVENT_BADGES = {
     AuditLog.EventType.PHOTO_PURGED: "audit-event-purge",
     AuditLog.EventType.FOLDER_PURGED: "audit-event-purge",
     AuditLog.EventType.STATUS_CHANGED: "audit-event-status",
+    AuditLog.EventType.RESPONSE_CREATED: "audit-event-create",
+    AuditLog.EventType.RESPONSE_UPDATED: "audit-event-update",
+    AuditLog.EventType.RESPONSE_DELETED: "audit-event-trash",
     AuditLog.EventType.PHOTOS_ATTACHED: "audit-event-photo",
     AuditLog.EventType.PHOTOS_DETACHED: "audit-event-photo",
     AuditLog.EventType.EMPLOYEE_PERMISSIONS: "audit-event-access",
@@ -108,6 +112,9 @@ OBJECT_MODEL_NAMES = {key: set(models) for key, _, models in OBJECT_FILTERS}
 AUDIT_EVENT_SUMMARIES = {
     "record_permanently_deleted": "Запись удалена без возможности восстановления",
     "request_status_changed": "Изменён статус заявки",
+    "request_response_created": "Добавлен ответ на заявку",
+    "request_response_updated": "Изменён ответ на заявку",
+    "request_response_deleted": "Удалён ответ на заявку",
     "request_photos_attached": "Прикреплены фотографии к заявке",
     "request_photos_detached": "Откреплены фотографии от заявки",
     "photo_restored_from_trash": "Фотография восстановлена",

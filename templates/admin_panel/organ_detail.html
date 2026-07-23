@@ -4,7 +4,7 @@
 {% block title %}{{ organ.name }} | Административная панель{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260722-004">
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260723-002">
 {% endblock %}
 
 {% block content %}
@@ -147,7 +147,7 @@
             <table class="admin-requests-table admin-organ-latest-table">
               <thead>
                 <tr>
-                  <th>№ заявки</th>
+                  <th>Номер заявки / Исходящий</th>
                   <th>Дата</th>
                   <th>Отдел</th>
                   <th>Вид заявки</th>
@@ -159,7 +159,7 @@
               <tbody>
                 {% for row in latest_requests %}
                   <tr>
-                    <td><strong>{{ row.number }}</strong></td>
+                    <td class="admin-request-reference-cell">{% include "admin_panel/_request_reference_cell.html" with row=row only %}</td>
                     <td>{{ row.request_date_display }}</td>
                     <td><span class="admin-department-pill"><i class="bi {{ row.department_icon }}"></i>{{ row.department }}</span></td>
                     <td>{{ row.request_type }}</td>

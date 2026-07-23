@@ -11,6 +11,7 @@ from .export_limits import ExportBusyError, heavy_export_slot
 from .exports import (
     basic_xlsx_response,
     display_fields,
+    export_cell_value,
     grouped_export_headers,
     grouped_export_row,
     request_grouped_xlsx_response,
@@ -28,6 +29,7 @@ from .grouping import (
     tmc_grouped_rows,
     tmc_organ_grouped_rows,
 )
+from .request_responses import prefetch_request_responses_for_export
 from .table_config import REQUEST_TABLE_CONFIG, XLSX_EXPORT_CONFIG
 from .table_filters import (
     STATE_SNAPSHOT_TABLES,
@@ -156,11 +158,14 @@ def export_table_response(request, organ, table, table_key, fmt, selected_organs
                 lambda: download_ready_response(request, request_grouped_xlsx_response(rows, table, filename, current_group_mode)),
             )
 
+    if is_request_table:
+        qs = prefetch_request_responses_for_export(qs)
+
     if fmt == "csv":
         def csv_rows():
             yield table_header_labels(fields)
             for obj in export_iterator(qs):
-                yield [getattr(obj, f"get_{f.name}_display", lambda: getattr(obj, f.name))() for f in fields]
+                yield [export_cell_value(obj, field, multiline=False) for field in fields]
 
         return audited_export_response(
             qs, lambda: download_ready_response(request, csv_streaming_response(filename, csv_rows()))

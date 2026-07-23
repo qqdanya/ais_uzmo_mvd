@@ -27,6 +27,11 @@ from .services.request_photo_panels import (
     request_photos_download_response,
     request_photos_response,
 )
+from .services.request_response_panels import (
+    request_response_delete_response,
+    request_response_update_response,
+    request_responses_response,
+)
 from .services.status_panels import status_history_response, status_update_response
 from .services.table_context import build_table_data_context
 from .services.table_exports import export_table_response
@@ -131,6 +136,27 @@ def request_photos(request, organ_id, table_key, pk):
 def request_photos_download(request, organ_id, table_key, pk):
     organ = get_object_or_404(TerritorialOrgan, pk=organ_id, is_active=True)
     return request_photos_download_response(request, organ, table_key, pk)
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def request_responses(request, organ_id, table_key, pk):
+    organ = get_object_or_404(TerritorialOrgan, pk=organ_id, is_active=True)
+    return request_responses_response(request, organ, table_key, pk)
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def request_response_update(request, organ_id, table_key, pk, response_pk):
+    organ = get_object_or_404(TerritorialOrgan, pk=organ_id, is_active=True)
+    return request_response_update_response(request, organ, table_key, pk, response_pk)
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def request_response_delete(request, organ_id, table_key, pk, response_pk):
+    organ = get_object_or_404(TerritorialOrgan, pk=organ_id, is_active=True)
+    return request_response_delete_response(request, organ, table_key, pk, response_pk)
 
 
 @login_required

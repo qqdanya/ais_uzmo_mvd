@@ -36,6 +36,9 @@
   font-size: 1.18rem;
   font-weight: 700;
 }
+.admin-request-detail-head .request-identifier {
+  font-weight: 400;
+}
 .admin-requests-hero p,
 .admin-request-detail-head p {
   margin: .28rem 0 0;
@@ -290,6 +293,64 @@
   max-width: 200px;
   overflow-wrap: anywhere;
 }
+.admin-request-reference-cell {
+  min-width: 13rem;
+}
+.admin-request-reference {
+  min-width: 0;
+  display: grid;
+  justify-items: center;
+  gap: .26rem;
+  line-height: 1.2;
+}
+.admin-request-reference-number {
+  max-width: 100%;
+  color: var(--navy);
+  font-size: .84rem;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+.admin-request-reference-divider {
+  width: min(100%, 10rem);
+  border-top: 1px solid #bfd5e5;
+}
+.admin-request-response-preview {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: .18rem .42rem;
+}
+.admin-request-response-number {
+  max-width: 100%;
+  color: var(--blue);
+  font-size: .8rem;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+.admin-request-response-preview > small {
+  color: var(--muted);
+  font-size: .68rem;
+  white-space: nowrap;
+}
+.admin-request-response-more {
+  display: inline-flex;
+  align-items: center;
+  min-height: 19px;
+  padding: .05rem .38rem;
+  border: 1px solid #cee2f1;
+  border-radius: 999px;
+  background: #f2f8fd;
+  color: var(--navy);
+  font-size: .65rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.admin-request-response-empty {
+  color: var(--muted);
+  font-size: .7rem;
+}
 .admin-department-pill {
   display: inline-flex;
   align-items: center;
@@ -478,6 +539,113 @@
   color: var(--muted);
   font-size: .76rem;
 }
+.admin-request-responses-section {
+  grid-column: 1 / -1;
+}
+.admin-request-responses-count {
+  min-width: 30px;
+  min-height: 30px;
+  display: inline-grid;
+  place-items: center;
+  padding: .12rem .48rem;
+  border-radius: 999px;
+  background: #eef7ff;
+  color: var(--blue);
+  font-size: .78rem;
+  font-weight: 800;
+}
+.admin-request-responses-list {
+  display: grid;
+  gap: 9px;
+}
+.admin-request-response-card {
+  min-width: 0;
+  display: grid;
+  gap: 9px;
+  padding: 10px 11px;
+  border: 1px solid #dce9f3;
+  border-radius: 9px;
+  background: #fbfdff;
+}
+.admin-request-response-card > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.admin-request-response-card > header > div {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: .25rem .5rem;
+}
+.admin-request-response-card-number {
+  color: var(--navy);
+  font-size: .9rem;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+.admin-request-response-card > header time {
+  color: var(--muted);
+  font-size: .74rem;
+  white-space: nowrap;
+}
+.admin-request-response-type {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: .12rem .5rem;
+  border: 1px solid #c8deed;
+  border-radius: 999px;
+  background: #f1f7fb;
+  color: var(--navy);
+  font-size: .69rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.admin-request-response-type.is-interim {
+  border-color: #ead58d;
+  background: #fff8df;
+  color: #705700;
+}
+.admin-request-response-type.is-final {
+  border-color: #b9dfc8;
+  background: #edf9f1;
+  color: #176136;
+}
+.admin-request-response-note {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  padding: 8px 9px;
+  border-radius: 8px;
+  background: #fff;
+}
+.admin-request-response-note > span {
+  color: var(--muted);
+  font-size: .68rem;
+  font-weight: 700;
+}
+.admin-request-response-note p {
+  min-width: 0;
+  margin: 0;
+  color: var(--ink);
+  font-size: .78rem;
+  overflow-wrap: anywhere;
+}
+.admin-request-response-note p.is-empty {
+  color: var(--muted);
+  font-style: italic;
+}
+.admin-request-response-card > footer {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  color: var(--muted);
+  font-size: .68rem;
+}
 @media (max-width: 1180px) {
   .admin-requests-filter-grid {
     grid-template-columns: repeat(3, minmax(150px, 1fr));
@@ -501,6 +669,9 @@
   }
   .admin-filter-field-search {
     grid-column: span 1;
+  }
+  .admin-request-response-card > header {
+    display: grid;
   }
 }
 
