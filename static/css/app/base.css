@@ -529,7 +529,7 @@ body.modal-open .toast-stack {
   max-width: min(240px, calc(100vw - 16px));
   padding: .28rem .48rem;
   border-radius: 6px;
-  background: rgba(11, 47, 91, .96);
+  background: rgba(11, 47, 91, .91);
   color: #fff;
   font-size: .76rem;
   line-height: 1.2;
@@ -554,28 +554,28 @@ body.modal-open .toast-stack {
   border: 6px solid transparent;
 }
 .app-tooltip-portal[data-placement="top"]::after {
-  top: 100%;
+  top: calc(100% - 1px);
   left: clamp(6px, calc(var(--tooltip-arrow-x, 0px) - 6px), calc(100% - 12px));
   border-bottom-width: 0;
-  border-top-color: rgba(11, 47, 91, .96);
+  border-top-color: rgba(11, 47, 91, .91);
 }
 .app-tooltip-portal[data-placement="bottom"]::after {
-  bottom: 100%;
+  bottom: calc(100% - 1px);
   left: clamp(6px, calc(var(--tooltip-arrow-x, 0px) - 6px), calc(100% - 12px));
   border-top-width: 0;
-  border-bottom-color: rgba(11, 47, 91, .96);
+  border-bottom-color: rgba(11, 47, 91, .91);
 }
 .app-tooltip-portal[data-placement="left"]::after {
-  left: 100%;
+  left: calc(100% - 1px);
   top: clamp(6px, calc(var(--tooltip-arrow-y, 0px) - 6px), calc(100% - 12px));
   border-right-width: 0;
-  border-left-color: rgba(11, 47, 91, .96);
+  border-left-color: rgba(11, 47, 91, .91);
 }
 .app-tooltip-portal[data-placement="right"]::after {
-  right: 100%;
+  right: calc(100% - 1px);
   top: clamp(6px, calc(var(--tooltip-arrow-y, 0px) - 6px), calc(100% - 12px));
   border-left-width: 0;
-  border-right-color: rgba(11, 47, 91, .96);
+  border-right-color: rgba(11, 47, 91, .91);
 }
 .app-footer {
   flex: 0 0 auto;
